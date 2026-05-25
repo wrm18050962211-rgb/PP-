@@ -1,0 +1,829 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  restricted
+  banned
+  deleted
+}
+
+enum CompanionStatus {
+  draft
+  pending_review
+  approved
+  rejected
+  needs_change
+  suspended
+  banned
+}
+
+enum AuditStatus {
+  pending
+  approved
+  rejected
+  needs_change
+  cancelled
+}
+
+enum PostStatus {
+  draft
+  pending_review
+  approved
+  rejected
+  removed
+}
+
+enum OrderStatus {
+  pending_payment
+  paid_pending_confirm
+  confirmed
+  in_service
+  completed
+  cancelled
+  refunding
+  refunded
+  disputed
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  closed
+}
+
+enum RefundStatus {
+  pending
+  processing
+  succeeded
+  failed
+  rejected
+}
+
+enum MessageRiskStatus {
+  clean
+  blocked
+  flagged
+  replaced
+}
+
+enum ReportStatus {
+  pending
+  investigating
+  resolved
+  rejected
+}
+
+enum SettlementStatus {
+  pending
+  frozen
+  settled
+  cancelled
+}
+
+model User {
+  id          String     @id @default(uuid()) @db.Uuid
+  phone       String     @unique @db.VarChar(32)
+  email       String?    @db.VarChar(255)
+  nickname    String     @db.VarChar(80)
+  avatarUrl   String?    @map("avatar_url")
+  gender      String     @default("unknown") @db.VarChar(20)
+  birthday    DateTime?  @db.Date
+  city        String?    @db.VarChar(80)
+  status      UserStatus @default(active)
+  isCompanion Boolean    @default(false) @map("is_companion")
+  lastLoginAt DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile              UserProfile?
+  companion            Companion?
+  orders               Order[]             @relation("UserOrders")
+  requestedRefunds     Refund[]            @relation("RequestedRefunds")
+  conversations        Conversation[]
+  sentMessages         Message[]
+  messageRiskEvents    MessageRiskEvent[]
+  reportsMade          Report[]            @relation("ReportsMade")
+  reportsReceived      Report[]            @relation("ReportsReceived")
+  ratings              Rating[]
+  favorites            Favorite[]
+  submittedAuditCases  AuditCase[]
+
+  @@index([city])
+  @@index([status])
+  @@map("users")
+}
+
+model UserProfile {
+  userId                   String    @id @map("user_id") @db.Uuid
+  bio                      String?
+  preferredCompanionGender String?   @map("preferred_companion_gender") @db.VarChar(20)
+  safetyPreferences        Json      @default("{}") @map("safety_preferences")
+  stylePreferences         String[]  @default([]) @map("style_preferences")
+  lastActiveAt             DateTime? @map("last_active_at") @db.Timestamptz(6)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Companion {
+  id                  String          @id @default(uuid()) @db.Uuid
+  userId              String          @unique @map("user_id") @db.Uuid
+  displayName         String          @map("display_name") @db.VarChar(80)
+  baseCity            String          @map("base_city") @db.VarChar(80)
+  gender              String          @default("unknown") @db.VarChar(20)
+  ageRange            String?         @map("age_range") @db.VarChar(40)
+  bio                 String?
+  realPhotoUrl        String?         @map("real_photo_url")
+  introVideoUrl       String?         @map("intro_video_url")
+  showIntroVideo      Boolean         @default(true) @map("show_intro_video")
+  status              CompanionStatus @default(draft)
+  serviceEnabled      Boolean         @default(false) @map("service_enabled")
+  ratingAvg           Decimal         @default(0) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount         Int             @default(0) @map("rating_count")
+  completedOrderCount Int             @default(0) @map("completed_order_count")
+  cancellationCount   Int             @default(0) @map("cancellation_count")
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kyc            CompanionKyc?
+  tags           CompanionTag[]
+  serviceAreas   ServiceArea[]
+  serviceScenes  CompanionServiceScene[]
+  pricings       ActivityPricing[]
+  extras         CompanionExtra[]
+  slots          AvailabilitySlot[]
+  posts          Post[]
+  orders         Order[]
+  conversations  Conversation[]
+  ratings        Rating[]
+  wallet         CompanionWallet?
+  settlements    Settlement[]
+  ledgerEntries  LedgerEntry[]
+  withdrawals    Withdrawal[]
+
+  @@index([baseCity, status])
+  @@index([serviceEnabled])
+  @@map("companions")
+}
+
+model CompanionKyc {
+  id                    String    @id @default(uuid()) @db.Uuid
+  companionId           String    @unique @map("companion_id") @db.Uuid
+  realName              String?   @map("real_name") @db.VarChar(80)
+  idDocType             String?   @map("id_doc_type") @db.VarChar(40)
+  idDocNumberHash       String?   @map("id_doc_number_hash") @db.VarChar(255)
+  idDocFrontFile        String?   @map("id_doc_front_file")
+  idDocBackFile         String?   @map("id_doc_back_file")
+  faceVerifyStatus      String    @default("pending") @map("face_verify_status") @db.VarChar(40)
+  faceVerifyProvider    String?   @map("face_verify_provider") @db.VarChar(80)
+  faceVerifyRef         String?   @map("face_verify_ref") @db.VarChar(255)
+  emergencyContactName  String?   @map("emergency_contact_name") @db.VarChar(80)
+  emergencyContactPhone String?   @map("emergency_contact_phone") @db.VarChar(32)
+  ruleConfirmedAt       DateTime? @map("rule_confirmed_at") @db.Timestamptz(6)
+  reviewedAt            DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  companion Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@map("companion_kyc")
+}
+
+model CompanionTag {
+  id          String   @id @default(uuid()) @db.Uuid
+  companionId String   @map("companion_id") @db.Uuid
+  tagType     String   @map("tag_type") @db.VarChar(40)
+  tagName     String   @map("tag_name") @db.VarChar(80)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  companion Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@unique([companionId, tagType, tagName])
+  @@index([tagName])
+  @@map("companion_tags")
+}
+
+model ServiceArea {
+  id           String   @id @default(uuid()) @db.Uuid
+  companionId  String   @map("companion_id") @db.Uuid
+  city         String   @db.VarChar(80)
+  areaName     String   @map("area_name") @db.VarChar(120)
+  areaType     String   @default("business_area") @map("area_type") @db.VarChar(40)
+  lat          Decimal? @db.Decimal(10, 7)
+  lng          Decimal? @db.Decimal(10, 7)
+  radiusMeters Int?     @map("radius_meters")
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  companion Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@unique([companionId, city, areaName])
+  @@index([city, areaName])
+  @@index([companionId])
+  @@map("service_areas")
+}
+
+model CompanionServiceScene {
+  id          String   @id @default(uuid()) @db.Uuid
+  companionId String   @map("companion_id") @db.Uuid
+  sceneName   String   @map("scene_name") @db.VarChar(80)
+  acceptType  String   @default("accept") @map("accept_type") @db.VarChar(20)
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  companion Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@unique([companionId, sceneName, acceptType])
+  @@map("companion_service_scenes")
+}
+
+model ActivityPricing {
+  id              String   @id @default(uuid()) @db.Uuid
+  companionId     String   @map("companion_id") @db.Uuid
+  activityName    String   @map("activity_name") @db.VarChar(80)
+  durationMinutes Int      @map("duration_minutes")
+  priceCents      Int      @map("price_cents")
+  enabled         Boolean  @default(true)
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  companion Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  orders    Order[]
+
+  @@unique([companionId, activityName, durationMinutes])
+  @@index([companionId, enabled])
+  @@map("activity_pricings")
+}
+
+model CompanionExtra {
+  id          String   @id @default(uuid()) @db.Uuid
+  companionId String   @map("companion_id") @db.Uuid
+  name        String   @db.VarChar(80)
+  unit        String   @default("per_order") @db.VarChar(40)
+  priceCents  Int      @map("price_cents")
+  description String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  companion   Companion    @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  orderExtras OrderExtra[]
+
+  @@map("companion_extras")
+}
+
+model AvailabilitySlot {
+  id                String   @id @default(uuid()) @db.Uuid
+  companionId       String   @map("companion_id") @db.Uuid
+  startAt           DateTime @map("start_at") @db.Timestamptz(6)
+  endAt             DateTime @map("end_at") @db.Timestamptz(6)
+  status            String   @default("available") @db.VarChar(40)
+  tempAcceptEnabled Boolean  @default(false) @map("temp_accept_enabled")
+  lockedOrderId     String?  @map("locked_order_id") @db.Uuid
+  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  companion   Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  lockedOrder Order?    @relation("LockedSlotOrder", fields: [lockedOrderId], references: [id])
+  orders      Order[]   @relation("OrderSlot")
+
+  @@index([companionId, startAt, endAt])
+  @@index([status, startAt])
+  @@map("availability_slots")
+}
+
+model Post {
+  id            String     @id @default(uuid()) @db.Uuid
+  companionId   String     @map("companion_id") @db.Uuid
+  city          String     @db.VarChar(80)
+  locationName  String     @map("location_name") @db.VarChar(160)
+  locationType  String?    @map("location_type") @db.VarChar(60)
+  lat           Decimal?   @db.Decimal(10, 7)
+  lng           Decimal?   @db.Decimal(10, 7)
+  timeLabel     String     @map("time_label") @db.VarChar(120)
+  caption       String?
+  activityName  String?    @map("activity_name") @db.VarChar(80)
+  status        PostStatus @default(draft)
+  isFeedVisible Boolean    @default(false) @map("is_feed_visible")
+  isFeatured    Boolean    @default(false) @map("is_featured")
+  qualityScore  Decimal    @default(0) @map("quality_score") @db.Decimal(5, 2)
+  viewCount     Int        @default(0) @map("view_count")
+  likeCount     Int        @default(0) @map("like_count")
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  publishedAt   DateTime?  @map("published_at") @db.Timestamptz(6)
+
+  companion Companion  @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  images    PostImage[]
+  tags      PostTag[]
+  orders    Order[]
+
+  @@index([status, isFeedVisible, city, publishedAt])
+  @@index([companionId])
+  @@map("posts")
+}
+
+model PostImage {
+  id          String      @id @default(uuid()) @db.Uuid
+  postId      String      @map("post_id") @db.Uuid
+  fileUrl     String      @map("file_url")
+  fileKey     String?     @map("file_key")
+  width       Int?
+  height      Int?
+  sortOrder   Int         @default(0) @map("sort_order")
+  auditStatus AuditStatus @default(pending) @map("audit_status")
+  riskFlags   Json        @default("{}") @map("risk_flags")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, sortOrder])
+  @@map("post_images")
+}
+
+model PostTag {
+  id      String @id @default(uuid()) @db.Uuid
+  postId  String @map("post_id") @db.Uuid
+  tagName String @map("tag_name") @db.VarChar(80)
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagName])
+  @@index([tagName])
+  @@map("post_tags")
+}
+
+model Order {
+  id                   String      @id @default(uuid()) @db.Uuid
+  orderNo              String      @unique @map("order_no") @db.VarChar(40)
+  userId               String      @map("user_id") @db.Uuid
+  companionId          String      @map("companion_id") @db.Uuid
+  postId               String?     @map("post_id") @db.Uuid
+  activityPricingId    String?     @map("activity_pricing_id") @db.Uuid
+  availabilitySlotId   String?     @map("availability_slot_id") @db.Uuid
+  city                 String      @db.VarChar(80)
+  placeName            String      @map("place_name") @db.VarChar(160)
+  placeAddress         String?     @map("place_address")
+  placeLat             Decimal?    @map("place_lat") @db.Decimal(10, 7)
+  placeLng             Decimal?    @map("place_lng") @db.Decimal(10, 7)
+  activityName         String      @map("activity_name") @db.VarChar(80)
+  durationMinutes      Int         @map("duration_minutes")
+  startAt              DateTime    @map("start_at") @db.Timestamptz(6)
+  endAt                DateTime    @map("end_at") @db.Timestamptz(6)
+  baseAmountCents      Int         @default(0) @map("base_amount_cents")
+  extraAmountCents     Int         @default(0) @map("extra_amount_cents")
+  totalAmountCents     Int         @default(0) @map("total_amount_cents")
+  platformFeeCents     Int         @default(0) @map("platform_fee_cents")
+  companionIncomeCents Int         @default(0) @map("companion_income_cents")
+  status               OrderStatus @default(pending_payment)
+  userNote             String?     @map("user_note")
+  companionNote        String?     @map("companion_note")
+  cancelReason         String?     @map("cancel_reason")
+  cancelledBy          String?     @map("cancelled_by") @db.Uuid
+  paidAt               DateTime?   @map("paid_at") @db.Timestamptz(6)
+  confirmedAt          DateTime?   @map("confirmed_at") @db.Timestamptz(6)
+  serviceStartedAt     DateTime?   @map("service_started_at") @db.Timestamptz(6)
+  completedAt          DateTime?   @map("completed_at") @db.Timestamptz(6)
+  cancelledAt          DateTime?   @map("cancelled_at") @db.Timestamptz(6)
+  createdAt            DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user             User              @relation("UserOrders", fields: [userId], references: [id])
+  companion        Companion         @relation(fields: [companionId], references: [id])
+  post             Post?             @relation(fields: [postId], references: [id])
+  activityPricing  ActivityPricing?  @relation(fields: [activityPricingId], references: [id])
+  availabilitySlot AvailabilitySlot?  @relation("OrderSlot", fields: [availabilitySlotId], references: [id])
+  lockedSlots      AvailabilitySlot[] @relation("LockedSlotOrder")
+  extras           OrderExtra[]
+  statusLogs       OrderStatusLog[]
+  payments         Payment[]
+  refunds          Refund[]
+  conversation     Conversation?
+  reports          Report[]
+  rating           Rating?
+  settlement       Settlement?
+  ledgerEntries    LedgerEntry[]
+
+  @@index([userId, status, createdAt])
+  @@index([companionId, status, startAt])
+  @@index([orderNo])
+  @@index([startAt])
+  @@map("orders")
+}
+
+model OrderExtra {
+  id             String   @id @default(uuid()) @db.Uuid
+  orderId        String   @map("order_id") @db.Uuid
+  extraId        String?  @map("extra_id") @db.Uuid
+  name           String   @db.VarChar(80)
+  quantity       Int      @default(1)
+  unitPriceCents Int      @map("unit_price_cents")
+  amountCents    Int      @map("amount_cents")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  extra CompanionExtra? @relation(fields: [extraId], references: [id])
+
+  @@map("order_extras")
+}
+
+model OrderStatusLog {
+  id           String       @id @default(uuid()) @db.Uuid
+  orderId      String       @map("order_id") @db.Uuid
+  fromStatus   OrderStatus? @map("from_status")
+  toStatus     OrderStatus  @map("to_status")
+  operatorType String       @map("operator_type") @db.VarChar(40)
+  operatorId   String?      @map("operator_id") @db.Uuid
+  reason       String?
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_logs")
+}
+
+model Payment {
+  id                 String        @id @default(uuid()) @db.Uuid
+  orderId            String        @map("order_id") @db.Uuid
+  paymentNo          String        @unique @map("payment_no") @db.VarChar(64)
+  channel            String        @db.VarChar(40)
+  amountCents        Int           @map("amount_cents")
+  status             PaymentStatus @default(pending)
+  thirdPartyTradeNo  String?       @map("third_party_trade_no") @db.VarChar(128)
+  thirdPartyBuyerId  String?       @map("third_party_buyer_id") @db.VarChar(128)
+  rawCallback        Json          @default("{}") @map("raw_callback")
+  paidAt             DateTime?     @map("paid_at") @db.Timestamptz(6)
+  closedAt           DateTime?     @map("closed_at") @db.Timestamptz(6)
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order   Order    @relation(fields: [orderId], references: [id])
+  refunds Refund[]
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Refund {
+  id                 String       @id @default(uuid()) @db.Uuid
+  orderId            String       @map("order_id") @db.Uuid
+  paymentId          String?      @map("payment_id") @db.Uuid
+  refundNo           String       @unique @map("refund_no") @db.VarChar(64)
+  amountCents        Int          @map("amount_cents")
+  reason             String?
+  status             RefundStatus @default(pending)
+  requestedBy        String?      @map("requested_by") @db.Uuid
+  processedBy        String?      @map("processed_by") @db.Uuid
+  thirdPartyRefundNo String?      @map("third_party_refund_no") @db.VarChar(128)
+  rawCallback        Json         @default("{}") @map("raw_callback")
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  refundedAt         DateTime?    @map("refunded_at") @db.Timestamptz(6)
+  updatedAt          DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order         Order    @relation(fields: [orderId], references: [id])
+  payment       Payment? @relation(fields: [paymentId], references: [id])
+  requestedUser User?    @relation("RequestedRefunds", fields: [requestedBy], references: [id])
+
+  @@index([orderId])
+  @@index([status])
+  @@map("refunds")
+}
+
+model Conversation {
+  id               String    @id @default(uuid()) @db.Uuid
+  orderId          String    @unique @map("order_id") @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  companionId      String    @map("companion_id") @db.Uuid
+  status           String    @default("active") @db.VarChar(40)
+  restrictedReason String?   @map("restricted_reason")
+  lastMessageAt    DateTime? @map("last_message_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order      Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user       User               @relation(fields: [userId], references: [id])
+  companion  Companion          @relation(fields: [companionId], references: [id])
+  messages   Message[]
+  riskEvents MessageRiskEvent[]
+  reports    Report[]
+
+  @@index([userId, lastMessageAt])
+  @@index([companionId, lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String            @id @default(uuid()) @db.Uuid
+  conversationId String            @map("conversation_id") @db.Uuid
+  senderId       String?           @map("sender_id") @db.Uuid
+  senderRole     String            @map("sender_role") @db.VarChar(40)
+  messageType    String            @default("text") @map("message_type") @db.VarChar(40)
+  content        String?
+  originalContent String?          @map("original_content")
+  riskStatus     MessageRiskStatus @default(clean) @map("risk_status")
+  blockedReason  String?           @map("blocked_reason")
+  readAt         DateTime?         @map("read_at") @db.Timestamptz(6)
+  sentAt         DateTime          @default(now()) @map("sent_at") @db.Timestamptz(6)
+
+  conversation Conversation       @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?              @relation(fields: [senderId], references: [id])
+  riskEvents   MessageRiskEvent[]
+
+  @@index([conversationId, sentAt])
+  @@index([senderId, sentAt])
+  @@map("messages")
+}
+
+model RiskKeyword {
+  id                String   @id @default(uuid()) @db.Uuid
+  keyword           String   @db.VarChar(120)
+  normalizedKeyword String?  @map("normalized_keyword") @db.VarChar(120)
+  riskType          String   @map("risk_type") @db.VarChar(60)
+  riskLevel         String   @default("medium") @map("risk_level") @db.VarChar(20)
+  action            String   @default("block") @db.VarChar(40)
+  enabled           Boolean  @default(true)
+  createdBy         String?  @map("created_by") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([keyword, riskType])
+  @@index([enabled])
+  @@map("risk_keywords")
+}
+
+model MessageRiskEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  messageId       String?   @map("message_id") @db.Uuid
+  conversationId  String    @map("conversation_id") @db.Uuid
+  orderId         String?   @map("order_id") @db.Uuid
+  userId          String?   @map("user_id") @db.Uuid
+  matchedKeywords String[]  @default([]) @map("matched_keywords")
+  riskType        String    @map("risk_type") @db.VarChar(60)
+  riskLevel       String    @map("risk_level") @db.VarChar(20)
+  actionTaken     String    @map("action_taken") @db.VarChar(40)
+  reviewStatus    String    @default("pending") @map("review_status") @db.VarChar(40)
+  reviewedBy      String?   @map("reviewed_by") @db.Uuid
+  reviewedAt      DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  rawPayload      Json      @default("{}") @map("raw_payload")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message      Message?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([reviewStatus, createdAt])
+  @@index([userId, createdAt])
+  @@map("message_risk_events")
+}
+
+model AuditCase {
+  id              String      @id @default(uuid()) @db.Uuid
+  targetType      String      @map("target_type") @db.VarChar(40)
+  targetId        String      @map("target_id") @db.Uuid
+  status          AuditStatus @default(pending)
+  riskLevel       String      @default("low") @map("risk_level") @db.VarChar(20)
+  submittedBy     String?     @map("submitted_by") @db.Uuid
+  assignedAdminId String?     @map("assigned_admin_id") @db.Uuid
+  reason          String?
+  snapshot        Json        @default("{}")
+  submittedAt     DateTime    @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  reviewedBy      String?     @map("reviewed_by") @db.Uuid
+  reviewedAt      DateTime?   @map("reviewed_at") @db.Timestamptz(6)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  submittedUser User?      @relation(fields: [submittedBy], references: [id])
+  logs          AuditLog[]
+
+  @@index([status, targetType, submittedAt])
+  @@index([targetType, targetId])
+  @@map("audit_cases")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  auditCaseId String   @map("audit_case_id") @db.Uuid
+  action      String   @db.VarChar(40)
+  operatorId  String?  @map("operator_id") @db.Uuid
+  operatorType String  @default("admin") @map("operator_type") @db.VarChar(40)
+  comment     String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  auditCase AuditCase @relation(fields: [auditCaseId], references: [id], onDelete: Cascade)
+
+  @@index([auditCaseId, createdAt])
+  @@map("audit_logs")
+}
+
+model Report {
+  id             String       @id @default(uuid()) @db.Uuid
+  reporterId     String       @map("reporter_id") @db.Uuid
+  reportedUserId String?      @map("reported_user_id") @db.Uuid
+  orderId        String?      @map("order_id") @db.Uuid
+  conversationId String?      @map("conversation_id") @db.Uuid
+  targetType     String       @map("target_type") @db.VarChar(40)
+  targetId       String?      @map("target_id") @db.Uuid
+  category       String       @db.VarChar(80)
+  description    String?
+  evidenceFiles  Json         @default("[]") @map("evidence_files")
+  status         ReportStatus @default(pending)
+  handledBy      String?      @map("handled_by") @db.Uuid
+  handledAt      DateTime?    @map("handled_at") @db.Timestamptz(6)
+  result         String?
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  reporter     User          @relation("ReportsMade", fields: [reporterId], references: [id])
+  reportedUser User?         @relation("ReportsReceived", fields: [reportedUserId], references: [id])
+  order        Order?        @relation(fields: [orderId], references: [id])
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([orderId])
+  @@index([reportedUserId, createdAt])
+  @@map("reports")
+}
+
+model Rating {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @unique @map("order_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  companionId String   @map("companion_id") @db.Uuid
+  score       Int
+  content     String?
+  tags        String[] @default([])
+  isAnonymous Boolean  @default(false) @map("is_anonymous")
+  status      String   @default("visible") @db.VarChar(40)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+  companion Companion @relation(fields: [companionId], references: [id])
+
+  @@index([companionId, createdAt])
+  @@map("ratings")
+}
+
+model Favorite {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  targetType String   @map("target_type") @db.VarChar(40)
+  targetId   String   @map("target_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId, createdAt])
+  @@map("favorites")
+}
+
+model CompanionWallet {
+  companionId    String   @id @map("companion_id") @db.Uuid
+  pendingCents   Int      @default(0) @map("pending_cents")
+  availableCents Int      @default(0) @map("available_cents")
+  frozenCents    Int      @default(0) @map("frozen_cents")
+  withdrawnCents Int      @default(0) @map("withdrawn_cents")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  companion Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@map("companion_wallets")
+}
+
+model Settlement {
+  id                  String           @id @default(uuid()) @db.Uuid
+  orderId             String           @unique @map("order_id") @db.Uuid
+  companionId         String           @map("companion_id") @db.Uuid
+  grossAmountCents    Int              @map("gross_amount_cents")
+  platformFeeCents    Int              @map("platform_fee_cents")
+  netAmountCents      Int              @map("net_amount_cents")
+  status              SettlementStatus @default(pending)
+  settleAfter         DateTime         @map("settle_after") @db.Timestamptz(6)
+  settledAt           DateTime?        @map("settled_at") @db.Timestamptz(6)
+  frozenReason        String?          @map("frozen_reason")
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order         Order         @relation(fields: [orderId], references: [id])
+  companion     Companion     @relation(fields: [companionId], references: [id])
+  ledgerEntries LedgerEntry[]
+
+  @@index([companionId, status, settleAfter])
+  @@index([status, settleAfter])
+  @@map("settlements")
+}
+
+model LedgerEntry {
+  id                String   @id @default(uuid()) @db.Uuid
+  companionId       String   @map("companion_id") @db.Uuid
+  orderId           String?  @map("order_id") @db.Uuid
+  settlementId      String?  @map("settlement_id") @db.Uuid
+  entryType         String   @map("entry_type") @db.VarChar(60)
+  direction         String   @db.VarChar(20)
+  amountCents       Int      @map("amount_cents")
+  balanceType       String   @map("balance_type") @db.VarChar(40)
+  balanceAfterCents Int      @map("balance_after_cents")
+  status            String   @default("posted") @db.VarChar(40)
+  description       String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  companion  Companion   @relation(fields: [companionId], references: [id])
+  order      Order?      @relation(fields: [orderId], references: [id])
+  settlement Settlement? @relation(fields: [settlementId], references: [id])
+
+  @@index([companionId, createdAt])
+  @@index([orderId])
+  @@map("ledger_entries")
+}
+
+model Withdrawal {
+  id              String    @id @default(uuid()) @db.Uuid
+  companionId     String    @map("companion_id") @db.Uuid
+  withdrawalNo    String    @unique @map("withdrawal_no") @db.VarChar(64)
+  amountCents     Int       @map("amount_cents")
+  channel         String    @db.VarChar(40)
+  accountSnapshot Json      @default("{}") @map("account_snapshot")
+  status          String    @default("pending") @db.VarChar(40)
+  reviewedBy      String?   @map("reviewed_by") @db.Uuid
+  reviewedAt      DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  paidAt          DateTime? @map("paid_at") @db.Timestamptz(6)
+  rejectedReason  String?   @map("rejected_reason")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  companion Companion @relation(fields: [companionId], references: [id])
+
+  @@index([companionId, createdAt])
+  @@index([status, createdAt])
+  @@map("withdrawals")
+}
+
+model AdminUser {
+  id           String    @id @default(uuid()) @db.Uuid
+  username     String    @unique @db.VarChar(80)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  name         String    @db.VarChar(80)
+  role         String    @db.VarChar(40)
+  status       String    @default("active") @db.VarChar(40)
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  actionLogs    AdminActionLog[]
+  systemConfigs SystemConfig[]
+
+  @@index([role])
+  @@map("admin_users")
+}
+
+model AdminActionLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  adminId    String?  @map("admin_id") @db.Uuid
+  action     String   @db.VarChar(80)
+  targetType String?  @map("target_type") @db.VarChar(40)
+  targetId   String?  @map("target_id") @db.Uuid
+  beforeData Json?    @map("before_data")
+  afterData  Json?    @map("after_data")
+  ip         String?  @db.VarChar(64)
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  admin AdminUser? @relation(fields: [adminId], references: [id])
+
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId])
+  @@map("admin_action_logs")
+}
+
+model SystemConfig {
+  key         String   @id @db.VarChar(120)
+  value       Json
+  description String?
+  updatedBy   String?  @map("updated_by") @db.Uuid
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  admin AdminUser? @relation(fields: [updatedBy], references: [id])
+
+  @@map("system_configs")
+}
