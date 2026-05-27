@@ -1,9 +1,12 @@
-import type { ActivityPricing, AvailabilitySlot, FeedPost } from '../types/api';
+import type { ActivityPricing, AvailabilitySlot, FeedPost, MatchingCompanionItem } from '../types/api';
+import { apiGet, isApiEnabled } from './apiClient';
 
 export type GenderPreference = 'any' | 'female_only';
 
 export type MatchCompanionsInput = {
   city: string;
+  lat?: number;
+  lng?: number;
   location?: string;
   date?: string;
   time?: string;
@@ -48,6 +51,26 @@ export function matchCompanions(posts: FeedPost[], input: MatchCompanionsInput):
     .filter((candidate): candidate is MatchCandidate => Boolean(candidate))
     .sort(compareCandidates)
     .map((candidate) => candidate.post);
+}
+
+export async function fetchMatchedCompanions(input: MatchCompanionsInput): Promise<MatchingCompanionItem[]> {
+  if (!isApiEnabled() || !Number.isFinite(input.lat) || !Number.isFinite(input.lng)) return [];
+
+  const query = new URLSearchParams({
+    lat: String(input.lat),
+    lng: String(input.lng),
+    city: input.city,
+  });
+  if (input.activityType) query.set('activity', input.activityType);
+  if (input.genderPreference === 'female_only') query.set('gender', 'female');
+  if (input.nearbyOnly) query.set('maxDistanceMeters', '5000');
+
+  try {
+    const response = await apiGet<{ items: MatchingCompanionItem[] }>(`/api/matching/companions?${query.toString()}`);
+    return response.success ? response.data.items : [];
+  } catch {
+    return [];
+  }
 }
 
 function buildCandidate(post: FeedPost, input: MatchCompanionsInput): MatchCandidate | null {

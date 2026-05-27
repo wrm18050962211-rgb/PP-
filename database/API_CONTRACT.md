@@ -181,6 +181,78 @@ companions.service_enabled = true
 }
 ```
 
+## 1.5. 定位匹配
+
+对应页面：
+
+- `HomeFeed`
+- 后续地图/附近陪拍者入口
+
+涉及表：
+
+- `users.last_lat / users.last_lng`
+- `companions`
+- `service_areas.lat / service_areas.lng / service_areas.radius_meters`
+- `availability_slots`
+- `activity_pricings`
+
+### GET `/api/matching/companions`
+
+根据用户位置和筛选条件返回附近可接单陪拍者。MVP 阶段使用普通经纬度 + Haversine 距离计算，不依赖 PostGIS。
+
+查询参数：
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| lat | number | 用户纬度，必填 |
+| lng | number | 用户经度，必填 |
+| city | string | 可选，城市过滤 |
+| activity | string | 可选，服务类型过滤 |
+| gender | string | 可选，`female` / `male` / `any` |
+| maxDistanceMeters | number | 可选，默认 8000，最大 50000 |
+| limit | number | 可选，默认 20 |
+
+返回：
+
+```json
+{
+  "items": [
+    {
+      "companion": {
+        "id": "companion_uuid",
+        "name": "Mori",
+        "baseCity": "上海",
+        "location": {
+          "lat": 31.2109,
+          "lng": 121.4457
+        }
+      },
+      "nearestServiceArea": {
+        "id": "area_uuid",
+        "city": "上海",
+        "areaName": "武康路",
+        "lat": 31.2109,
+        "lng": 121.4457,
+        "radiusMeters": 4000
+      },
+      "distanceMeters": 230,
+      "distanceText": "230m",
+      "matchScore": 98
+    }
+  ]
+}
+```
+
+排序逻辑：
+
+```text
+过滤 approved + service_enabled 的陪拍者
+过滤城市、性别、服务类型
+计算用户坐标到每个 service_area 的 Haversine 距离
+只保留距离 <= min(maxDistanceMeters, service_area.radius_meters) 的候选
+按 matchScore、distanceMeters、ratingAvg 排序
+```
+
 ## 2. 下单与支付
 
 对应页面：

@@ -6,6 +6,19 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(fileURLToPath(import.meta.url));
 const storePath = resolve(root, 'data/store.json');
 const port = Number(process.env.PORT || 8787);
+const defaultUserLocation = { lat: 31.2112, lng: 121.4476, label: 'Shanghai Xuhui' };
+const shanghaiGeoPoints = [
+  { lat: 31.2109, lng: 121.4457 },
+  { lat: 31.2197, lng: 121.4544 },
+  { lat: 31.2221, lng: 121.4755 },
+  { lat: 31.2442, lng: 121.4891 },
+  { lat: 31.1904, lng: 121.4368 },
+  { lat: 31.2397, lng: 121.4998 },
+  { lat: 31.2243, lng: 121.4237 },
+  { lat: 31.2297, lng: 121.4594 },
+  { lat: 31.1925, lng: 121.4561 },
+  { lat: 31.2076, lng: 121.4685 },
+];
 const virtualProfiles = [
   ['Luna', 'female', '武康路', ['武康路', '安福路', '湖南路', '衡山路'], 'Citywalk 陪拍', ['自然抓拍', '会指导动作', '适合第一次拍照'], ['Citywalk', '自然光', '松弛感'], '偏温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。', 39900, 120, 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80'],
   ['Aki', 'female', '巨鹿路', ['巨鹿路', '富民路', '长乐路', '静安寺'], '探店生活照', ['探店构图', '小红书风格', '穿搭建议'], ['探店', '日常感', '咖啡店'], '熟悉咖啡店和街角光线，适合想要轻松日常头像和朋友圈照片的用户。', 32900, 90, 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'],
@@ -40,6 +53,7 @@ async function route(method, url, body, store) {
   const path = url.pathname;
   if (method === 'GET' && path === '/api/health') return json({ status: 'ok', version: '0.2.0' });
   if (method === 'GET' && path === '/api/feed/posts') return json({ items: store.posts });
+  if (method === 'GET' && path === '/api/matching/companions') return matchCompanions(store, url);
   if (method === 'GET' && path.startsWith('/api/posts/')) return jsonOr404(store.posts.find((item) => item.id === last(path)), 'Post');
   if (method === 'GET' && path === '/api/orders') return json({ items: store.orders });
   if (method === 'POST' && path === '/api/orders') return createOrder(store, body);
@@ -285,6 +299,74 @@ function adminDashboard(store) {
   });
 }
 
+function matchCompanions(store, url) {
+  const inputLat = toNumber(url.searchParams.get('lat')) ?? store.users?.[0]?.lastLocation?.lat;
+  const inputLng = toNumber(url.searchParams.get('lng')) ?? store.users?.[0]?.lastLocation?.lng;
+  if (!Number.isFinite(inputLat) || !Number.isFinite(inputLng)) return error(400, 'LOCATION_REQUIRED', 'lat and lng are required');
+
+  const city = normalizeQuery(url.searchParams.get('city'));
+  const activity = normalizeQuery(url.searchParams.get('activity'));
+  const gender = normalizeQuery(url.searchParams.get('gender'));
+  const maxDistanceMeters = clampNumber(toNumber(url.searchParams.get('maxDistanceMeters')) ?? 8000, 500, 50000);
+  const limit = clampNumber(toNumber(url.searchParams.get('limit')) ?? 20, 1, 50);
+
+  const items = (store.companions || [])
+    .filter((companion) => companion.status === 'approved' && companion.serviceEnabled)
+    .filter((companion) => !city || normalizeQuery(companion.baseCity).includes(city))
+    .filter((companion) => !gender || gender === 'any' || normalizeQuery(companion.gender) === gender)
+    .filter((companion) => !activity || companion.activities?.some((item) => normalizeQuery(item.name).includes(activity)))
+    .map((companion) => buildMatchCandidate(companion, inputLat, inputLng, maxDistanceMeters))
+    .filter(Boolean)
+    .sort((a, b) => b.matchScore - a.matchScore || a.distanceMeters - b.distanceMeters || b.companion.ratingAvg - a.companion.ratingAvg)
+    .slice(0, limit);
+
+  return json({ items });
+}
+
+function buildMatchCandidate(companion, lat, lng, maxDistanceMeters) {
+  const serviceAreas = (companion.serviceAreas || []).filter((area) => area.enabled !== false && Number.isFinite(area.lat) && Number.isFinite(area.lng));
+  if (!serviceAreas.length) return null;
+
+  const nearestServiceArea = serviceAreas
+    .map((area) => ({ ...area, distanceMeters: haversineMeters(lat, lng, area.lat, area.lng) }))
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)[0];
+  const radiusMeters = nearestServiceArea.radiusMeters || maxDistanceMeters;
+  const acceptedDistance = Math.min(maxDistanceMeters, radiusMeters);
+  if (nearestServiceArea.distanceMeters > acceptedDistance) return null;
+
+  const distanceMeters = Math.round(nearestServiceArea.distanceMeters);
+  const distanceRatio = Math.min(distanceMeters / acceptedDistance, 1);
+  const ratingBonus = Math.round((companion.ratingAvg || 0) * 8);
+  const slotBonus = (companion.slots || []).some((slot) => slot.status === 'available') ? 10 : 0;
+  const matchScore = clampNumber(100 - distanceRatio * 70 + ratingBonus + slotBonus, 1, 100);
+
+  return {
+    companion,
+    nearestServiceArea,
+    distanceMeters,
+    distanceText: formatDistance(distanceMeters),
+    matchScore,
+  };
+}
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const earthRadiusMeters = 6371000;
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) ** 2;
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function toRadians(value) {
+  return (value * Math.PI) / 180;
+}
+
+function formatDistance(meters) {
+  return meters < 1000 ? meters + 'm' : (meters / 1000).toFixed(meters < 10000 ? 1 : 0) + 'km';
+}
+
 function initialStore() {
   const companion = {
     id: 'companion-mori',
@@ -435,11 +517,13 @@ async function loadStore() {
 }
 
 function normalizeStore(store) {
+  store.users ||= [];
   store.riskCases ||= [];
   store.reports ||= [];
   store.settlements ||= [];
   store.conversations ||= {};
   injectVirtualSeeds(store);
+  normalizeGeoStore(store);
   for (const order of store.orders || []) {
     Object.assign(order, viewOrder(order));
     const companion = store.companions?.find((item) => item.id === order.companionId);
@@ -447,6 +531,57 @@ function normalizeStore(store) {
     if (slot && order.status !== 'cancelled' && order.status !== 'refunded') slot.status = 'booked';
   }
   return store;
+}
+
+function normalizeGeoStore(store) {
+  if (!store.users.length) {
+    store.users.push({
+      id: 'user-demo',
+      nickname: 'Demo User',
+      city: '上海',
+      lastLat: defaultUserLocation.lat,
+      lastLng: defaultUserLocation.lng,
+      lastLocation: defaultUserLocation,
+      lastLocationUpdatedAt: now(),
+    });
+  }
+
+  (store.companions || []).forEach((companion, index) => {
+    const point = companion.location || shanghaiGeoPoints[index % shanghaiGeoPoints.length];
+    companion.location = point;
+    companion.serviceAreas = normalizeServiceAreas(companion, index, point);
+  });
+
+  (store.posts || []).forEach((post, index) => {
+    const point = post.companion?.location || shanghaiGeoPoints[index % shanghaiGeoPoints.length];
+    post.city ||= post.companion?.baseCity || '上海';
+    post.locationName ||= extractLocationName(post.location);
+    post.lat ??= point.lat;
+    post.lng ??= point.lng;
+    if (post.companion) {
+      post.companion.location ||= point;
+      post.companion.serviceAreas = normalizeServiceAreas(post.companion, index, point);
+    }
+  });
+}
+
+function normalizeServiceAreas(companion, index, fallbackPoint) {
+  if (Array.isArray(companion.serviceAreas) && companion.serviceAreas.length) {
+    return companion.serviceAreas.map((area, areaIndex) => {
+      const point = Number.isFinite(area.lat) && Number.isFinite(area.lng) ? area : offsetPoint(fallbackPoint, areaIndex);
+      return {
+        id: area.id || companion.id + '-area-' + (areaIndex + 1),
+        city: area.city || companion.baseCity || '上海',
+        areaName: area.areaName || area.name || companion.areas?.[areaIndex] || 'service-area-' + (areaIndex + 1),
+        areaType: area.areaType || 'business_area',
+        lat: point.lat,
+        lng: point.lng,
+        radiusMeters: area.radiusMeters || 3000,
+        enabled: area.enabled !== false,
+      };
+    });
+  }
+  return buildServiceAreas(companion.areas || [], index, companion.id);
 }
 
 function injectVirtualSeeds(store) {
@@ -512,6 +647,34 @@ function createVirtualCompanion(profile, index) {
   };
 }
 
+function buildServiceAreas(areas, seedIndex = 0, ownerId = 'companion') {
+  return areas.map((areaName, areaIndex) => {
+    const point = offsetPoint(shanghaiGeoPoints[(seedIndex + areaIndex) % shanghaiGeoPoints.length], areaIndex);
+    return {
+      id: ownerId + '-area-' + (areaIndex + 1),
+      city: '上海',
+      areaName,
+      areaType: 'business_area',
+      lat: point.lat,
+      lng: point.lng,
+      radiusMeters: areaIndex === 0 ? 4000 : 2500,
+      enabled: true,
+    };
+  });
+}
+
+function offsetPoint(point, index) {
+  return {
+    lat: Number((point.lat + index * 0.002).toFixed(7)),
+    lng: Number((point.lng - index * 0.002).toFixed(7)),
+  };
+}
+
+function extractLocationName(location) {
+  const value = String(location || '').trim();
+  return value.split(/\s*[·-]\s*/).pop() || value;
+}
+
 function createVirtualSlots(index) {
   const day = 28 + (index % 5);
   const hour = 10 + (index % 7);
@@ -536,6 +699,20 @@ function durationLabel(minutes) {
 
 function pad(value) {
   return String(value).padStart(2, '0');
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(Math.max(Math.round(value), min), max);
+}
+
+function normalizeQuery(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
 async function saveStore(store) {

@@ -97,6 +97,9 @@ model User {
   gender      String     @default("unknown") @db.VarChar(20)
   birthday    DateTime?  @db.Date
   city        String?    @db.VarChar(80)
+  lastLat     Decimal?   @map("last_lat") @db.Decimal(10, 7)
+  lastLng     Decimal?   @map("last_lng") @db.Decimal(10, 7)
+  lastLocationUpdatedAt DateTime? @map("last_location_updated_at") @db.Timestamptz(6)
   status      UserStatus @default(active)
   isCompanion Boolean    @default(false) @map("is_companion")
   lastLoginAt DateTime?  @map("last_login_at") @db.Timestamptz(6)

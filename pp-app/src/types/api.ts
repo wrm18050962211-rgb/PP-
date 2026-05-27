@@ -58,6 +58,9 @@ export type User = {
   avatarUrl?: string;
   gender: 'female' | 'male' | 'unknown' | string;
   city?: string;
+  lastLat?: number;
+  lastLng?: number;
+  lastLocationUpdatedAt?: string;
   status: UserStatus;
   isCompanion: boolean;
 };
@@ -96,6 +99,22 @@ export type CompanionExtra = {
   unitLabel: string;
   priceCents: number;
   priceText: string;
+};
+
+export type GeoPoint = {
+  lat: number;
+  lng: number;
+};
+
+export type ServiceArea = {
+  id: string;
+  city: string;
+  areaName: string;
+  areaType: string;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  enabled: boolean;
 };
 
 export type BookingDurationMinutes = 60 | 90 | 120 | 240;
@@ -144,9 +163,11 @@ export type Companion = {
   serviceEnabled: boolean;
   ratingAvg: number;
   ratingCount: number;
+  location?: GeoPoint;
   tags: string[];
   safetyBadges: string[];
   areas: string[];
+  serviceAreas?: ServiceArea[];
   slots: AvailabilitySlot[];
   activities: ActivityPricing[];
   extras: CompanionExtra[];
@@ -159,8 +180,20 @@ export type FeedPost = {
   caption: string;
   styleTags: string[];
   activity: string;
+  city?: string;
+  locationName?: string;
+  lat?: number;
+  lng?: number;
   images: PostImage[];
   companion: Companion;
+};
+
+export type MatchingCompanionItem = {
+  companion: Companion;
+  nearestServiceArea: ServiceArea;
+  distanceMeters: number;
+  distanceText: string;
+  matchScore: number;
 };
 
 export type FeedPostCard = FeedPost;
