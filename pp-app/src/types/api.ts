@@ -134,6 +134,7 @@ export type Companion = {
   id: string;
   userId: string;
   name: string;
+  isVirtual?: boolean;
   avatar: string;
   photo: string;
   bio: string;
@@ -287,10 +288,13 @@ export type CompanionApplication = {
 };
 
 export type PublishedWorkDraft = {
+  images: PostImage[];
+  coverImageId: string;
   location: string;
   timeLabel: string;
   caption: string;
   tags: string[];
+  activity: string;
   submitted: boolean;
   reviewStatus: ReviewStatus;
   updatedAt: string;
@@ -306,4 +310,72 @@ export type CompanionDashboard = {
 export type AdminDashboardData = {
   metrics: Array<{ label: string; value: string }>;
   moduleCards: Array<{ title: string; desc: string }>;
+};
+
+export type AdminRiskLevel = 'low' | 'medium' | 'high';
+
+export type AdminCaseStatus = 'pending' | 'released' | 'violation' | 'restricted' | 'resolved';
+
+export type AdminActionType =
+  | 'release_message'
+  | 'confirm_violation'
+  | 'warn_user'
+  | 'warn_companion'
+  | 'restrict_chat'
+  | 'freeze_order'
+  | 'suspend_companion'
+  | 'resolve_report';
+
+export type AdminActionLog = {
+  id: string;
+  type: AdminActionType;
+  label: string;
+  note: string;
+  createdAt: string;
+};
+
+export type AdminRiskMessageCase = {
+  id: string;
+  type: 'message_risk';
+  status: AdminCaseStatus;
+  riskLevel: AdminRiskLevel;
+  riskLabel: string;
+  conversationId: string;
+  orderId: string;
+  orderNo: string;
+  orderTitle: string;
+  orderStatusText: string;
+  orderAmountText: string;
+  userName: string;
+  companionName: string;
+  blockedMessage: Message;
+  hitWords: Array<{ keyword: string; label: string; level: AdminRiskLevel }>;
+  contextMessages: Message[];
+  createdAt: string;
+  actionLogs: AdminActionLog[];
+};
+
+export type AdminReportCase = {
+  id: string;
+  type: 'report_dispute';
+  status: ReportStatus;
+  riskLevel: AdminRiskLevel;
+  riskLabel: string;
+  reporterRole: 'user' | 'companion';
+  reporterName: string;
+  targetName: string;
+  reason: string;
+  description: string;
+  orderId: string;
+  orderNo: string;
+  orderTitle: string;
+  orderStatusText: string;
+  orderAmountText: string;
+  createdAt: string;
+  actionLogs: AdminActionLog[];
+};
+
+export type AdminModerationData = {
+  messageCases: AdminRiskMessageCase[];
+  reportCases: AdminReportCase[];
 };

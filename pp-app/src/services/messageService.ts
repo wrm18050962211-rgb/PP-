@@ -30,6 +30,13 @@ export async function sendMessage(conversationId: string, content: string): Prom
   const risk = evaluateMessageRisk(content);
   const matchedKeywords = risk.hits.map((hit) => hit.keyword);
   if (risk.shouldBlock) {
+    if (isApiEnabled()) {
+      try {
+        await apiPost<Message>(`/api/conversations/${conversationId}/messages`, { content });
+      } catch {
+        // The local UI still blocks the message even if risk-case sync fails.
+      }
+    }
     return { blocked: true, matchedKeywords };
   }
 
@@ -37,13 +44,7 @@ export async function sendMessage(conversationId: string, content: string): Prom
     return {
       blocked: false,
       matchedKeywords: [],
-      message: {
-        id: `local-message-${Date.now()}`,
-        from: 'user',
-        text: content,
-        sentAt: new Date().toISOString(),
-        riskStatus: risk.level === 'medium' ? 'flagged' : 'clean',
-      },
+      message: createLocalMessage(content, risk.level === 'medium' ? 'flagged' : 'clean'),
     };
   }
 
@@ -51,12 +52,27 @@ export async function sendMessage(conversationId: string, content: string): Prom
     const response = await apiPost<Message>(`/api/conversations/${conversationId}/messages`, { content });
     return response.success ? { blocked: false, matchedKeywords: [], message: response.data } : { blocked: true, matchedKeywords };
   } catch {
-    return { blocked: false, matchedKeywords: [] };
+    return { blocked: false, matchedKeywords: [], message: createLocalMessage(content, risk.level === 'medium' ? 'flagged' : 'clean') };
+  }
+}
+
+export async function submitOrderReport(orderId: string, description = '用户在消息页发起举报') {
+  if (!isApiEnabled()) return true;
+
+  try {
+    const response = await apiPost<{ ok: boolean }>(`/api/orders/${orderId}/report`, {
+      reason: '消息沟通举报',
+      description,
+      reporterRole: 'user',
+    });
+    return response.success;
+  } catch {
+    return false;
   }
 }
 
 export function saveLocalConversation(conversation: Conversation) {
-  if (isApiEnabled() || typeof localStorage === 'undefined') return;
+  if (typeof localStorage === 'undefined') return;
 
   try {
     const conversations = readLocalConversationMessages();
@@ -65,6 +81,16 @@ export function saveLocalConversation(conversation: Conversation) {
   } catch {
     // Local persistence is best-effort in MVP mode.
   }
+}
+
+function createLocalMessage(content: string, riskStatus: Message['riskStatus']): Message {
+  return {
+    id: `local-message-${Date.now()}`,
+    from: 'user',
+    text: content,
+    sentAt: new Date().toISOString(),
+    riskStatus,
+  };
 }
 
 function getLocalConversation(orderId?: string): Conversation {

@@ -9,7 +9,7 @@ type LocationSelectorProps = {
 export function LocationSelector({ areas, selectedArea, onSelect }: LocationSelectorProps) {
   return (
     <section>
-      <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-900">
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#3f302c]">
         <MapPin size={16} />
         地点
       </h3>
@@ -26,7 +26,7 @@ export function LocationSelector({ areas, selectedArea, onSelect }: LocationSele
 
 function OptionButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button className={`rounded-full px-3 py-2 text-xs font-semibold ${active ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-700'}`} onClick={onClick}>
+    <button className={`rounded-full px-3 py-2 text-xs font-semibold ${active ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]'}`} onClick={onClick}>
       {children}
     </button>
   );

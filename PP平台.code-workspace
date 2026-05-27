@@ -1,0 +1,23 @@
+{
+  "folders": [
+    {
+      "name": "PP平台",
+      "path": "."
+    },
+    {
+      "name": "前端 pp-app",
+      "path": "pp-app"
+    },
+    {
+      "name": "后端 server",
+      "path": "server"
+    },
+    {
+      "name": "数据库设计 database",
+      "path": "database"
+    }
+  ],
+  "settings": {
+    "editor.formatOnSave": true
+  }
+}

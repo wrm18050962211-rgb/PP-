@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "打开 PP 用户端",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://127.0.0.1:5173/consumer",
+      "webRoot": "${workspaceFolder}/pp-app/src",
+      "preLaunchTask": "PP 一键启动前后端"
+    },
+    {
+      "name": "调试 PP 后端 API",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/server/server.mjs",
+      "cwd": "${workspaceFolder}/server",
+      "env": {
+        "PORT": "8787"
+      }
+    }
+  ]
+}

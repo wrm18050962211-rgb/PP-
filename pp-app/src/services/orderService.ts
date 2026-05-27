@@ -34,6 +34,35 @@ export async function fetchOrders(role: 'user' | 'companion' = 'user'): Promise<
 }
 
 export async function submitOrder(input: CreateOrderInput): Promise<AppOrder> {
-  const response = await apiPost<AppOrder>('/api/orders', input);
-  return response.success ? response.data : createLocalOrder(input);
+  if (!isApiEnabled()) return createLocalOrder(input);
+
+  try {
+    const response = await apiPost<AppOrder>('/api/orders', input);
+    return response.success ? response.data : createLocalOrder(input);
+  } catch {
+    return createLocalOrder(input);
+  }
+}
+
+export async function updateRemoteOrderStatus(orderId: string, status: OrderStatus): Promise<AppOrder | null> {
+  if (!isApiEnabled()) return null;
+
+  const actionPath =
+    status === 'confirmed'
+      ? `/api/orders/${orderId}/confirm`
+      : status === 'completed'
+        ? `/api/orders/${orderId}/complete`
+        : status === 'cancelled'
+          ? `/api/orders/${orderId}/cancel`
+          : `/api/orders/${orderId}/status`;
+
+  try {
+    const response = await apiPost<AppOrder>(
+      actionPath,
+      status === 'confirmed' || status === 'completed' || status === 'cancelled' ? undefined : { status },
+    );
+    return response.success ? response.data : null;
+  } catch {
+    return null;
+  }
 }

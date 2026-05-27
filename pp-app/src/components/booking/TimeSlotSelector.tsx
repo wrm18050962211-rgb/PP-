@@ -17,7 +17,7 @@ export function TimeSlotSelector({ slots, selectedDate, selectedSlotId, onDateSe
   return (
     <section className="space-y-4">
       <div>
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-900">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#3f302c]">
           <CalendarDays size={16} />
           日期
         </h3>
@@ -31,7 +31,7 @@ export function TimeSlotSelector({ slots, selectedDate, selectedSlotId, onDateSe
       </div>
 
       <div>
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-900">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#3f302c]">
           <Clock3 size={16} />
           时间
         </h3>
@@ -44,10 +44,10 @@ export function TimeSlotSelector({ slots, selectedDate, selectedSlotId, onDateSe
                 key={slot.id}
                 className={`rounded-full px-3 py-2 text-xs font-semibold ${
                   slot.id === selectedSlotId
-                    ? 'bg-zinc-950 text-white'
+                    ? 'bg-[#3f302c] text-white'
                     : disabled
-                      ? 'bg-zinc-100 text-zinc-300'
-                      : 'bg-zinc-100 text-zinc-700'
+                      ? 'bg-[#f2e8e1] text-[#c4b7af]'
+                      : 'bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]'
                 }`}
                 disabled={disabled}
                 onClick={() => onSlotSelect(slot)}
@@ -59,7 +59,7 @@ export function TimeSlotSelector({ slots, selectedDate, selectedSlotId, onDateSe
             );
           })}
         </div>
-        {availableCount === 0 ? <p className="mt-2 text-xs font-medium text-rose-500">这一天暂时没有可预约时间</p> : null}
+        {availableCount === 0 ? <p className="mt-2 text-xs font-medium text-[#e85d75]">这一天暂时没有可预约时间</p> : null}
       </div>
     </section>
   );
@@ -67,7 +67,7 @@ export function TimeSlotSelector({ slots, selectedDate, selectedSlotId, onDateSe
 
 function OptionButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button className={`rounded-full px-3 py-2 text-xs font-semibold ${active ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-700'}`} onClick={onClick}>
+    <button className={`rounded-full px-3 py-2 text-xs font-semibold ${active ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]'}`} onClick={onClick}>
       {children}
     </button>
   );

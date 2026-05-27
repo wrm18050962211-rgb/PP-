@@ -1,0 +1,290 @@
+{
+  "meta": {
+    "version": 2,
+    "createdAt": "2026-05-26T23:57:16.291Z"
+  },
+  "companions": [
+    {
+      "id": "companion-mori",
+      "userId": "user-mori",
+      "name": "Mori",
+      "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=900&q=80",
+      "bio": "会聊天，也会帮你慢慢找角度，第一次拍照也不尴尬。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 4.9,
+      "ratingCount": 18,
+      "tags": [
+        "会指导动作",
+        "轻松聊天",
+        "适合第一次拍照"
+      ],
+      "safetyBadges": [
+        "已实名认证",
+        "视频已审核",
+        "平台担保"
+      ],
+      "areas": [
+        "武康路",
+        "安福路",
+        "衡山路",
+        "徐家汇"
+      ],
+      "slots": [
+        {
+          "id": "slot-mori-1",
+          "label": "5月26日 周二 10:00-12:00",
+          "dateLabel": "5月26日 周二",
+          "timeLabel": "10:00-12:00",
+          "startAt": "2026-05-26T02:00:00.000Z",
+          "endAt": "2026-05-26T04:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "slot-mori-2",
+          "label": "5月27日 周三 14:00-16:00",
+          "dateLabel": "5月27日 周三",
+          "timeLabel": "14:00-16:00",
+          "startAt": "2026-05-27T06:00:00.000Z",
+          "endAt": "2026-05-27T08:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "activity-citywalk",
+          "name": "Citywalk",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 39900,
+          "priceText": "¥399"
+        },
+        {
+          "id": "activity-cafe",
+          "name": "探店吃饭",
+          "durationMinutes": 90,
+          "durationLabel": "1.5小时",
+          "priceCents": 29900,
+          "priceText": "¥299"
+        }
+      ],
+      "extras": [
+        {
+          "id": "extra-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "extra-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    }
+  ],
+  "posts": [
+    {
+      "id": "post-wukang",
+      "location": "上海 · 武康路",
+      "timeLabel": "傍晚 / 春季 / 2026年5月",
+      "caption": "黄昏的梧桐树影很温柔，适合边散步边拍松弛感街拍。",
+      "styleTags": [
+        "Citywalk",
+        "自然光",
+        "松弛感"
+      ],
+      "activity": "Citywalk 陪拍",
+      "images": [
+        {
+          "id": "img-wukang-1",
+          "url": "https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "img-wukang-2",
+          "url": "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "companion-mori",
+        "userId": "user-mori",
+        "name": "Mori",
+        "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=900&q=80",
+        "bio": "会聊天，也会帮你慢慢找角度，第一次拍照也不尴尬。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 4.9,
+        "ratingCount": 18,
+        "tags": [
+          "会指导动作",
+          "轻松聊天",
+          "适合第一次拍照"
+        ],
+        "safetyBadges": [
+          "已实名认证",
+          "视频已审核",
+          "平台担保"
+        ],
+        "areas": [
+          "武康路",
+          "安福路",
+          "衡山路",
+          "徐家汇"
+        ],
+        "slots": [
+          {
+            "id": "slot-mori-1",
+            "label": "5月26日 周二 10:00-12:00",
+            "dateLabel": "5月26日 周二",
+            "timeLabel": "10:00-12:00",
+            "startAt": "2026-05-26T02:00:00.000Z",
+            "endAt": "2026-05-26T04:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "slot-mori-2",
+            "label": "5月27日 周三 14:00-16:00",
+            "dateLabel": "5月27日 周三",
+            "timeLabel": "14:00-16:00",
+            "startAt": "2026-05-27T06:00:00.000Z",
+            "endAt": "2026-05-27T08:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "activity-citywalk",
+            "name": "Citywalk",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 39900,
+            "priceText": "¥399"
+          },
+          {
+            "id": "activity-cafe",
+            "name": "探店吃饭",
+            "durationMinutes": 90,
+            "durationLabel": "1.5小时",
+            "priceCents": 29900,
+            "priceText": "¥299"
+          }
+        ],
+        "extras": [
+          {
+            "id": "extra-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "extra-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    }
+  ],
+  "orders": [
+    {
+      "id": "order-seed-1",
+      "orderNo": "PP26052401",
+      "status": "paid_pending_confirm",
+      "title": "Citywalk 陪拍",
+      "time": "5月26日 周二 10:00-12:00",
+      "place": "武康路",
+      "amountCents": 48900,
+      "companion": "Mori",
+      "companionId": "companion-mori",
+      "postId": "post-wukang",
+      "activityId": "activity-citywalk",
+      "activityName": "Citywalk",
+      "slotId": "slot-mori-1",
+      "startAt": "2026-05-26T02:00:00.000Z",
+      "endAt": "2026-05-26T04:00:00.000Z",
+      "dateLabel": "5月26日 周二",
+      "timeLabel": "10:00-12:00",
+      "durationMinutes": 120,
+      "durationLabel": "2小时",
+      "addOns": [
+        {
+          "extraId": "extra-retouch",
+          "name": "精修",
+          "unitLabel": "张",
+          "quantity": 3,
+          "unitPriceCents": 3000,
+          "amountCents": 9000
+        }
+      ],
+      "createdAt": "2026-05-26T23:57:16.290Z",
+      "statusText": "待确认",
+      "amountText": "¥489",
+      "steps": [
+        "已下单",
+        "已支付",
+        "已确认",
+        "已完成"
+      ],
+      "currentStep": 1
+    }
+  ],
+  "payments": [],
+  "conversations": {
+    "order-seed-1": {
+      "id": "conversation-order-seed-1",
+      "orderId": "order-seed-1",
+      "orderNo": "PP26052401",
+      "status": "active",
+      "safetyNotice": "请勿交换联系方式或私下付款。",
+      "messages": [
+        {
+          "id": "message-order-seed-1-1",
+          "from": "companion",
+          "text": "我看了你收藏的风格，可以先确认集合点和拍摄路线。",
+          "sentAt": "2026-05-26T23:57:16.291Z",
+          "riskStatus": "clean"
+        },
+        {
+          "id": "message-order-seed-1-2",
+          "from": "user",
+          "text": "好呀，我想要自然一点的照片。",
+          "sentAt": "2026-05-26T23:57:16.291Z",
+          "riskStatus": "clean"
+        }
+      ]
+    }
+  },
+  "riskCases": [],
+  "reports": [],
+  "settlements": [],
+  "application": {
+    "reviewStatus": "草稿",
+    "updatedAt": "2026-05-26T23:57:16.291Z"
+  },
+  "workDraft": {
+    "reviewStatus": "草稿",
+    "updatedAt": "2026-05-26T23:57:16.291Z"
+  }
+}

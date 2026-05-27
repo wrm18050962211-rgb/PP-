@@ -53,13 +53,14 @@ export const defaultBookingSettings: CompanionBookingSettings = {
 };
 
 export function applyBookingSettingsToCompanion(companion: Companion, settings?: CompanionBookingSettings): Companion {
-  if (!settings || settings.companionId !== companion.id) return companion;
+  if (!settings) return companion;
 
+  const activities = buildActivityPricing(settings);
   return {
     ...companion,
     serviceEnabled: settings.temporaryAccepting,
     slots: buildAvailabilitySlots(settings),
-    activities: buildActivityPricing(settings).length ? buildActivityPricing(settings) : companion.activities,
+    activities: activities.length ? activities : companion.activities,
     extras: buildExtras(settings, companion.extras),
   };
 }

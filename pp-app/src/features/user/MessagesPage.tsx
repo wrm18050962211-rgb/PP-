@@ -2,7 +2,7 @@ import { AlertTriangle, ChevronLeft, Flag, LockKeyhole, Send, ShieldCheck } from
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
-import { evaluateMessageRisk, fetchConversation, getConversation, saveLocalConversation, sendMessage } from '../../services/messageService';
+import { evaluateMessageRisk, fetchConversation, getConversation, saveLocalConversation, sendMessage, submitOrderReport } from '../../services/messageService';
 import type { Conversation } from '../../types/api';
 import { formatMoney } from '../../utils/money';
 
@@ -41,6 +41,7 @@ export function MessagesPage() {
     if (!content) return;
 
     if (risk.shouldBlock) {
+      void sendMessage(conversation.id, content);
       setSendBlocked(true);
       return;
     }
@@ -71,10 +72,10 @@ export function MessagesPage() {
 
   if (!activeOrder) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-zinc-50 px-6 text-center">
+      <div className="grid min-h-dvh place-items-center pp-page px-6 text-center">
         <div>
           <p className="text-base font-bold text-zinc-900">暂无可沟通订单</p>
-          <Link className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-zinc-950 px-5 text-sm font-bold text-white" to="/consumer/orders">
+          <Link className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-[#3f302c] px-5 text-sm font-bold text-white" to="/consumer/orders">
             返回订单
           </Link>
         </div>
@@ -85,20 +86,23 @@ export function MessagesPage() {
   const riskKeywords = risk.hits.map((hit) => hit.keyword).join('、');
 
   return (
-    <div className="flex min-h-dvh flex-col bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white px-4 py-3">
+    <div className="flex min-h-dvh flex-col pp-page">
+      <header className="border-b border-[#eadfd8] bg-[#fbf7f2]/92 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
-          <Link className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" to="/consumer/orders" aria-label="返回订单">
+          <Link className="grid h-9 w-9 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" to="/consumer/orders" aria-label="返回订单">
             <ChevronLeft size={20} />
           </Link>
           <div className="min-w-0 flex-1 text-center">
-            <h1 className="truncate text-base font-bold text-zinc-950">订单沟通</h1>
-            <p className="mt-0.5 truncate text-xs text-zinc-500">{conversation.orderNo}</p>
+            <h1 className="truncate text-base font-bold text-[#3f302c]">订单沟通</h1>
+            <p className="mt-0.5 truncate text-xs text-[#8f8078]">{conversation.orderNo}</p>
           </div>
           <button
-            className={`grid h-9 w-9 place-items-center rounded-full ${reportSent ? 'bg-rose-50 text-rose-500' : 'bg-zinc-100 text-zinc-700'}`}
+            className={`grid h-9 w-9 place-items-center rounded-full ${reportSent ? 'bg-[#fff1f2] text-[#e85d75]' : 'bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]'}`}
             aria-label="举报"
-            onClick={() => setReportSent(true)}
+            onClick={() => {
+              setReportSent(true);
+              if (activeOrder) void submitOrderReport(activeOrder.id);
+            }}
             type="button"
           >
             <Flag size={18} />
@@ -107,24 +111,24 @@ export function MessagesPage() {
         {reportSent && <p className="mt-2 text-center text-xs font-semibold text-rose-500">举报已记录，平台会优先复核这笔订单沟通。</p>}
       </header>
 
-      <section className="border-b border-zinc-200 bg-white px-4 py-3">
+      <section className="border-b border-[#eadfd8] bg-white/72 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-zinc-400">{activeOrder.orderNo}</p>
-            <h2 className="mt-1 truncate text-lg font-bold text-zinc-950">{activeOrder.title}</h2>
-            <p className="mt-1 truncate text-xs text-zinc-500">
+            <p className="text-xs font-semibold text-[#a99b94]">{activeOrder.orderNo}</p>
+            <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{activeOrder.title}</h2>
+            <p className="mt-1 truncate text-xs text-[#8f8078]">
               {activeOrder.companion} · {activeOrder.dateLabel ?? activeOrder.time} {activeOrder.timeLabel ?? ''}
             </p>
           </div>
           <div className="shrink-0 text-right">
-            <p className="text-sm font-bold text-zinc-950">{formatMoney(activeOrder.amountCents)}</p>
-            <p className="mt-1 text-xs text-zinc-400">{activeOrder.statusText}</p>
+            <p className="text-sm font-bold text-[#3f302c]">{formatMoney(activeOrder.amountCents)}</p>
+            <p className="mt-1 text-xs text-[#a99b94]">{activeOrder.statusText}</p>
           </div>
         </div>
       </section>
 
       <section className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        <div className="flex gap-2 rounded-[8px] bg-amber-50 p-3 text-xs leading-5 text-amber-800 ring-1 ring-amber-100">
+        <div className="flex gap-2 rounded-[18px] bg-[#fff7df] p-3 text-xs leading-5 text-[#8a5a12] ring-1 ring-[#f2dfaa]">
           <ShieldCheck className="mt-0.5 shrink-0" size={16} />
           <span>请只围绕本订单沟通时间、地点、拍摄需求和服务确认。不要交换联系方式，不要私下转账或绕开平台付款。</span>
         </div>
@@ -133,7 +137,7 @@ export function MessagesPage() {
           <div key={message.id} className={`flex ${message.from === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-6 ${
-                message.from === 'user' ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-800 ring-1 ring-zinc-200'
+                message.from === 'user' ? 'bg-[#3f302c] text-white' : 'bg-white/86 text-[#3f302c] ring-1 ring-[#eadfd8]'
               }`}
             >
               <p>{message.text}</p>
@@ -143,7 +147,7 @@ export function MessagesPage() {
         ))}
       </section>
 
-      <footer className="sticky bottom-16 border-t border-zinc-200 bg-white p-3">
+      <footer className="sticky bottom-16 border-t border-[#eadfd8] bg-[#fffaf6]/96 p-3 backdrop-blur">
         {risk.level === 'high' && (
           <RiskNotice tone="high" text={`检测到高风险内容：${riskKeywords || '联系方式或私下交易'}。为保障双方权益，此消息不能发送。`} />
         )}
@@ -161,7 +165,7 @@ export function MessagesPage() {
 
         <div className="flex items-end gap-2">
           <textarea
-            className="max-h-28 min-h-11 flex-1 resize-none rounded-[8px] bg-zinc-100 px-4 py-3 text-sm leading-5 outline-none focus:ring-2 focus:ring-zinc-300"
+            className="max-h-28 min-h-11 flex-1 resize-none rounded-[18px] bg-white/82 px-4 py-3 text-sm leading-5 text-[#3f302c] outline-none ring-1 ring-[#eadfd8] placeholder:text-[#b0a29b] focus:ring-2 focus:ring-[#e8c5cb]"
             placeholder="输入订单相关需求，例如集合点、拍摄风格、时间确认"
             value={draft}
             onChange={(event) => {
@@ -179,7 +183,7 @@ export function MessagesPage() {
           />
           <button
             className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-white ${
-              risk.shouldBlock ? 'bg-zinc-300' : isMediumRiskWaiting ? 'bg-amber-500' : 'bg-rose-500'
+              risk.shouldBlock ? 'bg-[#d8d0cb]' : isMediumRiskWaiting ? 'bg-amber-500' : 'bg-[#e85d75]'
             }`}
             onClick={handleSend}
             type="button"
@@ -196,8 +200,8 @@ export function MessagesPage() {
 function RiskNotice({ tone, text }: { tone: 'medium' | 'high'; text: string }) {
   const className =
     tone === 'high'
-      ? 'mb-2 flex gap-2 rounded-[8px] bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700 ring-1 ring-rose-100'
-      : 'mb-2 flex gap-2 rounded-[8px] bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 ring-1 ring-amber-100';
+      ? 'mb-2 flex gap-2 rounded-[14px] bg-[#fff1f2] px-3 py-2 text-xs leading-5 text-[#be3450] ring-1 ring-[#ffd8df]'
+      : 'mb-2 flex gap-2 rounded-[14px] bg-[#fff7df] px-3 py-2 text-xs leading-5 text-[#8a5a12] ring-1 ring-[#f2dfaa]';
 
   return (
     <p className={className}>

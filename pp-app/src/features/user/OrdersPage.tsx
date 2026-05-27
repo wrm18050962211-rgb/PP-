@@ -60,10 +60,10 @@ export function OrdersPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-zinc-50 px-4 py-5">
+    <div className="min-h-dvh pp-page px-4 py-5">
       <header>
-        <p className="text-xs font-semibold text-rose-500">我的预约</p>
-        <h1 className="mt-1 text-2xl font-bold">订单</h1>
+        <p className="text-xs font-semibold text-[#e85d75]">我的预约</p>
+        <h1 className="mt-1 text-2xl font-bold text-[#3f302c]">订单</h1>
       </header>
 
       <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4">
@@ -71,7 +71,7 @@ export function OrdersPage() {
           <button
             key={tab.key}
             className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
-              activeStatus === tab.key ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-500 ring-1 ring-zinc-200'
+              activeStatus === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
             }`}
             onClick={() => setActiveStatus(tab.key)}
             type="button"
@@ -97,7 +97,7 @@ export function OrdersPage() {
       {!filteredOrders.length && (
         <div className="mt-16 text-center">
           <ReceiptText className="mx-auto text-zinc-300" size={48} />
-          <p className="mt-4 text-sm font-semibold text-zinc-500">当前没有这个状态的订单</p>
+          <p className="mt-4 text-sm font-semibold text-[#8f8078]">当前没有这个状态的订单</p>
         </div>
       )}
 
@@ -139,25 +139,25 @@ function OrderCard({
   const meta = statusMeta[order.status] ?? { label: order.statusText, tone: 'bg-zinc-100 text-zinc-600 ring-zinc-200' };
 
   return (
-    <article className="rounded-[10px] border border-zinc-200 bg-white p-4">
+    <article className="rounded-[22px] pp-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-zinc-400">{order.orderNo}</p>
-          <h2 className="mt-1 truncate text-lg font-bold">{order.title}</h2>
+          <p className="text-xs font-semibold text-[#a99b94]">{order.orderNo}</p>
+          <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{order.title}</h2>
         </div>
         <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${meta.tone}`}>{meta.label}</span>
       </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-[10px] bg-zinc-50 p-3">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-rose-500 ring-1 ring-zinc-200">
+      <div className="mt-4 flex items-center gap-3 rounded-[18px] bg-[#fff5f1] p-3">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-[#e85d75] ring-1 ring-[#eadfd8]">
           <Camera size={21} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-zinc-400">陪拍者信息</p>
-          <p className="mt-0.5 text-sm font-bold">{order.companion}</p>
-          <p className="truncate text-xs text-zinc-500">{order.activityName ?? order.title}</p>
+          <p className="text-xs font-semibold text-[#a99b94]">陪拍者信息</p>
+          <p className="mt-0.5 text-sm font-bold text-[#3f302c]">{order.companion}</p>
+          <p className="truncate text-xs text-[#8f8078]">{order.activityName ?? order.title}</p>
         </div>
-        <Link to={`/consumer/messages/${order.id}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-zinc-950 text-white" aria-label="进入消息页">
+        <Link to={`/consumer/messages/${order.id}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#3f302c] text-white" aria-label="进入消息页">
           <MessageCircle size={17} />
         </Link>
       </div>
@@ -170,7 +170,7 @@ function OrderCard({
         <DetailLine icon={<ReceiptText size={17} />} label="订单状态" value={meta.label} />
       </div>
 
-      <div className="mt-4 space-y-2 rounded-[10px] border border-zinc-100 p-3">
+      <div className="mt-4 space-y-2 rounded-[18px] border border-[#eadfd8] bg-white/62 p-3">
         <PriceLine label="基础价格" value={formatMoney(basePrice)} />
         <PriceLine label="精修加购" value={addOnTotal ? formatAddOns(order) : '未加购'} muted={!addOnTotal} />
         <div className="border-t border-zinc-100 pt-2">
@@ -181,14 +181,14 @@ function OrderCard({
       <div className="mt-4 flex gap-2">
         <Link
           to={`/consumer/messages/${order.id}`}
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white"
+          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white"
         >
           <MessageCircle size={17} />
           进入消息页
         </Link>
         {canCancel && (
           <button
-            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700"
+            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#6f625d]"
             onClick={onCancel}
             type="button"
           >
@@ -199,7 +199,7 @@ function OrderCard({
         {canReview && (
           <button
             className={`flex h-10 flex-1 items-center justify-center gap-2 rounded-full text-sm font-bold ${
-              reviewed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-500 text-white'
+              reviewed ? 'pp-safe' : 'pp-primary'
             }`}
             disabled={reviewed}
             onClick={onReview}
@@ -210,13 +210,13 @@ function OrderCard({
           </button>
         )}
         {order.status === 'refunding' && (
-          <button className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-rose-50 text-sm font-bold text-rose-600" onClick={onRefund} type="button">
+          <button className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#fff1f2] text-sm font-bold text-[#e85d75]" onClick={onRefund} type="button">
             <RotateCcw size={17} />
             退款进度
           </button>
         )}
         {order.status === 'cancelled' && (
-          <span className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-zinc-100 text-sm font-bold text-zinc-400">
+          <span className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#a99b94]">
             <CheckCircle2 size={17} />
             已取消
           </span>
@@ -296,11 +296,11 @@ function RefundDialog({ order, onClose }: { order: AppOrder; onClose: () => void
 
 function ActionSheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 px-4 pb-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-[10px] bg-white p-4 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#3f302c]/30 px-4 pb-4" role="dialog" aria-modal="true">
+      <div className="w-full max-w-md rounded-[22px] bg-[#fffaf6] p-4 shadow-xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">{title}</h2>
-          <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-500" onClick={onClose} type="button" aria-label="关闭">
+          <h2 className="text-lg font-bold text-[#3f302c]">{title}</h2>
+          <button className="grid h-9 w-9 place-items-center rounded-full bg-[#f2e8e1] text-[#7a6b64]" onClick={onClose} type="button" aria-label="关闭">
             <XCircle size={18} />
           </button>
         </div>
@@ -328,8 +328,8 @@ function DetailLine({ icon, label, value }: { icon: React.ReactNode; label: stri
   return (
     <div className="flex items-center gap-3">
       <span className="text-zinc-400">{icon}</span>
-      <span className="w-20 shrink-0 text-zinc-500">{label}</span>
-      <span className="min-w-0 flex-1 truncate font-semibold text-zinc-900">{value}</span>
+      <span className="w-20 shrink-0 text-[#7a6b64]">{label}</span>
+      <span className="min-w-0 flex-1 truncate font-semibold text-[#3f302c]">{value}</span>
     </div>
   );
 }
@@ -337,8 +337,8 @@ function DetailLine({ icon, label, value }: { icon: React.ReactNode; label: stri
 function PriceLine({ label, value, strong, muted }: { label: string; value: string; strong?: boolean; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className={`${strong ? 'font-bold text-zinc-950' : 'text-zinc-500'} text-sm`}>{label}</span>
-      <span className={`${strong ? 'text-lg font-bold' : 'text-sm font-semibold'} ${muted ? 'text-zinc-400' : 'text-zinc-950'}`}>{value}</span>
+      <span className={`${strong ? 'font-bold text-[#3f302c]' : 'text-[#7a6b64]'} text-sm`}>{label}</span>
+      <span className={`${strong ? 'text-lg font-bold' : 'text-sm font-semibold'} ${muted ? 'text-[#b0a29b]' : 'text-[#3f302c]'}`}>{value}</span>
     </div>
   );
 }

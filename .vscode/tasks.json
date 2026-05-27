@@ -1,0 +1,63 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PP 一键启动前后端",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "PP 后端 API 服务器",
+        "PP 前端开发服务器"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "PP 前端开发服务器",
+      "type": "shell",
+      "command": "npm.cmd run dev -- --port 5173",
+      "options": {
+        "cwd": "${workspaceFolder}/pp-app"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": ".",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "Local:"
+        }
+      }
+    },
+    {
+      "label": "PP 后端 API 服务器",
+      "type": "shell",
+      "command": "npm.cmd run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PP 前端构建检查",
+      "type": "shell",
+      "command": "npm.cmd run build",
+      "options": {
+        "cwd": "${workspaceFolder}/pp-app"
+      },
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "PP 前端代码检查",
+      "type": "shell",
+      "command": "npm.cmd run lint",
+      "options": {
+        "cwd": "${workspaceFolder}/pp-app"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

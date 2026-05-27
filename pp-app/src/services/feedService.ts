@@ -1,13 +1,45 @@
-import { feedPosts } from '../data/mockApi';
-import type { FeedPost } from '../types/api';
+import { companions, feedPosts } from '../data/mockApi';
+import type { ActivityPricing, AvailabilitySlot, Companion, CompanionExtra, FeedPost, PublishedWorkDraft } from '../types/api';
 import { apiGet, isApiEnabled } from './apiClient';
 
 export function listFeedPosts(): FeedPost[] {
-  return extendedFeedPosts;
+  return getExtendedFeedPosts();
 }
 
 export function getPostDetail(postId?: string): FeedPost {
+  const extendedFeedPosts = getExtendedFeedPosts();
   return extendedFeedPosts.find((post) => post.id === postId) ?? extendedFeedPosts[0];
+}
+
+export function buildApprovedWorkPost(workDraft: PublishedWorkDraft): FeedPost | null {
+  if (workDraft.reviewStatus !== '已通过' || workDraft.images.length === 0) return null;
+
+  const images = [...workDraft.images]
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((image, index) => ({ ...image, sortOrder: index + 1 }));
+  const coverIndex = Math.max(
+    0,
+    images.findIndex((image) => image.id === workDraft.coverImageId),
+  );
+  const [coverImage] = images.splice(coverIndex, 1);
+
+  return {
+    id: 'local-approved-work',
+    location: workDraft.location,
+    timeLabel: workDraft.timeLabel,
+    caption: workDraft.caption,
+    styleTags: workDraft.tags,
+    activity: workDraft.activity,
+    images: coverImage ? [coverImage, ...images] : images,
+    companion: companions[0],
+  };
+}
+
+export function mergeApprovedWorkIntoFeed(posts: FeedPost[], workDraft: PublishedWorkDraft): FeedPost[] {
+  const approvedPost = buildApprovedWorkPost(workDraft);
+  if (!approvedPost) return posts;
+
+  return [approvedPost, ...posts.filter((post) => post.id !== approvedPost.id)];
 }
 
 export async function fetchFeedPosts(): Promise<FeedPost[]> {
@@ -21,8 +53,10 @@ export async function fetchFeedPosts(): Promise<FeedPost[]> {
   }
 }
 
-const extendedFeedPosts: FeedPost[] = [
+function getExtendedFeedPosts(): FeedPost[] {
+  return [
   ...feedPosts,
+  ...createVirtualFeedPosts(),
   {
     ...feedPosts[0],
     id: '00000000-0000-0000-0000-000000000704',
@@ -98,7 +132,246 @@ const extendedFeedPosts: FeedPost[] = [
       },
     ],
   },
-];
+  ];
+}
+
+const virtualProfiles = [
+  {
+    name: 'Luna',
+    gender: 'female',
+    area: '武康路',
+    areas: ['武康路', '安福路', '湖南路', '衡山路'],
+    activity: 'Citywalk 陪拍',
+    tags: ['自然抓拍', '会指导动作', '适合第一次拍照'],
+    styleTags: ['Citywalk', '自然光', '松弛感'],
+    bio: '偏温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。',
+    priceCents: 39900,
+    durationMinutes: 120,
+    image: 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Aki',
+    gender: 'female',
+    area: '巨鹿路',
+    areas: ['巨鹿路', '富民路', '长乐路', '静安寺'],
+    activity: '探店生活照',
+    tags: ['探店构图', '小红书风格', '穿搭建议'],
+    styleTags: ['探店', '日常感', '咖啡店'],
+    bio: '熟悉咖啡店和街角光线，适合想要轻松日常头像和朋友圈照片的用户。',
+    priceCents: 32900,
+    durationMinutes: 90,
+    image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Rin',
+    gender: 'female',
+    area: '新天地',
+    areas: ['新天地', '淮海中路', '思南路', '复兴公园'],
+    activity: '城市街拍',
+    tags: ['都市感', '干净构图', '情绪引导'],
+    styleTags: ['城市感', '街拍', '高级感'],
+    bio: '擅长红砖、玻璃、街巷背景，适合想要利落一点的城市人像。',
+    priceCents: 42900,
+    durationMinutes: 120,
+    image: 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Mika',
+    gender: 'female',
+    area: '苏州河',
+    areas: ['苏州河', '外滩源', '北外滩', '南京东路'],
+    activity: '夜景散步',
+    tags: ['夜景路线熟', '安全提醒', '游客友好'],
+    styleTags: ['夜景', '蓝调', '旅行感'],
+    bio: '熟悉夜景人流和安全路线，会提醒集合点、动线和收尾时间。',
+    priceCents: 29900,
+    durationMinutes: 60,
+    image: 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Yoyo',
+    gender: 'female',
+    area: '徐家汇',
+    areas: ['徐家汇', '衡山路', '徐汇滨江', '天平路'],
+    activity: '校园感写真',
+    tags: ['清新风格', '笑容引导', '适合学生党'],
+    styleTags: ['清新', '校园感', '自然光'],
+    bio: '偏清爽自然的照片，会帮助缓解镜头尴尬，适合学生和毕业季。',
+    priceCents: 26900,
+    durationMinutes: 90,
+    image: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Cici',
+    gender: 'female',
+    area: '外滩',
+    areas: ['外滩', '外白渡桥', '圆明园路', '南京东路'],
+    activity: '旅行跟拍',
+    tags: ['游客路线', '地标机位', '出片效率高'],
+    styleTags: ['旅行', '地标', '明亮'],
+    bio: '适合来上海短暂停留的游客，路线紧凑，优先保证地标合影和自然抓拍。',
+    priceCents: 69900,
+    durationMinutes: 240,
+    image: 'https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Niko',
+    gender: 'male',
+    area: '愚园路',
+    areas: ['愚园路', '中山公园', '江苏路', '番禺路'],
+    activity: '男生头像',
+    tags: ['男生友好', '不尴尬', '街头感'],
+    styleTags: ['街头', '头像', '松弛'],
+    bio: '适合男生头像、社交主页照片，会用简单指令减少摆拍感。',
+    priceCents: 29900,
+    durationMinutes: 90,
+    image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Sora',
+    gender: 'female',
+    area: '静安寺',
+    areas: ['静安寺', '南京西路', '铜仁路', '常德路'],
+    activity: '通勤形象照',
+    tags: ['职业形象', '干净背景', '效率高'],
+    styleTags: ['通勤', '简洁', '职业感'],
+    bio: '适合 LinkedIn、简历、商务社交头像，路线会避开过度游客化背景。',
+    priceCents: 45900,
+    durationMinutes: 120,
+    image: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Peach',
+    gender: 'female',
+    area: '滨江',
+    areas: ['徐汇滨江', '龙美术馆', '油罐艺术中心', '西岸'],
+    activity: '宠物友好陪拍',
+    tags: ['宠物友好', '耐心等待', '户外路线'],
+    styleTags: ['宠物', '户外', '暖色'],
+    bio: '可以陪同宠物出镜，节奏会留出休息和互动时间，适合轻松户外照。',
+    priceCents: 36900,
+    durationMinutes: 120,
+    image: 'https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Bean',
+    gender: 'female',
+    area: '田子坊',
+    areas: ['田子坊', '打浦桥', '瑞金二路', '思南路'],
+    activity: '复古胶片感',
+    tags: ['复古色调', '老街路线', '情绪片'],
+    styleTags: ['复古', '胶片感', '老街'],
+    bio: '偏复古和情绪表达，会选择老街、门窗、墙面做背景，适合安静风格。',
+    priceCents: 39900,
+    durationMinutes: 120,
+    image: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=240&q=80',
+  },
+] as const;
+
+function createVirtualFeedPosts(): FeedPost[] {
+  return virtualProfiles.map((profile, index): FeedPost => {
+    const companion = createVirtualCompanion(profile, index);
+    return {
+      id: `virtual-post-${index + 1}`,
+      location: `上海 · ${profile.area}`,
+      timeLabel: `${index % 2 === 0 ? '下午' : '傍晚'} / 虚拟样例 / 可替换资料`,
+      caption: `${profile.bio} 这是一条虚拟陪拍者样例资料，用于填充页面和调试预约流程。`,
+      styleTags: [...profile.styleTags, '虚拟样例'],
+      activity: profile.activity,
+      images: [
+        { id: `virtual-post-${index + 1}-image-1`, url: profile.image, width: 900, height: 1200, sortOrder: 1 },
+        { id: `virtual-post-${index + 1}-image-2`, url: profile.avatar, width: 900, height: 1200, sortOrder: 2 },
+      ],
+      companion,
+    };
+  });
+}
+
+function createVirtualCompanion(profile: (typeof virtualProfiles)[number], index: number): Companion {
+  return {
+    id: `virtual-companion-${index + 1}`,
+    userId: `virtual-user-${index + 1}`,
+    name: profile.name,
+    isVirtual: true,
+    avatar: profile.avatar,
+    photo: profile.image,
+    bio: profile.bio,
+    gender: profile.gender,
+    baseCity: '上海',
+    status: 'approved',
+    serviceEnabled: true,
+    ratingAvg: 4.6 + (index % 4) / 10,
+    ratingCount: 8 + index * 3,
+    tags: [...profile.tags],
+    safetyBadges: ['虚拟样例', '资料待替换', '流程演示'],
+    areas: [...profile.areas],
+    slots: createVirtualSlots(index),
+    activities: createVirtualActivities(profile, index),
+    extras: createVirtualExtras(index),
+  };
+}
+
+function createVirtualSlots(index: number): AvailabilitySlot[] {
+  const day = 28 + (index % 5);
+  const hour = 10 + (index % 7);
+  return [
+    virtualSlot(index, 1, `明天 ${hour}:00`, `2026-05-${String(day).padStart(2, '0')}T${String(hour - 8).padStart(2, '0')}:00:00.000Z`, `2026-05-${String(day).padStart(2, '0')}T${String(hour - 6).padStart(2, '0')}:00:00.000Z`),
+    virtualSlot(index, 2, `周五 ${hour + 2}:30`, `2026-05-${String(day + 1).padStart(2, '0')}T${String(hour - 6).padStart(2, '0')}:30:00.000Z`, `2026-05-${String(day + 1).padStart(2, '0')}T${String(hour - 4).padStart(2, '0')}:30:00.000Z`),
+    virtualSlot(index, 3, `周末 ${hour + 4}:00`, `2026-06-${String((index % 3) + 1).padStart(2, '0')}T${String(hour - 4).padStart(2, '0')}:00:00.000Z`, `2026-06-${String((index % 3) + 1).padStart(2, '0')}T${String(hour - 2).padStart(2, '0')}:00:00.000Z`),
+  ];
+}
+
+function virtualSlot(index: number, sort: number, label: string, startAt: string, endAt: string): AvailabilitySlot {
+  const [dateLabel, timeLabel] = label.split(' ');
+  return {
+    id: `virtual-slot-${index + 1}-${sort}`,
+    label,
+    dateLabel,
+    timeLabel,
+    startAt,
+    endAt,
+    status: 'available',
+  };
+}
+
+function createVirtualActivities(profile: (typeof virtualProfiles)[number], index: number): ActivityPricing[] {
+  return [
+    {
+      id: `virtual-activity-${index + 1}-main`,
+      name: profile.activity,
+      durationMinutes: profile.durationMinutes,
+      durationLabel: profile.durationMinutes === 60 ? '1小时' : profile.durationMinutes === 90 ? '1.5小时' : profile.durationMinutes === 240 ? '4小时' : '2小时',
+      priceCents: profile.priceCents,
+      priceText: `¥${Math.round(profile.priceCents / 100)}`,
+    },
+    {
+      id: `virtual-activity-${index + 1}-light`,
+      name: '轻量头像快拍',
+      durationMinutes: 60,
+      durationLabel: '1小时',
+      priceCents: Math.max(profile.priceCents - 12000, 19900),
+      priceText: `¥${Math.round(Math.max(profile.priceCents - 12000, 19900) / 100)}`,
+    },
+  ];
+}
+
+function createVirtualExtras(index: number): CompanionExtra[] {
+  return [
+    { id: `virtual-extra-${index + 1}-retouch`, name: '精修', unit: 'per_photo', unitLabel: '张', priceCents: 3000, priceText: '¥30/张' },
+    { id: `virtual-extra-${index + 1}-rush`, name: '加急出图', unit: 'per_order', unitLabel: '单', priceCents: 8000, priceText: '¥80' },
+    { id: `virtual-extra-${index + 1}-video`, name: '短视频花絮', unit: 'per_order', unitLabel: '单', priceCents: 12000, priceText: '¥120' },
+  ];
+}
 
 export async function fetchPostDetail(postId?: string): Promise<FeedPost> {
   if (!isApiEnabled() || !postId) return getPostDetail(postId);

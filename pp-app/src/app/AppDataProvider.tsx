@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { createLocalOrder, listSeedOrders, submitOrder } from '../services/orderService';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createLocalOrder, fetchOrders, listSeedOrders, submitOrder, updateRemoteOrderStatus } from '../services/orderService';
 import {
   getDefaultApplication,
   getDefaultWorkDraft,
@@ -23,6 +23,28 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [application, setApplication] = useState<CompanionApplication>(initial.application);
   const [bookingSettings, setBookingSettings] = useState<CompanionBookingSettings>(initial.bookingSettings);
   const [workDraft, setWorkDraft] = useState<PublishedWorkDraft>(initial.workDraft);
+  const initialDataRef = useRef({ application, bookingSettings, workDraft });
+
+  useEffect(() => {
+    if (!isApiEnabled()) return;
+
+    let mounted = true;
+    fetchOrders().then((serverOrders) => {
+      if (!mounted || serverOrders.length === 0) return;
+      setOrders(serverOrders);
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          orders: serverOrders,
+          ...initialDataRef.current,
+        }),
+      );
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const value = useMemo<AppData>(() => {
     function persist(next: Partial<Pick<AppData, 'orders' | 'application' | 'bookingSettings' | 'workDraft'>>) {
@@ -72,6 +94,16 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         );
         setOrders(nextOrders);
         persist({ orders: nextOrders });
+        if (isApiEnabled()) {
+          void updateRemoteOrderStatus(orderId, status).then((serverOrder) => {
+            if (!serverOrder) return;
+            setOrders((currentOrders) => {
+              const syncedOrders = currentOrders.map((currentOrder) => (currentOrder.id === serverOrder.id ? serverOrder : currentOrder));
+              localStorage.setItem(storageKey, JSON.stringify({ orders: syncedOrders, application, bookingSettings, workDraft }));
+              return syncedOrders;
+            });
+          });
+        }
       },
       saveApplication: (partial) => {
         const nextApplication = { ...application, ...partial, submitted: false, reviewStatus: '草稿' as const, updatedAt: new Date().toISOString() };
@@ -139,7 +171,7 @@ function loadInitialData() {
       orders: parsed.orders?.length ? mergeSeedOrders(parsed.orders) : defaultOrders,
       application: { ...defaultApplication, ...parsed.application },
       bookingSettings: mergeBookingSettings(parsed.bookingSettings),
-      workDraft: { ...defaultWorkDraft, ...parsed.workDraft },
+      workDraft: mergeWorkDraft(parsed.workDraft),
     };
   } catch {
     return { orders: defaultOrders, application: defaultApplication, bookingSettings: defaultBookingSettings, workDraft: defaultWorkDraft };
@@ -147,9 +179,9 @@ function loadInitialData() {
 }
 
 function mergeSeedOrders(storedOrders: AppOrder[]) {
-  const storedIds = new Set(storedOrders.map((order) => order.id));
-  const missingSeedOrders = defaultOrders.filter((order) => !storedIds.has(order.id));
-  return [...storedOrders, ...missingSeedOrders];
+  const seedIds = new Set(defaultOrders.map((order) => order.id));
+  const localOrders = storedOrders.filter((order) => !seedIds.has(order.id));
+  return [...localOrders, ...defaultOrders];
 }
 
 function mergeBookingSettings(storedSettings?: Partial<CompanionBookingSettings>) {
@@ -160,5 +192,18 @@ function mergeBookingSettings(storedSettings?: Partial<CompanionBookingSettings>
     timeRanges: storedSettings?.timeRanges?.length ? storedSettings.timeRanges : defaultBookingSettings.timeRanges,
     availableDates: storedSettings?.availableDates?.length ? storedSettings.availableDates : defaultBookingSettings.availableDates,
     repeatWeekdays: storedSettings?.repeatWeekdays?.length ? storedSettings.repeatWeekdays : defaultBookingSettings.repeatWeekdays,
+  };
+}
+
+function mergeWorkDraft(storedDraft?: Partial<PublishedWorkDraft>) {
+  const images = storedDraft?.images?.length ? storedDraft.images : defaultWorkDraft.images;
+
+  return {
+    ...defaultWorkDraft,
+    ...storedDraft,
+    images,
+    coverImageId: storedDraft?.coverImageId && images.some((image) => image.id === storedDraft.coverImageId) ? storedDraft.coverImageId : images[0]?.id ?? '',
+    tags: storedDraft?.tags?.length ? storedDraft.tags : defaultWorkDraft.tags,
+    activity: storedDraft?.activity ?? defaultWorkDraft.activity,
   };
 }

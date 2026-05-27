@@ -4,6 +4,8 @@ import { RoleShell } from '../layouts/RoleShell';
 import { AdminDashboard } from '../features/admin/AdminDashboard';
 import { CompanionOnboarding } from '../features/companion/CompanionOnboarding';
 import { CompanionBookingSettingsPage } from '../features/companion/CompanionBookingSettingsPage';
+import { CompanionIncomePage } from '../features/companion/CompanionIncomePage';
+import { CompanionOrdersPage } from '../features/companion/CompanionOrdersPage';
 import { CompanionProfileEdit } from '../features/companion/CompanionProfileEdit';
 import { PublishPost } from '../features/companion/PublishPost';
 import { CompanionStudio } from '../features/companion/CompanionStudio';
@@ -37,11 +39,11 @@ export default function App() {
         <Route path="profile" element={<CompanionProfileEdit />} />
         <Route path="service-range" element={<ServiceRangeSettings />} />
         <Route path="publish" element={<PublishPost />} />
+        <Route path="orders" element={<CompanionOrdersPage />} />
+        <Route path="income" element={<CompanionIncomePage />} />
       </Route>
 
-      <Route path="/admin" element={<RoleShell />}>
-        <Route index element={<AdminDashboard />} />
-      </Route>
+      <Route path="/admin" element={<AdminDashboard />} />
 
       <Route path="/post/:postId" element={<LegacyConsumerRedirect target="post" />} />
       <Route path="/checkout/:postId" element={<LegacyConsumerRedirect target="checkout" />} />

@@ -1,4 +1,4 @@
-import { BadgeCheck, Banknote, Calendar, Camera, MapPinned, UserCheck, UserRoundPen } from 'lucide-react';
+import { BadgeCheck, Banknote, Calendar, Camera, ClipboardList, MapPinned, UserCheck, UserRoundPen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
@@ -37,6 +37,12 @@ const setup = [
     desc: '像发图片帖一样上传地点、时间和风格',
     to: '/companion/publish',
   },
+  {
+    icon: ClipboardList,
+    title: '订单管理',
+    desc: '待确认、今日行程、完成确认和取消申请',
+    to: '/companion/orders',
+  },
 ];
 
 export function CompanionStudio() {
@@ -55,16 +61,16 @@ export function CompanionStudio() {
   }, []);
 
   return (
-    <div className="px-4 py-5">
+    <div className="min-h-dvh pp-page px-4 py-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">陪拍者端</h1>
-          <p className="mt-1 text-sm text-zinc-500">轻量创作者工具</p>
+          <h1 className="text-2xl font-bold text-[#3f302c]">陪拍者端</h1>
+          <p className="mt-1 text-sm text-[#7a6b64]">轻量创作者工具</p>
         </div>
         <BadgeCheck className="text-emerald-600" size={28} />
       </div>
 
-      <section className="mt-5 rounded-[10px] bg-rose-500 p-5 text-white">
+      <section className="mt-5 rounded-[24px] bg-[#e85d75] p-5 text-white shadow-[0_18px_40px_rgba(232,93,117,0.2)]">
         <p className="text-sm text-white/80">本周预估收入</p>
         <div className="mt-2 flex items-end gap-2">
           <span className="text-4xl font-bold">{formatMoney(dashboard.weeklyEstimatedCents)}</span>
@@ -79,31 +85,31 @@ export function CompanionStudio() {
 
       <section className="mt-3 grid grid-cols-2 gap-3">
         {dashboard.orderStats.map((item) => (
-          <div key={item} className="rounded-[10px] border border-zinc-200 p-4">
-            <p className="text-sm font-bold">{item}</p>
+          <div key={item} className="rounded-[18px] pp-surface p-4">
+            <p className="text-sm font-bold text-[#3f302c]">{item}</p>
           </div>
         ))}
       </section>
 
       <section className="mt-6 space-y-3">
-        <h2 className="text-base font-bold">接单配置</h2>
+        <h2 className="text-base font-bold text-[#3f302c]">接单配置</h2>
         {setup.map(({ icon: Icon, title, desc, to }) => (
-          <Link key={title} to={to} className="flex w-full items-center gap-3 rounded-[10px] border border-zinc-200 p-4 text-left">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100">
+          <Link key={title} to={to} className="flex w-full items-center gap-3 rounded-[20px] pp-surface p-4 text-left">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#f4ebe6] text-[#6f625d]">
               <Icon size={19} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-bold">{title}</span>
-              <span className="mt-0.5 block truncate text-xs text-zinc-500">{desc}</span>
+              <span className="block text-sm font-bold text-[#3f302c]">{title}</span>
+              <span className="mt-0.5 block truncate text-xs text-[#8f8078]">{desc}</span>
             </span>
           </Link>
         ))}
       </section>
 
-      <button className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white">
+      <Link to="/companion/income" className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white">
         <Banknote size={18} />
         查看收入与提现
-      </button>
+      </Link>
     </div>
   );
 }
@@ -111,7 +117,7 @@ export function CompanionStudio() {
 function StatusCard({ label, value, active }: { label: string; value: string; active: boolean }) {
   const needsWork = value === '需修改';
   return (
-    <div className={`rounded-[10px] p-4 ${active ? 'bg-emerald-50 text-emerald-800' : needsWork ? 'bg-rose-50 text-rose-700' : 'bg-zinc-100 text-zinc-700'}`}>
+    <div className={`rounded-[18px] p-4 ${active ? 'bg-[#eef8f1] text-[#23724a]' : needsWork ? 'bg-[#fff1f2] text-[#be3450]' : 'bg-[#f2e8e1] text-[#6f625d]'}`}>
       <p className="text-xs font-medium">{label}</p>
       <p className="mt-1 text-sm font-bold">{value}</p>
     </div>

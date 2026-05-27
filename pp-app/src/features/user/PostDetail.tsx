@@ -11,11 +11,13 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useAppData } from '../../app/useAppData';
 import { BookingSheet } from '../../components/BookingSheet';
 import { Chip } from '../../components/Chip';
-import { fetchPostDetail, getPostDetail } from '../../services/feedService';
+import { buildApprovedWorkPost, fetchPostDetail, getPostDetail } from '../../services/feedService';
+import type { FeedPost, PublishedWorkDraft } from '../../types/api';
 
 export function PostDetail() {
   const { postId } = useParams();
@@ -23,32 +25,40 @@ export function PostDetail() {
 }
 
 function PostDetailContent({ postId }: { postId?: string }) {
+  const { workDraft } = useAppData();
   const galleryRef = useRef<HTMLDivElement>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
   const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState('');
-  const [post, setPost] = useState(() => getPostDetail(postId));
+  const [remotePost, setRemotePost] = useState(() => getInitialPost(postId, workDraft));
+  const localPost = useMemo(() => buildApprovedWorkPost(workDraft), [workDraft]);
+  const post = localPost && localPost.id === postId ? localPost : remotePost;
 
-  const goToImage = useCallback((index: number) => {
-    const nextIndex = (index + post.images.length) % post.images.length;
-    setActiveImage(nextIndex);
-    const gallery = galleryRef.current;
-    const target = gallery?.children.item(nextIndex) as HTMLElement | null;
-    target?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-  }, [post.images.length]);
+  const goToImage = useCallback(
+    (index: number) => {
+      const nextIndex = (index + post.images.length) % post.images.length;
+      setActiveImage(nextIndex);
+      const gallery = galleryRef.current;
+      const target = gallery?.children.item(nextIndex) as HTMLElement | null;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    },
+    [post.images.length],
+  );
 
   useEffect(() => {
     let mounted = true;
+    if (localPost && localPost.id === postId) return () => undefined;
+
     fetchPostDetail(postId).then((nextPost) => {
-      if (mounted) setPost(nextPost);
+      if (mounted) setRemotePost(nextPost);
     });
 
     return () => {
       mounted = false;
     };
-  }, [postId]);
+  }, [localPost, postId]);
 
   useEffect(() => {
     const nextImage = post.images[activeImage + 1] ?? post.images[0];
@@ -119,15 +129,15 @@ function PostDetailContent({ postId }: { postId?: string }) {
   };
 
   return (
-    <div className="min-h-dvh bg-[#111116] pb-24 text-white">
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/8 bg-[#111116]/90 px-4 py-3 backdrop-blur-xl">
-        <Link to="/consumer" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white" aria-label="返回发现页">
+    <div className="min-h-dvh pp-page pb-24">
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#eadfd8]/80 bg-[#fbf7f2]/92 px-4 py-3 backdrop-blur-xl">
+        <Link to="/consumer" className="grid h-10 w-10 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" aria-label="返回发现页">
           <ArrowLeft size={20} />
         </Link>
-        <p className="text-sm font-semibold text-white/88">帖子详情</p>
+        <p className="text-sm font-semibold text-[#5f514b]">帖子详情</p>
         <div className="flex h-10 items-center gap-2">
           <button
-            className={`grid h-10 w-10 place-items-center rounded-full ${saved ? 'bg-rose-500 text-white' : 'bg-white/10 text-white'}`}
+            className={`grid h-10 w-10 place-items-center rounded-full ${saved ? 'pp-primary' : 'bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]'}`}
             onClick={() => {
               setSaved((current) => !current);
               setToast(saved ? '已取消收藏' : '已收藏');
@@ -136,40 +146,21 @@ function PostDetailContent({ postId }: { postId?: string }) {
           >
             <Heart size={18} fill={saved ? 'currentColor' : 'none'} />
           </button>
-          <button className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white" onClick={handleShare} aria-label="分享帖子">
+          <button className="grid h-10 w-10 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" onClick={handleShare} aria-label="分享帖子">
             <Share2 size={18} />
           </button>
         </div>
       </header>
 
-      <section className="relative">
-        <div ref={galleryRef} className="flex snap-x snap-mandatory overflow-x-auto scrollbar-none" onScroll={syncActiveImage}>
+      <section className="relative bg-[#fbf7f2]">
+        <div ref={galleryRef} className="flex snap-x snap-mandatory overflow-x-auto px-3 pt-3 scrollbar-none" onScroll={syncActiveImage}>
           {post.images.map((image, index) => (
-            <figure key={image.id} className="relative h-[72dvh] w-full shrink-0 snap-center overflow-hidden">
+            <figure key={image.id} className="relative mr-3 h-[64dvh] w-[92%] shrink-0 snap-center overflow-hidden rounded-[22px] bg-[#eadfd8] last:mr-0">
               <button className="h-full w-full" onClick={() => setViewerOpen(true)} aria-label={`放大查看第 ${index + 1} 张图片`}>
-                <img
-                  className="h-full w-full object-cover"
-                  src={image.url}
-                  alt={`${post.location} 第 ${index + 1} 张`}
-                  loading={index === 0 ? 'eager' : 'lazy'}
-                />
+                <img className="h-full w-full object-cover" src={image.url} alt={`${post.location} 第 ${index + 1} 张`} loading={index === 0 ? 'eager' : 'lazy'} />
               </button>
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/88 via-black/36 to-transparent px-4 pb-8 pt-28">
-                <div className="mb-4 flex items-center gap-2">
-                  {post.styleTags.map((tag) => (
-                    <span key={tag} className="rounded-full bg-white/14 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <h1 className="flex items-center gap-2 text-2xl font-black leading-tight">
-                  <MapPin size={22} className="shrink-0 text-rose-300" />
-                  <span className="min-w-0 truncate">{post.location}</span>
-                </h1>
-                <p className="mt-3 flex items-center gap-2 text-sm font-medium text-white/78">
-                  <CalendarDays size={16} className="shrink-0" />
-                  <span className="truncate">{post.timeLabel}</span>
-                </p>
+              <div className="absolute right-3 top-3 rounded-full bg-white/82 px-3 py-1.5 text-xs font-bold text-[#3f302c] backdrop-blur">
+                {index + 1}/{post.images.length}
               </div>
             </figure>
           ))}
@@ -177,94 +168,82 @@ function PostDetailContent({ postId }: { postId?: string }) {
 
         {post.images.length > 1 ? (
           <>
-            <div className="absolute right-3 top-3 rounded-full bg-black/38 px-3 py-1.5 text-xs font-bold text-white backdrop-blur">
-              {activeImage + 1}/{post.images.length}
-            </div>
             <button
-              className="absolute left-1/2 top-3 grid h-9 w-9 -translate-x-1/2 place-items-center rounded-full bg-black/34 text-white backdrop-blur"
-              onClick={() => setViewerOpen(true)}
-              aria-label="放大查看图片"
-            >
-              <Maximize2 size={17} />
-            </button>
-            <button
-              className="absolute left-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/34 text-white backdrop-blur"
+              className="absolute left-5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/74 text-[#3f302c] backdrop-blur"
               onClick={() => goToImage(activeImage - 1)}
               aria-label="上一张图片"
             >
               <ChevronLeft size={22} />
             </button>
             <button
-              className="absolute right-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-black/34 text-white backdrop-blur"
+              className="absolute right-5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/74 text-[#3f302c] backdrop-blur"
               onClick={() => goToImage(activeImage + 1)}
               aria-label="下一张图片"
             >
               <ChevronRight size={22} />
             </button>
-            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
-              {post.images.map((image, index) => (
-                <button
-                  key={image.id}
-                  className={`h-1.5 rounded-full transition-all ${index === activeImage ? 'w-5 bg-white' : 'w-1.5 bg-white/42'}`}
-                  onClick={() => goToImage(index)}
-                  aria-label={`查看第 ${index + 1} 张图片`}
-                />
-              ))}
-            </div>
+            <button
+              className="absolute bottom-5 right-6 grid h-10 w-10 place-items-center rounded-full bg-white/78 text-[#3f302c] backdrop-blur"
+              onClick={() => setViewerOpen(true)}
+              aria-label="放大查看图片"
+            >
+              <Maximize2 size={17} />
+            </button>
           </>
         ) : null}
       </section>
 
-      {post.images.length > 1 ? (
-        <section className="flex gap-2 overflow-x-auto bg-[#111116] px-4 py-3 scrollbar-none" aria-label="图片缩略图">
-          {post.images.map((image, index) => (
-            <button
-              key={image.id}
-              className={`h-16 w-12 shrink-0 overflow-hidden rounded-[8px] border-2 ${
-                index === activeImage ? 'border-rose-400' : 'border-white/10'
-              }`}
-              onClick={() => goToImage(index)}
-              aria-label={`切换到第 ${index + 1} 张图片`}
-            >
-              <img className="h-full w-full object-cover" src={image.url} alt="" loading="lazy" />
-            </button>
-          ))}
-        </section>
-      ) : null}
-
-      <section className="space-y-5 bg-white px-4 pb-7 pt-5 text-zinc-950">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm font-bold text-rose-500">
-            <Sparkles size={16} />
-            <span>{post.activity}</span>
+      <section className="px-4 pb-7 pt-5">
+        <div className="pp-surface rounded-[22px] p-4">
+          <div className="flex flex-wrap gap-2">
+            {post.styleTags.map((tag) => (
+              <Chip key={tag}>{tag}</Chip>
+            ))}
           </div>
-          <p className="text-[15px] leading-7 text-zinc-700">{post.caption}</p>
-        </div>
 
-        <div className="flex flex-wrap gap-2">
-          {post.styleTags.map((tag) => (
-            <Chip key={tag}>{tag}</Chip>
-          ))}
+          <h1 className="mt-4 flex items-center gap-2 text-2xl font-black leading-tight text-[#3f302c]">
+            <MapPin size={22} className="shrink-0 text-[#e85d75]" />
+            <span className="min-w-0 truncate">{post.location}</span>
+          </h1>
+          <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-[#7a6b64]">
+            <CalendarDays size={16} className="shrink-0 text-[#9fb89f]" />
+            <span className="truncate">{post.timeLabel}</span>
+          </p>
+
+          <div className="mt-5 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#e85d75]">
+              <Sparkles size={16} />
+              <span>{post.activity}</span>
+            </div>
+            {post.companion.isVirtual ? (
+              <p className="rounded-[14px] bg-[#fff7df] px-3 py-2 text-xs font-bold leading-5 text-[#8a5a12] ring-1 ring-[#f2dfaa]">
+                虚拟陪拍者样例，仅用于页面填充、功能调试和运营流程演示，后续可在后台替换为真实资料。
+              </p>
+            ) : null}
+            <p className="text-[15px] leading-7 text-[#5f514b]">{post.caption}</p>
+          </div>
         </div>
       </section>
 
-      <button
-        className="fixed inset-x-0 bottom-16 z-30 mx-auto w-full max-w-md px-3 pb-3 text-left"
-        onClick={() => setBookingOpen(true)}
-        aria-label={`预约 ${post.companion.name}`}
-      >
-        <div className="flex items-center gap-3 rounded-[8px] border border-zinc-200 bg-white p-3 text-zinc-950 shadow-2xl shadow-black/18">
-          <img className="h-12 w-12 rounded-full object-cover" src={post.companion.avatar} alt={post.companion.name} />
+      <button className="fixed inset-x-0 bottom-16 z-30 mx-auto w-full max-w-md px-3 pb-3 text-left" onClick={() => setBookingOpen(true)} aria-label={`预约 ${post.companion.name}`}>
+        <div className="flex items-center gap-3 rounded-[22px] border border-[#eadfd8] bg-white/95 p-3 text-[#27211f] shadow-2xl shadow-[#5b4031]/12 backdrop-blur">
+          <img className="h-13 w-13 rounded-[18px] object-cover" src={post.companion.photo || post.companion.avatar} alt={`${post.companion.name} 真人照片`} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <p className="truncate font-bold">{post.companion.name}</p>
-              <ShieldCheck size={16} className="shrink-0 text-emerald-500" />
+              {post.companion.isVirtual ? (
+                <span className="inline-flex shrink-0 rounded-full bg-[#fff7df] px-2 py-0.5 text-[11px] font-bold text-[#8a5a12] ring-1 ring-[#f2dfaa]">
+                  虚拟
+                </span>
+              ) : null}
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full pp-safe px-2 py-0.5 text-[11px] font-bold">
+                <ShieldCheck size={13} />
+                已认证
+              </span>
             </div>
-            <p className="mt-1 truncate text-xs font-medium text-zinc-500">{post.companion.tags.join(' · ')}</p>
+            <p className="mt-1 truncate text-xs font-medium text-[#8f8078]">{post.companion.tags.join(' · ')}</p>
           </div>
-          <span className="shrink-0 rounded-full bg-rose-500 px-4 py-2 text-sm font-bold text-white">
-            ¥{Math.round(post.companion.activities[0].priceCents / 100)}起
-          </span>
+          <span className="shrink-0 rounded-full pp-primary px-4 py-2 text-sm font-bold">¥{Math.round(post.companion.activities[0].priceCents / 100)}起</span>
         </div>
       </button>
 
@@ -291,12 +270,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
           >
             <ChevronLeft size={24} />
           </button>
-          <img
-            className="h-full w-full object-contain px-3 py-16"
-            src={post.images[activeImage]?.url}
-            alt={`${post.location} 大图预览`}
-            onClick={(event) => event.stopPropagation()}
-          />
+          <img className="h-full w-full object-contain px-3 py-16" src={post.images[activeImage]?.url} alt={`${post.location} 大图预览`} onClick={(event) => event.stopPropagation()} />
           <button
             className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 backdrop-blur"
             onClick={(event) => {
@@ -310,11 +284,13 @@ function PostDetailContent({ postId }: { postId?: string }) {
         </div>
       ) : null}
 
-      {toast ? (
-        <div className="fixed left-1/2 top-20 z-[60] -translate-x-1/2 rounded-full bg-zinc-950 px-4 py-2 text-sm font-bold text-white shadow-xl">
-          {toast}
-        </div>
-      ) : null}
+      {toast ? <div className="fixed left-1/2 top-20 z-[60] -translate-x-1/2 rounded-full bg-[#3f302c] px-4 py-2 text-sm font-bold text-white shadow-xl">{toast}</div> : null}
     </div>
   );
+}
+
+function getInitialPost(postId: string | undefined, workDraft: PublishedWorkDraft): FeedPost {
+  const localPost = buildApprovedWorkPost(workDraft);
+  if (localPost && localPost.id === postId) return localPost;
+  return getPostDetail(postId);
 }

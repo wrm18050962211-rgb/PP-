@@ -24,20 +24,20 @@ export function CheckoutPage() {
 
   if (paid) {
     return (
-      <div className="grid min-h-dvh place-items-center px-5 text-center">
-        <div>
+      <div className="grid min-h-dvh place-items-center pp-page px-5 text-center">
+        <div className="rounded-[26px] bg-white/82 p-6 ring-1 ring-[#eadfd8]">
           <CheckCircle2 className="mx-auto text-emerald-600" size={64} />
-          <h1 className="mt-5 text-2xl font-bold">订单已创建</h1>
-          <p className="mt-2 text-xs font-semibold text-zinc-400">{createdOrderId}</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-500">
+          <h1 className="mt-5 text-2xl font-bold text-[#3f302c]">订单已创建</h1>
+          <p className="mt-2 text-xs font-semibold text-[#a99b94]">{createdOrderId}</p>
+          <p className="mt-2 text-sm leading-6 text-[#6f625d]">
             款项已由平台托管，等待 {post.companion.name} 确认后订单生效。确认前你可以免费取消。
           </p>
           <div className="mt-6 grid gap-3">
-            <Link to="/consumer/messages" className="flex h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white">
+            <Link to="/consumer/messages" className="flex h-12 items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white">
               <MessageCircle size={18} />
               进入订单聊天
             </Link>
-            <Link to="/consumer/orders" className="flex h-12 items-center justify-center rounded-full bg-zinc-100 text-sm font-bold text-zinc-900">
+            <Link to="/consumer/orders" className="flex h-12 items-center justify-center rounded-full bg-[#f2e8e1] text-sm font-bold text-[#3f302c]">
               查看订单
             </Link>
           </div>
@@ -47,35 +47,35 @@ export function CheckoutPage() {
   }
 
   return (
-    <div className="px-4 py-5">
+    <div className="min-h-dvh pp-page px-4 py-5">
       <header className="flex items-center gap-3">
-        <Link to={`/consumer/post/${post.id}`} className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100" aria-label="返回">
+        <Link to={`/consumer/post/${post.id}`} className="grid h-10 w-10 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" aria-label="返回">
           <ArrowLeft size={20} />
         </Link>
-        <h1 className="text-2xl font-bold">确认订单</h1>
+        <h1 className="text-2xl font-bold text-[#3f302c]">确认订单</h1>
       </header>
 
-      <section className="mt-5 overflow-hidden rounded-[10px] border border-zinc-200">
+      <section className="mt-5 overflow-hidden rounded-[22px] pp-surface">
         <img className="h-48 w-full object-cover" src={post.images[0]?.url} alt={post.location} />
         <div className="p-4">
           <div className="flex items-center gap-3">
-            <img className="h-12 w-12 rounded-full object-cover" src={post.companion.avatar} alt="" />
+            <img className="h-12 w-12 rounded-[16px] object-cover" src={post.companion.avatar} alt="" />
             <div>
-              <h2 className="font-bold">{post.companion.name}</h2>
-              <p className="text-xs text-zinc-500">{post.companion.tags.slice(0, 2).join(' · ')}</p>
+              <h2 className="font-bold text-[#3f302c]">{post.companion.name}</h2>
+              <p className="text-xs text-[#8f8078]">{post.companion.tags.slice(0, 2).join(' · ')}</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mt-5 space-y-3 rounded-[10px] border border-zinc-200 p-4">
+      <section className="mt-5 space-y-3 rounded-[22px] pp-surface p-4">
         <OrderLine icon={<MapPin size={18} />} label="约拍地点" value={area} />
         <OrderLine icon={<CalendarDays size={18} />} label="约拍时间" value={slot} />
         <OrderLine icon={<CreditCard size={18} />} label="活动形式" value={`${activity}｜${duration}`} />
       </section>
 
-      <section className="mt-5 rounded-[10px] bg-emerald-50 p-4">
-        <div className="flex gap-2 text-emerald-900">
+      <section className="mt-5 rounded-[22px] bg-[#eef8f1] p-4">
+        <div className="flex gap-2 text-[#23724a]">
           <ShieldCheck className="mt-0.5 shrink-0" size={18} />
           <p className="text-sm leading-6">
             平台托管全款，陪拍者确认后订单生效。请在订单聊天内沟通需求，避免私下交易和不安全见面。
@@ -83,7 +83,7 @@ export function CheckoutPage() {
         </div>
       </section>
 
-      <section className="mt-5 space-y-3 rounded-[10px] border border-zinc-200 p-4">
+      <section className="mt-5 space-y-3 rounded-[22px] pp-surface p-4">
         <PriceLine label="基础服务" value={formatMoney(price)} />
         <div className="border-t border-zinc-100 pt-3">
           <PriceLine label="应付合计" value={formatMoney(total)} strong />
@@ -91,7 +91,7 @@ export function CheckoutPage() {
       </section>
 
       <button
-        className="mt-6 h-12 w-full rounded-full bg-rose-500 text-sm font-bold text-white"
+        className="mt-6 h-12 w-full rounded-full pp-primary text-sm font-bold"
         onClick={() => {
           const order = createOrder({
             title: `${activity} 陪拍`,
@@ -125,9 +125,9 @@ export function CheckoutPage() {
 function OrderLine({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-600">{icon}</span>
-      <span className="flex-1 text-sm text-zinc-500">{label}</span>
-      <span className="max-w-[50%] truncate text-sm font-bold text-zinc-950">{value}</span>
+      <span className="grid h-9 w-9 place-items-center rounded-full bg-[#f4ebe6] text-[#6f625d]">{icon}</span>
+      <span className="flex-1 text-sm text-[#7a6b64]">{label}</span>
+      <span className="max-w-[50%] truncate text-sm font-bold text-[#3f302c]">{value}</span>
     </div>
   );
 }
@@ -135,8 +135,8 @@ function OrderLine({ icon, label, value }: { icon: React.ReactNode; label: strin
 function PriceLine({ label, value, strong, muted }: { label: string; value: string; strong?: boolean; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between">
-      <span className={`${strong ? 'text-base font-bold' : 'text-sm'} ${muted ? 'text-zinc-400' : 'text-zinc-600'}`}>{label}</span>
-      <span className={`${strong ? 'text-xl font-bold' : 'text-sm font-semibold'} ${muted ? 'text-zinc-400' : 'text-zinc-950'}`}>{value}</span>
+      <span className={`${strong ? 'text-base font-bold' : 'text-sm'} ${muted ? 'text-[#c4b7af]' : 'text-[#6f625d]'}`}>{label}</span>
+      <span className={`${strong ? 'text-xl font-bold' : 'text-sm font-semibold'} ${muted ? 'text-[#c4b7af]' : 'text-[#3f302c]'}`}>{value}</span>
     </div>
   );
 }

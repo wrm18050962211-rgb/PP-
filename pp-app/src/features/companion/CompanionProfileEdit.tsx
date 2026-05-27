@@ -1,4 +1,5 @@
 import { ArrowLeft, Camera, Check, ImagePlus, PlayCircle, Save, Sparkles, Upload, UserRound } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
@@ -11,6 +12,7 @@ const interactionTags = ['会指导动作', '懂女生拍照需求', '会找机�
 
 export function CompanionProfileEdit() {
   const { application, saveApplication } = useAppData();
+  const [toast, setToast] = useState('');
   const selectedPersonalityTags = application.tags;
   const selectedStyleTags = application.styleTags ?? [];
   const selectedInteractionTags = application.interactionTags ?? [];
@@ -41,6 +43,12 @@ export function CompanionProfileEdit() {
       if (typeof reader.result === 'string') saveApplication({ introVideo: reader.result, showIntroVideo: true });
     };
     reader.readAsDataURL(file);
+  }
+
+  function handleSave() {
+    saveApplication({ updatedAt: new Date().toISOString() });
+    setToast('资料已保存');
+    window.setTimeout(() => setToast(''), 1500);
   }
 
   const profileCompleteness = [
@@ -216,12 +224,13 @@ export function CompanionProfileEdit() {
       <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md border-t border-zinc-100 bg-white/95 px-4 py-3 backdrop-blur">
         <button
           className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-500 text-sm font-bold text-white"
-          onClick={() => saveApplication({ updatedAt: new Date().toISOString() })}
+          onClick={handleSave}
         >
           <Save size={18} />
           保存资料
         </button>
       </div>
+      {toast ? <div className="fixed left-1/2 top-20 z-30 -translate-x-1/2 rounded-full bg-zinc-950 px-4 py-2 text-sm font-bold text-white shadow-xl">{toast}</div> : null}
     </div>
   );
 }
