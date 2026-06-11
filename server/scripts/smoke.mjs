@@ -69,6 +69,8 @@ try {
     userNote: 'smoke test booking',
   });
   assert(order.status === 'pending_payment' && order.payment?.paymentId, 'order starts pending payment with payment id');
+  assert(order.payment.miniProgramPayParams?.package?.startsWith('prepay_id='), 'order returns mini program payment params');
+  assert(order.payment.payPayload?.migrationTarget === 'wx.requestPayment', 'payment payload documents mini program migration target');
 
   const paid = await api('POST', `/api/payments/${order.payment.paymentId}/mock-success`);
   assert(paid.order.status === 'paid_pending_confirm' && paid.conversation?.id, 'mock payment pays order and opens conversation');
@@ -114,6 +116,7 @@ try {
           'matching',
           'quote',
           'create-order',
+          'mini-program-payment-params',
           'mock-payment',
           'orders',
           'role-scoped-orders',

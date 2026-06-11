@@ -1,18 +1,12 @@
 import { seedOrders } from '../data/mockApi';
-import type { AppOrder, CreateOrderInput, OrderStatus } from '../types/api';
+import type { AppOrder, CreateOrderInput, OrderStatus, PaymentRequest } from '../types/api';
 import { formatMoney } from '../utils/money';
 import { getOrderSteps, orderStatusText } from '../utils/status';
 import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { requestMiniProgramPayment } from './paymentService';
 
 type CreateOrderResponse = AppOrder & {
-  payment?: {
-    paymentId: string;
-    status: string;
-  };
-};
-
-type MockPaymentResponse = {
-  order: AppOrder;
+  payment?: PaymentRequest;
 };
 
 export function listSeedOrders(): AppOrder[] {
@@ -51,11 +45,11 @@ export async function submitOrder(input: CreateOrderInput): Promise<AppOrder> {
     const response = await apiPost<CreateOrderResponse>('/api/orders', input);
     if (!response.success) return createLocalOrder(input);
 
-    const paymentId = response.data.payment?.paymentId;
-    if (!paymentId) return response.data;
+    const payment = response.data.payment;
+    if (!payment) return response.data;
 
-    const paymentResponse = await apiPost<MockPaymentResponse>(`/api/payments/${paymentId}/mock-success`);
-    return paymentResponse.success ? paymentResponse.data.order : response.data;
+    const paidOrder = await requestMiniProgramPayment(payment);
+    return paidOrder ?? response.data;
   } catch {
     return createLocalOrder(input);
   }

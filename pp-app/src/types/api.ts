@@ -51,6 +51,33 @@ export type Money = {
   amountText: string;
 };
 
+export type MiniProgramPayParams = {
+  timeStamp: string;
+  nonceStr: string;
+  package: string;
+  signType: 'RSA' | 'MD5' | string;
+  paySign: string;
+};
+
+export type PaymentRequest = {
+  paymentId: string;
+  paymentNo?: string;
+  channel: string;
+  provider: 'wechat_pay' | 'mock_wechat' | string;
+  mode: 'mock' | 'production' | string;
+  status: PaymentStatus;
+  amountCents: number;
+  amountText?: string;
+  miniProgramPayParams: MiniProgramPayParams;
+  payPayload?: {
+    provider?: string;
+    mode?: string;
+    miniProgramPayParams?: MiniProgramPayParams;
+    mockSuccessPath?: string;
+    migrationTarget?: string;
+  };
+};
+
 export type User = {
   id: string;
   openId?: string;

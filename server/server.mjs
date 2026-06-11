@@ -272,10 +272,11 @@ function createOrder(store, input) {
     paymentId,
     paymentNo: paymentNo(),
     orderId: order.id,
-    channel: input.channel || 'mock_wechat',
+    channel: input.channel || 'wechat_pay',
+    provider: 'wechat_pay',
+    mode: 'mock',
     status: 'pending',
     amountCents: quote.totalAmountCents,
-    payPayload: { mode: 'mock', next: `/api/payments/${paymentId}/mock-success` },
     createdAt: now(),
   });
 
@@ -1174,15 +1175,36 @@ function viewOrder(order) {
 }
 
 function publicPayment(payment) {
+  const miniProgramPayParams = buildMiniProgramPayParams(payment);
   return {
     paymentId: payment.id,
     paymentNo: payment.paymentNo,
     channel: payment.channel,
+    provider: payment.provider || 'wechat_pay',
+    mode: payment.mode || 'mock',
     status: payment.status,
     amountCents: payment.amountCents,
     amountText: formatMoney(payment.amountCents),
-    payPayload: payment.payPayload || {},
+    miniProgramPayParams,
+    payPayload: {
+      provider: payment.provider || 'wechat_pay',
+      mode: payment.mode || 'mock',
+      miniProgramPayParams,
+      mockSuccessPath: `/api/payments/${payment.id}/mock-success`,
+      migrationTarget: 'wx.requestPayment',
+    },
     paidAt: payment.paidAt,
+  };
+}
+
+function buildMiniProgramPayParams(payment) {
+  const timeStamp = String(Math.floor(new Date(payment.createdAt || now()).getTime() / 1000));
+  return {
+    timeStamp,
+    nonceStr: payment.nonceStr || `mock-${payment.id}`.replace(/[^a-zA-Z0-9]/g, '').slice(0, 32),
+    package: payment.prepayPackage || `prepay_id=mock_${payment.id}`,
+    signType: payment.signType || 'RSA',
+    paySign: payment.paySign || `mock-sign-${payment.id}`,
   };
 }
 
