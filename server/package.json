@@ -7,6 +7,7 @@
     "dev": "node server.mjs",
     "start": "node server.mjs",
     "smoke": "node scripts/smoke.mjs",
+    "check:mvp": "node scripts/check-mvp.mjs",
     "check:store-driver": "node scripts/check-store-driver.mjs",
     "check:postgres-mappers": "node scripts/check-postgres-mappers.mjs",
     "check:postgres-write-plan": "node scripts/check-postgres-write-plan.mjs",

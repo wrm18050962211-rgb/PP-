@@ -144,6 +144,9 @@
 
 ```powershell
 cd server
+npm.cmd run check:mvp
+
+# Or run checks separately when debugging:
 npm.cmd run smoke
 npm.cmd run check:store-driver
 npm.cmd run check:postgres-mappers
