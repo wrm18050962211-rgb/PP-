@@ -1,10 +1,11 @@
 import http from 'node:http';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createJsonStore } from './store/jsonStore.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const storePath = process.env.STORE_PATH ? resolve(process.env.STORE_PATH) : resolve(root, 'data/store.json');
+const dataStore = createJsonStore({ storePath, initialStore, normalizeStore });
 const port = Number(process.env.PORT || 8787);
 const platformFeeRate = 0.08;
 
@@ -61,10 +62,10 @@ http
 
     try {
       const url = new URL(req.url || '/', 'http://local');
-      const store = await loadStore();
+      const { store, changed: storeChanged } = await dataStore.load();
       const body = await readBody(req);
       const result = await route(req.method || 'GET', url, body, store);
-      if (result.changed) await saveStore(store);
+      if (storeChanged || result.changed) await dataStore.save(store);
       sendJson(res, result.status, result.payload);
     } catch (error) {
       sendJson(res, 500, fail('SERVER_ERROR', error instanceof Error ? error.message : 'Server error'));
@@ -897,18 +898,6 @@ function evaluateRisk(content) {
   return { hits, shouldBlock: hits.length > 0 };
 }
 
-async function loadStore() {
-  let store;
-  try {
-    store = JSON.parse(await readFile(storePath, 'utf8'));
-  } catch {
-    store = initialStore();
-  }
-  const normalized = normalizeStore(store);
-  if (normalized.changed) await saveStore(normalized.store);
-  return normalized.store;
-}
-
 function normalizeStore(store) {
   let changed = false;
   const next = { ...initialStore(), ...store };
@@ -1353,10 +1342,6 @@ function normalize(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-async function saveStore(store) {
-  await mkdir(dirname(storePath), { recursive: true });
-  await writeFile(storePath, JSON.stringify(store, null, 2), 'utf8');
-}
 
 async function readBody(req) {
   if (!['POST', 'PUT', 'PATCH'].includes(req.method || '')) return {};
