@@ -4,6 +4,17 @@ import { formatMoney } from '../utils/money';
 import { getOrderSteps, orderStatusText } from '../utils/status';
 import { apiGet, apiPost, isApiEnabled } from './apiClient';
 
+type CreateOrderResponse = AppOrder & {
+  payment?: {
+    paymentId: string;
+    status: string;
+  };
+};
+
+type MockPaymentResponse = {
+  order: AppOrder;
+};
+
 export function listSeedOrders(): AppOrder[] {
   return seedOrders;
 }
@@ -37,8 +48,14 @@ export async function submitOrder(input: CreateOrderInput): Promise<AppOrder> {
   if (!isApiEnabled()) return createLocalOrder(input);
 
   try {
-    const response = await apiPost<AppOrder>('/api/orders', input);
-    return response.success ? response.data : createLocalOrder(input);
+    const response = await apiPost<CreateOrderResponse>('/api/orders', input);
+    if (!response.success) return createLocalOrder(input);
+
+    const paymentId = response.data.payment?.paymentId;
+    if (!paymentId) return response.data;
+
+    const paymentResponse = await apiPost<MockPaymentResponse>(`/api/payments/${paymentId}/mock-success`);
+    return paymentResponse.success ? paymentResponse.data.order : response.data;
   } catch {
     return createLocalOrder(input);
   }
