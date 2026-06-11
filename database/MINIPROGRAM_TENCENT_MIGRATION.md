@@ -21,6 +21,7 @@
 - `server/store/jsonStore.mjs` 是本地 JSON store 适配器，后续 PostgreSQL DAO 应按同样的 `load/save` 边界替换。
 - `STORE_DRIVER=json` 是默认本地模式；`STORE_DRIVER=postgres` 是上线切换入口，需要同时配置 `DATABASE_URL`。
 - `server/store/postgresStore.mjs` 已具备展示层只读模型骨架，先覆盖图片流、帖子详情和陪拍者匹配所需数据。
+- `server/store/postgresWritePlan.mjs` 记录订单、支付、聊天、举报和后台 moderation 的 PostgreSQL 事务写入清单。
 - `database/schema.sql` 和 `database/prisma/schema.prisma` 是真实数据库结构蓝图。
 - `server/scripts/smoke.mjs` 是迁移前后的最小回归检查。
 - `database/scripts/export-store-to-seed.mjs` 可把当前本地 store 导出为 PostgreSQL seed SQL。
@@ -140,6 +141,9 @@
 ```powershell
 cd server
 npm.cmd run smoke
+npm.cmd run check:store-driver
+npm.cmd run check:postgres-mappers
+npm.cmd run check:postgres-write-plan
 
 cd ..\pp-app
 npm.cmd run build

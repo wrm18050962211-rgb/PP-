@@ -14,6 +14,7 @@ try {
     normalizeStore: (store) => ({ store, changed: false }),
   });
   assert(jsonStore.kind === 'json', 'default store driver is json');
+  assert(jsonStore.capabilities?.writes === true, 'json store advertises writes');
 
   process.env.STORE_DRIVER = 'postgres';
   delete process.env.DATABASE_URL;
@@ -35,6 +36,7 @@ try {
     normalizeStore: (store) => ({ store, changed: false }),
   });
   assert(postgresStore.kind === 'postgres', 'postgres driver can be selected when DATABASE_URL exists');
+  assert(postgresStore.capabilities?.readModel === true && postgresStore.capabilities?.writes === false, 'postgres store advertises read-only MVP state');
   await assertRejects(
     () => postgresStore.save({}),
     'save is not implemented',

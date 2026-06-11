@@ -76,7 +76,15 @@ http
 async function route(method, url, body, store) {
   const path = url.pathname;
 
-  if (method === 'GET' && path === '/api/health') return json({ status: 'ok', version: '0.3.0', storeVersion: store.meta.version, storeDriver: dataStore.kind });
+  if (method === 'GET' && path === '/api/health') {
+    return json({
+      status: 'ok',
+      version: '0.3.0',
+      storeVersion: store.meta.version,
+      storeDriver: dataStore.kind,
+      storeCapabilities: dataStore.capabilities,
+    });
+  }
   if (method === 'GET' && path === '/api/auth/session') return authSession(store);
   if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/logout') return logout(store);

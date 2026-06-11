@@ -9,6 +9,11 @@ export function createPostgresStore({ databaseUrl }) {
 
   return {
     kind: 'postgres',
+    capabilities: {
+      readModel: true,
+      writes: false,
+      transactions: false,
+    },
     async load() {
       const pool = await getPool();
       const rows = await fetchReadModelRows(pool);

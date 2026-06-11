@@ -9,6 +9,11 @@ export function createJsonStore({ storePath, initialStore, normalizeStore }) {
   return {
     kind: 'json',
     storePath,
+    capabilities: {
+      readModel: true,
+      writes: true,
+      transactions: false,
+    },
     async load() {
       let store;
       try {

@@ -9,6 +9,7 @@
     "smoke": "node scripts/smoke.mjs",
     "check:store-driver": "node scripts/check-store-driver.mjs",
     "check:postgres-mappers": "node scripts/check-postgres-mappers.mjs",
+    "check:postgres-write-plan": "node scripts/check-postgres-write-plan.mjs",
     "db:export-seed": "node ../database/scripts/export-store-to-seed.mjs"
   }
 }
