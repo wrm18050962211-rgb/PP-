@@ -1,4 +1,4 @@
-import { createOrderTransaction, markPaymentPaidTransaction } from '../store/postgresOrderWrites.mjs';
+import { createOrderTransaction, markPaymentPaidTransaction, transitionOrderTransaction } from '../store/postgresOrderWrites.mjs';
 
 const draft = {
   orderId: '00000000-0000-4000-8000-000000000001',
@@ -86,6 +86,55 @@ const invalidPaymentClient = createMockClient([{ payment_status: 'paid', order_s
 await assertRejects(() => markPaymentPaidTransaction(invalidPaymentClient, paymentDraft), 'Payment is not pending', 'invalid payment status rejects');
 assert(invalidPaymentClient.calls.at(-1).sql === 'rollback', 'invalid payment rolls back');
 
+const confirmClient = createMockClient([{ order_status: 'paid_pending_confirm' }]);
+const confirmed = await transitionOrderTransaction(confirmClient, {
+  orderId: draft.orderId,
+  action: 'confirm',
+  statusLogId: '00000000-0000-4000-8000-000000000013',
+  operatorType: 'companion',
+  operatorId: draft.companionId,
+});
+const confirmSql = confirmClient.calls.map((call) => call.sql);
+assert(confirmed.toStatus === 'confirmed' && confirmed.order?.status === 'confirmed', 'confirm transitions to confirmed');
+assert(confirmSql.some((sql) => /from orders/i.test(sql) && /for update/i.test(sql)), 'confirm locks order for update');
+assert(confirmSql.some((sql) => /update orders/i.test(sql) && /confirmed_at/i.test(sql)), 'confirm updates order');
+assert(confirmSql.at(-1) === 'commit', 'confirm commits');
+
+const completeClient = createMockClient([{ order_status: 'confirmed' }]);
+const completed = await transitionOrderTransaction(completeClient, {
+  orderId: draft.orderId,
+  action: 'complete',
+  statusLogId: '00000000-0000-4000-8000-000000000014',
+  settlementId: '00000000-0000-4000-8000-000000000015',
+  ledgerEntryId: '00000000-0000-4000-8000-000000000016',
+});
+const completeSql = completeClient.calls.map((call) => call.sql);
+assert(completed.toStatus === 'completed', 'complete transitions to completed');
+assert(completeSql.some((sql) => /insert into settlements/i.test(sql)), 'complete inserts settlement');
+assert(completeSql.some((sql) => /insert into companion_wallets/i.test(sql)), 'complete upserts companion wallet');
+assert(completeSql.some((sql) => /insert into ledger_entries/i.test(sql)), 'complete inserts ledger entry');
+assert(completeSql.at(-1) === 'commit', 'complete commits');
+
+const cancelClient = createMockClient([{ order_status: 'paid_pending_confirm' }]);
+const cancelled = await transitionOrderTransaction(cancelClient, {
+  orderId: draft.orderId,
+  action: 'cancel',
+  statusLogId: '00000000-0000-4000-8000-000000000017',
+  reason: 'user cancelled',
+  refundId: '00000000-0000-4000-8000-000000000018',
+  refundNo: 'RF2606110001',
+  expectRefund: true,
+});
+const cancelSql = cancelClient.calls.map((call) => call.sql);
+assert(cancelled.toStatus === 'refunding', 'paid cancel transitions to refunding');
+assert(cancelSql.some((sql) => /update availability_slots/i.test(sql) && /status = 'available'/i.test(sql)), 'cancel releases slot');
+assert(cancelSql.some((sql) => /insert into refunds/i.test(sql)), 'paid cancel inserts refund');
+assert(cancelSql.at(-1) === 'commit', 'cancel commits');
+
+const invalidTransitionClient = createMockClient([{ order_status: 'completed' }]);
+await assertRejects(() => transitionOrderTransaction(invalidTransitionClient, { orderId: draft.orderId, action: 'cancel', statusLogId: '00000000-0000-4000-8000-000000000019' }), 'Order cannot be cancelled', 'invalid transition rejects');
+assert(invalidTransitionClient.calls.at(-1).sql === 'rollback', 'invalid transition rolls back');
+
 console.log(
   JSON.stringify(
     {
@@ -109,9 +158,18 @@ console.log(
         'payment-status-log',
         'pay-commit',
         'pay-rollback',
+        'confirm-order',
+        'complete-order',
+        'complete-settlement',
+        'complete-wallet',
+        'complete-ledger',
+        'cancel-release-slot',
+        'cancel-refund',
+        'transition-rollback',
       ],
       successQueryCount: successClient.calls.length,
       paymentQueryCount: paymentClient.calls.length,
+      transitionQueryCount: confirmClient.calls.length + completeClient.calls.length + cancelClient.calls.length,
     },
     null,
     2,
@@ -126,6 +184,22 @@ function createMockClient(slotRows) {
       const normalized = sql.trim().replace(/\s+/g, ' ');
       calls.push({ sql: normalized, params });
       if (/select id, status from availability_slots/i.test(normalized)) return { rows: slotRows };
+      if (/select id, status, companion_id/i.test(normalized) && /from orders/i.test(normalized)) {
+        const row = slotRows[0] || {};
+        return {
+          rows: [
+            {
+              id: draft.orderId,
+              status: row.order_status || 'confirmed',
+              companion_id: draft.companionId,
+              availability_slot_id: draft.availabilitySlotId,
+              total_amount_cents: draft.totalAmountCents,
+              platform_fee_cents: draft.platformFeeCents,
+              companion_income_cents: draft.companionIncomeCents,
+            },
+          ],
+        };
+      }
       if (/select p\.id as payment_id/i.test(normalized)) {
         const row = slotRows[0] || {};
         return {
@@ -145,7 +219,8 @@ function createMockClient(slotRows) {
       if (/insert into orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'pending_payment' }] };
       if (/insert into payments/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'pending' }] };
       if (/update payments/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'paid' }] };
-      if (/update orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'paid_pending_confirm' }] };
+      if (/update orders/i.test(normalized) && /paid_pending_confirm/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'paid_pending_confirm' }] };
+      if (/update orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: params[0] }] };
       if (/insert into conversations/i.test(normalized)) return { rows: [{ id: paymentDraft.conversationId, order_id: draft.orderId, status: 'active' }] };
       return { rows: [] };
     },

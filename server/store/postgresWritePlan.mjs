@@ -33,14 +33,14 @@ export const postgresWriteOperations = [
     name: 'transitionOrder',
     route: 'POST /api/orders/:orderId/:action',
     transaction: true,
-    tables: ['orders', 'order_status_logs', 'availability_slots', 'settlements', 'wallets', 'ledger_entries', 'refunds'],
+    tables: ['orders', 'order_status_logs', 'availability_slots', 'settlements', 'companion_wallets', 'ledger_entries', 'refunds'],
     steps: [
       'select orders for update',
       'validate role permission and allowed status transition',
       'update orders to next status',
       'insert order_status_logs',
       'release availability_slots on cancel when applicable',
-      'insert settlements, wallets, ledger_entries, or refunds when applicable',
+      'insert settlements, companion_wallets, ledger_entries, or refunds when applicable',
     ],
   },
   {

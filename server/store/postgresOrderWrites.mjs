@@ -184,6 +184,88 @@ export async function markPaymentPaidTransaction(client, draft) {
   }
 }
 
+export async function transitionOrderTransaction(client, draft) {
+  assertClient(client);
+  assertTransitionDraft(draft);
+
+  await client.query('begin');
+  try {
+    const orderResult = await client.query(
+      `select id,
+              status,
+              companion_id,
+              availability_slot_id,
+              total_amount_cents,
+              platform_fee_cents,
+              companion_income_cents
+       from orders
+       where id = $1
+       for update`,
+      [draft.orderId],
+    );
+    const order = orderResult.rows?.[0];
+    if (!order) throw conflict('ORDER_NOT_FOUND', 'Order not found');
+
+    const nextStatus = nextOrderStatus(order.status, draft.action);
+    const occurredAt = draft.occurredAt || new Date().toISOString();
+    const paidOrderResult = await client.query(
+      `update orders
+       set status = $1,
+           confirmed_at = case when $1 = 'confirmed' then $2 else confirmed_at end,
+           completed_at = case when $1 = 'completed' then $2 else completed_at end,
+           cancelled_at = case when $1 in ('cancelled', 'refunding') then $2 else cancelled_at end,
+           cancel_reason = case when $1 in ('cancelled', 'refunding') then $3 else cancel_reason end,
+           updated_at = now()
+       where id = $4
+       returning *`,
+      [nextStatus, occurredAt, draft.reason || null, draft.orderId],
+    );
+
+    if (draft.action === 'complete') {
+      await insertSettlementSideEffects(client, draft, order, occurredAt);
+    }
+
+    if (draft.action === 'cancel') {
+      await client.query(
+        `update availability_slots
+         set status = 'available',
+             locked_order_id = null,
+             locked_until = null,
+             updated_at = now()
+         where id = $1`,
+        [order.availability_slot_id],
+      );
+
+      if (nextStatus === 'refunding') {
+        await client.query(
+          `insert into refunds (
+            id, order_id, refund_no, amount_cents, reason, status, requested_by
+          ) values ($1, $2, $3, $4, $5, 'pending', $6)
+          on conflict (refund_no) do nothing`,
+          [draft.refundId, draft.orderId, draft.refundNo, order.total_amount_cents, draft.reason || 'Order cancelled', draft.operatorId || null],
+        );
+      }
+    }
+
+    await client.query(
+      `insert into order_status_logs (
+        id, order_id, from_status, to_status, operator_type, operator_id, reason
+      ) values ($1, $2, $3, $4, $5, $6, $7)`,
+      [draft.statusLogId, draft.orderId, order.status, nextStatus, draft.operatorType || 'system', draft.operatorId || null, draft.reason || defaultTransitionReason(draft.action)],
+    );
+
+    await client.query('commit');
+    return {
+      order: paidOrderResult.rows?.[0] || null,
+      fromStatus: order.status,
+      toStatus: nextStatus,
+    };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  }
+}
+
 function assertClient(client) {
   if (!client || typeof client.query !== 'function') {
     throw new Error('PostgreSQL client with query(sql, params) is required');
@@ -221,6 +303,89 @@ function assertPaymentDraft(draft) {
   const required = ['paymentId', 'conversationId', 'statusLogId'];
   const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
   if (missing.length) throw new Error(`Missing markPaymentPaid draft fields: ${missing.join(', ')}`);
+}
+
+function assertTransitionDraft(draft) {
+  const required = ['orderId', 'action', 'statusLogId'];
+  const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
+  if (draft?.action === 'complete') {
+    for (const key of ['settlementId', 'ledgerEntryId']) {
+      if (!draft[key]) missing.push(key);
+    }
+  }
+  if (draft?.action === 'cancel' && draft?.expectRefund) {
+    for (const key of ['refundId', 'refundNo']) {
+      if (!draft[key]) missing.push(key);
+    }
+  }
+  if (missing.length) throw new Error(`Missing transitionOrder draft fields: ${missing.join(', ')}`);
+}
+
+function nextOrderStatus(status, action) {
+  if (action === 'confirm') {
+    if (status !== 'paid_pending_confirm') throw conflict('ORDER_STATUS_INVALID', 'Order cannot be confirmed');
+    return 'confirmed';
+  }
+  if (action === 'complete') {
+    if (!['confirmed', 'in_service'].includes(status)) throw conflict('ORDER_STATUS_INVALID', 'Order cannot be completed');
+    return 'completed';
+  }
+  if (action === 'cancel') {
+    if (['completed', 'refunded'].includes(status)) throw conflict('ORDER_STATUS_INVALID', 'Order cannot be cancelled');
+    return status === 'pending_payment' ? 'cancelled' : 'refunding';
+  }
+  throw conflict('ORDER_ACTION_INVALID', 'Unknown order action');
+}
+
+async function insertSettlementSideEffects(client, draft, order, occurredAt) {
+  await client.query(
+    `insert into settlements (
+      id, order_id, companion_id, gross_amount_cents, platform_fee_cents, net_amount_cents, status, settle_after
+    ) values ($1, $2, $3, $4, $5, $6, 'pending', $7)
+    on conflict (order_id) do nothing`,
+    [
+      draft.settlementId,
+      order.id,
+      order.companion_id,
+      order.total_amount_cents,
+      order.platform_fee_cents,
+      order.companion_income_cents,
+      draft.settleAfter || occurredAt,
+    ],
+  );
+
+  await client.query(
+    `insert into companion_wallets (
+      companion_id, pending_cents, available_cents, frozen_cents, withdrawn_cents
+    ) values ($1, $2, 0, 0, 0)
+    on conflict (companion_id) do update
+    set pending_cents = companion_wallets.pending_cents + excluded.pending_cents,
+        updated_at = now()`,
+    [order.companion_id, order.companion_income_cents],
+  );
+
+  await client.query(
+    `insert into ledger_entries (
+      id, companion_id, order_id, settlement_id, entry_type, direction,
+      amount_cents, balance_type, balance_after_cents, description
+    ) values ($1, $2, $3, $4, 'order_income', 'in', $5, 'pending', $6, $7)`,
+    [
+      draft.ledgerEntryId,
+      order.companion_id,
+      order.id,
+      draft.settlementId,
+      order.companion_income_cents,
+      draft.balanceAfterCents || order.companion_income_cents,
+      draft.ledgerDescription || 'Order completed',
+    ],
+  );
+}
+
+function defaultTransitionReason(action) {
+  if (action === 'confirm') return 'Companion confirmed order';
+  if (action === 'complete') return 'Order completed';
+  if (action === 'cancel') return 'Order cancelled';
+  return 'Order status changed';
 }
 
 function conflict(code, message) {
