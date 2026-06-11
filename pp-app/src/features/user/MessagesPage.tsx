@@ -8,7 +8,7 @@ import { formatMoney } from '../../utils/money';
 
 export function MessagesPage() {
   const { orderId } = useParams();
-  const { orders } = useAppData();
+  const { orders, session } = useAppData();
   const activeOrder = useMemo(() => orders.find((order) => order.id === orderId) ?? orders[0], [orderId, orders]);
   const [draft, setDraft] = useState('');
   const [conversation, setConversation] = useState<Conversation>(() => getConversation());
@@ -41,7 +41,7 @@ export function MessagesPage() {
     if (!content) return;
 
     if (risk.shouldBlock) {
-      void sendMessage(conversation.id, content);
+      void sendMessage(conversation.id, content, getMessageSender(session?.role));
       setSendBlocked(true);
       return;
     }
@@ -51,7 +51,7 @@ export function MessagesPage() {
       return;
     }
 
-    const result = await sendMessage(conversation.id, content);
+    const result = await sendMessage(conversation.id, content, getMessageSender(session?.role));
     if (result.blocked || !result.message) {
       setSendBlocked(true);
       return;
@@ -134,10 +134,10 @@ export function MessagesPage() {
         </div>
 
         {conversation.messages.map((message) => (
-          <div key={message.id} className={`flex ${message.from === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={message.id} className={`flex ${message.from === getMessageSender(session?.role) ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-6 ${
-                message.from === 'user' ? 'bg-[#3f302c] text-white' : 'bg-white/86 text-[#3f302c] ring-1 ring-[#eadfd8]'
+                message.from === getMessageSender(session?.role) ? 'bg-[#3f302c] text-white' : 'bg-white/86 text-[#3f302c] ring-1 ring-[#eadfd8]'
               }`}
             >
               <p>{message.text}</p>
@@ -195,6 +195,12 @@ export function MessagesPage() {
       </footer>
     </div>
   );
+}
+
+function getMessageSender(role?: string) {
+  if (role === 'admin') return 'admin';
+  if (role === 'companion') return 'companion';
+  return 'user';
 }
 
 function RiskNotice({ tone, text }: { tone: 'medium' | 'high'; text: string }) {

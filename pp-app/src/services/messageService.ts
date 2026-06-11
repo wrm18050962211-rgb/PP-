@@ -26,13 +26,17 @@ export async function fetchConversation(orderId?: string): Promise<Conversation>
   }
 }
 
-export async function sendMessage(conversationId: string, content: string): Promise<{ blocked: boolean; message?: Message; matchedKeywords: string[] }> {
+export async function sendMessage(
+  conversationId: string,
+  content: string,
+  from: Message['from'] = 'user',
+): Promise<{ blocked: boolean; message?: Message; matchedKeywords: string[] }> {
   const risk = evaluateMessageRisk(content);
   const matchedKeywords = risk.hits.map((hit) => hit.keyword);
   if (risk.shouldBlock) {
     if (isApiEnabled()) {
       try {
-        await apiPost<Message>(`/api/conversations/${conversationId}/messages`, { content });
+        await apiPost<Message>(`/api/conversations/${conversationId}/messages`, { content, from });
       } catch {
         // The local UI still blocks the message even if risk-case sync fails.
       }
@@ -44,15 +48,15 @@ export async function sendMessage(conversationId: string, content: string): Prom
     return {
       blocked: false,
       matchedKeywords: [],
-      message: createLocalMessage(content, risk.level === 'medium' ? 'flagged' : 'clean'),
+      message: createLocalMessage(content, risk.level === 'medium' ? 'flagged' : 'clean', from),
     };
   }
 
   try {
-    const response = await apiPost<Message>(`/api/conversations/${conversationId}/messages`, { content });
+    const response = await apiPost<Message>(`/api/conversations/${conversationId}/messages`, { content, from });
     return response.success ? { blocked: false, matchedKeywords: [], message: response.data } : { blocked: true, matchedKeywords };
   } catch {
-    return { blocked: false, matchedKeywords: [], message: createLocalMessage(content, risk.level === 'medium' ? 'flagged' : 'clean') };
+    return { blocked: false, matchedKeywords: [], message: createLocalMessage(content, risk.level === 'medium' ? 'flagged' : 'clean', from) };
   }
 }
 
@@ -83,10 +87,10 @@ export function saveLocalConversation(conversation: Conversation) {
   }
 }
 
-function createLocalMessage(content: string, riskStatus: Message['riskStatus']): Message {
+function createLocalMessage(content: string, riskStatus: Message['riskStatus'], from: Message['from'] = 'user'): Message {
   return {
     id: `local-message-${Date.now()}`,
-    from: 'user',
+    from,
     text: content,
     sentAt: new Date().toISOString(),
     riskStatus,

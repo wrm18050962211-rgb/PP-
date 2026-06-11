@@ -6,9 +6,11 @@ import {
   saveCompanionApplicationDraft,
   submitCompanionApplicationReview,
 } from '../services/companionService';
+import { fetchAuthSession } from '../services/authService';
 import { isApiEnabled } from '../services/apiClient';
 import { defaultBookingSettings } from '../data/bookingSettings';
 import type { AppOrder, CompanionApplication, CompanionBookingSettings, PublishedWorkDraft } from '../types/domain';
+import type { AuthSession, UserRole } from '../types/api';
 import { getOrderSteps, orderStatusText } from '../utils/status';
 import { AppDataContext, type AppData } from './appDataContext';
 
@@ -19,6 +21,7 @@ const defaultOrders = listSeedOrders();
 
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const initial = loadInitialData();
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [orders, setOrders] = useState<AppOrder[]>(initial.orders);
   const [application, setApplication] = useState<CompanionApplication>(initial.application);
   const [bookingSettings, setBookingSettings] = useState<CompanionBookingSettings>(initial.bookingSettings);
@@ -26,25 +29,49 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const initialDataRef = useRef({ application, bookingSettings, workDraft });
 
   useEffect(() => {
-    if (!isApiEnabled()) return;
+    let mounted = true;
+    fetchAuthSession().then((nextSession) => {
+      if (!mounted) return;
+      setSession(nextSession);
+      return refreshOrders(nextSession.role).then((serverOrders) => {
+        if (!mounted || serverOrders.length === 0) return;
+        setOrders(serverOrders);
+        persistSnapshot(serverOrders, initialDataRef.current);
+      });
+    });
+
+    function handleSessionChanged(event: Event) {
+      const nextSession = (event as CustomEvent<AuthSession>).detail;
+      setSession(nextSession);
+      void refreshOrders(nextSession.role).then((serverOrders) => {
+        if (serverOrders.length === 0) return;
+        setOrders(serverOrders);
+        persistSnapshot(serverOrders, initialDataRef.current);
+      });
+    }
+
+    window.addEventListener('pp-auth-session-changed', handleSessionChanged);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('pp-auth-session-changed', handleSessionChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
 
     let mounted = true;
-    fetchOrders().then((serverOrders) => {
+    refreshOrders(session.role).then((serverOrders) => {
       if (!mounted || serverOrders.length === 0) return;
       setOrders(serverOrders);
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          orders: serverOrders,
-          ...initialDataRef.current,
-        }),
-      );
+      persistSnapshot(serverOrders, initialDataRef.current);
     });
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [session?.role]);
 
   const value = useMemo<AppData>(() => {
     function persist(next: Partial<Pick<AppData, 'orders' | 'application' | 'bookingSettings' | 'workDraft'>>) {
@@ -60,6 +87,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
 
     return {
+      session,
       orders,
       application,
       bookingSettings,
@@ -148,7 +176,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         persist({ workDraft: nextDraft });
       },
     };
-  }, [application, bookingSettings, orders, workDraft]);
+  }, [application, bookingSettings, orders, session, workDraft]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
@@ -176,6 +204,27 @@ function loadInitialData() {
   } catch {
     return { orders: defaultOrders, application: defaultApplication, bookingSettings: defaultBookingSettings, workDraft: defaultWorkDraft };
   }
+}
+
+async function refreshOrders(role: UserRole) {
+  if (!isApiEnabled()) return role === 'consumer' ? defaultOrders : [];
+  const orderRole = role === 'companion' ? 'companion' : role === 'admin' ? 'admin' : 'user';
+  return fetchOrders(orderRole);
+}
+
+function persistSnapshot(
+  orders: AppOrder[],
+  rest: Pick<AppData, 'application' | 'bookingSettings' | 'workDraft'>,
+) {
+  localStorage.setItem(
+    storageKey,
+    JSON.stringify({
+      orders,
+      application: rest.application,
+      bookingSettings: rest.bookingSettings,
+      workDraft: rest.workDraft,
+    }),
+  );
 }
 
 function mergeSeedOrders(storedOrders: AppOrder[]) {

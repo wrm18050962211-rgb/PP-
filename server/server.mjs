@@ -159,6 +159,12 @@ function createSession(store, role) {
   return session;
 }
 
+function ensureActiveSession(store, fallbackRole = 'consumer') {
+  const role = normalizeRole(store.activeSession?.role || fallbackRole);
+  store.activeSession = createSession(store, role);
+  return store.activeSession;
+}
+
 function ensureDemoUser(store, role) {
   store.users ||= [];
   const userId = `demo-${role}-user`;
@@ -189,7 +195,27 @@ function ensureDemoUser(store, role) {
 }
 
 function normalizeRole(role) {
+  if (role === 'user') return 'consumer';
   return ['consumer', 'companion', 'admin'].includes(role) ? role : 'consumer';
+}
+
+function canAccessOrder(store, order, session, requestedRole = session.role) {
+  const role = normalizeRole(requestedRole);
+  if (session.role === 'admin') return true;
+  if (role === 'admin') return false;
+  if (role === 'companion') return Boolean(order.companionId && order.companionId === session.companionId);
+  return !order.userId || order.userId === session.user.id;
+}
+
+function canMutateOrder(order, session, action) {
+  if (session.role === 'admin') return true;
+  if (action === 'confirm' || action === 'complete') return session.role === 'companion' && order.companionId === session.companionId;
+  if (action === 'cancel') return order.userId === session.user.id || (session.role === 'companion' && order.companionId === session.companionId);
+  return false;
+}
+
+function messageSenderRole(session) {
+  return session.role === 'admin' ? 'admin' : session.role === 'companion' ? 'companion' : 'user';
 }
 
 function quoteOrder(store, input) {
@@ -199,6 +225,7 @@ function quoteOrder(store, input) {
 }
 
 function createOrder(store, input) {
+  const session = ensureActiveSession(store, 'consumer');
   const context = resolveOrderContext(store, input);
   if (context.error) return context.error;
   if (context.slot.status !== 'available') return error(409, 'ORDER_SLOT_UNAVAILABLE', 'Slot is not available');
@@ -214,6 +241,8 @@ function createOrder(store, input) {
     time: context.slot.label,
     place: input.placeName || input.place || context.post.locationName || context.post.location,
     amountCents: quote.totalAmountCents,
+    userId: session.user.id,
+    userName: session.user.nickname,
     companion: context.companion.name,
     companionId: context.companion.id,
     postId: context.post.id,
@@ -283,18 +312,21 @@ function mockPaymentSuccess(store, path) {
 }
 
 function listOrders(store, url) {
-  const role = normalize(url.searchParams.get('role') || 'user');
+  const session = ensureActiveSession(store);
+  const role = normalize(url.searchParams.get('role') || session.role || 'user');
   const status = normalize(url.searchParams.get('status'));
   const items = store.orders
     .filter((order) => !status || normalize(order.status) === status)
-    .filter((order) => role !== 'companion' || order.companionId)
+    .filter((order) => canAccessOrder(store, order, session, role))
     .map(viewOrder);
   return json({ items });
 }
 
 function transitionOrder(store, path, action, body = {}) {
+  const session = ensureActiveSession(store);
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  if (!canMutateOrder(order, session, action)) return error(403, 'FORBIDDEN', 'Order action is not allowed for current role');
 
   if (action === 'confirm') {
     if (order.status !== 'paid_pending_confirm') return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be confirmed');
@@ -320,8 +352,10 @@ function transitionOrder(store, path, action, body = {}) {
 }
 
 function setOrderStatus(store, path, status) {
+  const session = ensureActiveSession(store);
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  if (session.role !== 'admin') return error(403, 'FORBIDDEN', 'Only admin can set arbitrary order status');
   if (!orderStatusText[status]) return error(400, 'VALIDATION_ERROR', 'Unknown order status');
   const result = updateOrder(store, order, status, 'Manual status update');
   if (status === 'completed') createSettlement(store, order);
@@ -335,8 +369,10 @@ function updateOrder(store, order, status, reason) {
 }
 
 function getConversation(store, path) {
+  const session = ensureActiveSession(store);
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  if (!canAccessOrder(store, order, session, session.role)) return error(403, 'FORBIDDEN', 'Order is not accessible for current role');
   if (!['paid_pending_confirm', 'confirmed', 'in_service', 'completed', 'disputed'].includes(order.status)) {
     return error(409, 'ORDER_STATUS_INVALID', 'Conversation opens after payment');
   }
@@ -345,9 +381,12 @@ function getConversation(store, path) {
 }
 
 function sendMessage(store, path, body) {
+  const session = ensureActiveSession(store);
   const conversationId = path.split('/')[3];
   const conversation = Object.values(store.conversations).find((item) => item.id === conversationId);
   if (!conversation) return error(404, 'NOT_FOUND', 'Conversation not found');
+  const order = findOrder(store, conversation.orderId);
+  if (!order || !canAccessOrder(store, order, session, session.role)) return error(403, 'FORBIDDEN', 'Conversation is not accessible for current role');
   if (conversation.status === 'restricted') return error(403, 'FORBIDDEN', 'Conversation is restricted');
 
   const content = String(body.content || '').trim();
@@ -357,12 +396,11 @@ function sendMessage(store, path, body) {
   if (risk.shouldBlock) {
     const blockedMessage = {
       id: id('blocked-message'),
-      from: body.from || 'user',
+      from: body.from || messageSenderRole(session),
       text: content,
       sentAt: now(),
       riskStatus: 'blocked',
     };
-    const order = findOrder(store, conversation.orderId);
     store.messageRiskEvents.unshift({
       id: id('message-risk-event'),
       conversationId,
@@ -390,7 +428,7 @@ function sendMessage(store, path, body) {
 
   const message = {
     id: id('message'),
-    from: body.from || 'user',
+    from: body.from || messageSenderRole(session),
     text: content,
     sentAt: now(),
     riskStatus: risk.hits.length ? 'flagged' : 'clean',
@@ -731,6 +769,8 @@ function createConversation(order) {
     id: `conversation-${order.id}`,
     orderId: order.id,
     orderNo: order.orderNo,
+    userId: order.userId || 'demo-consumer-user',
+    companionId: order.companionId,
     status: 'active',
     safetyNotice: 'Keep all communication and payments inside PP for safety.',
     messages: [
@@ -1067,6 +1107,8 @@ function normalizePosts(store) {
 
 function normalizeOrders(store) {
   store.orders.forEach((order) => {
+    order.userId ||= 'demo-consumer-user';
+    order.userName ||= 'Demo Consumer';
     Object.assign(order, viewOrder(order));
     if (['paid_pending_confirm', 'confirmed', 'in_service', 'completed', 'disputed'].includes(order.status)) {
       store.conversations[order.id] ||= createConversation(order);

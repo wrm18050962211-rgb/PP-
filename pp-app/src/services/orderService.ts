@@ -33,7 +33,7 @@ export function createLocalOrder(input: CreateOrderInput, status: OrderStatus = 
   };
 }
 
-export async function fetchOrders(role: 'user' | 'companion' = 'user'): Promise<AppOrder[]> {
+export async function fetchOrders(role: 'user' | 'companion' | 'admin' = 'user'): Promise<AppOrder[]> {
   if (!isApiEnabled()) return listSeedOrders();
 
   try {

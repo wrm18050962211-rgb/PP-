@@ -7,8 +7,10 @@ import {
   OrderStatus,
   PublishedWorkDraft,
 } from '../types/domain';
+import type { AuthSession } from '../types/api';
 
 export type AppData = {
+  session: AuthSession | null;
   orders: AppOrder[];
   application: CompanionApplication;
   bookingSettings: CompanionBookingSettings;

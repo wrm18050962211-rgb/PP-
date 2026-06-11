@@ -37,6 +37,9 @@ try {
   const adminSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'admin' });
   assert(adminSession.role === 'admin' && adminSession.adminScope?.includes('risk'), 'mock login can switch to admin role');
 
+  const consumerSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
+  assert(consumerSession.role === 'consumer', 'mock login can switch back to consumer role');
+
   const feed = await api('GET', '/api/feed/posts?city=%E4%B8%8A%E6%B5%B7&limit=10');
   assert(Array.isArray(feed.items) && feed.items.length >= 5, 'feed exposes seeded photographers');
 
@@ -73,6 +76,13 @@ try {
   const orders = await api('GET', '/api/orders?role=user');
   assert(orders.items.some((item) => item.id === paid.order.id), 'paid order appears in order list');
 
+  await api('POST', '/api/auth/wechat/mock-login', { role: 'companion' });
+  const companionOrders = await api('GET', '/api/orders?role=companion');
+  assert(companionOrders.items.every((item) => item.companionId === paid.order.companionId), 'companion order list is scoped to current companion');
+  const confirmed = await api('POST', `/api/orders/${paid.order.id}/confirm`);
+  assert(confirmed.status === 'confirmed', 'companion can confirm own order');
+
+  await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
   const conversation = await api('GET', `/api/orders/${paid.order.id}/conversation`);
   const safeMessage = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'See you at the cafe entrance.' });
   assert(safeMessage.riskStatus === 'clean', 'safe chat message is accepted');
@@ -80,6 +90,7 @@ try {
   const blocked = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'Add my wechat and pay offline.' }, { expectOk: false });
   assert(blocked.error?.code === 'MESSAGE_BLOCKED' && blocked.data?.matchedKeywords?.length, 'risky chat message is blocked');
 
+  await api('POST', '/api/auth/wechat/mock-login', { role: 'admin' });
   const moderation = await api('GET', '/api/admin/moderation');
   const riskCase = moderation.messageCases?.[0];
   assert(riskCase?.id, 'admin moderation exposes risk case');
@@ -105,6 +116,7 @@ try {
           'create-order',
           'mock-payment',
           'orders',
+          'role-scoped-orders',
           'conversation',
           'risk-block',
           'moderation-action',

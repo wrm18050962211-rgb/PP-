@@ -16,13 +16,21 @@ export async function fetchAuthSession(): Promise<AuthSession> {
 
 export async function switchMockRole(role: UserRole): Promise<AuthSession> {
   persistRole(role);
-  if (!isApiEnabled()) return localSession(role);
+  if (!isApiEnabled()) {
+    const session = localSession(role);
+    notifySessionChanged(session);
+    return session;
+  }
 
   try {
     const response = await apiPost<AuthSession>('/api/auth/wechat/mock-login', { role });
-    return response.success ? response.data : localSession(role);
+    const session = response.success ? response.data : localSession(role);
+    notifySessionChanged(session);
+    return session;
   } catch {
-    return localSession(role);
+    const session = localSession(role);
+    notifySessionChanged(session);
+    return session;
   }
 }
 
@@ -35,6 +43,11 @@ function readStoredRole(): UserRole {
 function persistRole(role: UserRole) {
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(roleStorageKey, role);
+}
+
+function notifySessionChanged(session: AuthSession) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent<AuthSession>('pp-auth-session-changed', { detail: session }));
 }
 
 function isUserRole(role: unknown): role is UserRole {
