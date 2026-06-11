@@ -113,6 +113,26 @@ export type PostImage = {
   width?: number;
   height?: number;
   sortOrder: number;
+  provider?: 'local' | 'tencent_cos' | string;
+  objectKey?: string;
+  contentType?: string;
+  sizeBytes?: number;
+};
+
+export type MediaUploadPurpose = 'post-image' | 'avatar' | 'portfolio' | 'identity' | 'video';
+
+export type MediaUploadPolicy = {
+  provider: 'tencent_cos' | string;
+  mode: 'mock' | 'production' | string;
+  bucket: string;
+  region: string;
+  purpose: MediaUploadPurpose;
+  objectKey: string;
+  contentType: string;
+  uploadUrl: string;
+  publicUrl: string;
+  expiresAt: string;
+  credentials?: Record<string, unknown>;
 };
 
 export type AvailabilitySlot = {

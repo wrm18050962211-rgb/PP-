@@ -40,6 +40,14 @@ try {
   const consumerSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
   assert(consumerSession.role === 'consumer', 'mock login can switch back to consumer role');
 
+  const mediaPolicy = await api('POST', '/api/media/upload-policy', {
+    purpose: 'post-image',
+    fileName: 'cover.jpg',
+    contentType: 'image/jpeg',
+    sizeBytes: 1024,
+  });
+  assert(mediaPolicy.provider === 'tencent_cos' && mediaPolicy.objectKey?.includes('/post-image/'), 'media upload policy is shaped for Tencent COS');
+
   const feed = await api('GET', '/api/feed/posts?city=%E4%B8%8A%E6%B5%B7&limit=10');
   assert(Array.isArray(feed.items) && feed.items.length >= 5, 'feed exposes seeded photographers');
 
@@ -112,6 +120,7 @@ try {
           'health',
           'auth-session',
           'mock-login',
+          'media-upload-policy',
           'feed',
           'matching',
           'quote',

@@ -79,6 +79,7 @@ async function route(method, url, body, store) {
   if (method === 'GET' && path === '/api/auth/session') return authSession(store);
   if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/logout') return logout(store);
+  if (method === 'POST' && path === '/api/media/upload-policy') return createMediaUploadPolicy(store, body);
   if (method === 'GET' && path === '/api/feed/posts') return json({ items: listFeedPosts(store, url) });
   if (method === 'GET' && path === '/api/matching/companions') return matchCompanions(store, url);
   if (method === 'GET' && path.startsWith('/api/posts/')) return getPost(store, last(path));
@@ -124,6 +125,45 @@ function listFeedPosts(store, url) {
 function getPost(store, postId) {
   const post = store.posts.find((item) => item.id === postId);
   return post ? json(post) : error(404, 'NOT_FOUND', 'Post not found');
+}
+
+function createMediaUploadPolicy(store, body = {}) {
+  const session = ensureActiveSession(store);
+  const purpose = normalizeMediaPurpose(body.purpose);
+  const fileName = sanitizeFileName(body.fileName || 'upload.jpg');
+  const contentType = String(body.contentType || 'application/octet-stream');
+  const objectKey = `pp/${purpose}/${session.user.id}/${Date.now()}-${fileName}`;
+  const bucket = process.env.COS_BUCKET || 'pp-mvp-local-1250000000';
+  const region = process.env.COS_REGION || 'ap-shanghai';
+  const publicBaseUrl = process.env.COS_PUBLIC_BASE_URL || `https://${bucket}.cos.${region}.myqcloud.com`;
+
+  return json({
+    provider: 'tencent_cos',
+    mode: 'mock',
+    bucket,
+    region,
+    purpose,
+    objectKey,
+    contentType,
+    uploadUrl: `${publicBaseUrl}/${objectKey}`,
+    publicUrl: `${publicBaseUrl}/${objectKey}`,
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    credentials: {
+      type: 'mock_sts',
+      note: 'Replace this with Tencent Cloud STS temporary credentials before production upload.',
+    },
+  });
+}
+
+function normalizeMediaPurpose(purpose) {
+  return ['post-image', 'avatar', 'portfolio', 'identity', 'video'].includes(purpose) ? purpose : 'post-image';
+}
+
+function sanitizeFileName(fileName) {
+  return String(fileName)
+    .replace(/[/\\?%*:|"<>]/g, '-')
+    .replace(/\s+/g, '-')
+    .slice(0, 80);
 }
 
 function authSession(store) {

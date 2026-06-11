@@ -3,7 +3,7 @@ import { ChangeEvent, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
-import type { PostImage } from '../../types/api';
+import { uploadPostImage } from '../../services/mediaService';
 
 const styleTags = ['自然光', '松弛感', '小红书', '夜景', '旅行感', '咖啡店', '胶片感', '街拍', '文艺', '甜酷'];
 const activityTypes = ['Citywalk 陪拍', '探店吃饭陪拍', '逛街拍照', '夜景散步', '旅行跟拍', '生日纪念'];
@@ -32,7 +32,7 @@ export function PublishPost() {
     const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/'));
     if (!files.length) return;
 
-    const nextImages = await Promise.all(files.map(readImageFile));
+    const nextImages = await Promise.all(files.map(uploadPostImage));
     const images = [...workDraft.images, ...nextImages].map((image, index) => ({ ...image, sortOrder: index + 1 }));
     saveWorkDraft({ images, coverImageId: workDraft.coverImageId || images[0]?.id || '' });
     event.target.value = '';
@@ -195,19 +195,4 @@ export function PublishPost() {
       </button>
     </div>
   );
-}
-
-function readImageFile(file: File): Promise<PostImage> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => {
-      resolve({
-        id: `draft-image-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        url: String(reader.result),
-        sortOrder: 0,
-      });
-    };
-    reader.readAsDataURL(file);
-  });
 }

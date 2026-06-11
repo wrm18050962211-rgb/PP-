@@ -72,12 +72,30 @@
 本地阶段：
 
 - 作品图、头像、视频可继续使用 URL 占位。
+- 前端统一通过 `pp-app/src/services/mediaService.ts` 处理媒体文件。
+- 后端 `POST /api/media/upload-policy` 返回腾讯云 COS 形状的上传策略，本地为 `mock`。
 
 上线阶段：
 
-1. 小程序端上传到 COS。
-2. 后端保存 COS key、访问 URL、宽高、审核状态。
-3. 前端继续读取 `images[].url`、`avatar`、`photo`，不直接关心存储提供商。
+1. 后端 `POST /api/media/upload-policy` 改为签发腾讯云 STS 临时密钥或预签名上传策略。
+2. 小程序端通过 COS 小程序 SDK 或 `wx.uploadFile` 上传到 COS。
+3. 后端保存 COS `objectKey`、访问 URL、宽高、文件类型、审核状态。
+4. 前端继续读取 `images[].url`、`avatar`、`photo`，不直接关心存储提供商。
+5. 不把 SecretId / SecretKey 放到小程序端，正式环境只使用临时凭证。
+
+当前约定的媒体字段：
+
+```json
+{
+  "id": "draft-image-...",
+  "url": "https://bucket.cos.ap-shanghai.myqcloud.com/pp/post-image/...",
+  "provider": "tencent_cos",
+  "objectKey": "pp/post-image/user-id/file.jpg",
+  "contentType": "image/jpeg",
+  "sizeBytes": 102400,
+  "sortOrder": 1
+}
+```
 
 ## 必跑检查
 
