@@ -20,6 +20,7 @@
 - `server/data/store.json` 用来演示闭环。
 - `server/store/jsonStore.mjs` 是本地 JSON store 适配器，后续 PostgreSQL DAO 应按同样的 `load/save` 边界替换。
 - `STORE_DRIVER=json` 是默认本地模式；`STORE_DRIVER=postgres` 是上线切换入口，需要同时配置 `DATABASE_URL`。
+- `server/store/postgresStore.mjs` 已具备展示层只读模型骨架，先覆盖图片流、帖子详情和陪拍者匹配所需数据。
 - `database/schema.sql` 和 `database/prisma/schema.prisma` 是真实数据库结构蓝图。
 - `server/scripts/smoke.mjs` 是迁移前后的最小回归检查。
 - `database/scripts/export-store-to-seed.mjs` 可把当前本地 store 导出为 PostgreSQL seed SQL。
@@ -46,7 +47,7 @@
    psql "$env:DATABASE_URL" -f database/generated/store_seed.sql
    ```
 
-6. 实现 `server/store/postgresStore.mjs`，再用 `STORE_DRIVER=postgres` + `DATABASE_URL` 切换到云数据库。
+6. 完成 `server/store/postgresStore.mjs` 的订单、支付、聊天、风控写入 DAO，再用 `STORE_DRIVER=postgres` + `DATABASE_URL` 切换到云数据库。
 7. 保持 `/api/feed/posts`、`/api/orders`、`/api/payments/...` 等接口响应结构不变。
 8. 跑 `npm.cmd run smoke`，确认图片流、下单、支付、订单、聊天、风控、后台仍可用。
 

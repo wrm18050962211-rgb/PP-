@@ -35,8 +35,13 @@ try {
     normalizeStore: (store) => ({ store, changed: false }),
   });
   assert(postgresStore.kind === 'postgres', 'postgres driver can be selected when DATABASE_URL exists');
+  await assertRejects(
+    () => postgresStore.save({}),
+    'save is not implemented',
+    'postgres save remains protected until write DAO exists',
+  );
 
-  console.log(JSON.stringify({ ok: true, checks: ['default-json', 'postgres-requires-database-url', 'postgres-selectable'] }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: ['default-json', 'postgres-requires-database-url', 'postgres-selectable', 'postgres-save-protected'] }, null, 2));
 } finally {
   delete process.env.STORE_DRIVER;
   delete process.env.DATABASE_URL;
@@ -50,6 +55,16 @@ function assert(condition, message) {
 function assertThrows(fn, messagePart, label) {
   try {
     fn();
+  } catch (error) {
+    assert(error instanceof Error && error.message.includes(messagePart), label);
+    return;
+  }
+  throw new Error(`Store driver check failed: ${label}`);
+}
+
+async function assertRejects(fn, messagePart, label) {
+  try {
+    await fn();
   } catch (error) {
     assert(error instanceof Error && error.message.includes(messagePart), label);
     return;
