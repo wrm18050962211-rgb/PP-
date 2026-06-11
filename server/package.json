@@ -11,6 +11,7 @@
     "check:postgres-mappers": "node scripts/check-postgres-mappers.mjs",
     "check:postgres-write-plan": "node scripts/check-postgres-write-plan.mjs",
     "check:postgres-order-writes": "node scripts/check-postgres-order-writes.mjs",
+    "check:postgres-message-writes": "node scripts/check-postgres-message-writes.mjs",
     "db:export-seed": "node ../database/scripts/export-store-to-seed.mjs"
   }
 }
