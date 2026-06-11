@@ -20,15 +20,48 @@
 - `server/data/store.json` 用来演示闭环。
 - `database/schema.sql` 和 `database/prisma/schema.prisma` 是真实数据库结构蓝图。
 - `server/scripts/smoke.mjs` 是迁移前后的最小回归检查。
+- `database/scripts/export-store-to-seed.mjs` 可把当前本地 store 导出为 PostgreSQL seed SQL。
 
 上线阶段：
 
 1. 在腾讯云创建 PostgreSQL 实例。
 2. 执行 `database/schema.sql` 建表。
 3. 按 `database/seed_mvp.sql` 导入最小种子数据。
-4. 把 `server/server.mjs` 的读写层从 JSON store 替换为 PostgreSQL DAO。
-5. 保持 `/api/feed/posts`、`/api/orders`、`/api/payments/...` 等接口响应结构不变。
-6. 跑 `npm.cmd run smoke`，确认图片流、下单、支付、订单、聊天、风控、后台仍可用。
+4. 如果要迁移当前本地虚拟陪拍者和帖子，先导出本地 store：
+
+   ```powershell
+   cd server
+   npm.cmd run db:export-seed
+   ```
+
+   默认输出到 `database/generated/store_seed.sql`。这是生成物，不提交 Git。
+
+5. 将 seed 导入腾讯云 PostgreSQL：
+
+   ```powershell
+   psql "$env:DATABASE_URL" -f database/schema.sql
+   psql "$env:DATABASE_URL" -f database/seed_mvp.sql
+   psql "$env:DATABASE_URL" -f database/generated/store_seed.sql
+   ```
+
+6. 把 `server/server.mjs` 的读写层从 JSON store 替换为 PostgreSQL DAO。
+7. 保持 `/api/feed/posts`、`/api/orders`、`/api/payments/...` 等接口响应结构不变。
+8. 跑 `npm.cmd run smoke`，确认图片流、下单、支付、订单、聊天、风控、后台仍可用。
+
+当前导出脚本覆盖的演示内容：
+
+- `users`
+- `companions`
+- `companion_tags`
+- `service_areas`
+- `activity_pricings`
+- `companion_extras`
+- `availability_slots`
+- `posts`
+- `post_images`
+- `post_tags`
+
+当前导出脚本刻意不迁移本地测试产生的订单、支付、聊天和风控案件，避免把测试交易数据带到生产库。
 
 ## 微信登录
 
