@@ -1,4 +1,4 @@
-import { createOrderTransaction } from '../store/postgresOrderWrites.mjs';
+import { createOrderTransaction, markPaymentPaidTransaction } from '../store/postgresOrderWrites.mjs';
 
 const draft = {
   orderId: '00000000-0000-4000-8000-000000000001',
@@ -57,12 +57,61 @@ const unavailableClient = createMockClient([{ id: draft.availabilitySlotId, stat
 await assertRejects(() => createOrderTransaction(unavailableClient, draft), 'Slot is not available', 'unavailable slot rejects');
 assert(unavailableClient.calls.at(-1).sql === 'rollback', 'unavailable slot rolls back');
 
+const paymentDraft = {
+  paymentId: draft.paymentId,
+  conversationId: '00000000-0000-4000-8000-000000000011',
+  statusLogId: '00000000-0000-4000-8000-000000000012',
+  thirdPartyTradeNo: 'wx-trade-001',
+  thirdPartyBuyerId: 'openid-demo',
+  rawCallback: { transaction_id: 'wx-trade-001' },
+  paidAt: '2026-06-12T06:01:00.000Z',
+};
+const paymentClient = createMockClient([{ payment_status: 'pending', order_status: 'pending_payment' }]);
+const paid = await markPaymentPaidTransaction(paymentClient, paymentDraft);
+const paymentSql = paymentClient.calls.map((call) => call.sql);
+
+assert(paid.payment?.status === 'paid', 'returns paid payment');
+assert(paid.order?.status === 'paid_pending_confirm', 'returns paid order');
+assert(paid.conversation?.id === paymentDraft.conversationId, 'returns conversation');
+assert(paymentSql[0] === 'begin', 'payment transaction begins first');
+assert(paymentSql.some((sql) => /for update of p, o/i.test(sql)), 'locks payment and order for update');
+assert(paymentSql.some((sql) => /update payments/i.test(sql) && /status = 'paid'/i.test(sql)), 'updates payment to paid');
+assert(paymentSql.some((sql) => /update orders/i.test(sql) && /paid_pending_confirm/i.test(sql)), 'updates order to paid pending confirm');
+assert(paymentSql.some((sql) => /update availability_slots/i.test(sql) && /status = 'booked'/i.test(sql)), 'books slot');
+assert(paymentSql.some((sql) => /insert into conversations/i.test(sql) && /on conflict/i.test(sql)), 'creates or reuses conversation');
+assert(paymentSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'records payment status log');
+assert(paymentSql.at(-1) === 'commit', 'payment transaction commits last');
+
+const invalidPaymentClient = createMockClient([{ payment_status: 'paid', order_status: 'pending_payment' }]);
+await assertRejects(() => markPaymentPaidTransaction(invalidPaymentClient, paymentDraft), 'Payment is not pending', 'invalid payment status rejects');
+assert(invalidPaymentClient.calls.at(-1).sql === 'rollback', 'invalid payment rolls back');
+
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['begin', 'slot-for-update', 'insert-order', 'insert-extras', 'insert-payment', 'lock-slot', 'status-log', 'commit', 'rollback'],
+      checks: [
+        'create-begin',
+        'slot-for-update',
+        'insert-order',
+        'insert-extras',
+        'insert-payment',
+        'lock-slot',
+        'create-status-log',
+        'create-commit',
+        'create-rollback',
+        'pay-begin',
+        'payment-order-for-update',
+        'mark-payment-paid',
+        'mark-order-paid',
+        'book-slot',
+        'conversation',
+        'payment-status-log',
+        'pay-commit',
+        'pay-rollback',
+      ],
       successQueryCount: successClient.calls.length,
+      paymentQueryCount: paymentClient.calls.length,
     },
     null,
     2,
@@ -77,8 +126,27 @@ function createMockClient(slotRows) {
       const normalized = sql.trim().replace(/\s+/g, ' ');
       calls.push({ sql: normalized, params });
       if (/select id, status from availability_slots/i.test(normalized)) return { rows: slotRows };
+      if (/select p\.id as payment_id/i.test(normalized)) {
+        const row = slotRows[0] || {};
+        return {
+          rows: [
+            {
+              payment_id: draft.paymentId,
+              payment_status: row.payment_status || 'pending',
+              order_id: draft.orderId,
+              order_status: row.order_status || 'pending_payment',
+              user_id: draft.userId,
+              companion_id: draft.companionId,
+              availability_slot_id: draft.availabilitySlotId,
+            },
+          ],
+        };
+      }
       if (/insert into orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'pending_payment' }] };
       if (/insert into payments/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'pending' }] };
+      if (/update payments/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'paid' }] };
+      if (/update orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'paid_pending_confirm' }] };
+      if (/insert into conversations/i.test(normalized)) return { rows: [{ id: paymentDraft.conversationId, order_id: draft.orderId, status: 'active' }] };
       return { rows: [] };
     },
   };

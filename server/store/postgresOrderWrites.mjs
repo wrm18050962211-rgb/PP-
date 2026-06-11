@@ -97,6 +97,93 @@ export async function createOrderTransaction(client, draft) {
   }
 }
 
+export async function markPaymentPaidTransaction(client, draft) {
+  assertClient(client);
+  assertPaymentDraft(draft);
+
+  await client.query('begin');
+  try {
+    const paymentResult = await client.query(
+      `select p.id as payment_id,
+              p.status as payment_status,
+              p.order_id,
+              o.status as order_status,
+              o.user_id,
+              o.companion_id,
+              o.availability_slot_id
+       from payments p
+       join orders o on o.id = p.order_id
+       where p.id = $1
+       for update of p, o`,
+      [draft.paymentId],
+    );
+    const payment = paymentResult.rows?.[0];
+    if (!payment) throw conflict('PAYMENT_NOT_FOUND', 'Payment not found');
+    if (payment.payment_status !== 'pending') throw conflict('PAYMENT_STATUS_INVALID', 'Payment is not pending');
+    if (payment.order_status !== 'pending_payment') throw conflict('ORDER_STATUS_INVALID', 'Order is not pending payment');
+
+    const paidAt = draft.paidAt || new Date().toISOString();
+    const paidPaymentResult = await client.query(
+      `update payments
+       set status = 'paid',
+           third_party_trade_no = $1,
+           third_party_buyer_id = $2,
+           raw_callback = $3,
+           paid_at = $4,
+           updated_at = now()
+       where id = $5
+       returning *`,
+      [draft.thirdPartyTradeNo || null, draft.thirdPartyBuyerId || null, draft.rawCallback || {}, paidAt, draft.paymentId],
+    );
+
+    const paidOrderResult = await client.query(
+      `update orders
+       set status = 'paid_pending_confirm',
+           paid_at = $1,
+           updated_at = now()
+       where id = $2
+       returning *`,
+      [paidAt, payment.order_id],
+    );
+
+    await client.query(
+      `update availability_slots
+       set status = 'booked',
+           locked_until = null,
+           updated_at = now()
+       where id = $1`,
+      [payment.availability_slot_id],
+    );
+
+    const conversationResult = await client.query(
+      `insert into conversations (
+        id, order_id, user_id, companion_id, status, created_at, updated_at
+      ) values ($1, $2, $3, $4, 'active', now(), now())
+      on conflict (order_id) do update
+      set updated_at = excluded.updated_at
+      returning *`,
+      [draft.conversationId, payment.order_id, payment.user_id, payment.companion_id],
+    );
+
+    await client.query(
+      `insert into order_status_logs (
+        id, order_id, from_status, to_status, operator_type, operator_id, reason
+      ) values ($1, $2, 'pending_payment', 'paid_pending_confirm', $3, $4, $5)`,
+      [draft.statusLogId, payment.order_id, draft.operatorType || 'system', draft.operatorId || null, draft.statusReason || 'Payment succeeded'],
+    );
+
+    await client.query('commit');
+    return {
+      payment: paidPaymentResult.rows?.[0] || null,
+      order: paidOrderResult.rows?.[0] || null,
+      conversation: conversationResult.rows?.[0] || null,
+    };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  }
+}
+
 function assertClient(client) {
   if (!client || typeof client.query !== 'function') {
     throw new Error('PostgreSQL client with query(sql, params) is required');
@@ -128,6 +215,12 @@ function assertDraft(draft) {
   ];
   const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
   if (missing.length) throw new Error(`Missing createOrder draft fields: ${missing.join(', ')}`);
+}
+
+function assertPaymentDraft(draft) {
+  const required = ['paymentId', 'conversationId', 'statusLogId'];
+  const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
+  if (missing.length) throw new Error(`Missing markPaymentPaid draft fields: ${missing.join(', ')}`);
 }
 
 function conflict(code, message) {
