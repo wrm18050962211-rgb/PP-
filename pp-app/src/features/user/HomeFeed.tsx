@@ -2,6 +2,7 @@ import { ChevronDown, LocateFixed, MapPin, Search, SlidersHorizontal, X } from '
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppData } from '../../app/useAppData';
 import { fetchFeedPosts, listFeedPosts, mergeApprovedWorkIntoFeed } from '../../services/feedService';
+import type { ConsumerLocation } from '../../services/locationService';
 import { fetchMatchedCompanions, matchCompanions, type GenderPreference } from '../../services/matchingService';
 import type { FeedPost } from '../../types/api';
 import { PhotoFeed } from './PhotoFeed';
@@ -17,12 +18,6 @@ type FeedFilters = {
   durationMinutes: number | null;
   maxBudgetCents: number | null;
   genderPreference: GenderPreference;
-};
-
-type ConsumerLocation = {
-  lat: number;
-  lng: number;
-  accuracy?: number;
 };
 
 type LocationStatus = 'idle' | 'locating' | 'located' | 'unsupported' | 'denied' | 'failed';

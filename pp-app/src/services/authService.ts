@@ -1,5 +1,6 @@
 import type { AuthSession, UserRole } from '../types/api';
 import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { isMiniProgramRuntime, wxLogin } from './miniProgramBridge';
 
 const roleStorageKey = 'pp-auth-role-v1';
 
@@ -7,6 +8,15 @@ export async function fetchAuthSession(): Promise<AuthSession> {
   if (!isApiEnabled()) return localSession(readStoredRole());
 
   try {
+    if (isMiniProgramRuntime()) {
+      const code = await wxLogin();
+      const response = await apiPost<AuthSession>('/api/auth/wechat/login', { code });
+      if (response.success) {
+        notifySessionChanged(response.data);
+        return response.data;
+      }
+    }
+
     const response = await apiGet<AuthSession>('/api/auth/session');
     return response.success ? response.data : localSession(readStoredRole());
   } catch {

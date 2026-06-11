@@ -1,5 +1,6 @@
 import type { MediaUploadPolicy, MediaUploadPurpose, PostImage } from '../types/api';
 import { apiPost, isApiEnabled } from './apiClient';
+import { isMiniProgramRuntime, wxUploadFile } from './miniProgramBridge';
 
 type UploadInput = {
   file: File;
@@ -41,6 +42,30 @@ export async function uploadMediaFile({ file, purpose }: UploadInput): Promise<s
   const policy = await requestUploadPolicy(file, purpose);
   if (policy?.mode === 'production') return policy.publicUrl;
   return readFileAsDataUrl(file);
+}
+
+export async function uploadMiniProgramMediaFile(filePath: string, purpose: MediaUploadPurpose, fileName = 'upload.jpg'): Promise<string> {
+  const policy = await requestMiniProgramUploadPolicy(fileName, purpose);
+  if (!policy) return filePath;
+  if (policy.mode === 'production' && isMiniProgramRuntime()) {
+    await wxUploadFile(policy.uploadUrl, filePath, { key: policy.objectKey });
+  }
+  return policy.publicUrl;
+}
+
+async function requestMiniProgramUploadPolicy(fileName: string, purpose: MediaUploadPurpose): Promise<MediaUploadPolicy | null> {
+  if (!isApiEnabled()) return null;
+
+  try {
+    const response = await apiPost<MediaUploadPolicy>('/api/media/upload-policy', {
+      purpose,
+      fileName,
+      contentType: 'application/octet-stream',
+    });
+    return response.success ? response.data : null;
+  } catch {
+    return null;
+  }
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {

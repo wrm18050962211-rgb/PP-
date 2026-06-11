@@ -30,8 +30,14 @@ try {
   assert(health.storeDriver === 'json', 'health reports active store driver');
   assert(health.storeCapabilities?.writes === true, 'health reports json write capability');
 
+  const launchCheck = await api('GET', '/api/ops/launch-check');
+  assert(Array.isArray(launchCheck.missing) && launchCheck.current?.wechatPay === 'mock', 'launch check reports missing production configuration');
+
   const session = await api('GET', '/api/auth/session');
   assert(session.role === 'consumer' && session.user?.id, 'default auth session is consumer');
+
+  const wechatSession = await api('POST', '/api/auth/wechat/login', { code: 'mock-smoke-code' });
+  assert(wechatSession.provider === 'wechat' && wechatSession.role === 'consumer', 'wechat login endpoint accepts mini program code');
 
   const companionSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'companion' });
   assert(companionSession.role === 'companion' && companionSession.companionId, 'mock login can switch to companion role');
@@ -120,7 +126,9 @@ try {
         baseUrl,
         checks: [
           'health',
+          'launch-check',
           'auth-session',
+          'wechat-login',
           'mock-login',
           'media-upload-policy',
           'feed',

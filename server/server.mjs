@@ -1,5 +1,7 @@
 import http from 'node:http';
+import { createDecipheriv, randomBytes, sign } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createDataStore } from './store/index.mjs';
 
@@ -85,7 +87,9 @@ async function route(method, url, body, store) {
       storeCapabilities: dataStore.capabilities,
     });
   }
+  if (method === 'GET' && path === '/api/ops/launch-check') return launchCheck();
   if (method === 'GET' && path === '/api/auth/session') return authSession(store);
+  if (method === 'POST' && path === '/api/auth/wechat/login') return wechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/logout') return logout(store);
   if (method === 'POST' && path === '/api/media/upload-policy') return createMediaUploadPolicy(store, body);
@@ -97,6 +101,7 @@ async function route(method, url, body, store) {
   if (method === 'POST' && path === '/api/orders') return createOrder(store, body);
   if (method === 'GET' && path === '/api/orders') return listOrders(store, url);
   if (method === 'POST' && isNestedRoute(path, '/api/payments/', '/mock-success')) return mockPaymentSuccess(store, path);
+  if (method === 'POST' && path === '/api/payments/wechat/notify') return wechatPaymentNotify(store, body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/confirm')) return transitionOrder(store, path, 'confirm');
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/complete')) return transitionOrder(store, path, 'complete');
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/cancel')) return transitionOrder(store, path, 'cancel', body);
@@ -188,16 +193,42 @@ function mockWechatLogin(store, body = {}) {
   return json(session, 200, true);
 }
 
+async function wechatLogin(store, body = {}) {
+  const code = String(body.code || '').trim();
+  if (!code) return error(400, 'VALIDATION_ERROR', 'WeChat login code is required');
+
+  if (hasWechatAuthConfig() && !code.startsWith('mock-')) {
+    const identity = await exchangeWechatCode(code);
+    const user = ensureWechatUser(store, identity);
+    const session = createSession(store, 'consumer', user);
+    session.provider = 'wechat';
+    session.openId = user.openId;
+    store.activeSession = session;
+    return json(session, 200, true);
+  }
+
+  const user = ensureWechatUser(store, {
+    openid: `mock-openid-${code.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'consumer'}`,
+    unionid: null,
+  });
+  const session = createSession(store, 'consumer', user);
+  session.provider = 'wechat';
+  session.mode = 'mock';
+  session.loginCode = code.startsWith('mock-') ? code : undefined;
+  store.activeSession = session;
+  return json(session, 200, true);
+}
+
 function logout(store) {
   store.activeSession = null;
   return json({ ok: true }, 200, true);
 }
 
-function createSession(store, role) {
-  const user = ensureDemoUser(store, role);
+function createSession(store, role, existingUser = null) {
+  const user = existingUser || store.activeSession?.user || ensureDemoUser(store, role);
   const session = {
-    token: `local-${role}-session`,
-    provider: 'mock_wechat',
+    token: existingUser?.openId ? `wx-${role}-${existingUser.id}-session` : `local-${role}-session`,
+    provider: existingUser?.openId ? 'wechat' : 'mock_wechat',
     role,
     roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
     user,
@@ -210,8 +241,57 @@ function createSession(store, role) {
 
 function ensureActiveSession(store, fallbackRole = 'consumer') {
   const role = normalizeRole(store.activeSession?.role || fallbackRole);
-  store.activeSession = createSession(store, role);
+  store.activeSession = createSession(store, role, store.activeSession?.user || null);
   return store.activeSession;
+}
+
+async function exchangeWechatCode(code) {
+  const appId = requiredEnv('WECHAT_MINI_PROGRAM_APP_ID');
+  const appSecret = requiredEnv('WECHAT_MINI_PROGRAM_APP_SECRET');
+  const url = new URL('https://api.weixin.qq.com/sns/jscode2session');
+  url.searchParams.set('appid', appId);
+  url.searchParams.set('secret', appSecret);
+  url.searchParams.set('js_code', code);
+  url.searchParams.set('grant_type', 'authorization_code');
+
+  const response = await fetch(url, { method: 'GET' });
+  const data = await response.json();
+  if (!response.ok || data.errcode) {
+    return Promise.reject(new Error(data.errmsg || `WeChat code2session failed with ${response.status}`));
+  }
+  return data;
+}
+
+function ensureWechatUser(store, identity) {
+  store.users ||= [];
+  const openId = String(identity.openid || '').trim();
+  if (!openId) throw new Error('WeChat code2session did not return openid');
+
+  let user = store.users.find((item) => item.openId === openId);
+  if (!user) {
+    user = {
+      id: `user-${openId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 28) || Date.now()}`,
+      openId,
+      unionId: identity.unionid || null,
+      nickname: 'WeChat User',
+      avatarUrl: '',
+      gender: 'unknown',
+      city: '',
+      status: 'active',
+      isCompanion: false,
+      roles: ['consumer'],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    store.users.push(user);
+  }
+
+  user.openId = openId;
+  user.unionId = identity.unionid || user.unionId || null;
+  user.roles = Array.from(new Set([...(user.roles || []), 'consumer']));
+  user.status = user.status || 'active';
+  user.updatedAt = now();
+  return user;
 }
 
 function ensureDemoUser(store, role) {
@@ -273,7 +353,7 @@ function quoteOrder(store, input) {
   return json(buildQuote(context, input));
 }
 
-function createOrder(store, input) {
+async function createOrder(store, input) {
   const session = ensureActiveSession(store, 'consumer');
   const context = resolveOrderContext(store, input);
   if (context.error) return context.error;
@@ -313,23 +393,34 @@ function createOrder(store, input) {
     statusLogs: [statusLog('pending_payment', 'Order created and slot locked')],
   });
 
-  context.slot.status = 'locked';
-  context.slot.lockedOrderId = order.id;
-  store.orders.unshift(order);
-  store.payments.unshift({
+  const payment = {
     id: paymentId,
     paymentId,
     paymentNo: paymentNo(),
     orderId: order.id,
     channel: input.channel || 'wechat_pay',
     provider: 'wechat_pay',
-    mode: 'mock',
+    mode: useLiveWechatPay() ? 'production' : 'mock',
     status: 'pending',
     amountCents: quote.totalAmountCents,
     createdAt: now(),
-  });
+  };
 
-  return json({ ...order, payment: publicPayment(store.payments[0]) }, 201, true);
+  if (payment.mode === 'production') {
+    try {
+      const prepay = await createWechatJsapiPrepay(payment, order, session);
+      Object.assign(payment, prepay);
+    } catch (paymentError) {
+      return error(502, 'WECHAT_PAY_PREPAY_FAILED', paymentError instanceof Error ? paymentError.message : 'WeChat Pay prepay failed');
+    }
+  }
+
+  context.slot.status = 'locked';
+  context.slot.lockedOrderId = order.id;
+  store.orders.unshift(order);
+  store.payments.unshift(payment);
+
+  return json({ ...order, payment: publicPayment(payment) }, 201, true);
 }
 
 function mockPaymentSuccess(store, path) {
@@ -1245,6 +1336,167 @@ function buildMiniProgramPayParams(payment) {
   };
 }
 
+async function createWechatJsapiPrepay(payment, order, session) {
+  const appId = requiredEnv('WECHAT_MINI_PROGRAM_APP_ID');
+  const mchId = requiredEnv('WECHAT_PAY_MCH_ID');
+  const notifyUrl = requiredEnv('WECHAT_PAY_NOTIFY_URL');
+  const privateKey = getWechatPayPrivateKey();
+  const body = {
+    appid: appId,
+    mchid: mchId,
+    description: order.title.slice(0, 127),
+    out_trade_no: payment.paymentNo,
+    notify_url: notifyUrl,
+    amount: { total: payment.amountCents, currency: 'CNY' },
+    payer: { openid: session.user.openId },
+  };
+
+  if (!body.payer.openid || body.payer.openid.startsWith('mock-openid-')) {
+    throw new Error('Live WeChat Pay requires a real user openid from wx.login');
+  }
+
+  const response = await wechatPayRequest('/v3/pay/transactions/jsapi', body, privateKey);
+  const prepayPackage = `prepay_id=${response.prepay_id}`;
+  const timeStamp = String(Math.floor(Date.now() / 1000));
+  const nonceStr = randomString(32);
+  const paySign = signWechatPayMessage(`${appId}\n${timeStamp}\n${nonceStr}\n${prepayPackage}\n`, privateKey);
+  return {
+    prepayId: response.prepay_id,
+    prepayPackage,
+    timeStamp,
+    nonceStr,
+    signType: 'RSA',
+    paySign,
+  };
+}
+
+async function wechatPayRequest(path, body, privateKey) {
+  const method = 'POST';
+  const url = `https://api.mch.weixin.qq.com${path}`;
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = randomString(32);
+  const bodyText = JSON.stringify(body);
+  const message = `${method}\n${path}\n${timestamp}\n${nonce}\n${bodyText}\n`;
+  const signature = signWechatPayMessage(message, privateKey);
+  const authorization = [
+    'WECHATPAY2-SHA256-RSA2048',
+    `mchid="${requiredEnv('WECHAT_PAY_MCH_ID')}"`,
+    `nonce_str="${nonce}"`,
+    `signature="${signature}"`,
+    `timestamp="${timestamp}"`,
+    `serial_no="${requiredEnv('WECHAT_PAY_SERIAL_NO')}"`,
+  ].join(',');
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: 'application/json',
+      Authorization: authorization,
+      'Content-Type': 'application/json',
+      'User-Agent': 'PP-Platform-MVP/1.0',
+    },
+    body: bodyText,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || `WeChat Pay request failed with ${response.status}`);
+  return data;
+}
+
+function wechatPaymentNotify(store, body = {}) {
+  if (!process.env.WECHAT_PAY_API_V3_KEY) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
+  const transaction = decryptWechatPayResource(body.resource || {});
+  const payment = store.payments.find((item) => item.paymentNo === transaction.out_trade_no || item.transactionId === transaction.transaction_id);
+  if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
+  payment.transactionId = transaction.transaction_id;
+  payment.wechatTradeState = transaction.trade_state;
+  if (transaction.trade_state === 'SUCCESS') return markPaymentPaid(store, payment, 'WeChat Pay callback succeeded');
+  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+}
+
+function markPaymentPaid(store, payment, note) {
+  if (payment.status === 'paid') return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+  const order = store.orders.find((item) => item.id === payment.orderId);
+  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  payment.status = 'paid';
+  payment.paidAt = now();
+  Object.assign(order, viewOrder({ ...order, status: 'paid_pending_confirm', paidAt: now() }));
+  order.statusLogs = [...(order.statusLogs || []), statusLog('paid_pending_confirm', note)];
+  const companion = store.companions.find((item) => item.id === order.companionId);
+  const slot = companion?.slots.find((item) => item.id === order.slotId);
+  if (slot) {
+    slot.status = 'booked';
+    slot.lockedOrderId = order.id;
+  }
+  store.conversations[order.id] ||= createConversation(order);
+  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+}
+
+function decryptWechatPayResource(resource) {
+  const key = Buffer.from(requiredEnv('WECHAT_PAY_API_V3_KEY'), 'utf8');
+  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(resource.nonce || '', 'utf8'));
+  decipher.setAuthTag(Buffer.from(resource.tag || '', 'base64'));
+  decipher.setAAD(Buffer.from(resource.associated_data || '', 'utf8'));
+  const plaintext = Buffer.concat([decipher.update(Buffer.from(resource.ciphertext || '', 'base64')), decipher.final()]);
+  return JSON.parse(plaintext.toString('utf8'));
+}
+
+function signWechatPayMessage(message, privateKey) {
+  return sign('RSA-SHA256', Buffer.from(message, 'utf8'), privateKey).toString('base64');
+}
+
+function getWechatPayPrivateKey() {
+  if (process.env.WECHAT_PAY_PRIVATE_KEY) return process.env.WECHAT_PAY_PRIVATE_KEY.replace(/\\n/g, '\n');
+  if (process.env.WECHAT_PAY_PRIVATE_KEY_PATH) return readFileSync(resolve(process.env.WECHAT_PAY_PRIVATE_KEY_PATH), 'utf8');
+  throw new Error('WECHAT_PAY_PRIVATE_KEY or WECHAT_PAY_PRIVATE_KEY_PATH is required');
+}
+
+function useLiveWechatPay() {
+  return process.env.WECHAT_PAY_MODE === 'live';
+}
+
+function hasWechatAuthConfig() {
+  return Boolean(process.env.WECHAT_MINI_PROGRAM_APP_ID && process.env.WECHAT_MINI_PROGRAM_APP_SECRET);
+}
+
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+function randomString(length) {
+  return randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length);
+}
+
+function launchCheck() {
+  const requiredForProduction = [
+    'STORE_DRIVER',
+    'DATABASE_URL',
+    'WECHAT_MINI_PROGRAM_APP_ID',
+    'WECHAT_MINI_PROGRAM_APP_SECRET',
+    'WECHAT_PAY_MODE',
+    'WECHAT_PAY_MCH_ID',
+    'WECHAT_PAY_SERIAL_NO',
+    'WECHAT_PAY_PRIVATE_KEY',
+    'WECHAT_PAY_NOTIFY_URL',
+    'WECHAT_PAY_API_V3_KEY',
+    'COS_BUCKET',
+    'COS_REGION',
+    'COS_PUBLIC_BASE_URL',
+  ];
+  const missing = requiredForProduction.filter((name) => !process.env[name] && !(name === 'WECHAT_PAY_PRIVATE_KEY' && process.env.WECHAT_PAY_PRIVATE_KEY_PATH));
+  return json({
+    ready: missing.length === 0,
+    missing,
+    current: {
+      storeDriver: dataStore.kind,
+      wechatAuth: hasWechatAuthConfig() ? 'configured' : 'mock',
+      wechatPay: useLiveWechatPay() ? 'live' : 'mock',
+      media: process.env.COS_PUBLIC_BASE_URL ? 'cos-configured' : 'mock',
+    },
+  });
+}
+
 function actionLabel(actionType) {
   const labels = {
     release_message: 'Release message',
@@ -1361,6 +1613,10 @@ async function readBody(req) {
 
 function json(data, status = 200, changed = false) {
   return { status, changed, payload: ok(data) };
+}
+
+function rawJson(data, status = 200, changed = false) {
+  return { status, changed, payload: data };
 }
 
 function error(status, code, message, changed = false) {
