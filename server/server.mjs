@@ -781,13 +781,13 @@ function normalizeStore(store) {
   next.application = store.application || { reviewStatus: 'draft', updatedAt: now() };
   next.workDraft = store.workDraft || { reviewStatus: 'draft', updatedAt: now() };
 
-  seedVirtualData(next);
+  if (seedVirtualData(next)) changed = true;
   normalizeCompanions(next);
   normalizePosts(next);
   normalizeOrders(next);
   if (!next.auditCases.length) next.auditCases = seedAuditCases(next);
 
-  changed = store.meta?.version !== 3 || !Array.isArray(store.auditCases);
+  changed = changed || store.meta?.version !== 3 || !Array.isArray(store.auditCases);
   return { store: next, changed };
 }
 
@@ -800,32 +800,32 @@ function initialStore() {
     photo: 'https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=900&q=80',
     bio: 'Gentle citywalk guide who helps first-time users feel natural on camera.',
     gender: 'female',
-    baseCity: 'Shanghai',
+    baseCity: '上海',
     status: 'approved',
     serviceEnabled: true,
     ratingAvg: 4.9,
     ratingCount: 18,
-    tags: ['Pose coaching', 'Relaxed chat', 'First shoot friendly'],
-    safetyBadges: ['ID verified', 'Video reviewed', 'Platform escrow'],
-    areas: ['Wukang Road', 'Anfu Road', 'Hengshan Road', 'Xujiahui'],
+    tags: ['会指导动作', '轻松聊天', '适合第一次拍照'],
+    safetyBadges: ['已实名认证', '视频已审核', '平台担保'],
+    areas: ['武康路', '安福路', '衡山路', '徐家汇'],
     serviceAreas: [],
     slots: [
-      slot('slot-mori-1', 'Tomorrow 10:00-12:00', 'Tomorrow', '10:00-12:00', '2026-06-12T02:00:00.000Z', '2026-06-12T04:00:00.000Z'),
-      slot('slot-mori-2', 'Friday 14:00-16:00', 'Friday', '14:00-16:00', '2026-06-13T06:00:00.000Z', '2026-06-13T08:00:00.000Z'),
+      slot('slot-mori-1', '今天 10:00-12:00', '今天', '10:00-12:00', '2026-06-11T02:00:00.000Z', '2026-06-11T04:00:00.000Z'),
+      slot('slot-mori-2', '今天 14:00-16:00', '今天', '14:00-16:00', '2026-06-11T06:00:00.000Z', '2026-06-11T08:00:00.000Z'),
     ],
-    activities: [activity('activity-citywalk', 'Citywalk', 120, '2 hours', 39900), activity('activity-cafe', 'Cafe lifestyle', 90, '1.5 hours', 29900)],
-    extras: [extra('extra-retouch', 'Retouch', 'per_photo', 'photo', 3000), extra('extra-rush', 'Rush delivery', 'per_order', 'order', 8000)],
+    activities: [activity('activity-citywalk', 'Citywalk', 120, '2小时', 39900), activity('activity-cafe', '探店', 90, '1.5小时', 29900)],
+    extras: [extra('extra-retouch', '精修', 'per_photo', '张', 3000), extra('extra-rush', '加急出图', 'per_order', '单', 8000)],
   };
   const post = {
     id: 'post-wukang',
     status: 'approved',
     isFeedVisible: true,
-    city: 'Shanghai',
-    locationName: 'Wukang Road',
-    location: 'Shanghai - Wukang Road',
-    timeLabel: 'Golden hour / Spring',
-    caption: 'Soft plane-tree shadows at sunset, good for relaxed street portraits.',
-    styleTags: ['Citywalk', 'Natural light', 'Relaxed'],
+    city: '上海',
+    locationName: '武康路',
+    location: '上海 · 武康路',
+    timeLabel: '今天可拍 / 傍晚 / 2026年6月',
+    caption: '黄昏的梧桐树影很温柔，适合边散步边拍松弛感街拍。',
+    styleTags: ['Citywalk', '自然光', '松弛感', '今天可拍'],
     activity: 'Citywalk',
     images: [
       { id: 'img-wukang-1', url: 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', width: 900, height: 1200, sortOrder: 1 },
@@ -837,9 +837,9 @@ function initialStore() {
     id: 'order-seed-1',
     orderNo: 'PP26052401',
     status: 'paid_pending_confirm',
-    title: 'Citywalk booking',
+    title: 'Citywalk 陪拍',
     time: companion.slots[0].label,
-    place: 'Wukang Road',
+    place: '武康路',
     amountCents: 48900,
     companion: companion.name,
     companionId: companion.id,
@@ -852,8 +852,8 @@ function initialStore() {
     dateLabel: companion.slots[0].dateLabel,
     timeLabel: companion.slots[0].timeLabel,
     durationMinutes: 120,
-    durationLabel: '2 hours',
-    addOns: [{ extraId: 'extra-retouch', name: 'Retouch', unitLabel: 'photo', quantity: 3, unitPriceCents: 3000, amountCents: 9000 }],
+    durationLabel: '2小时',
+    addOns: [{ extraId: 'extra-retouch', name: '精修', unitLabel: '张', quantity: 3, unitPriceCents: 3000, amountCents: 9000 }],
     createdAt: now(),
   });
   return {
@@ -879,61 +879,86 @@ function initialStore() {
 }
 
 function seedVirtualData(store) {
+  let changed = false;
   const profiles = [
-    ['Luna', 'female', 'Wukang Road', 'Citywalk', 39900, 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80'],
-    ['Aki', 'female', 'Julu Road', 'Cafe lifestyle', 32900, 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'],
-    ['Rin', 'female', 'Xintiandi', 'Urban street portrait', 42900, 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?auto=format&fit=crop&w=240&q=80'],
+    ['Luna', 'female', '武康路', 'Citywalk', 39900, ['Citywalk', '自然光', '松弛感', '今天可拍'], '温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80'],
+    ['Aki', 'female', '巨鹿路', '探店', 32900, ['探店', '日常感', '咖啡店', '今天可拍'], '熟悉咖啡店和街角光线，适合轻松日常头像和朋友圈照片。', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'],
+    ['Mika', 'female', '苏州河', '夜景', 29900, ['夜景', '蓝调', '散步', '今天可拍'], '熟悉夜景人流和安全路线，会提醒集合点、动线和收尾时间。', 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80'],
+    ['Rin', 'female', '新天地', '城市街拍', 42900, ['城市感', '街拍', '小红书', '今天可拍'], '擅长红砖、玻璃、街巷背景，适合利落一点的城市人像。', 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?auto=format&fit=crop&w=240&q=80'],
   ];
 
   for (const [index, profile] of profiles.entries()) {
-    const [name, gender, area, activityName, priceCents, image, avatar] = profile;
+    const [name, gender, area, activityName, priceCents, styleTags, bio, image, avatar] = profile;
     const companionId = `virtual-companion-${index + 1}`;
-    if (!store.companions.some((item) => item.id === companionId)) {
-      store.companions.push({
-        id: companionId,
-        userId: `virtual-user-${index + 1}`,
-        name,
-        isVirtual: true,
-        avatar,
-        photo: image,
-        bio: `${name} is a local demo companion for ${activityName}.`,
-        gender,
-        baseCity: 'Shanghai',
-        status: 'approved',
-        serviceEnabled: true,
-        ratingAvg: 4.6 + index / 10,
-        ratingCount: 8 + index,
-        tags: ['Demo profile', 'Route planning', 'Pose coaching'],
-        safetyBadges: ['Demo data', 'Platform escrow'],
-        areas: [area, 'Anfu Road', 'Xuhui Riverside'],
-        serviceAreas: [],
-        slots: [
-          slot(`virtual-slot-${index + 1}-1`, 'Tomorrow 15:00', 'Tomorrow', '15:00', '2026-06-12T07:00:00.000Z', '2026-06-12T09:00:00.000Z'),
-          slot(`virtual-slot-${index + 1}-2`, 'Weekend 10:00', 'Weekend', '10:00', '2026-06-14T02:00:00.000Z', '2026-06-14T04:00:00.000Z'),
-        ],
-        activities: [activity(`virtual-activity-${index + 1}`, activityName, 120, '2 hours', Number(priceCents))],
-        extras: [extra(`virtual-extra-${index + 1}-retouch`, 'Retouch', 'per_photo', 'photo', 3000)],
-      });
+    const companionData = {
+      id: companionId,
+      userId: `virtual-user-${index + 1}`,
+      name,
+      isVirtual: true,
+      avatar,
+      photo: image,
+      bio,
+      gender,
+      baseCity: '上海',
+      status: 'approved',
+      serviceEnabled: true,
+      ratingAvg: 4.6 + index / 10,
+      ratingCount: 8 + index,
+      tags: ['虚拟摄影师', '路线规划', '会指导动作'],
+      safetyBadges: ['虚拟样例', '平台托管', '可测试预约'],
+      areas: [area, '安福路', '徐汇滨江'],
+      serviceAreas: [],
+      slots: [
+        slot(`virtual-slot-${index + 1}-1`, '今天 15:00', '今天', '15:00', '2026-06-11T07:00:00.000Z', '2026-06-11T09:00:00.000Z'),
+        slot(`virtual-slot-${index + 1}-2`, '今天 19:00', '今天', '19:00', '2026-06-11T11:00:00.000Z', '2026-06-11T13:00:00.000Z'),
+        slot(`virtual-slot-${index + 1}-3`, '周末 10:00', '周末', '10:00', '2026-06-14T02:00:00.000Z', '2026-06-14T04:00:00.000Z'),
+      ],
+      activities: [
+        activity(`virtual-activity-${index + 1}`, activityName, 120, '2小时', Number(priceCents)),
+        activity(`virtual-activity-${index + 1}-light`, '轻量头像快拍', 60, '1小时', Math.max(Number(priceCents) - 12000, 19900)),
+      ],
+      extras: [
+        extra(`virtual-extra-${index + 1}-retouch`, '精修', 'per_photo', '张', 3000),
+        extra(`virtual-extra-${index + 1}-rush`, '加急出图', 'per_order', '单', 8000),
+      ],
+    };
+    const companionIndex = store.companions.findIndex((item) => item.id === companionId);
+    const existingCompanion = companionIndex >= 0 ? store.companions[companionIndex] : null;
+    if (!existingCompanion) {
+      store.companions.push(companionData);
+      changed = true;
+    } else if (existingCompanion.baseCity !== '上海' || !existingCompanion.areas?.includes(area)) {
+      store.companions[companionIndex] = { ...companionData, slots: existingCompanion.slots?.length ? existingCompanion.slots : companionData.slots };
+      changed = true;
     }
+
     const companion = store.companions.find((item) => item.id === companionId);
     const postId = `virtual-post-${index + 1}`;
-    if (!store.posts.some((item) => item.id === postId)) {
-      store.posts.push({
-        id: postId,
-        status: 'approved',
-        isFeedVisible: true,
-        city: 'Shanghai',
-        locationName: area,
-        location: `Shanghai - ${area}`,
-        timeLabel: 'Demo slot / Replaceable data',
-        caption: `${name}'s demo post supports the booking MVP flow.`,
-        styleTags: ['Demo', activityName, 'Natural light'],
-        activity: activityName,
-        images: [{ id: `${postId}-image-1`, url: image, width: 900, height: 1200, sortOrder: 1 }],
-        companion,
-      });
+    const postData = {
+      id: postId,
+      status: 'approved',
+      isFeedVisible: true,
+      city: '上海',
+      locationName: area,
+      location: `上海 · ${area}`,
+      timeLabel: '今天可拍 / 虚拟样例 / 可替换资料',
+      caption: `${bio} 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。`,
+      styleTags: [...styleTags],
+      activity: activityName,
+      images: [{ id: `${postId}-image-1`, url: image, width: 900, height: 1200, sortOrder: 1 }],
+      companion,
+    };
+    const postIndex = store.posts.findIndex((item) => item.id === postId);
+    const existingPost = postIndex >= 0 ? store.posts[postIndex] : null;
+    if (!existingPost) {
+      store.posts.push(postData);
+      changed = true;
+    } else if (existingPost.city !== '上海' || existingPost.locationName !== area) {
+      store.posts[postIndex] = postData;
+      changed = true;
     }
   }
+  return changed;
 }
 
 function normalizeCompanions(store) {
@@ -946,11 +971,11 @@ function normalizeCompanions(store) {
   store.companions.forEach((companion, index) => {
     companion.status ||= 'approved';
     companion.serviceEnabled = companion.serviceEnabled !== false;
-    companion.baseCity ||= 'Shanghai';
+    companion.baseCity ||= '上海';
     companion.activities ||= [activity(`${companion.id}-activity`, 'Citywalk', 120, '2 hours', 39900)];
     companion.extras ||= [];
     companion.slots ||= [];
-    companion.areas ||= [companion.locationName || 'Wukang Road'];
+    companion.areas ||= [companion.locationName || '武康路'];
     companion.serviceAreas = buildServiceAreas(companion, points[index % points.length]);
   });
 }
@@ -961,8 +986,8 @@ function normalizePosts(store) {
     post.companion = companion;
     post.status ||= 'approved';
     post.isFeedVisible = post.isFeedVisible !== false;
-    post.city ||= companion.baseCity || 'Shanghai';
-    post.locationName ||= post.location || companion.areas?.[0] || 'Wukang Road';
+    post.city ||= companion.baseCity || '上海';
+    post.locationName ||= post.location || companion.areas?.[0] || '武康路';
     post.location ||= `${post.city} - ${post.locationName}`;
   });
 }
@@ -1003,7 +1028,7 @@ function buildServiceAreas(companion, fallbackPoint) {
     const point = Number.isFinite(area.lat) && Number.isFinite(area.lng) ? area : offsetPoint(fallbackPoint, index);
     return {
       id: area.id || `${companion.id}-area-${index + 1}`,
-      city: area.city || companion.baseCity || 'Shanghai',
+      city: area.city || companion.baseCity || '上海',
       areaName: area.areaName || area.name || area,
       areaType: area.areaType || 'business_area',
       lat: point.lat,
