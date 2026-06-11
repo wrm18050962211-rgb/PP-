@@ -76,6 +76,9 @@ async function route(method, url, body, store) {
   const path = url.pathname;
 
   if (method === 'GET' && path === '/api/health') return json({ status: 'ok', version: '0.3.0', storeVersion: store.meta.version });
+  if (method === 'GET' && path === '/api/auth/session') return authSession(store);
+  if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
+  if (method === 'POST' && path === '/api/auth/logout') return logout(store);
   if (method === 'GET' && path === '/api/feed/posts') return json({ items: listFeedPosts(store, url) });
   if (method === 'GET' && path === '/api/matching/companions') return matchCompanions(store, url);
   if (method === 'GET' && path.startsWith('/api/posts/')) return getPost(store, last(path));
@@ -121,6 +124,72 @@ function listFeedPosts(store, url) {
 function getPost(store, postId) {
   const post = store.posts.find((item) => item.id === postId);
   return post ? json(post) : error(404, 'NOT_FOUND', 'Post not found');
+}
+
+function authSession(store) {
+  if (store.activeSession?.role) store.activeSession = createSession(store, normalizeRole(store.activeSession.role));
+  else store.activeSession = createSession(store, 'consumer');
+  return json(store.activeSession);
+}
+
+function mockWechatLogin(store, body = {}) {
+  const role = normalizeRole(body.role);
+  const session = createSession(store, role);
+  store.activeSession = session;
+  return json(session, 200, true);
+}
+
+function logout(store) {
+  store.activeSession = null;
+  return json({ ok: true }, 200, true);
+}
+
+function createSession(store, role) {
+  const user = ensureDemoUser(store, role);
+  const session = {
+    token: `local-${role}-session`,
+    provider: 'mock_wechat',
+    role,
+    roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
+    user,
+    companionId: role === 'companion' ? store.companions[0]?.id || null : null,
+    adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
+    loginAt: now(),
+  };
+  return session;
+}
+
+function ensureDemoUser(store, role) {
+  store.users ||= [];
+  const userId = `demo-${role}-user`;
+  let user = store.users.find((item) => item.id === userId);
+  if (!user) {
+    user = {
+      id: userId,
+      openId: `mock-openid-${role}`,
+      nickname: role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer',
+      avatarUrl: '',
+      gender: 'unknown',
+      city: 'Shanghai',
+      status: 'active',
+      isCompanion: role === 'companion',
+      roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    store.users.push(user);
+  }
+  user.openId ||= `mock-openid-${role}`;
+  user.nickname ||= role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer';
+  user.status = user.status || 'active';
+  user.isCompanion = role === 'companion';
+  user.roles = role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'];
+  user.updatedAt = now();
+  return user;
+}
+
+function normalizeRole(role) {
+  return ['consumer', 'companion', 'admin'].includes(role) ? role : 'consumer';
 }
 
 function quoteOrder(store, input) {
@@ -765,6 +834,8 @@ function normalizeStore(store) {
   next.meta = { ...(store.meta || {}), version: 3 };
   next.companions = Array.isArray(store.companions) && store.companions.length ? store.companions : initialStore().companions;
   next.posts = Array.isArray(store.posts) && store.posts.length ? store.posts : initialStore().posts;
+  next.users = Array.isArray(store.users) ? store.users : [];
+  next.activeSession = store.activeSession || null;
   next.orders = Array.isArray(store.orders) ? store.orders : [];
   next.payments = Array.isArray(store.payments) ? store.payments : [];
   next.conversations = store.conversations && typeof store.conversations === 'object' ? store.conversations : {};
@@ -858,6 +929,8 @@ function initialStore() {
   });
   return {
     meta: { version: 3, createdAt: now() },
+    users: [],
+    activeSession: null,
     companions: [companion],
     posts: [post],
     orders: [order],

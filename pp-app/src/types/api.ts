@@ -53,6 +53,7 @@ export type Money = {
 
 export type User = {
   id: string;
+  openId?: string;
   phone?: string;
   nickname: string;
   avatarUrl?: string;
@@ -63,6 +64,20 @@ export type User = {
   lastLocationUpdatedAt?: string;
   status: UserStatus;
   isCompanion: boolean;
+  roles?: UserRole[];
+};
+
+export type UserRole = 'consumer' | 'companion' | 'admin';
+
+export type AuthSession = {
+  token: string;
+  provider: 'mock_wechat' | 'wechat';
+  role: UserRole;
+  roles: UserRole[];
+  user: User;
+  companionId?: string | null;
+  adminScope?: string[];
+  loginAt: string;
 };
 
 export type PostImage = {

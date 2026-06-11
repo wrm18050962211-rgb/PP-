@@ -28,6 +28,15 @@ try {
   const health = await api('GET', '/api/health');
   assert(health.status === 'ok', 'health returns ok');
 
+  const session = await api('GET', '/api/auth/session');
+  assert(session.role === 'consumer' && session.user?.id, 'default auth session is consumer');
+
+  const companionSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'companion' });
+  assert(companionSession.role === 'companion' && companionSession.companionId, 'mock login can switch to companion role');
+
+  const adminSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'admin' });
+  assert(adminSession.role === 'admin' && adminSession.adminScope?.includes('risk'), 'mock login can switch to admin role');
+
   const feed = await api('GET', '/api/feed/posts?city=%E4%B8%8A%E6%B5%B7&limit=10');
   assert(Array.isArray(feed.items) && feed.items.length >= 5, 'feed exposes seeded photographers');
 
@@ -88,6 +97,8 @@ try {
         baseUrl,
         checks: [
           'health',
+          'auth-session',
+          'mock-login',
           'feed',
           'matching',
           'quote',
