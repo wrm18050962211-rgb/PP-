@@ -24,6 +24,7 @@
 - `server/store/postgresWritePlan.mjs` 记录订单、支付、聊天、举报和后台 moderation 的 PostgreSQL 事务写入清单。
 - `server/store/postgresOrderWrites.mjs` 已落地 `createOrder`、`markPaymentPaid` 和 `transitionOrder` 的 PostgreSQL 事务写入 DAO，可锁定档期、创建订单/加购/支付，并处理确认、完成、取消、结算、退款和状态日志。
 - `server/store/postgresMessageWrites.mjs` 已落地 `sendMessage` 的 PostgreSQL 事务写入 DAO，可写入聊天消息、风险事件，并覆盖 clean/flagged/blocked 三类状态。
+- `server/store/postgresModerationWrites.mjs` 已落地 `createReport` 和 `applyModerationAction` 的 PostgreSQL 事务写入 DAO，可创建举报/audit case，并执行限制聊天、冻结订单等后台动作。
 - `server/.env.example` 和 `pp-app/.env.example` 是本地、小程序和腾讯云迁移配置模板，不放真实密钥。
 - `database/schema.sql` 和 `database/prisma/schema.prisma` 是真实数据库结构蓝图。
 - `server/scripts/smoke.mjs` 是迁移前后的最小回归检查。
@@ -149,6 +150,7 @@ npm.cmd run check:postgres-mappers
 npm.cmd run check:postgres-write-plan
 npm.cmd run check:postgres-order-writes
 npm.cmd run check:postgres-message-writes
+npm.cmd run check:postgres-moderation-writes
 
 cd ..\pp-app
 npm.cmd run build
