@@ -15,7 +15,7 @@ let server;
 try {
   server = spawn(process.execPath, ['server.mjs'], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), STORE_PATH: storePath },
+    env: { ...process.env, PORT: String(port), STORE_DRIVER: 'json', STORE_PATH: storePath },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -27,6 +27,7 @@ try {
 
   const health = await api('GET', '/api/health');
   assert(health.status === 'ok', 'health returns ok');
+  assert(health.storeDriver === 'json', 'health reports active store driver');
 
   const session = await api('GET', '/api/auth/session');
   assert(session.role === 'consumer' && session.user?.id, 'default auth session is consumer');

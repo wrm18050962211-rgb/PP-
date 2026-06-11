@@ -1,11 +1,11 @@
 import http from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createJsonStore } from './store/jsonStore.mjs';
+import { createDataStore } from './store/index.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const storePath = process.env.STORE_PATH ? resolve(process.env.STORE_PATH) : resolve(root, 'data/store.json');
-const dataStore = createJsonStore({ storePath, initialStore, normalizeStore });
+const dataStore = createDataStore({ storePath, initialStore, normalizeStore });
 const port = Number(process.env.PORT || 8787);
 const platformFeeRate = 0.08;
 
@@ -76,7 +76,7 @@ http
 async function route(method, url, body, store) {
   const path = url.pathname;
 
-  if (method === 'GET' && path === '/api/health') return json({ status: 'ok', version: '0.3.0', storeVersion: store.meta.version });
+  if (method === 'GET' && path === '/api/health') return json({ status: 'ok', version: '0.3.0', storeVersion: store.meta.version, storeDriver: dataStore.kind });
   if (method === 'GET' && path === '/api/auth/session') return authSession(store);
   if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/logout') return logout(store);
