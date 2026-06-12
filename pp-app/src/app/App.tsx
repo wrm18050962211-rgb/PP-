@@ -7,6 +7,7 @@ import { CompanionBookingSettingsPage } from '../features/companion/CompanionBoo
 import { CompanionIncomePage } from '../features/companion/CompanionIncomePage';
 import { CompanionOrdersPage } from '../features/companion/CompanionOrdersPage';
 import { CompanionProfileEdit } from '../features/companion/CompanionProfileEdit';
+import { CreatorFinderPage } from '../features/companion/CreatorFinderPage';
 import { PublishPost } from '../features/companion/PublishPost';
 import { CompanionStudio } from '../features/companion/CompanionStudio';
 import { ServiceRangeSettings } from '../features/companion/ServiceRangeSettings';
@@ -40,7 +41,11 @@ export default function App() {
       </Route>
 
       <Route path="/companion" element={<RoleShell />}>
-        <Route index element={<CompanionStudio />} />
+        <Route index element={<HomeFeed />} />
+        <Route path="creators" element={<CreatorFinderPage />} />
+        <Route path="messages" element={<MessagesPage />} />
+        <Route path="messages/:orderId" element={<MessagesPage />} />
+        <Route path="mine" element={<CompanionStudio />} />
         <Route path="onboarding" element={<CompanionOnboarding />} />
         <Route path="booking-settings" element={<CompanionBookingSettingsPage />} />
         <Route path="profile" element={<CompanionProfileEdit />} />
