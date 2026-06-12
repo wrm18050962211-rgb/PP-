@@ -1,8 +1,8 @@
 import { ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
-import { fetchFeedPosts, listFeedPosts, mergeApprovedWorkIntoFeed } from '../../services/feedService';
+import { fetchFeedPosts, getPostTitle, listFeedPosts, mergeApprovedWorkIntoFeed } from '../../services/feedService';
 import type { ConsumerLocation } from '../../services/locationService';
 import { fetchMatchedCompanions, matchCompanions, type GenderPreference } from '../../services/matchingService';
 import type { FeedPost } from '../../types/api';
@@ -421,6 +421,7 @@ export function HomeFeed() {
           value={searchDraft}
           history={searchHistory}
           suggestions={searchSuggestions}
+          posts={channelPostGroups[filters.channel]}
           onChange={setSearchDraft}
           onSubmit={submitSearch}
           onClose={() => setSearchOpen(false)}
@@ -468,6 +469,7 @@ function SearchOverlay({
   value,
   history,
   suggestions,
+  posts,
   onChange,
   onSubmit,
   onClose,
@@ -477,6 +479,7 @@ function SearchOverlay({
   value: string;
   history: string[];
   suggestions: string[];
+  posts: FeedPost[];
   onChange: (value: string) => void;
   onSubmit: (value: string) => void;
   onClose: () => void;
@@ -484,79 +487,111 @@ function SearchOverlay({
   onClearHistory: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const previewPosts = useMemo(() => getSearchPreviewPosts(posts, value), [posts, value]);
+  const suggestionTiles = useMemo(() => getSearchSuggestionTiles(suggestions, posts), [posts, suggestions]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
   return (
-    <div className="fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 bg-[#17171c] text-white">
+    <div className="fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 overflow-y-auto bg-[#17171c] text-white">
       <div className="min-h-dvh w-full px-4 pb-8 pt-5">
-        <div className="flex items-center gap-3">
+        <div className="flex items-start gap-3">
           <button
-            className="grid h-10 w-8 shrink-0 place-items-center text-white/86"
+            className="grid h-12 w-8 shrink-0 place-items-center text-white/86"
             onClick={onClose}
             aria-label="返回"
           >
             <ChevronLeft size={28} strokeWidth={1.8} />
           </button>
 
-          <div className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-full bg-white/10 px-4 text-white ring-1 ring-white/10">
-            <input
-              ref={inputRef}
-              className="min-w-0 flex-1 bg-transparent text-base font-semibold outline-none placeholder:text-white/36"
-              value={value}
-              onChange={(event) => onChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') onSubmit(value);
-              }}
-              placeholder="搜索商圈、风格、摄影师"
-            />
-            {value ? (
-              <button className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/12 text-white/58" onClick={() => onChange('')} aria-label="清空">
-                <X size={14} />
+          <div className="relative min-w-0 flex-1">
+            <div className="flex h-12 items-center gap-2 rounded-full bg-white/10 px-4 text-white ring-1 ring-white/10">
+              <input
+                ref={inputRef}
+                className="min-w-0 flex-1 bg-transparent text-base font-semibold outline-none placeholder:text-white/36"
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') onSubmit(value);
+                }}
+                placeholder="搜索商圈、风格、摄影师"
+              />
+              {value ? (
+                <button className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/12 text-white/58" onClick={() => onChange('')} aria-label="清空">
+                  <X size={14} />
+                </button>
+              ) : null}
+              <button className="border-l border-white/10 pl-3 text-sm font-black text-white" onClick={() => onSubmit(value)}>
+                搜索
               </button>
+            </div>
+
+            {history.length ? (
+              <div className="absolute inset-x-0 top-[56px] z-20 rounded-[18px] border border-white/8 bg-[#24242a]/96 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.32)] backdrop-blur-xl">
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <span className="text-[11px] font-black text-white/54">历史记录</span>
+                  <button className="text-[11px] font-bold text-white/34" onClick={onClearHistory}>
+                    清空
+                  </button>
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                  {history.map((item) => (
+                    <button key={item} className="h-8 shrink-0 rounded-full bg-white/[0.07] px-3 text-xs font-semibold text-white/78" onClick={() => onPick(item)}>
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : null}
-            <button className="border-l border-white/10 pl-3 text-sm font-black text-white" onClick={() => onSubmit(value)}>
-              搜索
-            </button>
           </div>
         </div>
 
-        {history.length ? (
-          <section className="mt-8">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-black text-white/86">历史记录</h2>
-              <button className="text-xs font-bold text-white/36" onClick={onClearHistory}>
-                清空
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {history.map((item) => (
-                <button key={item} className="rounded-full border border-white/8 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/78" onClick={() => onPick(item)}>
-                  {item}
-                </button>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="mt-8">
-          <div className="mb-4 flex items-center justify-between">
+        <section className={history.length ? 'mt-24' : 'mt-8'}>
+          <div className="mb-2 flex items-center justify-between">
             <h2 className="text-base font-black text-white/86">猜你想搜</h2>
             <span className="text-xs font-bold text-white/26">按风格找作品</span>
           </div>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-            {suggestions.map((item) => (
-              <button key={item} className="truncate text-left text-lg font-semibold text-white/72" onClick={() => onPick(item)}>
-                {item}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            {suggestionTiles.map(({ label, post }) => (
+              <button key={label} className="relative h-20 w-36 shrink-0 overflow-hidden rounded-[3px] bg-white/[0.06] text-left" onClick={() => onPick(label)}>
+                {post ? <img className="absolute inset-0 h-full w-full object-cover opacity-75" src={post.images[0]?.url} alt={label} /> : null}
+                <span className="absolute inset-0 bg-gradient-to-t from-black/76 via-black/24 to-black/8" />
+                <span className="absolute bottom-2 left-2 right-2 truncate text-sm font-black text-white/78">{label}</span>
               </button>
             ))}
           </div>
         </section>
+
+        <section className="mt-3 grid grid-cols-3 gap-px">
+          {previewPosts.map((post, index) => (
+            <Link key={post.id} to={`/consumer/post/${post.id}`} className="group relative aspect-square overflow-hidden bg-white/[0.04]" aria-label={`查看${getPostTitle(post)}`}>
+              <img className="h-full w-full object-cover transition duration-300 group-active:scale-[0.98]" src={post.images[0]?.url} alt={getPostTitle(post)} loading={index < 9 ? 'eager' : 'lazy'} />
+            </Link>
+          ))}
+        </section>
       </div>
     </div>
   );
+}
+
+function getSearchPreviewPosts(posts: FeedPost[], value: string) {
+  const keyword = value.trim().toLowerCase();
+  const source = posts.length ? posts : listFeedPosts();
+  if (!keyword) return source.slice(0, 45);
+
+  const matched = source.filter((post) => getPostSearchText(post).includes(keyword));
+  return (matched.length ? matched : source).slice(0, 45);
+}
+
+function getSearchSuggestionTiles(suggestions: string[], posts: FeedPost[]) {
+  const source = posts.length ? posts : listFeedPosts();
+  return suggestions.map((label, index) => {
+    const keyword = label.toLowerCase();
+    const post = source.find((item) => getPostSearchText(item).includes(keyword)) ?? source[index % Math.max(source.length, 1)];
+    return { label, post };
+  });
 }
 
 function LocationDrawer({
