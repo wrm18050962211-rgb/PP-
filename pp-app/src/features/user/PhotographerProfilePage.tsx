@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays, Camera, Grid3X3, MapPin, MessageCircle, Repeat2, Star, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarDays, MapPin, MessageCircle, Star, UserRound } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
@@ -82,7 +82,6 @@ export function PhotographerProfilePage() {
         </p>
       </section>
 
-      <ProfileTabs />
       <WorkGrid works={works} />
     </div>
   );
@@ -93,25 +92,6 @@ function ProfileStat({ value, label }: { value: number | string; label: string }
     <div>
       <p className="text-xl font-black leading-6">{value}</p>
       <p className="mt-0.5 text-xs font-semibold text-white/62">{label}</p>
-    </div>
-  );
-}
-
-function ProfileTabs() {
-  return (
-    <div className="grid grid-cols-4 border-y border-white/10 text-white/60">
-      <button className="flex h-12 items-center justify-center border-b-2 border-white text-white" aria-label="作品网格">
-        <Grid3X3 size={21} />
-      </button>
-      <button className="flex h-12 items-center justify-center" aria-label="拍摄">
-        <Camera size={21} />
-      </button>
-      <button className="flex h-12 items-center justify-center" aria-label="转发">
-        <Repeat2 size={21} />
-      </button>
-      <button className="flex h-12 items-center justify-center" aria-label="个人">
-        <UserRound size={21} />
-      </button>
     </div>
   );
 }
