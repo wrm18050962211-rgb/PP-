@@ -1,5 +1,5 @@
 import { ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { fetchFeedPosts, listFeedPosts, mergeApprovedWorkIntoFeed } from '../../services/feedService';
@@ -12,7 +12,7 @@ type FeedFilters = {
   city: string;
   district: string;
   area: string;
-  channel: string;
+  channel: FeedChannel;
   query: string;
   nearbyOnly: boolean;
   date: string;
@@ -24,6 +24,13 @@ type FeedFilters = {
 };
 
 type LocationStatus = 'idle' | 'locating' | 'located' | 'unsupported' | 'denied' | 'failed';
+type FeedChannel = '关注' | '发现' | '附近';
+type FeedDragState = {
+  active: boolean;
+  startX: number;
+  deltaX: number;
+  pointerId: number | null;
+};
 type ConsumerShellContext = {
   homeChromeCompact?: boolean;
 };
@@ -69,7 +76,8 @@ const locationOptions: Record<string, Record<string, string[]>> = {
     武侯区: ['不限', '玉林', '桐梓林', '武侯祠'],
   },
 };
-const channels = ['关注', '发现', '附近'];
+const channels: FeedChannel[] = ['关注', '发现', '附近'];
+const idleFeedDragState: FeedDragState = { active: false, startX: 0, deltaX: 0, pointerId: null };
 const dateOptions = ['不限', '今天', '明天', '周末'];
 const timeOptions = ['不限', '上午', '下午', '傍晚', '晚上'];
 const sceneOptions = ['不限', 'Citywalk', '探店', '街拍', '夜景', '旅行'];
@@ -107,6 +115,9 @@ export function HomeFeed() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState(filters.query);
   const [searchHistory, setSearchHistory] = useState<string[]>(() => loadSearchHistory());
+  const [feedDrag, setFeedDrag] = useState<FeedDragState>(idleFeedDragState);
+  const [blockFeedClick, setBlockFeedClick] = useState(false);
+  const feedSwipeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -131,6 +142,7 @@ export function HomeFeed() {
 
     setLocationStatus('locating');
     setLocationMessage('正在获取当前位置...');
+    setFilters((current) => ({ ...current, nearbyOnly: true, channel: channels[2] }));
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setConsumerLocation({
@@ -174,10 +186,32 @@ export function HomeFeed() {
       }),
     [consumerLocation, feedPosts, filters, locationKeyword, locationKeywords],
   );
-  const filteredPosts = useMemo(() => sortPostsByMatchedIds(localFilteredPosts, matchedPostIds), [localFilteredPosts, matchedPostIds]);
+  const channelPostGroups = useMemo(
+    () => createChannelPostGroups(localFilteredPosts, matchedPostIds, filters, locationKeywords),
+    [filters, localFilteredPosts, locationKeywords, matchedPostIds],
+  );
+  const activeChannelIndex = Math.max(0, channels.indexOf(filters.channel));
   const activeFilterCount = getActiveFilterCount(filters);
   const topChromeHidden = homeChromeCompact && !searchOpen && !cityOpen && !filterOpen;
   const topPaddingClass = 'pt-2';
+
+  const selectFeedChannel = useCallback(
+    (channel: FeedChannel) => {
+      if (channel === '附近') {
+        requestConsumerLocation();
+        return;
+      }
+
+      setMatchedPostIds(null);
+      setLocationMessage('');
+      setFilters((current) => ({
+        ...current,
+        channel,
+        nearbyOnly: false,
+      }));
+    },
+    [requestConsumerLocation],
+  );
 
   const openSearch = useCallback(() => {
     setSearchDraft(filters.query);
@@ -207,6 +241,49 @@ export function HomeFeed() {
     setSearchDraft('');
     setFilters((current) => ({ ...current, query: '' }));
   }, []);
+
+  const handleFeedPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    setFeedDrag({ active: true, startX: event.clientX, deltaX: 0, pointerId: event.pointerId });
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, []);
+
+  const handleFeedPointerMove = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!feedDrag.active || feedDrag.pointerId !== event.pointerId) return;
+      const rawDelta = event.clientX - feedDrag.startX;
+      const width = feedSwipeRef.current?.clientWidth || 360;
+      const atLeftEdge = activeChannelIndex === 0 && rawDelta > 0;
+      const atRightEdge = activeChannelIndex === channels.length - 1 && rawDelta < 0;
+      const resistance = atLeftEdge || atRightEdge ? 0.28 : 1;
+      const deltaX = clampNumber(rawDelta * resistance, -width * 0.42, width * 0.42);
+      setFeedDrag((current) => ({ ...current, deltaX }));
+    },
+    [activeChannelIndex, feedDrag.active, feedDrag.pointerId, feedDrag.startX],
+  );
+
+  const finishFeedDrag = useCallback(
+    (event?: PointerEvent<HTMLDivElement>) => {
+      if (!feedDrag.active) return;
+
+      const width = feedSwipeRef.current?.clientWidth || 360;
+      const shouldSwitch = Math.abs(feedDrag.deltaX) > width * 0.16;
+      const nextIndex = shouldSwitch ? clampNumber(activeChannelIndex + (feedDrag.deltaX < 0 ? 1 : -1), 0, channels.length - 1) : activeChannelIndex;
+
+      if (event && feedDrag.pointerId === event.pointerId && event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      if (Math.abs(feedDrag.deltaX) > 8) {
+        setBlockFeedClick(true);
+        window.setTimeout(() => setBlockFeedClick(false), 80);
+      }
+
+      setFeedDrag(idleFeedDragState);
+      if (nextIndex !== activeChannelIndex) selectFeedChannel(channels[nextIndex]);
+    },
+    [activeChannelIndex, feedDrag, selectFeedChannel],
+  );
 
   useEffect(() => {
     if (!filters.nearbyOnly || !consumerLocation) {
@@ -262,19 +339,8 @@ export function HomeFeed() {
             {channels.map((channel) => (
               <button
                 key={channel}
-                className={`relative flex h-9 items-center ${filters.channel === channel ? 'text-white' : ''}`}
-                onClick={() => {
-                  if (channel === channels[2]) {
-                    requestConsumerLocation();
-                    return;
-                  }
-                  setMatchedPostIds(null);
-                  setFilters((current) => ({
-                    ...current,
-                    channel,
-                    nearbyOnly: false,
-                  }));
-                }}
+                className={`relative flex h-9 items-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${filters.channel === channel ? 'text-white' : ''}`}
+                onClick={() => selectFeedChannel(channel)}
               >
                 {channel}
                 {filters.channel === channel ? <span className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-white" /> : null}
@@ -325,7 +391,30 @@ export function HomeFeed() {
 
       </header>
 
-      <PhotoFeed posts={filteredPosts} />
+      <div
+        ref={feedSwipeRef}
+        className="overflow-hidden touch-pan-y"
+        onPointerDown={handleFeedPointerDown}
+        onPointerMove={handleFeedPointerMove}
+        onPointerUp={finishFeedDrag}
+        onPointerCancel={finishFeedDrag}
+        onClickCapture={(event) => {
+          if (!blockFeedClick) return;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
+        <div
+          className={`flex ${feedDrag.active ? '' : 'transition-transform duration-300 ease-out'}`}
+          style={{ transform: `translateX(calc(${-activeChannelIndex * 100}% + ${feedDrag.deltaX}px))` }}
+        >
+          {channels.map((channel) => (
+            <div key={channel} className="w-full shrink-0">
+              <PhotoFeed posts={channelPostGroups[channel]} />
+            </div>
+          ))}
+        </div>
+      </div>
 
       {searchOpen ? (
         <SearchOverlay
@@ -666,6 +755,98 @@ function OptionGroup<T extends string | number | null>({
       </div>
     </div>
   );
+}
+
+function createChannelPostGroups(
+  posts: FeedPost[],
+  matchedPostIds: string[] | null,
+  filters: Pick<FeedFilters, 'city' | 'district' | 'area'>,
+  locationKeywords: string[],
+): Record<FeedChannel, FeedPost[]> {
+  const matchedSortedPosts = sortPostsByMatchedIds(posts, matchedPostIds);
+
+  return {
+    关注: rankPosts(posts, (post, index) => getFollowScore(post, index)),
+    发现: rankPosts(posts, (post, index) => getDiscoveryScore(post, index)),
+    附近: rankPosts(matchedSortedPosts, (post, index) => getNearbyScore(post, index, filters, locationKeywords, matchedPostIds)),
+  };
+}
+
+function rankPosts(posts: FeedPost[], getScore: (post: FeedPost, index: number) => number) {
+  return posts
+    .map((post, index) => ({ post, index, score: getScore(post, index) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map((item) => item.post);
+}
+
+function getFollowScore(post: FeedPost, index: number) {
+  const text = getPostSearchText(post);
+  const affinityScore = ['citywalk', '探店', '街拍', '黑白', '大片', '旅行'].some((keyword) => text.includes(keyword.toLowerCase())) ? 42 : 0;
+  const simulatedFollowScore = Math.abs(hashString(post.companion.id)) % 4 === 0 ? 120 : 0;
+  const creatorMomentum = post.companion.ratingAvg * 18 + post.companion.ratingCount * 1.8;
+  return simulatedFollowScore + affinityScore + creatorMomentum - index * 0.25;
+}
+
+function getDiscoveryScore(post: FeedPost, index: number) {
+  const coverRatio = getCoverRatio(post);
+  const visualScore = coverRatio >= 1.16 ? 18 : coverRatio <= 0.78 ? 24 : 14;
+  const engagementScore = post.companion.ratingAvg * 24 + post.companion.ratingCount * 2;
+  const freshnessScore = 80 - (index % 10) * 4;
+  const diversityScore = Math.abs(hashString(`${post.id}-${post.activity}`)) % 36;
+  return visualScore + engagementScore + freshnessScore + diversityScore;
+}
+
+function getNearbyScore(
+  post: FeedPost,
+  index: number,
+  filters: Pick<FeedFilters, 'city' | 'district' | 'area'>,
+  locationKeywords: string[],
+  matchedPostIds: string[] | null,
+) {
+  const text = getPostSearchText(post);
+  const matchedRank = matchedPostIds?.indexOf(post.companion.id) ?? -1;
+  const matchedScore = matchedRank >= 0 ? 520 - matchedRank * 24 : 0;
+  const selectedAreaScore = locationKeywords.some((keyword) => keyword !== '不限' && text.includes(keyword.toLowerCase())) ? 210 : 0;
+  const cityScore = filters.city !== '不限' && text.includes(filters.city.toLowerCase()) ? 54 : 0;
+  const nearbyDemoScore = ['外滩', '武康路', '安福路', '静安寺', '新天地', '徐汇', '黄浦'].some((keyword) => text.includes(keyword.toLowerCase())) ? 70 : 0;
+  const availabilityScore = post.companion.slots.some((slot) => slot.status === 'available') ? 36 : 0;
+  return matchedScore + selectedAreaScore + cityScore + nearbyDemoScore + availabilityScore - index * 0.2;
+}
+
+function getPostSearchText(post: FeedPost) {
+  return [
+    post.title,
+    post.location,
+    post.locationName,
+    post.activity,
+    post.caption,
+    post.city,
+    post.companion.name,
+    post.companion.baseCity,
+    ...post.styleTags,
+    ...post.companion.tags,
+    ...post.companion.areas,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function getCoverRatio(post: FeedPost) {
+  const cover = post.images[0];
+  return cover?.width && cover.height ? cover.width / cover.height : 3 / 4;
+}
+
+function hashString(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) | 0;
+  }
+  return hash;
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function getActiveFilterCount(filters: FeedFilters) {
