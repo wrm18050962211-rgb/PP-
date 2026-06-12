@@ -1,9 +1,11 @@
-import { Bookmark, Camera, ChevronRight, Heart, ReceiptText, Settings, ShieldCheck, UserRound } from 'lucide-react';
+import { Bookmark, Camera, ChevronRight, Heart, ReceiptText, Settings, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchAuthSession, switchMockRole } from '../../services/authService';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { AuthSession, FeedPost, UserRole } from '../../types/api';
+
+type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 
 const menuItems = [
   { icon: ReceiptText, label: '我的订单', desc: '预约、支付、售后', to: '/consumer/orders' },
@@ -12,23 +14,16 @@ const menuItems = [
   { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/consumer/mine' },
 ];
 
-const roleActions: Array<{ role: UserRole; label: string; desc: string; to: string; icon: typeof UserRound }> = [
+const roleActions: Array<{ role: UserFacingRole; label: string; desc: string; to: string; icon: typeof UserRound }> = [
   { role: 'consumer', label: '创作者', desc: '作品、点赞、收藏、预约', to: '/consumer', icon: UserRound },
   { role: 'companion', label: '摄影师', desc: '资料、档期、订单、收入', to: '/companion', icon: Camera },
 ];
 
-const adminAction = { role: 'admin' as const, label: '管理员', desc: '审核、风控、订单、财务', to: '/admin', icon: ShieldCheck };
-
-const roleLabels: Record<UserRole, string> = {
-  consumer: '创作者',
-  companion: '摄影师',
-  admin: '管理员',
-};
-
 export function MinePage() {
   const navigate = useNavigate();
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [loadingRole, setLoadingRole] = useState<UserRole | null>(null);
+  const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
+  const activeRole = getUserFacingRole(session?.role);
   const ownProfile = buildOwnProfileSummary(session, listFeedPosts()[0]);
 
   useEffect(() => {
@@ -42,7 +37,7 @@ export function MinePage() {
     };
   }, []);
 
-  async function handleRoleSwitch(role: UserRole, to: string) {
+  async function handleRoleSwitch(role: UserFacingRole, to: string) {
     setLoadingRole(role);
     const nextSession = await switchMockRole(role);
     setSession(nextSession);
@@ -85,7 +80,7 @@ export function MinePage() {
         <div className="grid grid-cols-2 gap-2">
           {roleActions.map((item) => {
             const Icon = item.icon;
-            const active = session?.role === item.role;
+            const active = activeRole === item.role;
             return (
               <button
                 key={item.role}
@@ -102,23 +97,6 @@ export function MinePage() {
             );
           })}
         </div>
-      </section>
-
-      <section className="mt-3">
-        <button
-          className={`flex min-h-12 w-full items-center gap-3 rounded-[8px] px-3 text-left ${
-            session?.role === 'admin' ? 'bg-zinc-950 text-white' : 'bg-zinc-50 text-zinc-500'
-          }`}
-          onClick={() => handleRoleSwitch(adminAction.role, adminAction.to)}
-          disabled={loadingRole !== null}
-        >
-          <ShieldCheck size={17} className="shrink-0" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black">{adminAction.label}</span>
-            <span className="mt-0.5 block truncate text-xs opacity-70">{loadingRole === 'admin' ? '切换中...' : adminAction.desc}</span>
-          </span>
-          <ChevronRight size={17} className="shrink-0 opacity-50" />
-        </button>
       </section>
 
       <section className="mt-5 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
@@ -138,7 +116,7 @@ export function MinePage() {
 }
 
 function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
-  const role = session?.role ?? 'consumer';
+  const role = getUserFacingRole(session?.role);
 
   if (role === 'companion') {
     const photographer = post.companion;
@@ -157,27 +135,12 @@ function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
     };
   }
 
-  if (role === 'admin') {
-    return {
-      to: '/admin',
-      roleLabel: '管理员工作台',
-      name: session?.user.nickname ?? 'Demo Admin',
-      handle: '@pp-admin',
-      avatar: session?.user.avatarUrl || '',
-      bio: '审核、风控、订单和财务的 MVP 管理入口。',
-      stats: [
-        { label: '审核', value: 12 },
-        { label: '风控', value: 4 },
-        { label: '订单', value: 23 },
-      ],
-    };
-  }
-
   const creatorId = `creator-${post.id}`;
+  const creatorName = !session || session.role === 'admin' || session.user.nickname === 'Demo Consumer' ? 'Demo Creator' : session.user.nickname;
   return {
     to: `/consumer/creator/${creatorId}`,
     roleLabel: '创作者主页',
-    name: session?.user.nickname === 'Demo Consumer' ? 'Demo Creator' : session?.user.nickname ?? 'Demo Creator',
+    name: creatorName,
     handle: `@${post.id.replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`,
     avatar: post.images[1]?.url || post.images[0]?.url || post.companion.avatar,
     bio: `${getPostTitle(post)} · 我的作品、点赞、收藏和订单成片会沉淀在这里。`,
@@ -187,4 +150,8 @@ function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
       { label: '合作', value: 1 },
     ],
   };
+}
+
+function getUserFacingRole(role?: UserRole): UserFacingRole {
+  return role === 'companion' ? 'companion' : 'consumer';
 }
