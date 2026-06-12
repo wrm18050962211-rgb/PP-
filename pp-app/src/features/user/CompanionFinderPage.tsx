@@ -36,6 +36,7 @@ export function CompanionFinderPage() {
   const [filterOpen, setFilterOpen] = useState<FilterKey | 'all' | null>(null);
   const [filters, setFilters] = useState<FinderFilters>(() => createInitialFinderFilters(params, sameStylePost));
   const activeFilterCount = getActiveFilterCount(filters);
+
   const companions = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     return Array.from(new Map(posts.map((post) => [post.companion.id, { companion: post.companion, post }])).values()).filter(({ companion, post }) => {
@@ -45,6 +46,7 @@ export function CompanionFinderPage() {
         post.activity,
         ...post.styleTags,
         companion.name,
+        companion.gender,
         ...companion.tags,
         ...companion.areas,
         ...companion.slots.map((slot) => slot.label),
@@ -88,9 +90,9 @@ export function CompanionFinderPage() {
       </header>
 
       {sameStylePost ? (
-        <section className="px-3 pt-3">
-          <div className="flex items-center gap-3 rounded-[10px] bg-white p-3 text-black">
-            <img className="h-16 w-12 rounded-[6px] object-cover" src={sameStylePost.images[0]?.url} alt={sameStylePost.location} />
+        <section className="px-2 pt-2">
+          <div className="flex items-center gap-3 rounded-[2px] bg-white p-3 text-black">
+            <img className="h-16 w-12 rounded-[2px] object-cover" src={sameStylePost.images[0]?.url} alt={sameStylePost.location} />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-black text-zinc-500">按这组作品找同款摄影师</p>
               <p className="mt-1 line-clamp-2 text-sm font-bold leading-5">{sameStylePost.locationName || sameStylePost.location}</p>
@@ -99,55 +101,55 @@ export function CompanionFinderPage() {
         </section>
       ) : null}
 
-      <section className="space-y-3 px-3 pt-3">
+      <section className="grid grid-cols-2 gap-2 px-2 pt-2">
         {companions.map(({ companion, post }, index) => {
           const activity = companion.activities[0];
           const slot = companion.slots.find((item) => item.status === 'available') || companion.slots[0];
           return (
-            <article key={companion.id} className="rounded-[18px] bg-white p-3 shadow-[0_10px_28px_rgba(91,64,49,0.08)] ring-1 ring-[#eadfd8]/80">
-              <div className="flex gap-3">
-                <Link to={`/consumer/photographer/${companion.id}`} className="shrink-0">
-                  <img className="h-24 w-20 rounded-[14px] object-cover" src={companion.photo || companion.avatar} alt={companion.name} />
-                </Link>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <Link to={`/consumer/photographer/${companion.id}`} className="truncate text-base font-black">
-                      {companion.name}
-                    </Link>
-                    <span className="shrink-0 rounded-full bg-[#f6eee8] px-2 py-1 text-xs font-black text-[#3f302c]">
-                      ￥{Math.round((activity?.priceCents || 0) / 100)}起
-                    </span>
+            <article key={companion.id} className="overflow-hidden rounded-[2px] bg-[#151515] ring-1 ring-white/10">
+              <Link to={`/consumer/photographer/${companion.id}`} className="block" aria-label={`查看${companion.name}主页`}>
+                <div className="relative aspect-[0.78] bg-zinc-950">
+                  <img className="h-full w-full object-cover saturate-[0.86] contrast-[1.04]" src={companion.photo || post.images[0]?.url || companion.avatar} alt={companion.name} />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/36 to-transparent px-2.5 pb-2 pt-12">
+                    <p className="truncate text-base font-black text-white">{companion.name}</p>
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] font-bold text-white/72">
+                      <Star size={12} className="fill-white/70 text-white/70" />
+                      推荐 {96 - index * 3} · {companion.ratingAvg.toFixed(1)}
+                    </p>
                   </div>
-                  <p className="mt-1 flex items-center gap-1 text-xs font-bold text-[#7a6b64]">
-                    <Star size={13} className="fill-[#f2c25b] text-[#f2c25b]" />
-                    推荐分 {96 - index * 3} · {companion.ratingAvg.toFixed(1)} · {companion.ratingCount}条评价
-                  </p>
-                  <p className="mt-1 flex min-w-0 items-center gap-1 text-xs font-semibold text-[#7a6b64]">
-                    <MapPin size={13} className="shrink-0 text-[#e85d75]" />
-                    <span className="truncate">{companion.areas.slice(0, 3).join(' / ')}</span>
-                  </p>
-                  <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-[#7a6b64]">
-                    <CalendarDays size={13} className="text-[#9fb89f]" />
-                    最近可约：{slot?.label || '待开放'}
-                  </p>
                 </div>
-              </div>
+              </Link>
 
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {companion.tags.slice(0, 4).map((tag) => (
-                  <span key={tag} className="rounded-full bg-[#f6eee8] px-2 py-1 text-[11px] font-bold text-[#7a6b64]">
-                    {tag}
-                  </span>
-                ))}
-              </div>
+              <div className="space-y-2 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-black text-white">{activity?.name || post.activity}</span>
+                  <span className="shrink-0 text-xs font-black text-white/72">¥{Math.round((activity?.priceCents || 0) / 100)}起</span>
+                </div>
+                <p className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-white/58">
+                  <MapPin size={12} className="shrink-0" />
+                  <span className="truncate">{companion.areas.slice(0, 2).join(' / ')}</span>
+                </p>
+                <p className="flex items-center gap-1 text-[11px] font-semibold text-white/58">
+                  <CalendarDays size={12} />
+                  <span className="truncate">{slot?.label || '待开放'}</span>
+                </p>
 
-              <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-                <Link className="rounded-full bg-[#3f302c] px-4 py-2.5 text-center text-sm font-black text-white" to={`/consumer/post/${post.id}`}>
-                  查看作品并预约
-                </Link>
-                <Link className="grid h-11 w-11 place-items-center rounded-full bg-[#f6eee8] text-[#3f302c]" to="/consumer/messages" aria-label="咨询摄影师">
-                  <MessageCircle size={18} />
-                </Link>
+                <div className="flex flex-wrap gap-1">
+                  {companion.tags.slice(0, 2).map((tag) => (
+                    <span key={tag} className="max-w-full truncate rounded-[2px] bg-white/8 px-1.5 py-1 text-[10px] font-bold text-white/58">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-[1fr_34px] gap-1.5">
+                  <Link className="flex h-9 items-center justify-center rounded-[2px] bg-white text-xs font-black text-black" to={`/consumer/photographer/${companion.id}`}>
+                    查看作品并预约
+                  </Link>
+                  <Link className="grid h-9 place-items-center rounded-[2px] bg-white/10 text-white" to="/consumer/messages" aria-label="咨询摄影师">
+                    <MessageCircle size={16} />
+                  </Link>
+                </div>
               </div>
             </article>
           );
