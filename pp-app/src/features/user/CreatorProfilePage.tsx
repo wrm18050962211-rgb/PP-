@@ -1,19 +1,30 @@
 import { ArrowLeft, Camera, MessageCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useAppData } from '../../app/useAppData';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
+import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
 import type { FeedPost } from '../../types/api';
 import { buildCreator } from './PostDetail';
 
 export function CreatorProfilePage() {
   const { creatorId } = useParams();
   const navigate = useNavigate();
+  const { orders } = useAppData();
   const [photographersOpen, setPhotographersOpen] = useState(false);
   const posts = listFeedPosts();
   const ownedPosts = posts.filter((post) => buildCreator(post).id === creatorId);
   const profilePost = ownedPosts[0] || posts[0];
   const creator = buildCreator(profilePost);
-  const works = ownedPosts.length ? ownedPosts : posts.slice(0, 9);
+  const creatorOrderWorks = listOrderWorkRecords()
+    .filter((record) => record.publishToCreator && isOrderWorkConfirmed(record))
+    .map((record) => {
+      const order = orders.find((item) => item.id === record.orderId);
+      const seedPost = posts.find((post) => post.id === order?.postId) ?? profilePost;
+      return order ? orderWorkToFeedPost(record, order, seedPost) : null;
+    })
+    .filter((post): post is FeedPost => Boolean(post));
+  const works = [...creatorOrderWorks, ...(ownedPosts.length ? ownedPosts : posts.slice(0, 9))];
   const photographers = Array.from(new Map(works.map((post) => [post.companion.id, post.companion])).values());
   const handle = creator.id.replace(/^creator-/, '@');
   const likeTotal = works.reduce((sum, post) => sum + 1180 + stableMetricSeed(post.id, 620), 0);

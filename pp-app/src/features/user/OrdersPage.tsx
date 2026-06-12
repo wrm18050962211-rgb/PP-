@@ -3,23 +3,38 @@ import {
   Camera,
   CheckCircle2,
   Clock3,
+  ImagePlus,
   MapPin,
   MessageCircle,
   ReceiptText,
   RotateCcw,
   Star,
+  UploadCloud,
+  Users,
   XCircle,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { listFeedPosts } from '../../services/feedService';
+import {
+  canEditOrderWork,
+  createOrderWorkRecord,
+  isOrderWorkConfirmed,
+  listOrderWorkRecords,
+  saveOrderWorkRecord,
+  type OrderWorkRecord,
+  type WorkActor,
+} from '../../services/orderWorkService';
 import type { AppOrder, OrderStatus } from '../../types/domain';
+import type { FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
 
 type OrderAction =
   | { type: 'cancel'; order: AppOrder }
   | { type: 'review'; order: AppOrder }
   | { type: 'refund'; order: AppOrder }
+  | { type: 'work'; order: AppOrder }
   | null;
 
 const statusTabs: Array<{ key: OrderStatus | 'all'; label: string }> = [
@@ -46,16 +61,24 @@ export function OrdersPage() {
   const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>('all');
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
+  const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
+  const posts = useMemo(() => listFeedPosts(), []);
 
   const filteredOrders = useMemo(
     () => orders.filter((order) => activeStatus === 'all' || order.status === activeStatus),
     [activeStatus, orders],
   );
+  const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
 
   function submitReview(orderId: string) {
     const nextIds = Array.from(new Set([...reviewedOrderIds, orderId]));
     setReviewedOrderIds(nextIds);
     localStorage.setItem(reviewStorageKey, JSON.stringify(nextIds));
+    setActiveAction(null);
+  }
+
+  function submitWorkRecord(record: OrderWorkRecord) {
+    setWorkRecords(saveOrderWorkRecord(record));
     setActiveAction(null);
   }
 
@@ -87,9 +110,11 @@ export function OrdersPage() {
             key={order.id}
             order={order}
             reviewed={reviewedOrderIds.includes(order.id)}
+            workRecord={workByOrderId.get(order.id)}
             onCancel={() => setActiveAction({ type: 'cancel', order })}
             onReview={() => setActiveAction({ type: 'review', order })}
             onRefund={() => setActiveAction({ type: 'refund', order })}
+            onManageWork={() => setActiveAction({ type: 'work', order })}
           />
         ))}
       </div>
@@ -115,6 +140,15 @@ export function OrdersPage() {
         <ReviewDialog order={activeAction.order} onClose={() => setActiveAction(null)} onSubmit={() => submitReview(activeAction.order.id)} />
       )}
       {activeAction?.type === 'refund' && <RefundDialog order={activeAction.order} onClose={() => setActiveAction(null)} />}
+      {activeAction?.type === 'work' && (
+        <OrderWorkDialog
+          order={activeAction.order}
+          post={posts.find((post) => post.id === activeAction.order.postId)}
+          record={workByOrderId.get(activeAction.order.id)}
+          onClose={() => setActiveAction(null)}
+          onSubmit={submitWorkRecord}
+        />
+      )}
     </div>
   );
 }
@@ -122,15 +156,19 @@ export function OrdersPage() {
 function OrderCard({
   order,
   reviewed,
+  workRecord,
   onCancel,
   onReview,
   onRefund,
+  onManageWork,
 }: {
   order: AppOrder;
   reviewed: boolean;
+  workRecord?: OrderWorkRecord;
   onCancel: () => void;
   onReview: () => void;
   onRefund: () => void;
+  onManageWork: () => void;
 }) {
   const addOnTotal = order.addOns?.reduce((total, item) => total + item.amountCents, 0) ?? 0;
   const basePrice = Math.max(order.amountCents - addOnTotal, 0);
@@ -178,6 +216,8 @@ function OrderCard({
         </div>
       </div>
 
+      {order.status === 'completed' && <CompletedWorkPanel record={workRecord} onManage={onManageWork} />}
+
       <div className="mt-4 flex gap-2">
         <Link
           to={`/consumer/messages/${order.id}`}
@@ -223,6 +263,246 @@ function OrderCard({
         )}
       </div>
     </article>
+  );
+}
+
+function CompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; onManage: () => void }) {
+  const confirmed = record ? isOrderWorkConfirmed(record) : false;
+  const statusText = !record
+    ? '还未上传成片'
+    : record.changeRequestBy && !record.changeAccepted
+      ? '修改待另一方确认'
+      : confirmed
+        ? '双方已确认'
+        : '等待双方确认';
+  const publishText =
+    confirmed && (record?.publishToCreator || record?.publishToPhotographer)
+      ? [record.publishToCreator ? '创作者主页' : '', record.publishToPhotographer ? '摄影师主页' : ''].filter(Boolean).join(' / ')
+      : '确认后可选择同步主页';
+
+  return (
+    <section className="mt-4 rounded-[18px] bg-zinc-950 p-3 text-white">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 text-xs font-black text-white/46">
+            <Users size={14} />
+            成片协作
+          </p>
+          <h3 className="mt-1 text-sm font-black">{statusText}</h3>
+          <p className="mt-1 truncate text-xs font-semibold text-white/48">{publishText}</p>
+        </div>
+        <button className="h-9 shrink-0 rounded-full bg-white px-3 text-xs font-black text-zinc-950" onClick={onManage} type="button">
+          {record ? '管理成片' : '上传照片'}
+        </button>
+      </div>
+
+      {record?.imageUrls.length ? (
+        <div className="mt-3 grid grid-cols-4 gap-1">
+          {record.imageUrls.slice(0, 4).map((url, index) => (
+            <img key={`${url}-${index}`} className="aspect-square w-full rounded-[6px] object-cover" src={url} alt={`成片 ${index + 1}`} />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function OrderWorkDialog({
+  order,
+  post,
+  record,
+  onClose,
+  onSubmit,
+}: {
+  order: AppOrder;
+  post?: FeedPost;
+  record?: OrderWorkRecord;
+  onClose: () => void;
+  onSubmit: (record: OrderWorkRecord) => void;
+}) {
+  const [draft, setDraft] = useState<OrderWorkRecord>(() => record ?? createOrderWorkRecord(order, post));
+  const confirmed = isOrderWorkConfirmed(draft);
+  const editable = canEditOrderWork(draft);
+  const modificationPending = Boolean(draft.changeRequestBy && !draft.changeAccepted);
+
+  function updateEditableDraft(patch: Partial<OrderWorkRecord>) {
+    setDraft((current) => ({
+      ...current,
+      ...patch,
+      creatorConfirmed: false,
+      photographerConfirmed: false,
+      publishToCreator: false,
+      publishToPhotographer: false,
+      changeRequestBy: undefined,
+      changeAccepted: true,
+    }));
+  }
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const imageUrls = await readFilesAsDataUrls(Array.from(files).slice(0, 9));
+    updateEditableDraft({ imageUrls });
+  }
+
+  function confirm(actor: WorkActor) {
+    setDraft((current) => ({
+      ...current,
+      creatorConfirmed: actor === 'creator' ? !current.creatorConfirmed : current.creatorConfirmed,
+      photographerConfirmed: actor === 'photographer' ? !current.photographerConfirmed : current.photographerConfirmed,
+      changeRequestBy: undefined,
+      changeAccepted: true,
+    }));
+  }
+
+  function requestChange(actor: WorkActor) {
+    setDraft((current) => ({
+      ...current,
+      changeRequestBy: actor,
+      changeAccepted: false,
+    }));
+  }
+
+  function acceptChange() {
+    setDraft((current) => ({
+      ...current,
+      creatorConfirmed: false,
+      photographerConfirmed: false,
+      publishToCreator: false,
+      publishToPhotographer: false,
+      changeAccepted: true,
+    }));
+  }
+
+  function submit() {
+    onSubmit({
+      ...draft,
+      publishToCreator: confirmed ? draft.publishToCreator : false,
+      publishToPhotographer: confirmed ? draft.publishToPhotographer : false,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  return (
+    <ActionSheet title="成片协作发布" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="rounded-[14px] bg-zinc-950 p-3 text-white">
+          <p className="text-xs font-bold text-white/48">{order.orderNo}</p>
+          <h3 className="mt-1 text-base font-black">{order.title}</h3>
+          <p className="mt-1 text-xs font-semibold text-white/54">{order.companion} · {order.place}</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1">
+          {draft.imageUrls.map((url, index) => (
+            <img key={`${url}-${index}`} className="aspect-square w-full rounded-[8px] object-cover" src={url} alt={`成片 ${index + 1}`} />
+          ))}
+          {!draft.imageUrls.length ? (
+            <div className="col-span-3 grid min-h-28 place-items-center rounded-[10px] bg-zinc-100 text-center text-sm font-bold text-zinc-400">
+              <span className="grid place-items-center gap-2">
+                <ImagePlus size={24} />
+                暂无照片
+              </span>
+            </div>
+          ) : null}
+        </div>
+
+        <label className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-black ${editable ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
+          <UploadCloud size={17} />
+          选择上传照片
+          <input className="hidden" type="file" accept="image/*" multiple disabled={!editable} onChange={(event) => void handleFiles(event.target.files)} />
+        </label>
+
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-xs font-black text-zinc-400">作品标题</span>
+            <input
+              className="mt-1 h-11 w-full rounded-[10px] bg-zinc-100 px-3 text-sm font-bold outline-none disabled:text-zinc-400"
+              disabled={!editable}
+              value={draft.title}
+              onChange={(event) => updateEditableDraft({ title: event.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-black text-zinc-400">作品文案</span>
+            <textarea
+              className="mt-1 min-h-24 w-full resize-none rounded-[10px] bg-zinc-100 p-3 text-sm leading-6 outline-none disabled:text-zinc-400"
+              disabled={!editable}
+              value={draft.caption}
+              onChange={(event) => updateEditableDraft({ caption: event.target.value })}
+            />
+          </label>
+        </div>
+
+        {modificationPending ? (
+          <div className="rounded-[12px] bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-800">
+            {draft.changeRequestBy === 'creator' ? '创作者' : '摄影师'}已发起修改，需另一方确认后才能重新编辑。
+            <button className="mt-3 h-10 w-full rounded-full bg-amber-900 text-sm font-black text-white" onClick={acceptChange} type="button">
+              另一方确认修改
+            </button>
+          </div>
+        ) : null}
+
+        {!editable && confirmed ? (
+          <div className="grid grid-cols-2 gap-2">
+            <button className="h-10 rounded-full bg-zinc-100 text-xs font-black text-zinc-700" onClick={() => requestChange('creator')} type="button">
+              创作者发起修改
+            </button>
+            <button className="h-10 rounded-full bg-zinc-100 text-xs font-black text-zinc-700" onClick={() => requestChange('photographer')} type="button">
+              摄影师发起修改
+            </button>
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className={`h-11 rounded-full text-sm font-black ${draft.creatorConfirmed ? 'bg-emerald-600 text-white' : 'bg-zinc-100 text-zinc-700'}`}
+            onClick={() => confirm('creator')}
+            type="button"
+            disabled={modificationPending}
+          >
+            创作者确认
+          </button>
+          <button
+            className={`h-11 rounded-full text-sm font-black ${draft.photographerConfirmed ? 'bg-emerald-600 text-white' : 'bg-zinc-100 text-zinc-700'}`}
+            onClick={() => confirm('photographer')}
+            type="button"
+            disabled={modificationPending}
+          >
+            摄影师确认
+          </button>
+        </div>
+
+        <div className="rounded-[12px] bg-zinc-100 p-3">
+          <p className="text-xs font-black text-zinc-400">双方确认后选择同步主页</p>
+          <div className="mt-3 grid gap-2">
+            <PublishToggle
+              label="同步到创作者主页"
+              checked={confirmed && draft.publishToCreator}
+              disabled={!confirmed}
+              onChange={(checked) => setDraft((current) => ({ ...current, publishToCreator: checked }))}
+            />
+            <PublishToggle
+              label="同步到摄影师主页"
+              checked={confirmed && draft.publishToPhotographer}
+              disabled={!confirmed}
+              onChange={(checked) => setDraft((current) => ({ ...current, publishToPhotographer: checked }))}
+            />
+          </div>
+        </div>
+
+        <button className="h-11 w-full rounded-full bg-zinc-950 text-sm font-black text-white" onClick={submit} type="button">
+          保存协作状态
+        </button>
+      </div>
+    </ActionSheet>
+  );
+}
+
+function PublishToggle({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className={`flex items-center justify-between gap-3 rounded-[10px] bg-white px-3 py-3 text-sm font-bold ${disabled ? 'text-zinc-400' : 'text-zinc-900'}`}>
+      <span>{label}</span>
+      <input type="checkbox" className="h-5 w-5 accent-zinc-950" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+    </label>
   );
 }
 
@@ -348,6 +628,20 @@ function formatAddOns(order: AppOrder) {
   const count = addOns.reduce((total, item) => total + item.quantity, 0);
   const amount = addOns.reduce((total, item) => total + item.amountCents, 0);
   return `${count}张 ${formatMoney(amount)}`;
+}
+
+function readFilesAsDataUrls(files: File[]) {
+  return Promise.all(
+    files.map(
+      (file) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result ?? ''));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        }),
+    ),
+  );
 }
 
 function loadReviewedOrderIds() {

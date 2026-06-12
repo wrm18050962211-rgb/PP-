@@ -2,7 +2,8 @@ import { Bookmark, Camera, ChevronRight, Heart, ReceiptText, Settings, ShieldChe
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchAuthSession, switchMockRole } from '../../services/authService';
-import type { AuthSession, UserRole } from '../../types/api';
+import { getPostTitle, listFeedPosts } from '../../services/feedService';
+import type { AuthSession, FeedPost, UserRole } from '../../types/api';
 
 const menuItems = [
   { icon: ReceiptText, label: '我的订单', desc: '预约、支付、售后', to: '/consumer/orders' },
@@ -28,6 +29,7 @@ export function MinePage() {
   const navigate = useNavigate();
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loadingRole, setLoadingRole] = useState<UserRole | null>(null);
+  const ownProfile = buildOwnProfileSummary(session, listFeedPosts()[0]);
 
   useEffect(() => {
     let mounted = true;
@@ -52,22 +54,34 @@ export function MinePage() {
     <div className="px-4 py-5">
       <h1 className="text-2xl font-bold text-[#3f302c]">我的</h1>
 
-      <section className="mt-5 rounded-[10px] bg-zinc-950 p-5 text-white">
-        <p className="text-sm text-white/70">Hi，欢迎来到 PP</p>
-        <h2 className="mt-2 text-2xl font-bold">找到懂你的拍照搭子</h2>
-        <div className="mt-5 rounded-[8px] bg-white/10 p-3">
-          <p className="text-xs font-semibold text-white/60">当前本地会话</p>
-          <div className="mt-2 flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-white/15">
-              <UserRound size={20} />
+      <Link to={ownProfile.to} className="mt-5 block rounded-[10px] bg-zinc-950 p-4 text-white active:scale-[0.99]">
+        <div className="flex items-center gap-3">
+          {ownProfile.avatar ? (
+            <img className="h-14 w-14 shrink-0 rounded-full object-cover ring-1 ring-white/20" src={ownProfile.avatar} alt={ownProfile.name} />
+          ) : (
+            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/15">
+              <UserRound size={24} />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold">{session?.user.nickname ?? '正在读取...'}</p>
-              <p className="mt-0.5 text-xs text-white/60">{session ? `${roleLabels[session.role]} · ${session.provider}` : '本地 MVP 身份初始化中'}</p>
-            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black text-white/44">{ownProfile.roleLabel}</p>
+            <h2 className="mt-0.5 truncate text-xl font-black">{ownProfile.name}</h2>
+            <p className="mt-1 truncate text-xs font-semibold text-white/54">{ownProfile.handle}</p>
           </div>
+          <ChevronRight size={22} className="shrink-0 text-white/42" />
         </div>
-      </section>
+
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          {ownProfile.stats.map((item) => (
+            <div key={item.label} className="rounded-[8px] bg-white/[0.07] px-2 py-2">
+              <p className="text-base font-black leading-5">{item.value}</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-white/46">{item.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-3 line-clamp-2 text-xs font-semibold leading-5 text-white/58">{ownProfile.bio}</p>
+      </Link>
 
       <section className="mt-5 rounded-[10px] border border-zinc-200 bg-white p-3">
         <div className="grid grid-cols-2 gap-2">
@@ -123,4 +137,56 @@ export function MinePage() {
       </section>
     </div>
   );
+}
+
+function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
+  const role = session?.role ?? 'consumer';
+
+  if (role === 'companion') {
+    const photographer = post.companion;
+    return {
+      to: `/consumer/photographer/${photographer.id}`,
+      roleLabel: '摄影师主页',
+      name: photographer.name,
+      handle: `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`,
+      avatar: photographer.avatar || photographer.photo,
+      bio: photographer.bio,
+      stats: [
+        { label: '点赞', value: '1.6k' },
+        { label: '关注', value: 128 },
+        { label: '评价', value: photographer.ratingCount },
+      ],
+    };
+  }
+
+  if (role === 'admin') {
+    return {
+      to: '/admin',
+      roleLabel: '管理员工作台',
+      name: session?.user.nickname ?? 'Demo Admin',
+      handle: '@pp-admin',
+      avatar: session?.user.avatarUrl || '',
+      bio: '审核、风控、订单和财务的 MVP 管理入口。',
+      stats: [
+        { label: '审核', value: 12 },
+        { label: '风控', value: 4 },
+        { label: '订单', value: 23 },
+      ],
+    };
+  }
+
+  const creatorId = `creator-${post.id}`;
+  return {
+    to: `/consumer/creator/${creatorId}`,
+    roleLabel: '创作者主页',
+    name: session?.user.nickname === 'Demo Consumer' ? 'Demo Creator' : session?.user.nickname ?? 'Demo Creator',
+    handle: `@${post.id.replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`,
+    avatar: post.images[1]?.url || post.images[0]?.url || post.companion.avatar,
+    bio: `${getPostTitle(post)} · 我的作品、点赞、收藏和订单成片会沉淀在这里。`,
+    stats: [
+      { label: '点赞', value: '1.3k' },
+      { label: '关注', value: 128 },
+      { label: '合作', value: 1 },
+    ],
+  };
 }

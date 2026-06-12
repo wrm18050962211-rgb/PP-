@@ -1,18 +1,29 @@
 import { ArrowLeft, CalendarDays, MapPin, MessageCircle, Star, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useAppData } from '../../app/useAppData';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
+import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
 import type { FeedPost } from '../../types/api';
 
 export function PhotographerProfilePage() {
   const { photographerId } = useParams();
   const navigate = useNavigate();
+  const { orders } = useAppData();
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const posts = listFeedPosts();
   const photographerPosts = posts.filter((post) => post.companion.id === photographerId);
   const profilePost = photographerPosts[0] || posts[0];
   const photographer = profilePost.companion;
-  const works = photographerPosts.length ? photographerPosts : [profilePost];
+  const photographerOrderWorks = listOrderWorkRecords()
+    .filter((record) => record.publishToPhotographer && isOrderWorkConfirmed(record))
+    .map((record) => {
+      const order = orders.find((item) => item.id === record.orderId && item.companionId === photographerId);
+      const seedPost = posts.find((post) => post.id === order?.postId) ?? profilePost;
+      return order ? orderWorkToFeedPost(record, order, seedPost) : null;
+    })
+    .filter((post): post is FeedPost => Boolean(post));
+  const works = [...photographerOrderWorks, ...(photographerPosts.length ? photographerPosts : [profilePost])];
   const handle = `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`;
   const likeTotal = works.reduce((sum, post) => sum + 1180 + stableMetricSeed(post.id, 620), 0);
   const followerCount = 96 + photographer.ratingCount * 5 + works.length * 9;
