@@ -1123,14 +1123,29 @@ function initialStore() {
 function seedVirtualData(store) {
   let changed = false;
   const profiles = [
-    ['Luna', 'female', '武康路', 'Citywalk', 39900, ['Citywalk', '自然光', '松弛感', '今天可拍'], '温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80'],
-    ['Aki', 'female', '巨鹿路', '探店', 32900, ['探店', '日常感', '咖啡店', '今天可拍'], '熟悉咖啡店和街角光线，适合轻松日常头像和朋友圈照片。', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'],
-    ['Mika', 'female', '苏州河', '夜景', 29900, ['夜景', '蓝调', '散步', '今天可拍'], '熟悉夜景人流和安全路线，会提醒集合点、动线和收尾时间。', 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80'],
-    ['Rin', 'female', '新天地', '城市街拍', 42900, ['城市感', '街拍', '小红书', '今天可拍'], '擅长红砖、玻璃、街巷背景，适合利落一点的城市人像。', 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?auto=format&fit=crop&w=240&q=80'],
+    ['Luna', 'female', '武康路', 'Citywalk', 39900, ['Citywalk', '自然光', '松弛感', '今天可拍'], '温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80'],
+    ['Aki', 'female', '巨鹿路', '探店', 32900, ['探店', '日常感', '咖啡店', '今天可拍'], '熟悉咖啡店和街角光线，适合轻松日常头像和朋友圈照片。', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80'],
+    ['Mika', 'female', '苏州河', '夜景', 29900, ['夜景', '蓝调', '散步', '今天可拍'], '熟悉夜景人流和安全路线，会提醒集合点、动线和收尾时间。', 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=900&q=80'],
+    ['Rin', 'female', '新天地', '城市街拍', 42900, ['城市感', '街拍', '杂志感', '今天可拍'], '擅长红砖、玻璃、街巷背景，适合利落一点的城市人像。', 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80'],
+    ['Yoyo', 'female', '徐家汇', '校园感写真', 26900, ['清新', '校园感', '自然光', '今天可拍'], '偏清爽自然的照片，会帮助缓解镜头尴尬，适合学生和毕业季。', 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80'],
+    ['Cici', 'female', '外滩', '旅行跟拍', 69900, ['旅行', '地标', '明亮', '今天可拍'], '适合来上海短暂停留的游客，路线紧凑，优先保证地标合影和自然抓拍。', 'https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'],
+    ['Niko', 'male', '愚园路', '男生头像', 29900, ['街头', '头像', '松弛', '黑白'], '适合男生头像、社交主页照片，会用简单指令减少摆拍感。', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80'],
+    ['Sora', 'female', '静安寺', '通勤形象照', 45900, ['通勤', '简洁', '职业感', '黑白'], '适合商务社交头像，路线会避开过度游客化背景，画面更像杂志专访。', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=900&q=80'],
+    ['Peach', 'female', '徐汇滨江', '宠物友好陪拍', 36900, ['宠物', '户外', '自然', '今天可拍'], '可以陪同宠物出镜，节奏会留出休息和互动时间，适合轻松户外照。', 'https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80'],
+    ['Bean', 'female', '田子坊', '复古胶片感', 39900, ['复古', '胶片感', '老街', '情绪'], '偏复古和情绪表达，会选择老街、门窗、墙面做背景，适合安静风格。', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80'],
+    ['Noir', 'male', '西岸', '黑白大片', 52900, ['黑白', '杂志感', '艺术馆', '大片'], '偏广告大片和黑白情绪，会把建筑线条、人物姿态和留白一起设计。', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80'],
+    ['Iris', 'female', '安福路', '时装街拍', 48900, ['时装', '街拍', '黑白', '今天可拍'], '适合穿搭记录和主理人形象照，会控制背景干净度和人物比例。', 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80'],
+    ['June', 'female', '龙美术馆', '艺术馆大片', 55900, ['艺术馆', '大片', '极简', '黑白'], '偏极简展馆和大面积留白，适合冷静、干净、像广告图的作品。', 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80'],
+    ['Vera', 'female', '前滩', '都市广告感', 49900, ['广告感', '都市', '干净', '今天可拍'], '用玻璃幕墙、台阶和光影做画面，适合想要更成熟质感的用户。', 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80'],
+    ['Kiko', 'female', 'M50', '创意园街拍', 38900, ['创意园', '街拍', '涂鸦', '松弛'], '适合更年轻、更有街头感的照片，会避开杂乱背景，保留城市纹理。', 'https://images.unsplash.com/photo-1520975682031-a3d589b0f824?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80'],
+    ['Tao', 'male', '北外滩', '建筑线条人像', 46900, ['建筑', '线条', '黑白', '男生友好'], '偏建筑空间和线条构图，适合男生、情侣或偏冷感的城市人像。', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80'],
+    ['Mina', 'female', '思南路', '法式街区', 43900, ['法式', '街区', '自然光', '今天可拍'], '适合裙装、情侣和轻复古风格，会用街角、门廊和树影组织画面。', 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'],
+    ['Haru', 'male', '大学路', '咖啡街区', 33900, ['咖啡', '街区', '生活方式', '今天可拍'], '适合更生活方式的照片，边走边拍，画面干净但不强摆拍。', 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80'],
+    ['Leia', 'female', '迪士尼小镇', '主题旅行跟拍', 69900, ['旅行', '主题', '明亮', '游客友好'], '适合主题乐园和游客路线，节奏快，会优先抓情绪和地标记忆点。', 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80'],
   ];
 
   for (const [index, profile] of profiles.entries()) {
-    const [name, gender, area, activityName, priceCents, styleTags, bio, image, avatar] = profile;
+    const [name, gender, area, activityName, priceCents, styleTags, bio, image, avatar, secondaryImage] = profile;
     const companionId = `virtual-companion-${index + 1}`;
     const companionData = {
       id: companionId,
@@ -1187,7 +1202,10 @@ function seedVirtualData(store) {
       caption: `${bio} 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。`,
       styleTags: [...styleTags],
       activity: activityName,
-      images: [{ id: `${postId}-image-1`, url: image, width: 900, height: 1200, sortOrder: 1 }],
+      images: [
+        { id: `${postId}-image-1`, url: image, width: 900, height: 1200, sortOrder: 1 },
+        { id: `${postId}-image-2`, url: secondaryImage || avatar, width: 900, height: 1200, sortOrder: 2 },
+      ],
       companion,
     };
     const postIndex = store.posts.findIndex((item) => item.id === postId);
@@ -1195,7 +1213,7 @@ function seedVirtualData(store) {
     if (!existingPost) {
       store.posts.push(postData);
       changed = true;
-    } else if (existingPost.city !== '上海' || existingPost.locationName !== area) {
+    } else if (existingPost.city !== '上海' || existingPost.locationName !== area || (existingPost.images?.length || 0) < postData.images.length) {
       store.posts[postIndex] = postData;
       changed = true;
     }

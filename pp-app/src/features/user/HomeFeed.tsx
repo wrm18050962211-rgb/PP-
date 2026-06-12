@@ -168,23 +168,23 @@ export function HomeFeed() {
 
 
   return (
-    <div className="min-h-dvh pp-page">
-      <header className="sticky top-0 z-20 border-b border-[#eadfd8]/80 bg-[#fbf7f2]/92 px-4 pb-3 pt-3 backdrop-blur-xl">
+    <div className="min-h-dvh bg-[#050505] text-white">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-black/90 px-4 pb-3 pt-3 backdrop-blur-xl">
         <div className="flex h-10 items-center justify-between gap-3">
           <button
-            className="flex min-w-0 items-center gap-1.5 rounded-full bg-white/78 px-3 py-2 text-sm font-bold text-[#3f302c] ring-1 ring-[#eadfd8]"
+            className="flex min-w-0 items-center gap-1.5 rounded-full bg-white px-3 py-2 text-sm font-black text-black ring-1 ring-white/20"
             onClick={() => setCityOpen(true)}
           >
-            <MapPin size={16} className="shrink-0 text-[#e85d75]" />
+            <MapPin size={16} className="shrink-0" />
             <span className="truncate">{filters.city}</span>
-            <ChevronDown size={15} className="shrink-0 text-[#9b8e87]" />
+            <ChevronDown size={15} className="shrink-0 text-zinc-500" />
           </button>
 
-          <nav className="flex items-center gap-5 text-base font-semibold text-[#a99b94]">
+          <nav className="flex items-center gap-5 text-base font-black text-white/42">
             {channels.map((channel) => (
               <button
                 key={channel}
-                className={`relative pb-1 ${filters.channel === channel ? 'text-[#3f302c]' : ''}`}
+                className={`relative pb-1 ${filters.channel === channel ? 'text-white' : ''}`}
                 onClick={() => {
                   if (channel === channels[2]) {
                     requestConsumerLocation();
@@ -199,38 +199,38 @@ export function HomeFeed() {
                 }}
               >
                 {channel}
-                {filters.channel === channel ? <span className="absolute inset-x-2 -bottom-0.5 h-0.5 rounded-full bg-[#e85d75]" /> : null}
+                {filters.channel === channel ? <span className="absolute inset-x-1 -bottom-0.5 h-0.5 rounded-full bg-white" /> : null}
               </button>
             ))}
           </nav>
 
           <button
             className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-full ${
-              activeFilterCount ? 'pp-primary' : 'bg-white/78 text-[#5f514b] ring-1 ring-[#eadfd8]'
+              activeFilterCount ? 'bg-white text-black' : 'bg-white/10 text-white ring-1 ring-white/16'
             }`}
             onClick={() => setFilterOpen(true)}
             aria-label="筛选"
           >
             <SlidersHorizontal size={18} />
             {activeFilterCount ? (
-              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-white px-1 text-[10px] font-black text-[#e85d75]">
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-black px-1 text-[10px] font-black text-white ring-1 ring-white/50">
                 {activeFilterCount}
               </span>
             ) : null}
           </button>
         </div>
 
-        <div className="mt-3 flex items-center gap-2 rounded-full bg-white/88 px-3 py-2 text-[#3f302c] ring-1 ring-[#eadfd8]">
-          <Search size={17} className="shrink-0 text-[#b0a29b]" />
+        <div className="mt-3 flex items-center gap-2 rounded-full bg-white px-3 py-2 text-black ring-1 ring-white/20">
+          <Search size={17} className="shrink-0 text-zinc-500" />
           <input
-            className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[#b0a29b]"
+            className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none placeholder:text-zinc-500"
             value={filters.query}
             onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
             placeholder="搜索商圈、街道、咖啡店"
           />
           <button
             className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-              filters.nearbyOnly ? 'pp-primary' : 'bg-[#f4ebe6] text-[#7a6b64]'
+              filters.nearbyOnly ? 'bg-black text-white' : 'bg-zinc-100 text-black'
             }`}
             onClick={() => {
               if (filters.nearbyOnly) {
@@ -247,14 +247,16 @@ export function HomeFeed() {
           </button>
         </div>
 
-        {locationMessage ? <p className="mt-2 px-1 text-xs font-semibold text-[#8f8078]">{locationMessage}</p> : null}
+        {locationMessage ? <p className="mt-2 px-1 text-xs font-semibold text-white/52">{locationMessage}</p> : null}
 
         <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-none">
           {quickScenes.map((scene) => (
             <button
               key={scene}
               className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
-                filters.scene === scene || (scene === '今天可拍' && filters.date === '今天') ? 'pp-primary' : 'pp-pill'
+                filters.scene === scene || (scene === '今天可拍' && filters.date === '今天')
+                  ? 'bg-white text-black'
+                  : 'border border-white/16 bg-white/8 text-white/72'
               }`}
               onClick={() => applyQuickScene(scene, setFilters)}
             >
@@ -294,8 +296,8 @@ export function HomeFeed() {
 
 function CitySheet({ city, onSelect, onClose }: { city: string; onSelect: (city: string) => void; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#3f302c]/35 px-3" onClick={onClose}>
-      <section className="w-full max-w-md rounded-t-[22px] bg-[#fffaf6] p-4 text-[#27211f] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3" onClick={onClose}>
+      <section className="w-full max-w-md rounded-t-[18px] bg-white p-4 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <SheetHeader title="选择城市" onClose={onClose} />
         <div className="mt-4 grid grid-cols-2 gap-2">
           {cities.map((item) => (
@@ -330,8 +332,8 @@ function FilterSheet({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#3f302c]/35 px-3" onClick={onClose}>
-      <section className="w-full max-w-md rounded-t-[22px] bg-[#fffaf6] p-4 pb-5 text-[#27211f] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3" onClick={onClose}>
+      <section className="w-full max-w-md rounded-t-[18px] bg-white p-4 pb-5 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <SheetHeader title="筛选" onClose={onClose} />
         <div className="mt-4 space-y-4">
           <FilterGroup label="日期" options={dateOptions} value={filters.date} onChange={(date) => onChange({ date })} />
@@ -357,7 +359,7 @@ function FilterSheet({
           />
           <button
             className={`flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm font-bold ${
-              filters.nearbyOnly ? 'pp-primary' : 'pp-pill'
+              filters.nearbyOnly ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-black'
             }`}
             onClick={onNearbyToggle}
           >
@@ -366,10 +368,10 @@ function FilterSheet({
           </button>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <button className="h-12 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#6f625d]" onClick={onReset}>
+          <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onReset}>
             重置
           </button>
-          <button className="h-12 rounded-full pp-primary text-sm font-bold" onClick={onClose}>
+          <button className="h-12 rounded-full bg-black text-sm font-bold text-white" onClick={onClose}>
             完成
           </button>
         </div>
@@ -382,7 +384,7 @@ function SheetHeader({ title, onClose }: { title: string; onClose: () => void })
   return (
     <div className="flex items-center justify-between">
       <h2 className="text-base font-black">{title}</h2>
-      <button className="grid h-9 w-9 place-items-center rounded-full bg-[#f2e8e1] text-[#7a6b64]" onClick={onClose} aria-label="关闭">
+      <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" onClick={onClose} aria-label="关闭">
         <X size={18} />
       </button>
     </div>
@@ -392,7 +394,7 @@ function SheetHeader({ title, onClose }: { title: string; onClose: () => void })
 function FilterGroup({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
   return (
     <div>
-      <p className="mb-2 text-xs font-bold text-[#8f8078]">{label}</p>
+      <p className="mb-2 text-xs font-bold text-zinc-500">{label}</p>
       <div className="flex gap-2 overflow-x-auto scrollbar-none">
         {options.map((option) => (
           <button
@@ -421,7 +423,7 @@ function OptionGroup<T extends string | number | null>({
 }) {
   return (
     <div>
-      <p className="mb-2 text-xs font-bold text-[#8f8078]">{label}</p>
+      <p className="mb-2 text-xs font-bold text-zinc-500">{label}</p>
       <div className="flex gap-2 overflow-x-auto scrollbar-none">
         {options.map((option) => (
           <button
