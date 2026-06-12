@@ -51,10 +51,8 @@ export function MinePage() {
   }
 
   return (
-    <div className="px-4 py-5">
-      <h1 className="text-2xl font-bold text-[#3f302c]">我的</h1>
-
-      <Link to={ownProfile.to} className="mt-5 block rounded-[10px] bg-zinc-950 p-4 text-white active:scale-[0.99]">
+    <div className="px-4 pb-5 pt-3">
+      <Link to={ownProfile.to} className="block rounded-[10px] bg-zinc-950 p-4 text-white active:scale-[0.99]">
         <div className="flex items-center gap-3">
           {ownProfile.avatar ? (
             <img className="h-14 w-14 shrink-0 rounded-full object-cover ring-1 ring-white/20" src={ownProfile.avatar} alt={ownProfile.name} />

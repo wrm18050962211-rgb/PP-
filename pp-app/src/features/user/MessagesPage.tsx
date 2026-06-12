@@ -227,16 +227,15 @@ function MessageThreadList({ orders }: { orders: ReturnType<typeof useAppData>['
   }
 
   return (
-    <div className="min-h-dvh bg-[#f7f7f5] px-4 py-5 text-zinc-950">
+    <div className="min-h-dvh bg-[#f7f7f5] px-4 pb-5 pt-3 text-zinc-950">
       <header>
-        <h1 className="text-2xl font-black">消息</h1>
-        <div className="mt-4 flex h-10 items-center gap-2 rounded-full bg-white px-3 text-sm text-zinc-500 ring-1 ring-zinc-200">
+        <div className="flex h-10 items-center gap-2 rounded-full bg-white px-3 text-sm text-zinc-500 ring-1 ring-zinc-200">
           <Search size={16} />
           <span>搜索摄影师或订单</span>
         </div>
       </header>
 
-      <section className="mt-4 space-y-2 pb-24">
+      <section className="mt-3 space-y-2 pb-24">
         {threads.map((thread) => {
           const targetOrderId = thread.order?.id ?? sortedOrders[0]?.id;
           return (
