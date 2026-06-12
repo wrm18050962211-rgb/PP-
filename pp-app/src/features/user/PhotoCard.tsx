@@ -30,11 +30,11 @@ export function PhotoCard({
   className?: string;
 }) {
   return (
-    <article className={`overflow-hidden rounded-[2px] bg-[#161616] ring-1 ring-white/8 ${className}`}>
+    <article className={`overflow-hidden bg-[#050505] ${className}`}>
       <Link to={`/consumer/post/${post.id}`} className="block" aria-label={`查看${post.location}作品详情`}>
         <div className={`relative overflow-hidden bg-zinc-950 ${aspectByVariant[variant]}`}>
           <img
-            className="h-full w-full object-cover saturate-[0.82] contrast-[1.06] transition duration-500 active:scale-[1.025]"
+            className="h-full w-full object-cover brightness-[0.94] contrast-[1.14] saturate-[0.98] transition duration-500 active:scale-[1.03]"
             src={post.images[0]?.url}
             alt={post.location}
             loading={priority ? 'eager' : 'lazy'}
@@ -43,13 +43,13 @@ export function PhotoCard({
               event.currentTarget.src = getFallbackImage(post.id, variant);
             }}
           />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/75 via-black/30 to-transparent px-2.5 pb-2 pt-8">
-            <span className="inline-flex min-w-0 items-center gap-1 text-[11px] font-semibold tracking-wide text-white/75 drop-shadow">
-              <MapPin size={11} className="shrink-0" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-1 bg-gradient-to-t from-black/72 via-black/18 to-transparent px-1.5 pb-1.5 pt-7">
+            <span className="inline-flex min-w-0 items-center gap-0.5 text-[9px] font-semibold tracking-wide text-white/72 drop-shadow">
+              <MapPin size={9} className="shrink-0" />
               <span className="truncate">{post.locationName || post.location}</span>
             </span>
-            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold tabular-nums text-white/75 drop-shadow">
-              <Heart size={11} fill="currentColor" />
+            <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-semibold tabular-nums text-white/72 drop-shadow">
+              <Heart size={9} fill="currentColor" />
               {formatLikeCount(getLikeCount(post.id))}
             </span>
           </div>

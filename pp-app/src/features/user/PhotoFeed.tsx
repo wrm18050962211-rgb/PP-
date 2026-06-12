@@ -42,16 +42,16 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
   const sections = createDiscoverySections(posts);
 
   return (
-    <section className="bg-[#050505] px-2 pb-24 pt-2">
-      <div className="space-y-2">
+    <section className="bg-[#050505] px-[1px] pb-24 pt-[1px]">
+      <div className="space-y-[1px]">
         {sections.map((section) => {
           const hasColumns = section.columns.some((column) => column.length > 0);
           return (
-            <div key={section.id} className="space-y-2">
+            <div key={section.id} className="space-y-[1px]">
               {hasColumns ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-[1px]">
                   {section.columns.map((column, columnIndex) => (
-                    <div key={`${section.id}-${columnIndex}`} className="flex h-full flex-col gap-2">
+                    <div key={`${section.id}-${columnIndex}`} className="flex h-full flex-col gap-[1px]">
                       {column.map((item) => renderColumnItem(item, item.type === 'post' && item.index < 4))}
                     </div>
                   ))}
@@ -171,18 +171,18 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
   return (
     <Link
       to={tile.href}
-      className={`flex h-8 items-center gap-1 overflow-hidden rounded-[2px] bg-transparent px-1.5 text-white/54 transition active:bg-white/[0.035] ${className}`}
+      className={`flex h-7 items-center gap-1 overflow-hidden bg-transparent px-1 text-white/48 transition active:bg-white/[0.035] ${className}`}
       title={[tile.eyebrow, tile.title, tile.meta].filter(Boolean).join(' · ')}
     >
-      <Icon size={10} className="shrink-0 text-white/28" />
-      <span className="min-w-0 truncate text-[10px] font-semibold leading-none text-white/54">
-        <span className="text-white/34">{tile.eyebrow}</span>
-        <span className="px-1 text-white/22">·</span>
+      <Icon size={9} className="shrink-0 text-white/24" />
+      <span className="min-w-0 truncate text-[9px] font-semibold leading-none text-white/48">
+        <span className="text-white/30">{tile.eyebrow}</span>
+        <span className="px-0.5 text-white/20">·</span>
         <span>{tile.title}</span>
         {tile.meta ? (
           <>
-            <span className="px-1 text-white/22">·</span>
-            <span className="text-white/38">{tile.meta}</span>
+            <span className="px-0.5 text-white/20">·</span>
+            <span className="text-white/34">{tile.meta}</span>
           </>
         ) : null}
       </span>
