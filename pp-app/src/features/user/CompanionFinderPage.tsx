@@ -1,5 +1,5 @@
-import { CalendarDays, MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
@@ -114,79 +114,10 @@ export function CompanionFinderPage() {
         </section>
       ) : null}
 
-      <section className="grid grid-cols-2 gap-2 px-2 pt-2">
-        {companions.map(({ companion, posts: portfolioPosts, post }, index) => {
-          const activity = companion.activities[0];
-          const slot = companion.slots.find((item) => item.status === 'available') || companion.slots[0];
-          return (
-            <article key={companion.id} className="overflow-hidden rounded-[2px] bg-[#151515] ring-1 ring-white/10">
-              <div className="flex aspect-[0.78] snap-x snap-mandatory overflow-x-auto scroll-smooth bg-zinc-950 scrollbar-none">
-                {portfolioPosts.map((work, workIndex) => (
-                  <Link
-                    key={work.id}
-                    to={`/consumer/post/${work.id}`}
-                    className="relative h-full w-full shrink-0 snap-center"
-                    aria-label={`查看${companion.name}作品 ${getPostTitle(work)}`}
-                  >
-                    <img
-                      className="h-full w-full object-cover saturate-[0.9] contrast-[1.05]"
-                      src={work.images[0]?.url || companion.photo || companion.avatar}
-                      alt={getPostTitle(work)}
-                      loading={index < 2 && workIndex === 0 ? 'eager' : 'lazy'}
-                    />
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/78 via-black/24 to-transparent px-2 pb-2 pt-12">
-                      <p className="line-clamp-1 text-xs font-black text-white/86">{getPostTitle(work)}</p>
-                      <p className="mt-0.5 truncate text-[10px] font-semibold text-white/54">{work.locationName || work.location}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-
-              <div className="space-y-2 p-2.5">
-                <Link to={`/consumer/photographer/${companion.id}`} className="flex min-w-0 items-center gap-2" aria-label={`查看${companion.name}主页`}>
-                  <img className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-white/18" src={companion.avatar || companion.photo || post.images[0]?.url} alt={companion.name} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-black text-white">{companion.name}</p>
-                    <p className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-white/50">
-                      <Star size={10} className="fill-white/46 text-white/46" />
-                      推荐 {96 - index * 3} · {companion.ratingAvg.toFixed(1)}
-                    </p>
-                  </div>
-                </Link>
-
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-black text-white">{activity?.name || post.activity}</span>
-                  <span className="shrink-0 text-xs font-black text-white/72">¥{Math.round((activity?.priceCents || 0) / 100)}起</span>
-                </div>
-                <p className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-white/58">
-                  <MapPin size={12} className="shrink-0" />
-                  <span className="truncate">{companion.areas.slice(0, 2).join(' / ')}</span>
-                </p>
-                <p className="flex items-center gap-1 text-[11px] font-semibold text-white/58">
-                  <CalendarDays size={12} />
-                  <span className="truncate">{slot?.label || '待开放'}</span>
-                </p>
-
-                <div className="flex flex-wrap gap-1">
-                  {companion.tags.slice(0, 2).map((tag) => (
-                    <span key={tag} className="max-w-full truncate rounded-[2px] bg-white/8 px-1.5 py-1 text-[10px] font-bold text-white/58">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-[1fr_34px] gap-1.5">
-                  <Link className="flex h-9 items-center justify-center rounded-[2px] bg-white text-xs font-black text-black" to={`/consumer/photographer/${companion.id}`}>
-                    查看作品并预约
-                  </Link>
-                  <Link className="grid h-9 place-items-center rounded-[2px] bg-white/10 text-white" to="/consumer/messages" aria-label="咨询摄影师">
-                    <MessageCircle size={16} />
-                  </Link>
-                </div>
-              </div>
-            </article>
-          );
-        })}
+      <section className="columns-2 gap-2 px-2 pt-2">
+        {companions.map((result, index) => (
+          <PhotographerResultCard key={result.companion.id} result={result} index={index} />
+        ))}
       </section>
 
       {filterOpen ? (
@@ -199,6 +130,104 @@ export function CompanionFinderPage() {
         />
       ) : null}
     </div>
+  );
+}
+
+function PhotographerResultCard({ result, index }: { result: PhotographerResult; index: number }) {
+  const { companion, posts: portfolioPosts, post } = result;
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [activeWork, setActiveWork] = useState(0);
+  const activity = companion.activities[0];
+  const slot = companion.slots.find((item) => item.status === 'available') || companion.slots[0];
+  const aspectClass = getPortfolioAspectClass(index, portfolioPosts[0]);
+
+  const handlePortfolioScroll = () => {
+    const track = trackRef.current;
+    if (!track || track.clientWidth === 0) return;
+    setActiveWork(Math.min(Math.round(track.scrollLeft / track.clientWidth), portfolioPosts.length - 1));
+  };
+
+  const scrollToWork = (workIndex: number) => {
+    const track = trackRef.current;
+    if (!track) return;
+    track.scrollTo({ left: track.clientWidth * workIndex, behavior: 'smooth' });
+    setActiveWork(workIndex);
+  };
+
+  return (
+    <article className="mb-2 inline-block w-full break-inside-avoid overflow-hidden rounded-[2px] bg-[#151515] ring-1 ring-white/8">
+      <div ref={trackRef} className={`flex ${aspectClass} snap-x snap-mandatory overflow-x-auto scroll-smooth bg-zinc-950 scrollbar-none`} onScroll={handlePortfolioScroll}>
+        {portfolioPosts.map((work, workIndex) => (
+          <Link
+            key={work.id}
+            to={`/consumer/post/${work.id}`}
+            className="relative h-full w-full shrink-0 snap-center"
+            aria-label={`查看${companion.name}作品 ${getPostTitle(work)}`}
+          >
+            <img
+              className="h-full w-full object-cover saturate-[0.9] contrast-[1.05]"
+              src={work.images[0]?.url || companion.photo || companion.avatar}
+              alt={getPostTitle(work)}
+              loading={index < 2 && workIndex === 0 ? 'eager' : 'lazy'}
+            />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/76 via-black/22 to-transparent px-2 pb-2 pt-10">
+              <p className="line-clamp-1 text-[11px] font-black text-white/86">{getPostTitle(work)}</p>
+              <p className="mt-0.5 truncate text-[9px] font-semibold text-white/50">{work.locationName || work.location}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {portfolioPosts.length > 1 ? (
+        <div className="flex h-3 items-center justify-center gap-1 bg-[#151515]">
+          {portfolioPosts.map((work, workIndex) => (
+            <button
+              key={work.id}
+              className={`h-1 rounded-full transition-all ${workIndex === activeWork ? 'w-3 bg-white/82' : 'w-1 bg-white/26'}`}
+              onClick={() => scrollToWork(workIndex)}
+              aria-label={`查看第 ${workIndex + 1} 个作品封面`}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="h-2 bg-[#151515]" />
+      )}
+
+      <div className="space-y-1.5 px-2 pb-2 pt-1">
+        <Link to={`/consumer/photographer/${companion.id}`} className="flex min-w-0 items-center gap-1.5" aria-label={`查看${companion.name}主页`}>
+          <img className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-white/18" src={companion.avatar || companion.photo || post.images[0]?.url} alt={companion.name} />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center justify-between gap-1.5">
+              <p className="truncate text-[13px] font-black leading-4 text-white">{companion.name}</p>
+              <span className="shrink-0 text-[11px] font-black text-white/74">¥{Math.round((activity?.priceCents || 0) / 100)}起</span>
+            </div>
+            <p className="mt-0.5 flex items-center gap-1 text-[9px] font-bold leading-3 text-white/46">
+              <Star size={9} className="fill-white/42 text-white/42" />
+              推荐 {96 - index * 3} · {companion.ratingAvg.toFixed(1)}
+            </p>
+          </div>
+        </Link>
+
+        <div className="flex min-w-0 items-center justify-between gap-2 text-[10px] font-semibold text-white/52">
+          <span className="truncate">{activity?.name || post.activity}</span>
+          <span className="shrink-0 truncate">{slot?.label || '待开放'}</span>
+        </div>
+
+        <p className="flex min-w-0 items-center gap-1 text-[10px] font-semibold text-white/48">
+          <MapPin size={10} className="shrink-0" />
+          <span className="truncate">{companion.areas.slice(0, 2).join(' / ')}</span>
+        </p>
+
+        <div className="grid grid-cols-[1fr_28px] gap-1.5 pt-0.5">
+          <Link className="flex h-8 items-center justify-center rounded-[2px] bg-white text-[11px] font-black text-black" to={`/consumer/photographer/${companion.id}`}>
+            作品预约
+          </Link>
+          <Link className="grid h-8 place-items-center rounded-[2px] bg-white/10 text-white" to="/consumer/messages" aria-label="咨询摄影师">
+            <MessageCircle size={14} />
+          </Link>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -264,6 +293,15 @@ function matchesFinderFilters(filters: FinderFilters, searchable: string, priceC
     matchesTextOption(filters.style, filterOptions.style[0], searchable) &&
     matchesBudgetOption(filters.budget, priceCents)
   );
+}
+
+function getPortfolioAspectClass(index: number, post?: FeedPost) {
+  const cover = post?.images[0];
+  const ratio = cover?.width && cover.height ? cover.width / cover.height : 0;
+  if (ratio >= 1.1) return 'aspect-[1.08]';
+
+  const cycle = ['aspect-[0.74]', 'aspect-[0.88]', 'aspect-[0.8]', 'aspect-[0.96]'];
+  return cycle[index % cycle.length];
 }
 
 function matchesTextOption(option: string, emptyValue: string, searchable: string) {
