@@ -9,6 +9,8 @@ import { PhotoFeed } from './PhotoFeed';
 
 type FeedFilters = {
   city: string;
+  district: string;
+  area: string;
   channel: string;
   query: string;
   nearbyOnly: boolean;
@@ -24,6 +26,8 @@ type LocationStatus = 'idle' | 'locating' | 'located' | 'unsupported' | 'denied'
 
 const initialFilters: FeedFilters = {
   city: '上海',
+  district: '不限',
+  area: '不限',
   channel: '发现',
   query: '',
   nearbyOnly: false,
@@ -35,7 +39,32 @@ const initialFilters: FeedFilters = {
   genderPreference: 'any',
 };
 
-const cities = ['不限', '上海', '北京', '杭州', '成都'];
+const locationOptions: Record<string, Record<string, string[]>> = {
+  不限: { 不限: ['不限'] },
+  上海: {
+    不限: ['不限'],
+    徐汇区: ['不限', '武康路', '衡山路', '徐家汇', '西岸艺术中心'],
+    静安区: ['不限', '安福路', '巨鹿路', '静安寺', '南京西路'],
+    黄浦区: ['不限', '外滩', '新天地', '淮海中路', '人民广场'],
+    虹口区: ['不限', '北外滩', '鲁迅公园', '四川北路'],
+  },
+  北京: {
+    不限: ['不限'],
+    朝阳区: ['不限', '三里屯', '朝阳公园', '798园区', '国贸'],
+    东城区: ['不限', '鼓楼', '南锣鼓巷', '东四'],
+    海淀区: ['不限', '五道口', '中关村', '颐和园'],
+  },
+  杭州: {
+    不限: ['不限'],
+    西湖区: ['不限', '西湖', '灵隐', '龙井村'],
+    上城区: ['不限', '湖滨', '南宋御街', '钱江新城'],
+  },
+  成都: {
+    不限: ['不限'],
+    锦江区: ['不限', '太古里', '春熙路', '九眼桥'],
+    武侯区: ['不限', '玉林', '桐梓林', '武侯祠'],
+  },
+};
 const channels = ['关注', '发现', '附近'];
 const dateOptions = ['不限', '今天', '明天', '周末'];
 const timeOptions = ['不限', '上午', '下午', '傍晚', '晚上'];
@@ -118,13 +147,17 @@ export function HomeFeed() {
   }, []);
 
   const feedPosts = useMemo(() => mergeApprovedWorkIntoFeed(posts, workDraft), [posts, workDraft]);
+  const locationLabel = getLocationLabel(filters);
+  const locationKeyword = getLocationKeyword(filters);
+  const locationKeywords = useMemo(() => getLocationKeywords(filters), [filters.area, filters.city, filters.district]);
   const localFilteredPosts = useMemo(
     () =>
       matchCompanions(feedPosts, {
         city: filters.city,
         lat: consumerLocation?.lat,
         lng: consumerLocation?.lng,
-        location: filters.query,
+        location: locationKeyword,
+        locationKeywords,
         keyword: filters.query,
         date: filters.date,
         time: filters.time,
@@ -134,7 +167,7 @@ export function HomeFeed() {
         genderPreference: filters.genderPreference,
         nearbyOnly: filters.nearbyOnly,
       }),
-    [consumerLocation, feedPosts, filters],
+    [consumerLocation, feedPosts, filters, locationKeyword, locationKeywords],
   );
   const filteredPosts = useMemo(() => sortPostsByMatchedIds(localFilteredPosts, matchedPostIds), [localFilteredPosts, matchedPostIds]);
   const activeFilterCount = getActiveFilterCount(filters);
@@ -179,7 +212,7 @@ export function HomeFeed() {
       city: filters.city,
       lat: consumerLocation.lat,
       lng: consumerLocation.lng,
-      location: filters.query,
+      location: locationKeyword,
       keyword: filters.query,
       date: filters.date,
       time: filters.time,
@@ -197,7 +230,7 @@ export function HomeFeed() {
     return () => {
       mounted = false;
     };
-  }, [consumerLocation, filters]);
+  }, [consumerLocation, filters, locationKeyword]);
 
 
   return (
@@ -205,20 +238,20 @@ export function HomeFeed() {
       <header className="sticky top-0 z-20 border-b border-white/10 bg-black/90 px-4 pb-3 pt-3 backdrop-blur-xl">
         <div className="flex h-10 items-center justify-between gap-3">
           <button
-            className="flex h-9 max-w-[92px] shrink-0 items-center gap-1.5 px-1 text-white"
+            className="flex h-9 max-w-[116px] shrink-0 items-center gap-1.5 px-1 text-white"
             onClick={() => setCityOpen(true)}
-            aria-label={`选择城市：${filters.city}`}
-            title={filters.city}
+            aria-label={`选择位置：${locationLabel}`}
+            title={locationLabel}
           >
             <MapPin size={17} className="shrink-0" />
-            <span className="min-w-0 truncate text-base font-black leading-none">{filters.city}</span>
+            <span className="min-w-0 truncate text-base font-black leading-none">{locationLabel}</span>
           </button>
 
-          <nav className="flex items-center gap-5 text-base font-black text-white/42">
+          <nav className="flex h-9 items-center gap-5 text-base font-black text-white/42">
             {channels.map((channel) => (
               <button
                 key={channel}
-                className={`relative pb-1 ${filters.channel === channel ? 'text-white' : ''}`}
+                className={`relative flex h-9 items-center ${filters.channel === channel ? 'text-white' : ''}`}
                 onClick={() => {
                   if (channel === channels[2]) {
                     requestConsumerLocation();
@@ -233,7 +266,7 @@ export function HomeFeed() {
                 }}
               >
                 {channel}
-                {filters.channel === channel ? <span className="absolute inset-x-1 -bottom-0.5 h-0.5 rounded-full bg-white" /> : null}
+                {filters.channel === channel ? <span className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-white" /> : null}
               </button>
             ))}
           </nav>
@@ -299,7 +332,13 @@ export function HomeFeed() {
         />
       ) : null}
 
-      {cityOpen ? <CitySheet city={filters.city} onSelect={(city) => setFilters((current) => ({ ...current, city }))} onClose={() => setCityOpen(false)} /> : null}
+      {cityOpen ? (
+        <LocationDrawer
+          filters={filters}
+          onChange={(partial) => setFilters((current) => ({ ...current, ...partial }))}
+          onClose={() => setCityOpen(false)}
+        />
+      ) : null}
       {filterOpen ? (
         <FilterSheet
           filters={filters}
@@ -420,26 +459,79 @@ function SearchOverlay({
   );
 }
 
-function CitySheet({ city, onSelect, onClose }: { city: string; onSelect: (city: string) => void; onClose: () => void }) {
+function LocationDrawer({
+  filters,
+  onChange,
+  onClose,
+}: {
+  filters: FeedFilters;
+  onChange: (partial: Partial<FeedFilters>) => void;
+  onClose: () => void;
+}) {
+  const cityOptions = Object.keys(locationOptions);
+  const districtOptions = getDistrictOptions(filters.city);
+  const areaOptions = getAreaOptions(filters.city, filters.district);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3" onClick={onClose}>
-      <section className="w-full max-w-md rounded-t-[18px] bg-white p-4 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <SheetHeader title="选择城市" onClose={onClose} />
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {cities.map((item) => (
-            <button
-              key={item}
-              className={`h-12 rounded-[14px] text-sm font-bold ${item === city ? 'pp-pill-active' : 'pp-pill'}`}
-              onClick={() => {
-                onSelect(item);
-                onClose();
-              }}
-            >
-              {item}
-            </button>
-          ))}
+    <div className="fixed inset-0 z-50 flex justify-start bg-black/70" onClick={onClose}>
+      <section className="h-full w-[86%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <SheetHeader title="选择位置" onClose={onClose} />
+        <div className="mt-4 rounded-[8px] bg-zinc-50 p-3 text-sm font-black text-zinc-900">
+          {getLocationLabel(filters)}
+        </div>
+
+        <LocationOptionColumn
+          label="城市"
+          options={cityOptions}
+          value={filters.city}
+          onSelect={(city) => onChange({ city, district: '不限', area: '不限' })}
+        />
+        <LocationOptionColumn
+          label="区"
+          options={districtOptions}
+          value={filters.district}
+          onSelect={(district) => onChange({ district, area: '不限' })}
+        />
+        <LocationOptionColumn label="街道 / 园区" options={areaOptions} value={filters.area} onSelect={(area) => onChange({ area })} />
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={() => onChange({ city: '不限', district: '不限', area: '不限' })}>
+            不限
+          </button>
+          <button className="h-12 rounded-full bg-black text-sm font-bold text-white" onClick={onClose}>
+            完成
+          </button>
         </div>
       </section>
+    </div>
+  );
+}
+
+function LocationOptionColumn({
+  label,
+  options,
+  value,
+  onSelect,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <div className="mt-4">
+      <p className="mb-2 text-xs font-bold text-zinc-500">{label}</p>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            className={`h-11 rounded-full text-sm font-black ${option === value ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'}`}
+            onClick={() => onSelect(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -567,7 +659,7 @@ function OptionGroup<T extends string | number | null>({
 
 function getActiveFilterCount(filters: FeedFilters) {
   return [
-    filters.city !== initialFilters.city,
+    getLocationLabel(filters) !== getLocationLabel(initialFilters),
     filters.nearbyOnly,
     filters.date !== initialFilters.date,
     filters.time !== initialFilters.time,
@@ -576,6 +668,33 @@ function getActiveFilterCount(filters: FeedFilters) {
     filters.maxBudgetCents !== initialFilters.maxBudgetCents,
     filters.genderPreference !== initialFilters.genderPreference,
   ].filter(Boolean).length;
+}
+
+function getDistrictOptions(city: string) {
+  return Object.keys(locationOptions[city] ?? locationOptions['不限']);
+}
+
+function getAreaOptions(city: string, district: string) {
+  return locationOptions[city]?.[district] ?? locationOptions[city]?.['不限'] ?? ['不限'];
+}
+
+function getLocationLabel(filters: Pick<FeedFilters, 'city' | 'district' | 'area'>) {
+  if (filters.area !== '不限') return filters.area;
+  if (filters.district !== '不限') return filters.district;
+  return filters.city;
+}
+
+function getLocationKeyword(filters: Pick<FeedFilters, 'district' | 'area'>) {
+  if (filters.area !== '不限') return filters.area;
+  if (filters.district !== '不限') return filters.district;
+  return '';
+}
+
+function getLocationKeywords(filters: Pick<FeedFilters, 'city' | 'district' | 'area'>) {
+  if (filters.area !== '不限') return [filters.area];
+  if (filters.district === '不限') return [];
+
+  return [filters.district, ...getAreaOptions(filters.city, filters.district).filter((area) => area !== '不限')];
 }
 
 function loadSearchHistory() {

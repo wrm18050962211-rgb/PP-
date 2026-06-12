@@ -8,6 +8,7 @@ export type MatchCompanionsInput = {
   lat?: number;
   lng?: number;
   location?: string;
+  locationKeywords?: string[];
   date?: string;
   time?: string;
   activityType?: string;
@@ -80,8 +81,10 @@ function buildCandidate(post: FeedPost, input: MatchCompanionsInput): MatchCandi
   if (hasValue(input.city) && companion.baseCity !== input.city) return null;
   if (input.genderPreference === 'female_only' && companion.gender !== 'female') return null;
 
-  const searchText = normalizeFreeText(input.location || input.keyword);
-  if (searchText && !isPostSearchMatch(post, searchText)) return null;
+  const locationTexts = normalizeSearchTexts(input.locationKeywords?.length ? input.locationKeywords : [input.location]);
+  const keywordTexts = normalizeSearchTexts([input.keyword]);
+  if (locationTexts.length && !locationTexts.some((text) => isPostSearchMatch(post, text))) return null;
+  if (keywordTexts.length && !keywordTexts.every((text) => isPostSearchMatch(post, text))) return null;
 
   const matchedSlot = findMatchedSlot(companion.slots, input);
   if ((hasValue(input.date) || hasValue(input.time)) && !matchedSlot) return null;
@@ -94,7 +97,7 @@ function buildCandidate(post: FeedPost, input: MatchCompanionsInput): MatchCandi
     post,
     matchedSlot,
     matchedActivity,
-    distanceRank: getDistanceRank(post, searchText, input.nearbyOnly),
+    distanceRank: getDistanceRank(post, locationTexts[0] ?? keywordTexts[0] ?? '', input.nearbyOnly),
     timeRank: getTimeRank(matchedSlot, input),
     featuredRank: isFeaturedPost(post) ? 0 : 1,
     activeAt: getRecentActiveAt(companion.slots),
@@ -212,6 +215,10 @@ function compareCandidates(a: MatchCandidate, b: MatchCandidate) {
 
 function normalizeFreeText(value?: string) {
   return (value ?? '').trim().toLowerCase();
+}
+
+function normalizeSearchTexts(values: Array<string | undefined>) {
+  return values.map((value) => normalizeFreeText(value)).filter(Boolean);
 }
 
 function hasValue(value?: string) {
