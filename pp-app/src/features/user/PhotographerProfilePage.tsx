@@ -1,4 +1,5 @@
 import { ArrowLeft, CalendarDays, MapPin, MessageCircle, Star, UserRound } from 'lucide-react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
@@ -6,12 +7,17 @@ import type { FeedPost } from '../../types/api';
 export function PhotographerProfilePage() {
   const { photographerId } = useParams();
   const navigate = useNavigate();
+  const [reviewsOpen, setReviewsOpen] = useState(false);
   const posts = listFeedPosts();
   const photographerPosts = posts.filter((post) => post.companion.id === photographerId);
   const profilePost = photographerPosts[0] || posts[0];
   const photographer = profilePost.companion;
   const works = photographerPosts.length ? photographerPosts : [profilePost];
   const handle = `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`;
+  const likeTotal = works.reduce((sum, post) => sum + 1180 + stableMetricSeed(post.id, 620), 0);
+  const followerCount = 96 + photographer.ratingCount * 5 + works.length * 9;
+  const ratingDistribution = buildRatingDistribution(photographer.ratingCount, photographer.ratingAvg);
+  const reviews = buildPhotographerReviews(photographer, works);
 
   return (
     <div className="min-h-dvh bg-[#050505] pb-24 text-white">
@@ -29,9 +35,9 @@ export function PhotographerProfilePage() {
         <div className="flex items-center gap-5">
           <img className="h-[86px] w-[86px] shrink-0 rounded-full object-cover ring-1 ring-white/14" src={photographer.avatar || photographer.photo} alt={photographer.name} />
           <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 text-center">
-            <ProfileStat value={works.length} label="作品" />
-            <ProfileStat value={photographer.ratingCount} label="评价" />
-            <ProfileStat value={photographer.ratingAvg.toFixed(1)} label="评分" />
+            <ProfileStat value={formatMetric(likeTotal)} label="点赞数" />
+            <ProfileStat value={followerCount} label="关注数" />
+            <ProfileStat value={photographer.ratingCount} label="评价数" onClick={() => setReviewsOpen(true)} />
           </div>
         </div>
 
@@ -83,15 +89,38 @@ export function PhotographerProfilePage() {
       </section>
 
       <WorkGrid works={works} />
+      {reviewsOpen ? (
+        <PhotographerReviewsSheet
+          ratingAvg={photographer.ratingAvg}
+          ratingCount={photographer.ratingCount}
+          distribution={ratingDistribution}
+          reviews={reviews}
+          onClose={() => setReviewsOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
 
-function ProfileStat({ value, label }: { value: number | string; label: string }) {
+function ProfileStat({ value, label, onClick }: { value: number | string; label: string; onClick?: () => void }) {
+  const content = (
+    <>
+      <p className="text-xl font-black leading-6">{value}</p>
+      <p className="mt-0.5 text-xs font-semibold leading-4 text-white/62">{label}</p>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" className="min-w-0 text-center" onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
+
   return (
     <div>
-      <p className="text-xl font-black leading-6">{value}</p>
-      <p className="mt-0.5 text-xs font-semibold text-white/62">{label}</p>
+      {content}
     </div>
   );
 }
@@ -109,8 +138,142 @@ function WorkGrid({ works }: { works: FeedPost[] }) {
   );
 }
 
+type RatingDistributionItem = {
+  rating: 1 | 2 | 3 | 4 | 5;
+  count: number;
+};
+
+type PhotographerReview = {
+  id: string;
+  name: string;
+  rating: number;
+  text: string;
+  postTitle: string;
+};
+
+function PhotographerReviewsSheet({
+  ratingAvg,
+  ratingCount,
+  distribution,
+  reviews,
+  onClose,
+}: {
+  ratingAvg: number;
+  ratingCount: number;
+  distribution: RatingDistributionItem[];
+  reviews: PhotographerReview[];
+  onClose: () => void;
+}) {
+  const maxCount = Math.max(...distribution.map((item) => item.count), 1);
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end bg-black/58" onClick={onClose}>
+      <section className="max-h-[76dvh] w-full overflow-y-auto rounded-t-[18px] bg-[#111] px-4 pb-6 pt-4 text-white" onClick={(event) => event.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-black">摄影师评价</h2>
+            <p className="mt-1 text-xs font-semibold text-white/46">{ratingCount} 条评价</p>
+          </div>
+          <button type="button" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-lg font-black" onClick={onClose} aria-label="关闭">
+            x
+          </button>
+        </div>
+
+        <div className="rounded-[12px] bg-white/[0.06] p-3">
+          <div className="flex items-end gap-2">
+            <span className="text-3xl font-black leading-none">{ratingAvg.toFixed(1)}</span>
+            <span className="pb-0.5 text-xs font-semibold text-white/52">综合评分</span>
+          </div>
+          <div className="mt-4 space-y-2">
+            {distribution.map((item) => (
+              <div key={item.rating} className="grid grid-cols-[34px_1fr_34px] items-center gap-2 text-xs font-bold text-white/58">
+                <span>{item.rating}分</span>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-white" style={{ width: `${Math.max(4, (item.count / maxCount) * 100)}%` }} />
+                </div>
+                <span className="text-right">{item.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {reviews.map((review) => (
+            <article key={review.id} className="rounded-[12px] bg-white/[0.06] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black">{review.name}</p>
+                  <p className="mt-0.5 truncate text-[11px] font-semibold text-white/42">{review.postTitle}</p>
+                </div>
+                <span className="inline-flex items-center gap-1 text-xs font-black text-white/70">
+                  <Star size={12} className="fill-white/70 text-white/70" />
+                  {review.rating.toFixed(1)}
+                </span>
+              </div>
+              <p className="mt-2 text-sm font-semibold leading-5 text-white/72">{review.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function buildSlotSummary(slots: FeedPost['companion']['slots']) {
   const available = slots.filter((slot) => slot.status === 'available').slice(0, 3);
   if (!available.length) return '近期时间待开放';
   return `可约时间：${available.map((slot) => slot.label).join(' / ')}`;
+}
+
+function buildRatingDistribution(total: number, avg: number): RatingDistributionItem[] {
+  const count = Math.max(0, total);
+  const five = Math.min(count, Math.round(count * Math.min(0.84, Math.max(0.42, avg / 5 + 0.04))));
+  const four = Math.min(count - five, Math.round(count * (avg >= 4.6 ? 0.18 : 0.28)));
+  const three = Math.min(count - five - four, Math.round(count * (avg >= 4.4 ? 0.04 : 0.1)));
+  const two = Math.min(count - five - four - three, Math.round(count * (avg >= 4.3 ? 0.01 : 0.04)));
+  const one = Math.max(0, count - five - four - three - two);
+  const distribution: RatingDistributionItem[] = [
+    { rating: 5, count: five },
+    { rating: 4, count: four },
+    { rating: 3, count: three },
+    { rating: 2, count: two },
+    { rating: 1, count: one },
+  ];
+  const delta = count - distribution.reduce((sum, item) => sum + item.count, 0);
+  if (delta !== 0) distribution[0].count += delta;
+  return distribution;
+}
+
+function buildPhotographerReviews(photographer: FeedPost['companion'], works: FeedPost[]): PhotographerReview[] {
+  const templates = [
+    '沟通很清楚，现场会主动找角度，出片速度也很稳。',
+    '路线安排紧凑，拍摄时会提醒动作和表情，整体体验轻松。',
+    '很会利用自然光，照片风格和样片接近，后期颜色干净。',
+    '准时到达，拍摄节奏舒服，适合第一次约拍的人。',
+    '构图有耐心，会根据现场人流快速换位置。'
+  ];
+  const names = ['Rui', 'Mia', 'Joey', 'Annie', 'Coco'];
+  const total = Math.min(5, Math.max(3, works.length + 2));
+
+  return Array.from({ length: total }, (_, index) => {
+    const post = works[index % works.length];
+    const rating = Math.max(4, Math.min(5, photographer.ratingAvg + (index % 2 === 0 ? 0.2 : -0.1)));
+    return {
+      id: `${photographer.id}-review-${index}`,
+      name: names[index % names.length],
+      rating,
+      text: templates[index % templates.length],
+      postTitle: getPostTitle(post),
+    };
+  });
+}
+
+function stableMetricSeed(value: string, range: number) {
+  return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0) % range;
+}
+
+function formatMetric(value: number) {
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}万`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return String(value);
 }
