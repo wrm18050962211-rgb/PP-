@@ -458,8 +458,8 @@ function FilterSheet({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3" onClick={onClose}>
-      <section className="w-full max-w-md rounded-t-[18px] bg-white p-4 pb-5 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/70" onClick={onClose}>
+      <section className="h-full w-[84%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <SheetHeader title="筛选" onClose={onClose} />
         <div className="mt-4 space-y-4">
           <FilterGroup label="日期" options={dateOptions} value={filters.date} onChange={(date) => onChange({ date })} />

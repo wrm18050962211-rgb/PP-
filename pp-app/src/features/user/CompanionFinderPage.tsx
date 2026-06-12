@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, LocateFixed, MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
+import { CalendarDays, MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listFeedPosts } from '../../services/feedService';
@@ -59,51 +59,30 @@ export function CompanionFinderPage() {
 
   return (
     <div className="min-h-dvh bg-[#050505] pb-24 text-white">
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-black/92 px-3 pb-2.5 pt-2.5 backdrop-blur-xl">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-black/92 px-3 py-2.5 backdrop-blur-xl">
         <div className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto scrollbar-none">
-            {(Object.keys(filterLabels) as FilterKey[]).map((key) => (
-              <label key={key} className="relative h-8 shrink-0">
-                <select
-                  className="h-8 w-[88px] appearance-none rounded-full bg-white py-0 pl-2.5 pr-6 text-xs font-black text-black outline-none"
-                  value={filters[key]}
-                  onChange={(event) => setFilters((current) => ({ ...current, [key]: event.target.value }))}
-                  aria-label={filterLabels[key]}
-                >
-                  {filterOptions[key].map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500" size={13} />
-              </label>
-            ))}
-          </div>
-
-          <button className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-black" aria-label="筛选" onClick={() => setFilterOpen('all')}>
-            <SlidersHorizontal size={16} />
+          <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full bg-white px-3 text-sm font-semibold text-black ring-1 ring-white/20">
+            <Search size={16} className="shrink-0 text-zinc-500" />
+            <input
+              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-zinc-500"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索地点、风格或特殊要求"
+            />
+          </label>
+          <button
+            className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-full ${
+              activeFilterCount ? 'bg-white text-black' : 'bg-white/10 text-white ring-1 ring-white/16'
+            }`}
+            aria-label="筛选"
+            onClick={() => setFilterOpen('all')}
+          >
+            <SlidersHorizontal size={18} />
             {activeFilterCount ? (
-              <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-black px-1 text-[9px] font-black text-white ring-1 ring-white">
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-black px-1 text-[10px] font-black text-white ring-1 ring-white/50">
                 {activeFilterCount}
               </span>
             ) : null}
-          </button>
-        </div>
-
-        <div className="mt-2 flex items-center gap-2">
-          <div className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-full bg-white/10 px-2.5 text-xs font-semibold text-white ring-1 ring-white/10">
-            <Search size={14} className="shrink-0 text-white/52" />
-            <input
-              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-white/40"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="有特殊要求再搜索"
-            />
-          </div>
-          <button className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-white px-2.5 text-xs font-black text-black">
-            <LocateFixed size={14} />
-            附近
           </button>
         </div>
       </header>
@@ -204,8 +183,8 @@ function CompanionFilterSheet({
   const groups = mode === 'all' ? (Object.keys(filterLabels) as FilterKey[]) : [mode];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3" onClick={onClose}>
-      <section className="w-full max-w-md rounded-t-[18px] bg-white p-4 pb-5 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/70" onClick={onClose}>
+      <section className="h-full w-[84%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-base font-black">选择拍摄条件</h2>
           <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" onClick={onClose} aria-label="关闭">
