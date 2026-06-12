@@ -29,12 +29,12 @@ const initialFinderFilters: FinderFilters = {
 
 export function CompanionFinderPage() {
   const [params] = useSearchParams();
-  const [query, setQuery] = useState('');
-  const [filterOpen, setFilterOpen] = useState<FilterKey | 'all' | null>(null);
-  const [filters, setFilters] = useState<FinderFilters>(initialFinderFilters);
   const sameStylePostId = params.get('sameStyle');
   const posts = listFeedPosts();
   const sameStylePost = posts.find((post) => post.id === sameStylePostId);
+  const [query, setQuery] = useState(() => params.get('query') ?? '');
+  const [filterOpen, setFilterOpen] = useState<FilterKey | 'all' | null>(null);
+  const [filters, setFilters] = useState<FinderFilters>(() => createInitialFinderFilters(params, sameStylePost));
   const activeFilterCount = getActiveFilterCount(filters);
   const companions = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -246,6 +246,25 @@ function matchesBudgetOption(option: string, priceCents: number) {
   if (option === filterOptions.budget[0]) return true;
   const budgetYuan = Number(option.match(/\d+/)?.[0]);
   return Number.isFinite(budgetYuan) ? priceCents <= budgetYuan * 100 : true;
+}
+
+function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: ReturnType<typeof listFeedPosts>[number]) {
+  return {
+    area: matchFilterOption('area', params.get('area') ?? sameStylePost?.locationName ?? sameStylePost?.companion.areas[0]),
+    time: matchFilterOption('time', params.get('time')),
+    style: matchFilterOption('style', params.get('style') ?? sameStylePost?.activity ?? sameStylePost?.styleTags[0]),
+    budget: matchFilterOption('budget', params.get('budget')),
+  };
+}
+
+function matchFilterOption(key: FilterKey, value?: string | null) {
+  if (!value) return initialFinderFilters[key];
+  const normalized = value.trim().toLowerCase();
+  return (
+    filterOptions[key].find((option) => option.toLowerCase() === normalized) ??
+    filterOptions[key].find((option) => option !== initialFinderFilters[key] && (option.toLowerCase().includes(normalized) || normalized.includes(option.toLowerCase()))) ??
+    initialFinderFilters[key]
+  );
 }
 
 function getActiveFilterCount(filters: FinderFilters) {
