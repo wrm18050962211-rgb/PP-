@@ -1,5 +1,5 @@
-import { ArrowLeft, Camera, Heart, MapPin, MessageCircle, Share2, Star, UserRound, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Camera, ChevronLeft, ChevronRight, Heart, MapPin, MessageCircle, Share2, Star, UserRound, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
@@ -25,8 +25,10 @@ export function PostDetail() {
 
 function PostDetailContent({ postId }: { postId?: string }) {
   const { workDraft } = useAppData();
+  const imageTrackRef = useRef<HTMLDivElement>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [drawer, setDrawer] = useState<DrawerType>(null);
+  const [activeImage, setActiveImage] = useState(0);
   const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState('');
   const [remotePost, setRemotePost] = useState(() => getInitialPost(postId, workDraft));
@@ -36,6 +38,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const creator = buildCreator(post);
   const comments = buildComments(post, creator);
   const cover = post.images[0];
+  const images = post.images;
 
   useEffect(() => {
     let mounted = true;
@@ -56,6 +59,11 @@ function PostDetailContent({ postId }: { postId?: string }) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    setActiveImage(0);
+    imageTrackRef.current?.scrollTo({ left: 0 });
+  }, [post.id]);
+
   const handleShare = async () => {
     try {
       if (navigator.share) {
@@ -72,6 +80,21 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const openBooking = () => {
     setDrawer(null);
     setBookingOpen(true);
+  };
+
+  const scrollToImage = (index: number) => {
+    const track = imageTrackRef.current;
+    if (!track || images.length === 0) return;
+    const nextIndex = Math.min(Math.max(index, 0), images.length - 1);
+    track.scrollTo({ left: nextIndex * track.clientWidth, behavior: 'smooth' });
+    setActiveImage(nextIndex);
+  };
+
+  const handleImageScroll = () => {
+    const track = imageTrackRef.current;
+    if (!track || track.clientWidth === 0 || images.length === 0) return;
+    const nextIndex = Math.round(track.scrollLeft / track.clientWidth);
+    setActiveImage(Math.min(Math.max(nextIndex, 0), images.length - 1));
   };
 
   return (
@@ -99,10 +122,54 @@ function PostDetailContent({ postId }: { postId?: string }) {
 
       <main className="h-dvh snap-y snap-mandatory overflow-y-auto bg-black">
         <section className="relative h-dvh snap-start overflow-hidden bg-black">
-          <img className="absolute inset-0 h-full w-full object-cover" src={cover?.url} alt={post.location} />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/24 via-transparent to-black/68" />
+          <div ref={imageTrackRef} className="absolute inset-0 flex snap-x snap-mandatory overflow-x-auto scroll-smooth scrollbar-none" onScroll={handleImageScroll}>
+            {images.map((image, index) => (
+              <figure key={image.id} className="relative h-full w-full shrink-0 snap-center bg-black">
+                <img className="h-full w-full object-cover" src={image.url} alt={`${post.location} 第${index + 1}张`} loading={index === 0 ? 'eager' : 'lazy'} />
+              </figure>
+            ))}
+          </div>
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/24 via-transparent to-black/68" />
+
+          {images.length > 1 ? (
+            <>
+              <button
+                className="absolute left-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/24 text-white/80 backdrop-blur"
+                onClick={() => scrollToImage(activeImage - 1)}
+                aria-label="上一张作品图"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <button
+                className="absolute right-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/24 text-white/80 backdrop-blur"
+                onClick={() => scrollToImage(activeImage + 1)}
+                aria-label="下一张作品图"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </>
+          ) : null}
+
           <div className="absolute inset-x-0 bottom-0 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-24">
             <div className="max-w-[92%] space-y-2">
+              {images.length > 1 ? (
+                <div className="flex items-center gap-2 text-[11px] font-bold text-white/58">
+                  <span className="rounded-full bg-white/12 px-2.5 py-1 backdrop-blur">
+                    {activeImage + 1}/{images.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {images.map((image, index) => (
+                      <button
+                        key={image.id}
+                        className={`h-1.5 rounded-full transition-all ${index === activeImage ? 'w-4 bg-white/72' : 'w-1.5 bg-white/30'}`}
+                        onClick={() => scrollToImage(index)}
+                        aria-label={`查看第${index + 1}张作品图`}
+                      />
+                    ))}
+                  </div>
+                  <span>左右滑动看整组</span>
+                </div>
+              ) : null}
               <p className="flex items-center gap-1 text-xs font-semibold text-white/62">
                 <MapPin size={13} />
                 {post.locationName || post.location}
