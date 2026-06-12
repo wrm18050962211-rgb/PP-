@@ -1,10 +1,16 @@
 import { CalendarDays, MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { listFeedPosts } from '../../services/feedService';
+import { getPostTitle, listFeedPosts } from '../../services/feedService';
+import type { FeedPost } from '../../types/api';
 
 type FilterKey = 'area' | 'time' | 'style' | 'budget';
 type FinderFilters = Record<FilterKey, string>;
+type PhotographerResult = {
+  companion: FeedPost['companion'];
+  posts: FeedPost[];
+  post: FeedPost;
+};
 
 const filterOptions: Record<FilterKey, string[]> = {
   area: ['地点不限', '武康路', '安福路', '外滩', '静安寺', '徐家汇', '新天地'],
@@ -39,12 +45,19 @@ export function CompanionFinderPage() {
 
   const companions = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    return Array.from(new Map(posts.map((post) => [post.companion.id, { companion: post.companion, post }])).values()).filter(({ companion, post }) => {
+    const grouped = new Map<string, PhotographerResult>();
+    posts.forEach((post) => {
+      const current = grouped.get(post.companion.id);
+      if (current) {
+        current.posts.push(post);
+        return;
+      }
+      grouped.set(post.companion.id, { companion: post.companion, posts: [post], post });
+    });
+
+    return Array.from(grouped.values()).filter(({ companion, posts: portfolioPosts }) => {
       const searchable = [
-        post.location,
-        post.locationName,
-        post.activity,
-        ...post.styleTags,
+        ...portfolioPosts.flatMap((post) => [post.title, getPostTitle(post), post.location, post.locationName, post.activity, post.caption, ...post.styleTags]),
         companion.name,
         companion.gender,
         ...companion.tags,
@@ -69,7 +82,7 @@ export function CompanionFinderPage() {
               className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-zinc-500"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索地点、风格或特殊要求"
+              aria-label="搜索地点、风格或特殊要求"
             />
           </label>
           <button
@@ -102,25 +115,45 @@ export function CompanionFinderPage() {
       ) : null}
 
       <section className="grid grid-cols-2 gap-2 px-2 pt-2">
-        {companions.map(({ companion, post }, index) => {
+        {companions.map(({ companion, posts: portfolioPosts, post }, index) => {
           const activity = companion.activities[0];
           const slot = companion.slots.find((item) => item.status === 'available') || companion.slots[0];
           return (
             <article key={companion.id} className="overflow-hidden rounded-[2px] bg-[#151515] ring-1 ring-white/10">
-              <Link to={`/consumer/photographer/${companion.id}`} className="block" aria-label={`查看${companion.name}主页`}>
-                <div className="relative aspect-[0.78] bg-zinc-950">
-                  <img className="h-full w-full object-cover saturate-[0.86] contrast-[1.04]" src={companion.photo || post.images[0]?.url || companion.avatar} alt={companion.name} />
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/36 to-transparent px-2.5 pb-2 pt-12">
-                    <p className="truncate text-base font-black text-white">{companion.name}</p>
-                    <p className="mt-0.5 flex items-center gap-1 text-[11px] font-bold text-white/72">
-                      <Star size={12} className="fill-white/70 text-white/70" />
+              <div className="flex aspect-[0.78] snap-x snap-mandatory overflow-x-auto scroll-smooth bg-zinc-950 scrollbar-none">
+                {portfolioPosts.map((work, workIndex) => (
+                  <Link
+                    key={work.id}
+                    to={`/consumer/post/${work.id}`}
+                    className="relative h-full w-full shrink-0 snap-center"
+                    aria-label={`查看${companion.name}作品 ${getPostTitle(work)}`}
+                  >
+                    <img
+                      className="h-full w-full object-cover saturate-[0.9] contrast-[1.05]"
+                      src={work.images[0]?.url || companion.photo || companion.avatar}
+                      alt={getPostTitle(work)}
+                      loading={index < 2 && workIndex === 0 ? 'eager' : 'lazy'}
+                    />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/78 via-black/24 to-transparent px-2 pb-2 pt-12">
+                      <p className="line-clamp-1 text-xs font-black text-white/86">{getPostTitle(work)}</p>
+                      <p className="mt-0.5 truncate text-[10px] font-semibold text-white/54">{work.locationName || work.location}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              <div className="space-y-2 p-2.5">
+                <Link to={`/consumer/photographer/${companion.id}`} className="flex min-w-0 items-center gap-2" aria-label={`查看${companion.name}主页`}>
+                  <img className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-white/18" src={companion.avatar || companion.photo || post.images[0]?.url} alt={companion.name} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black text-white">{companion.name}</p>
+                    <p className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-white/50">
+                      <Star size={10} className="fill-white/46 text-white/46" />
                       推荐 {96 - index * 3} · {companion.ratingAvg.toFixed(1)}
                     </p>
                   </div>
-                </div>
-              </Link>
+                </Link>
 
-              <div className="space-y-2 p-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-black text-white">{activity?.name || post.activity}</span>
                   <span className="shrink-0 text-xs font-black text-white/72">¥{Math.round((activity?.priceCents || 0) / 100)}起</span>
