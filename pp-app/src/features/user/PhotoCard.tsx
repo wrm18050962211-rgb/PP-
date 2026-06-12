@@ -2,11 +2,28 @@ import { Heart, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { FeedPost } from '../../types/api';
 
-export function PhotoCard({ post, priority = false }: { post: FeedPost; priority?: boolean }) {
-  const aspectClass = post.id.charCodeAt(post.id.length - 1) % 2 === 0 ? 'aspect-[0.72]' : 'aspect-[0.86]';
+export type PhotoCardVariant = 'tall' | 'portrait' | 'soft' | 'wide';
 
+const aspectByVariant: Record<PhotoCardVariant, string> = {
+  tall: 'aspect-[0.66]',
+  portrait: 'aspect-[0.78]',
+  soft: 'aspect-[0.92]',
+  wide: 'aspect-[1.72]',
+};
+
+export function PhotoCard({
+  post,
+  priority = false,
+  variant = 'portrait',
+  className = '',
+}: {
+  post: FeedPost;
+  priority?: boolean;
+  variant?: PhotoCardVariant;
+  className?: string;
+}) {
   return (
-    <article className={`relative overflow-hidden rounded-[2px] bg-zinc-950 ring-1 ring-white/8 ${aspectClass}`}>
+    <article className={`relative overflow-hidden rounded-[2px] bg-zinc-950 ring-1 ring-white/8 ${aspectByVariant[variant]} ${className}`}>
       <Link to={`/consumer/post/${post.id}`} className="block h-full w-full" aria-label={`查看${post.location}作品详情`}>
         <img
           className="h-full w-full object-cover saturate-[0.82] contrast-[1.06] transition duration-500 active:scale-[1.025]"
