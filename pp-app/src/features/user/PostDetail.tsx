@@ -169,8 +169,29 @@ function PostDetailContent({ postId }: { postId?: string }) {
           ) : null}
         </section>
 
-        <section className="min-h-0 flex-1 overflow-hidden bg-black/92 px-4 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-2 text-white">
-          <div className="flex items-center justify-between">
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-black/92 px-4 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-3 text-white">
+          <p className="text-[13px] leading-5 text-white/84">
+            <button className="mr-1 font-black text-white" onClick={() => setDrawer('creator')}>
+              {creator.name}
+            </button>
+            {post.caption}
+          </p>
+
+          <div className="mt-3 flex items-end justify-between gap-4">
+            <button className="flex min-w-0 items-center gap-1 text-xs font-semibold text-white/58" onClick={() => setDrawer('photographer')}>
+              <MapPin size={13} className="shrink-0" />
+              <span className="truncate">{post.locationName || post.location}</span>
+            </button>
+            <div className="flex max-w-[58%] flex-wrap justify-end gap-1.5">
+              {post.styleTags.slice(0, 3).map((tag) => (
+                <span key={tag} className="border border-white/12 px-2 py-1 text-[11px] font-bold text-white/48">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-auto flex items-center justify-between pt-3">
             <div className="flex items-center gap-4">
               <button
                 className="inline-flex items-center gap-1.5 text-white"
@@ -202,26 +223,6 @@ function PostDetailContent({ postId }: { postId?: string }) {
             >
               <Bookmark size={28} fill={bookmarked ? 'currentColor' : 'none'} />
             </button>
-          </div>
-
-          <button className="mt-2 flex items-center gap-1 text-xs font-semibold text-white/58" onClick={() => setDrawer('photographer')}>
-            <MapPin size={13} />
-            {post.locationName || post.location}
-          </button>
-
-          <p className="mt-2 text-[13px] leading-5 text-white/84">
-            <button className="mr-1 font-black text-white" onClick={() => setDrawer('creator')}>
-              {creator.name}
-            </button>
-            {post.caption}
-          </p>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {post.styleTags.slice(0, 4).map((tag) => (
-              <span key={tag} className="border border-white/12 px-2.5 py-1 text-[11px] font-bold text-white/48">
-                {tag}
-              </span>
-            ))}
           </div>
         </section>
       </main>
