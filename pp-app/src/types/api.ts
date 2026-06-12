@@ -237,6 +237,7 @@ export type Companion = {
 
 export type FeedPost = {
   id: string;
+  title?: string;
   location: string;
   timeLabel: string;
   caption: string;

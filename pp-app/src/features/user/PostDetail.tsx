@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { BookingSheet } from '../../components/BookingSheet';
-import { buildApprovedWorkPost, fetchPostDetail, getPostDetail } from '../../services/feedService';
+import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle } from '../../services/feedService';
 import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
 
 type Comment = {
@@ -39,6 +39,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const [remotePost, setRemotePost] = useState(() => getInitialPost(postId, workDraft));
   const localPost = useMemo(() => buildApprovedWorkPost(workDraft), [workDraft]);
   const post = localPost && localPost.id === postId ? localPost : remotePost;
+  const postTitle = getPostTitle(post);
   const photographer = post.companion;
   const creator = buildCreator(post);
   const cover = post.images[0];
@@ -82,7 +83,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const handleShare = async () => {
     try {
       if (navigator.share) {
-        await navigator.share({ title: post.location, text: post.caption, url: window.location.href });
+        await navigator.share({ title: postTitle, text: post.caption, url: window.location.href });
         return;
       }
       await navigator.clipboard.writeText(window.location.href);
@@ -212,7 +213,8 @@ function PostDetailContent({ postId }: { postId?: string }) {
           </div>
 
           <div className="mt-3">
-            <p className={`${captionExpanded ? '' : 'line-clamp-1'} text-[13px] leading-5 text-white/84`}>
+            <h1 className="line-clamp-1 text-[14px] font-black leading-5 text-white">{postTitle}</h1>
+            <p className={`mt-1 ${captionExpanded ? '' : 'line-clamp-1'} text-[13px] leading-5 text-white/84`}>
               <button className="mr-1 font-black text-white" onClick={() => setDrawer('creator')}>
                 {creator.name}
               </button>

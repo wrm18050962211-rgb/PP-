@@ -1,5 +1,6 @@
 import { Camera, MapPin, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getPostTitle } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
 import { PhotoCard, type PhotoCardVariant } from './PhotoCard';
 
@@ -170,12 +171,20 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
   return (
     <Link
       to={tile.href}
-      className={`flex h-14 items-center gap-2 overflow-hidden rounded-[2px] border border-white/8 bg-white/[0.055] px-2.5 text-white/62 backdrop-blur-sm transition hover:bg-white/[0.085] ${className}`}
+      className={`flex h-10 items-center gap-1.5 overflow-hidden rounded-[2px] bg-white/[0.035] px-2 text-white/54 backdrop-blur-sm transition hover:bg-white/[0.07] ${className}`}
+      title={[tile.eyebrow, tile.title, tile.meta].filter(Boolean).join(' · ')}
     >
-      <Icon size={12} className="shrink-0 text-white/38" />
-      <span className="min-w-0">
-        <span className="block text-[9px] font-bold leading-3 text-white/34">{tile.eyebrow}</span>
-        <span className="block truncate text-xs font-semibold leading-4 text-white/70">{tile.title}</span>
+      <Icon size={11} className="shrink-0 text-white/30" />
+      <span className="min-w-0 truncate text-[11px] font-semibold leading-none text-white/58">
+        <span className="text-white/34">{tile.eyebrow}</span>
+        <span className="px-1 text-white/22">·</span>
+        <span>{tile.title}</span>
+        {tile.meta ? (
+          <>
+            <span className="px-1 text-white/22">·</span>
+            <span className="text-white/38">{tile.meta}</span>
+          </>
+        ) : null}
       </span>
     </Link>
   );
@@ -188,7 +197,7 @@ function createPlaceRecommendation(post?: FeedPost, id = 'recommend-place'): Rec
     kind: 'place',
     eyebrow: '拍摄地',
     title: area,
-    meta: '',
+    meta: post ? getPostTitle(post) : '',
     href: `/consumer/companions?area=${encodeURIComponent(area)}`,
   };
 }
@@ -201,20 +210,20 @@ function createPhotographerRecommendation(post?: FeedPost, id = 'recommend-photo
     kind: 'photographer',
     eyebrow: '摄影师',
     title: photographer,
-    meta: '',
+    meta: post ? getPostTitle(post) : '',
     href: `/consumer/companions?style=${encodeURIComponent(style)}`,
   };
 }
 
 function createSameStyleRecommendation(post?: FeedPost, id = 'recommend-same-style'): RecommendationTile {
-  const title = post?.locationName || post?.location || '同款作品';
+  const title = post ? getPostTitle(post) : '同款作品';
   const style = post?.activity || post?.styleTags[0] || '街拍';
   return {
     id,
     kind: 'same-style',
     eyebrow: '样板',
     title,
-    meta: '',
+    meta: post?.companion.name || '',
     href: `/consumer/companions?sameStyle=${encodeURIComponent(post?.id ?? '')}&style=${encodeURIComponent(style)}`,
   };
 }

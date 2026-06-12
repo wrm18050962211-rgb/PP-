@@ -3,11 +3,11 @@ import type { ActivityPricing, AvailabilitySlot, Companion, CompanionExtra, Feed
 import { apiGet, isApiEnabled } from './apiClient';
 
 export function listFeedPosts(): FeedPost[] {
-  return getExtendedFeedPosts();
+  return getExtendedFeedPosts().map(withPostTitle);
 }
 
 export function getPostDetail(postId?: string): FeedPost {
-  const extendedFeedPosts = getExtendedFeedPosts();
+  const extendedFeedPosts = listFeedPosts();
   return extendedFeedPosts.find((post) => post.id === postId) ?? extendedFeedPosts[0];
 }
 
@@ -25,6 +25,12 @@ export function buildApprovedWorkPost(workDraft: PublishedWorkDraft): FeedPost |
 
   return {
     id: 'local-approved-work',
+    title: getPostTitle({
+      location: workDraft.location,
+      caption: workDraft.caption,
+      activity: workDraft.activity,
+      styleTags: workDraft.tags,
+    }),
     location: workDraft.location,
     timeLabel: workDraft.timeLabel,
     caption: workDraft.caption,
@@ -47,10 +53,42 @@ export async function fetchFeedPosts(): Promise<FeedPost[]> {
 
   try {
     const response = await apiGet<{ items: FeedPost[] }>('/api/feed/posts');
-    return response.success ? response.data.items : listFeedPosts();
+    return response.success ? response.data.items.map(withPostTitle) : listFeedPosts();
   } catch {
     return listFeedPosts();
   }
+}
+
+export function getPostTitle(post: Partial<FeedPost>): string {
+  const explicitTitle = post.title?.trim();
+  if (explicitTitle) return explicitTitle;
+
+  const location = getShortPostLocation(post);
+  const style = post.activity || post.styleTags?.[0] || '';
+  const captionLead = getCaptionLead(post.caption);
+  return [location, style].filter(Boolean).join(' ') || captionLead || '作品样板';
+}
+
+function withPostTitle(post: FeedPost): FeedPost {
+  const title = getPostTitle(post);
+  return post.title === title ? post : { ...post, title };
+}
+
+function getShortPostLocation(post: Partial<FeedPost>) {
+  const raw = post.locationName || post.location || post.companion?.areas?.[0] || '';
+  return raw
+    .replace(/^上海\s*[·\-｜|路]\s*/, '')
+    .split(/[·\-｜|]/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .pop() || raw.trim();
+}
+
+function getCaptionLead(caption?: string) {
+  return (caption ?? '')
+    .split(/[，。,.]/)[0]
+    .trim()
+    .slice(0, 16);
 }
 
 function getExtendedFeedPosts(): FeedPost[] {
@@ -452,7 +490,7 @@ export async function fetchPostDetail(postId?: string): Promise<FeedPost> {
 
   try {
     const response = await apiGet<FeedPost>(`/api/posts/${postId}`);
-    return response.success ? response.data : getPostDetail(postId);
+    return response.success ? withPostTitle(response.data) : getPostDetail(postId);
   } catch {
     return getPostDetail(postId);
   }

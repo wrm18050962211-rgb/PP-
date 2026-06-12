@@ -157,6 +157,7 @@ function matchesDuration(activity: ActivityPricing, durationMinutes?: number) {
 
 function isPostSearchMatch(post: FeedPost, searchText: string) {
   const searchableFields = [
+    post.title,
     post.location,
     post.timeLabel,
     post.caption,

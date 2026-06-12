@@ -133,12 +133,35 @@ function listFeedPosts(store, url) {
   return store.posts
     .filter((post) => post.status === 'approved' && post.isFeedVisible !== false)
     .filter((post) => !city || normalize(post.city).includes(city) || normalize(post.location).includes(city))
-    .slice(0, limit);
+    .slice(0, limit)
+    .map(withPostTitle);
 }
 
 function getPost(store, postId) {
   const post = store.posts.find((item) => item.id === postId);
-  return post ? json(post) : error(404, 'NOT_FOUND', 'Post not found');
+  return post ? json(withPostTitle(post)) : error(404, 'NOT_FOUND', 'Post not found');
+}
+
+function withPostTitle(post) {
+  const title = buildPostTitle(post);
+  return post.title === title ? post : { ...post, title };
+}
+
+function buildPostTitle(post = {}) {
+  const explicitTitle = normalize(post.title);
+  if (explicitTitle) return explicitTitle;
+
+  const location = shortPostLocation(post);
+  const style = normalize(post.activity) || normalize(post.styleTags?.[0]);
+  const captionLead = normalize(post.caption).split(/[，。,.]/)[0]?.slice(0, 16);
+  return [location, style].filter(Boolean).join(' ') || captionLead || '作品样板';
+}
+
+function shortPostLocation(post = {}) {
+  const raw = normalize(post.locationName) || normalize(post.location) || normalize(post.companion?.areas?.[0]);
+  const simplified = raw.replace(/^上海\s*[·\-｜|路]\s*/, '');
+  const parts = simplified.split(/[·\-｜|]/).map((part) => part.trim()).filter(Boolean);
+  return parts.at(-1) || raw;
 }
 
 function createMediaUploadPolicy(store, body = {}) {
