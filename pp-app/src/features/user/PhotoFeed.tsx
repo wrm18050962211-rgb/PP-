@@ -21,13 +21,6 @@ type DiscoveryFeedItem =
   | { type: 'post'; post: FeedPost; index: number }
   | { type: 'recommendation'; tile: RecommendationTile; index: number };
 
-const gridClassByVariant: Record<PhotoCardVariant, string> = {
-  tall: '[grid-row:span_44/span_44]',
-  portrait: '[grid-row:span_38/span_38]',
-  soft: '[grid-row:span_32/span_32]',
-  wide: 'col-span-2 [grid-row:span_26/span_26]',
-};
-
 export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
   if (posts.length === 0) {
     return (
@@ -44,7 +37,7 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
 
   return (
     <section className="bg-[#050505] px-2 pb-24 pt-2">
-      <div className="grid grid-cols-2 gap-2 [grid-auto-flow:dense] [grid-auto-rows:6px]">
+      <div className="columns-2 gap-2">
         {feedItems.map((item) => {
           if (item.type === 'recommendation') {
             return <RecommendationCard key={item.tile.id} tile={item.tile} />;
@@ -57,8 +50,7 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
               post={item.post}
               priority={item.index < 4}
               variant={layout.variant}
-              fill
-              className={layout.spanAll ? gridClassByVariant.wide : gridClassByVariant[layout.variant]}
+              className={`mb-2 break-inside-avoid ${layout.spanAll ? '[column-span:all]' : ''}`}
             />
           );
         })}
@@ -86,7 +78,7 @@ function getDiscoveryLayoutRule(post: FeedPost, index: number): FeedLayoutRule {
   const cover = post.images[0];
   const ratio = cover?.width && cover?.height ? cover.width / cover.height : 0;
   const isRealHorizontal = ratio >= 1.16;
-  const isEditorialBreak = index > 0 && index % 9 === 5;
+  const isEditorialBreak = index > 0 && index % 11 === 6;
 
   // Discovery feed rule: horizontal images span both columns; otherwise every few cards
   // one work is promoted into a wide magazine card, while vertical cards alternate heights.
@@ -104,7 +96,7 @@ function RecommendationCard({ tile }: { tile: RecommendationTile }) {
   return (
     <Link
       to={tile.href}
-      className="col-span-1 flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-[2px] border border-white/10 bg-white px-3 py-2.5 text-black [grid-row:span_16/span_16]"
+      className="mb-2 flex min-h-24 break-inside-avoid flex-col justify-between overflow-hidden rounded-[2px] border border-white/10 bg-white px-3 py-2.5 text-black"
     >
       <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
         <Icon size={11} />
