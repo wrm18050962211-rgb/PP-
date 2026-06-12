@@ -19,7 +19,8 @@ type RecommendationTile = {
 
 type FeedColumnItem =
   | { type: 'post'; post: FeedPost; index: number }
-  | { type: 'recommendation'; tile: RecommendationTile };
+  | { type: 'recommendation'; tile: RecommendationTile }
+  | { type: 'spacer'; id: string; heightUnits: number };
 
 type FeedSection = {
   id: string;
@@ -72,6 +73,10 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
 function renderColumnItem(item: FeedColumnItem, priority: boolean) {
   if (item.type === 'recommendation') {
     return <RecommendationCard key={item.tile.id} tile={item.tile} />;
+  }
+
+  if (item.type === 'spacer') {
+    return <ColumnSpacer key={item.id} heightUnits={item.heightUnits} />;
   }
 
   const layout = getDiscoveryLayoutRule(item.post, item.index);
@@ -129,7 +134,7 @@ function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
         insertColumnItem(rightColumn, rightTile, 'middle');
       }
 
-      balanceColumnsBeforeHero(leftColumn, rightColumn, sectionIndex, firstPost, lastPost);
+      balanceColumnsBeforeHero(leftColumn, rightColumn, sectionIndex);
     }
 
     sections.push({
@@ -143,21 +148,15 @@ function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
   return sections;
 }
 
-function balanceColumnsBeforeHero(leftColumn: FeedColumnItem[], rightColumn: FeedColumnItem[], sectionIndex: number, firstPost?: FeedPost, lastPost?: FeedPost) {
+function balanceColumnsBeforeHero(leftColumn: FeedColumnItem[], rightColumn: FeedColumnItem[], sectionIndex: number) {
   const columns: [FeedColumnItem[], FeedColumnItem[]] = [leftColumn, rightColumn];
   const heights = columns.map(estimateColumnHeight);
   const shorterIndex = heights[0] <= heights[1] ? 0 : 1;
   const diff = Math.abs(heights[0] - heights[1]);
 
-  if (diff < 0.18) return;
+  if (diff < 0.14) return;
 
-  const post = shorterIndex === 0 ? firstPost : lastPost;
-  const tile =
-    sectionIndex % 3 === 0
-      ? createPhotographerRecommendation(post, `recommend-balance-photographer-${sectionIndex}`)
-      : createSameStyleRecommendation(post, `recommend-balance-style-${sectionIndex}`);
-
-  insertColumnItem(columns[shorterIndex], { type: 'recommendation', tile }, 'end');
+  insertColumnItem(columns[shorterIndex], { type: 'spacer', id: `column-spacer-${sectionIndex}-${shorterIndex}`, heightUnits: diff }, 'end');
 }
 
 function estimateColumnHeight(column: FeedColumnItem[]) {
@@ -166,6 +165,7 @@ function estimateColumnHeight(column: FeedColumnItem[]) {
 
 function estimateItemHeight(item: FeedColumnItem) {
   if (item.type === 'recommendation') return 0.16;
+  if (item.type === 'spacer') return item.heightUnits;
   const variant = getDiscoveryLayoutRule(item.post, item.index).variant;
   if (variant === 'tall') return 1.35;
   if (variant === 'portrait') return 1.22;
@@ -219,6 +219,18 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
         ) : null}
       </span>
     </Link>
+  );
+}
+
+function ColumnSpacer({ heightUnits }: { heightUnits: number }) {
+  const clampedUnits = Math.max(0.16, Math.min(heightUnits, 0.72));
+
+  return (
+    <div
+      className="bg-[#050505]"
+      aria-hidden="true"
+      style={{ height: `calc((min(100vw, 28rem) - 1px) * ${clampedUnits / 2})` }}
+    />
   );
 }
 
