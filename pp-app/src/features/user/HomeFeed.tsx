@@ -1,4 +1,4 @@
-import { ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
@@ -488,6 +488,7 @@ function SearchOverlay({
   onClearHistory: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const previewPosts = useMemo(() => getSearchPreviewPosts(posts, value), [posts, value]);
   const suggestionTiles = useMemo(() => getSearchSuggestionTiles(suggestions, posts), [posts, suggestions]);
 
@@ -524,22 +525,45 @@ function SearchOverlay({
                   <X size={14} />
                 </button>
               ) : null}
+              {history.length ? (
+                <button
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/8 text-white/58 transition hover:bg-white/12"
+                  onClick={() => setHistoryOpen((open) => !open)}
+                  aria-label={historyOpen ? '收起历史记录' : '展开历史记录'}
+                  type="button"
+                >
+                  <ChevronDown className={`transition-transform duration-200 ${historyOpen ? 'rotate-180' : ''}`} size={16} />
+                </button>
+              ) : null}
               <button className="border-l border-white/10 pl-3 text-sm font-black text-white" onClick={() => onSubmit(value)}>
                 搜索
               </button>
             </div>
 
-            {history.length ? (
+            {historyOpen && history.length ? (
               <div className="absolute inset-x-0 top-[56px] z-20 rounded-[18px] border border-white/8 bg-[#24242a]/96 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.32)] backdrop-blur-xl">
                 <div className="mb-2 flex items-center justify-between px-1">
                   <span className="text-[11px] font-black text-white/54">历史记录</span>
-                  <button className="text-[11px] font-bold text-white/34" onClick={onClearHistory}>
+                  <button
+                    className="text-[11px] font-bold text-white/34"
+                    onClick={() => {
+                      onClearHistory();
+                      setHistoryOpen(false);
+                    }}
+                  >
                     清空
                   </button>
                 </div>
                 <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
                   {history.map((item) => (
-                    <button key={item} className="h-8 shrink-0 rounded-full bg-white/[0.07] px-3 text-xs font-semibold text-white/78" onClick={() => onPick(item)}>
+                    <button
+                      key={item}
+                      className="h-8 shrink-0 rounded-full bg-white/[0.07] px-3 text-xs font-semibold text-white/78"
+                      onClick={() => {
+                        onPick(item);
+                        setHistoryOpen(false);
+                      }}
+                    >
                       {item}
                     </button>
                   ))}
@@ -549,7 +573,7 @@ function SearchOverlay({
           </div>
         </div>
 
-        <section className={history.length ? 'mt-24' : 'mt-8'}>
+        <section className="mt-5">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-base font-black text-white/86">猜你想搜</h2>
             <span className="text-xs font-bold text-white/26">按风格找作品</span>
