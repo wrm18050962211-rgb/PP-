@@ -171,11 +171,11 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
   return (
     <Link
       to={tile.href}
-      className={`flex h-10 items-center gap-1.5 overflow-hidden rounded-[2px] bg-transparent px-2 text-white/54 transition active:bg-white/[0.04] ${className}`}
+      className={`flex h-8 items-center gap-1 overflow-hidden rounded-[2px] bg-transparent px-1.5 text-white/54 transition active:bg-white/[0.035] ${className}`}
       title={[tile.eyebrow, tile.title, tile.meta].filter(Boolean).join(' · ')}
     >
-      <Icon size={11} className="shrink-0 text-white/30" />
-      <span className="min-w-0 truncate text-[11px] font-semibold leading-none text-white/58">
+      <Icon size={10} className="shrink-0 text-white/28" />
+      <span className="min-w-0 truncate text-[10px] font-semibold leading-none text-white/54">
         <span className="text-white/34">{tile.eyebrow}</span>
         <span className="px-1 text-white/22">·</span>
         <span>{tile.title}</span>
