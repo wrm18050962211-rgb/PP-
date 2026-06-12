@@ -23,7 +23,7 @@ type FeedColumnItem =
 type FeedSection = {
   id: string;
   columns: [FeedColumnItem[], FeedColumnItem[]];
-  hero?: { post: FeedPost; index: number };
+  heroes: Array<{ post: FeedPost; index: number }>;
 };
 
 export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
@@ -57,7 +57,9 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
                 </div>
               ) : null}
 
-              {section.hero ? <PhotoCard post={section.hero.post} priority={section.hero.index < 4} variant="wide" className="w-full" /> : null}
+              {section.heroes.map((hero) => (
+                <PhotoCard key={hero.post.id} post={hero.post} priority={hero.index < 4} variant="wide" className="w-full" />
+              ))}
             </div>
           );
         })}
@@ -100,31 +102,49 @@ function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
       .filter((_, index) => index % 2 === 1)
       .map((item): FeedColumnItem => ({ type: 'post', post: item.post, index: item.index }));
 
-    const hero = horizontalItems[horizontalCursor];
-    if (hero) horizontalCursor += 1;
+    const heroCount = sectionIndex % 2 === 0 ? 1 : 2;
+    const heroes = horizontalItems.slice(horizontalCursor, horizontalCursor + heroCount);
+    horizontalCursor += heroes.length;
 
     if (verticalSlice.length > 0) {
-      const firstPost = verticalSlice[0]?.post ?? hero?.post;
-      const lastPost = verticalSlice[verticalSlice.length - 1]?.post ?? hero?.post;
-      leftColumn.push({ type: 'recommendation', tile: createPlaceRecommendation(firstPost, `recommend-place-${sectionIndex}`) });
-      rightColumn.push({
+      const firstPost = verticalSlice[0]?.post ?? heroes[0]?.post;
+      const lastPost = verticalSlice[verticalSlice.length - 1]?.post ?? heroes[0]?.post;
+      const leftTile: FeedColumnItem = { type: 'recommendation', tile: createPlaceRecommendation(firstPost, `recommend-place-${sectionIndex}`) };
+      const rightTile: FeedColumnItem = {
         type: 'recommendation',
         tile:
           sectionIndex % 2 === 0
-            ? createSameStyleRecommendation(hero?.post ?? lastPost, `recommend-same-style-${sectionIndex}`)
+            ? createSameStyleRecommendation(heroes[0]?.post ?? lastPost, `recommend-same-style-${sectionIndex}`)
             : createPhotographerRecommendation(lastPost, `recommend-photographer-${sectionIndex}`),
-      });
+      };
+
+      if (sectionIndex % 2 === 0) {
+        insertColumnItem(leftColumn, leftTile, 'middle');
+        insertColumnItem(rightColumn, rightTile, 'end');
+      } else {
+        insertColumnItem(leftColumn, leftTile, 'end');
+        insertColumnItem(rightColumn, rightTile, 'middle');
+      }
     }
 
     sections.push({
       id: `feed-section-${sectionIndex}`,
       columns: [leftColumn, rightColumn],
-      hero,
+      heroes,
     });
     sectionIndex += 1;
   }
 
   return sections;
+}
+
+function insertColumnItem(column: FeedColumnItem[], item: FeedColumnItem, placement: 'middle' | 'end') {
+  if (placement === 'middle') {
+    column.splice(Math.min(1, column.length), 0, item);
+    return;
+  }
+
+  column.push(item);
 }
 
 function isHorizontalPost(post: FeedPost) {
