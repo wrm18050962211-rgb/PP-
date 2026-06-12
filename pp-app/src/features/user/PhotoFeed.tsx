@@ -91,7 +91,10 @@ function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
   let horizontalCursor = 0;
   let sectionIndex = 0;
 
-  while (verticalCursor < verticalItems.length || horizontalCursor < horizontalItems.length) {
+  while (verticalCursor + 6 <= verticalItems.length) {
+    const heroCount = sectionIndex % 2 === 0 ? 1 : 2;
+    if (horizontalCursor + heroCount > horizontalItems.length) break;
+
     const verticalSlice = verticalItems.slice(verticalCursor, verticalCursor + 6);
     verticalCursor += verticalSlice.length;
 
@@ -102,7 +105,6 @@ function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
       .filter((_, index) => index % 2 === 1)
       .map((item): FeedColumnItem => ({ type: 'post', post: item.post, index: item.index }));
 
-    const heroCount = sectionIndex % 2 === 0 ? 1 : 2;
     const heroes = horizontalItems.slice(horizontalCursor, horizontalCursor + heroCount);
     horizontalCursor += heroes.length;
 

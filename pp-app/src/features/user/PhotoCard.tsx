@@ -43,16 +43,16 @@ export function PhotoCard({
               event.currentTarget.src = getFallbackImage(post.id, variant);
             }}
           />
-        </div>
-        <div className="flex items-center justify-between gap-2 bg-[#161616] px-2.5 py-2">
-          <span className="inline-flex min-w-0 items-center gap-1 text-[11px] font-semibold tracking-wide text-white/58">
-            <MapPin size={11} className="shrink-0" />
-            <span className="truncate">{post.locationName || post.location}</span>
-          </span>
-          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold tabular-nums text-white/58">
-            <Heart size={11} fill="currentColor" />
-            {formatLikeCount(getLikeCount(post.id))}
-          </span>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/75 via-black/30 to-transparent px-2.5 pb-2 pt-8">
+            <span className="inline-flex min-w-0 items-center gap-1 text-[11px] font-semibold tracking-wide text-white/75 drop-shadow">
+              <MapPin size={11} className="shrink-0" />
+              <span className="truncate">{post.locationName || post.location}</span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold tabular-nums text-white/75 drop-shadow">
+              <Heart size={11} fill="currentColor" />
+              {formatLikeCount(getLikeCount(post.id))}
+            </span>
+          </div>
         </div>
       </Link>
     </article>
