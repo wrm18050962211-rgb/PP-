@@ -32,6 +32,10 @@ button {
   border: 0;
 }
 
+[class*="rounded"] {
+  border-radius: 3px !important;
+}
+
 .scrollbar-none {
   scrollbar-width: none;
 }

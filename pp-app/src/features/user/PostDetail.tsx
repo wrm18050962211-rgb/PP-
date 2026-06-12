@@ -108,9 +108,9 @@ function PostDetailContent({ postId }: { postId?: string }) {
           className={`grid h-10 w-10 place-items-center rounded-full backdrop-blur ${saved ? 'bg-white text-[#3f302c]' : 'bg-black/32 text-white'}`}
           onClick={() => {
             setSaved((current) => !current);
-            setToast(saved ? '已取消收藏' : '已收藏作品');
+            setToast(saved ? '已取消点赞' : '已点赞作品');
           }}
-          aria-label="喜欢作品"
+          aria-label="点赞作品"
         >
           <Heart size={18} fill={saved ? 'currentColor' : 'none'} />
         </button>
