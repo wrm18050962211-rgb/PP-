@@ -2,15 +2,17 @@ import { Bookmark, Camera, ChevronRight, Heart, ReceiptText, Settings, UserRound
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchAuthSession, switchMockRole } from '../../services/authService';
-import { getPostTitle, listFeedPosts } from '../../services/feedService';
+import { listFeedPosts } from '../../services/feedService';
 import type { AuthSession, FeedPost, UserRole } from '../../types/api';
+import { getCollectionSummary } from './UserCollectionPage';
 
 type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 
 const menuItems = [
   { icon: ReceiptText, label: '我的订单', desc: '预约、支付、售后', to: '/consumer/orders' },
-  { icon: Heart, label: '点赞的作品', desc: '喜欢过的图片', to: '/consumer' },
-  { icon: Bookmark, label: '收藏的作品', desc: '稍后再拍的样板', to: '/consumer' },
+  { icon: Heart, label: '点赞的作品', desc: '喜欢过的图片', to: '/consumer/likes' },
+  { icon: Bookmark, label: '收藏的作品', desc: '稍后再拍的样板', to: '/consumer/favorites' },
+  { icon: UserRound, label: '我的关注', desc: '我关注的人', to: '/consumer/following' },
   { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/consumer/mine' },
 ];
 
@@ -24,7 +26,9 @@ export function MinePage() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
   const activeRole = getUserFacingRole(session?.role);
-  const ownProfile = buildOwnProfileSummary(session, listFeedPosts()[0]);
+  const posts = listFeedPosts();
+  const ownProfile = buildOwnProfileSummary(session, posts[0]);
+  const collectionSummary = getCollectionSummary(posts);
 
   useEffect(() => {
     let mounted = true;
@@ -47,34 +51,35 @@ export function MinePage() {
 
   return (
     <div className="px-4 pb-5 pt-3">
-      <Link to={ownProfile.to} className="block rounded-[10px] bg-zinc-950 p-4 text-white active:scale-[0.99]">
-        <div className="flex items-center gap-3">
-          {ownProfile.avatar ? (
-            <img className="h-14 w-14 shrink-0 rounded-full object-cover ring-1 ring-white/20" src={ownProfile.avatar} alt={ownProfile.name} />
-          ) : (
-            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/15">
-              <UserRound size={24} />
-            </div>
-          )}
+      <section className="rounded-[10px] bg-zinc-950 p-4 text-white">
+        <Link to={ownProfile.to} className="flex items-center gap-3 active:scale-[0.99]">
+          <div className="shrink-0">
+            {ownProfile.avatar ? (
+              <img className="h-14 w-14 rounded-full object-cover ring-1 ring-white/20" src={ownProfile.avatar} alt={ownProfile.name} />
+            ) : (
+              <div className="grid h-14 w-14 place-items-center rounded-full bg-white/15">
+                <UserRound size={24} />
+              </div>
+            )}
+          </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-black text-white/44">{ownProfile.roleLabel}</p>
             <h2 className="mt-0.5 truncate text-xl font-black">{ownProfile.name}</h2>
             <p className="mt-1 truncate text-xs font-semibold text-white/54">{ownProfile.handle}</p>
           </div>
           <ChevronRight size={22} className="shrink-0 text-white/42" />
-        </div>
+        </Link>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          {ownProfile.stats.map((item) => (
-            <div key={item.label} className="rounded-[8px] bg-white/[0.07] px-2 py-2">
-              <p className="text-base font-black leading-5">{item.value}</p>
-              <p className="mt-0.5 text-[11px] font-semibold text-white/46">{item.label}</p>
-            </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {collectionSummary.map(({ icon: Icon, label, value, to }) => (
+            <Link key={label} to={to} className="rounded-[8px] bg-white/[0.07] px-2 py-3 text-center active:bg-white/[0.11]">
+              <Icon size={16} className="mx-auto text-white/58" />
+              <p className="mt-1 text-sm font-black leading-5">{label}</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-white/42">{value} 项</p>
+            </Link>
           ))}
         </div>
-
-        <p className="mt-3 line-clamp-2 text-xs font-semibold leading-5 text-white/58">{ownProfile.bio}</p>
-      </Link>
+      </section>
 
       <section className="mt-5 rounded-[10px] border border-zinc-200 bg-white p-3">
         <div className="grid grid-cols-2 gap-2">
@@ -126,12 +131,6 @@ function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
       name: photographer.name,
       handle: `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`,
       avatar: photographer.avatar || photographer.photo,
-      bio: photographer.bio,
-      stats: [
-        { label: '点赞', value: '1.6k' },
-        { label: '关注', value: 128 },
-        { label: '评价', value: photographer.ratingCount },
-      ],
     };
   }
 
@@ -143,12 +142,6 @@ function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
     name: creatorName,
     handle: `@${post.id.replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`,
     avatar: post.images[1]?.url || post.images[0]?.url || post.companion.avatar,
-    bio: `${getPostTitle(post)} · 我的作品、点赞、收藏和订单成片会沉淀在这里。`,
-    stats: [
-      { label: '点赞', value: '1.3k' },
-      { label: '关注', value: 128 },
-      { label: '合作', value: 1 },
-    ],
   };
 }
 

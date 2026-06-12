@@ -20,6 +20,7 @@ import { MinePage } from '../features/user/MinePage';
 import { OrdersPage } from '../features/user/OrdersPage';
 import { PhotographerProfilePage } from '../features/user/PhotographerProfilePage';
 import { PostDetail } from '../features/user/PostDetail';
+import { UserCollectionPage } from '../features/user/UserCollectionPage';
 
 export default function App() {
   return (
@@ -35,6 +36,9 @@ export default function App() {
         <Route path="photographer/:photographerId" element={<PhotographerProfilePage />} />
         <Route path="checkout/:postId" element={<CheckoutPage />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="likes" element={<UserCollectionPage mode="likes" />} />
+        <Route path="favorites" element={<UserCollectionPage mode="favorites" />} />
+        <Route path="following" element={<UserCollectionPage mode="following" />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="messages/:orderId" element={<MessagesPage />} />
         <Route path="mine" element={<MinePage />} />
