@@ -1,4 +1,4 @@
-import { Heart } from 'lucide-react';
+import { Heart, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { FeedPost } from '../../types/api';
 
@@ -6,7 +6,7 @@ export function PhotoCard({ post, priority = false }: { post: FeedPost; priority
   const aspectClass = post.id.charCodeAt(post.id.length - 1) % 2 === 0 ? 'aspect-[0.72]' : 'aspect-[0.86]';
 
   return (
-    <article className={`relative overflow-hidden rounded-[6px] bg-zinc-950 ring-1 ring-white/8 ${aspectClass}`}>
+    <article className={`relative overflow-hidden rounded-[2px] bg-zinc-950 ring-1 ring-white/8 ${aspectClass}`}>
       <Link to={`/consumer/post/${post.id}`} className="block h-full w-full" aria-label={`查看${post.location}作品详情`}>
         <img
           className="h-full w-full object-cover saturate-[0.82] contrast-[1.06] transition duration-500 active:scale-[1.025]"
@@ -15,7 +15,10 @@ export function PhotoCard({ post, priority = false }: { post: FeedPost; priority
           loading={priority ? 'eager' : 'lazy'}
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/62 via-black/18 to-transparent px-2.5 pb-2.5 pt-14">
-          <span className="min-w-0 truncate text-[11px] font-semibold tracking-wide text-white/74">{post.locationName || post.location}</span>
+          <span className="inline-flex min-w-0 items-center gap-1 text-[11px] font-semibold tracking-wide text-white/74">
+            <MapPin size={11} className="shrink-0" />
+            <span className="truncate">{post.locationName || post.location}</span>
+          </span>
           <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold tabular-nums text-white/74">
             <Heart size={11} fill="currentColor" />
             {formatLikeCount(getLikeCount(post.id))}
