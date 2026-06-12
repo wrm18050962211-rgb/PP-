@@ -1,4 +1,4 @@
-import { ArrowLeft, Camera, ChevronLeft, ChevronRight, Heart, MapPin, MessageCircle, Share2, Star, UserRound, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Heart, MapPin, MessageCircle, Share2, Star, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -99,30 +99,30 @@ function PostDetailContent({ postId }: { postId?: string }) {
 
   return (
     <div className="relative h-dvh overflow-hidden bg-black text-white">
-      <header className="fixed inset-x-0 top-0 z-40 mx-auto grid h-14 max-w-md grid-cols-[44px_minmax(70px,1fr)_44px_44px_minmax(70px,1fr)] items-center gap-2 px-3 text-white">
-        <Link to="/consumer" className="grid h-10 w-10 place-items-center rounded-full bg-black/32 backdrop-blur" aria-label="返回发现">
-          <ArrowLeft size={20} />
+      <header className="fixed inset-x-0 top-0 z-40 mx-auto grid h-16 max-w-md grid-cols-5 items-center gap-3 bg-gradient-to-b from-black/56 via-black/18 to-transparent px-4 text-white">
+        <Link to="/consumer" className="grid h-11 w-11 place-items-center rounded-full bg-black/30 text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)] ring-1 ring-white/12 backdrop-blur-md" aria-label="返回发现">
+          <ArrowLeft size={21} />
         </Link>
-        <TopBarAction icon={<UserRound size={15} />} label="创作者" onClick={() => setDrawer('creator')} />
+        <TopAvatarAction image={creator.avatar} label="查看创作者" onClick={() => setDrawer('creator')} />
         <button
-          className={`grid h-10 w-10 place-items-center rounded-full backdrop-blur ${saved ? 'bg-white text-[#3f302c]' : 'bg-black/32 text-white'}`}
+          className={`grid h-11 w-11 place-items-center rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.2)] ring-1 ring-white/12 backdrop-blur-md ${saved ? 'bg-white text-black' : 'bg-black/30 text-white'}`}
           onClick={() => {
             setSaved((current) => !current);
             setToast(saved ? '已取消点赞' : '已点赞作品');
           }}
           aria-label="点赞作品"
         >
-          <Heart size={18} fill={saved ? 'currentColor' : 'none'} />
+          <Heart size={20} fill={saved ? 'currentColor' : 'none'} />
         </button>
-        <button className="grid h-10 w-10 place-items-center rounded-full bg-black/32 text-white backdrop-blur" onClick={handleShare} aria-label="分享作品">
-          <Share2 size={18} />
+        <button className="grid h-11 w-11 place-items-center rounded-full bg-black/30 text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)] ring-1 ring-white/12 backdrop-blur-md" onClick={handleShare} aria-label="分享作品">
+          <Share2 size={20} />
         </button>
-        <TopBarAction icon={<Camera size={15} />} label="摄影师" onClick={() => setDrawer('photographer')} />
+        <TopAvatarAction image={photographer.photo || photographer.avatar} label="查看摄影师" onClick={() => setDrawer('photographer')} />
       </header>
 
       <main className="h-dvh snap-y snap-mandatory overflow-y-auto bg-black">
         <section className="relative h-dvh snap-start overflow-hidden bg-black">
-          <div ref={imageTrackRef} className="absolute inset-0 flex snap-x snap-mandatory overflow-x-auto scroll-smooth scrollbar-none" onScroll={handleImageScroll}>
+          <div ref={imageTrackRef} className="absolute inset-x-0 bottom-0 top-16 flex snap-x snap-mandatory overflow-x-auto scroll-smooth scrollbar-none" onScroll={handleImageScroll}>
             {images.map((image, index) => (
               <figure key={image.id} className="relative h-full w-full shrink-0 snap-center bg-black">
                 <img className="h-full w-full object-cover" src={image.url} alt={`${post.location} 第${index + 1}张`} loading={index === 0 ? 'eager' : 'lazy'} />
@@ -134,18 +134,18 @@ function PostDetailContent({ postId }: { postId?: string }) {
           {images.length > 1 ? (
             <>
               <button
-                className="absolute left-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/24 text-white/80 backdrop-blur"
+                className="absolute left-4 top-1/2 z-10 -translate-y-1/2 text-white/62 drop-shadow-[0_2px_10px_rgba(0,0,0,0.65)] transition hover:text-white"
                 onClick={() => scrollToImage(activeImage - 1)}
                 aria-label="上一张作品图"
               >
-                <ChevronLeft size={20} />
+                <ChevronLeft size={36} strokeWidth={1.75} />
               </button>
               <button
-                className="absolute right-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/24 text-white/80 backdrop-blur"
+                className="absolute right-4 top-1/2 z-10 -translate-y-1/2 text-white/62 drop-shadow-[0_2px_10px_rgba(0,0,0,0.65)] transition hover:text-white"
                 onClick={() => scrollToImage(activeImage + 1)}
                 aria-label="下一张作品图"
               >
-                <ChevronRight size={20} />
+                <ChevronRight size={36} strokeWidth={1.75} />
               </button>
             </>
           ) : null}
@@ -167,7 +167,6 @@ function PostDetailContent({ postId }: { postId?: string }) {
                       />
                     ))}
                   </div>
-                  <span>左右滑动看整组</span>
                 </div>
               ) : null}
               <p className="flex items-center gap-1 text-xs font-semibold text-white/62">
@@ -261,11 +260,14 @@ function PostDetailContent({ postId }: { postId?: string }) {
   );
 }
 
-function TopBarAction({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+function TopAvatarAction({ image, label, onClick }: { image: string; label: string; onClick: () => void }) {
   return (
-    <button className="flex h-10 min-w-0 items-center justify-center gap-1 rounded-full bg-black/32 px-2 text-xs font-black text-white backdrop-blur" onClick={onClick}>
-      {icon}
-      <span className="truncate">{label}</span>
+    <button
+      className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-black/30 shadow-[0_8px_24px_rgba(0,0,0,0.2)] ring-1 ring-white/18 backdrop-blur-md"
+      onClick={onClick}
+      aria-label={label}
+    >
+      <img className="h-full w-full object-cover saturate-[0.9] contrast-[1.05]" src={image} alt="" />
     </button>
   );
 }
