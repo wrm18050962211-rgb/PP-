@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { listFeedPosts } from '../../services/feedService';
 import { evaluateMessageRisk, fetchConversation, getConversation, saveLocalConversation, sendMessage, submitOrderReport } from '../../services/messageService';
-import type { Conversation } from '../../types/api';
+import type { AppOrder, Conversation, FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
 
 export function MessagesPage() {
@@ -209,8 +209,9 @@ function MessageThreadList({ orders }: { orders: ReturnType<typeof useAppData>['
     () => [...orders].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
     [orders],
   );
+  const threads = useMemo(() => buildMessageThreads(sortedOrders, posts), [posts, sortedOrders]);
 
-  if (!sortedOrders.length) {
+  if (!threads.length) {
     return (
       <div className="grid min-h-dvh place-items-center bg-[#f7f7f5] px-6 text-center">
         <div>
@@ -235,30 +236,34 @@ function MessageThreadList({ orders }: { orders: ReturnType<typeof useAppData>['
         </div>
       </header>
 
-      <section className="mt-4 overflow-hidden rounded-[12px] bg-white ring-1 ring-zinc-200">
-        {sortedOrders.map((order) => {
-          const post = posts.find((item) => item.id === order.postId || item.companion.id === order.companionId);
-          const avatar = post?.companion.avatar || post?.companion.photo || post?.images[0]?.url;
+      <section className="mt-4 space-y-2 pb-24">
+        {threads.map((thread) => {
+          const targetOrderId = thread.order?.id ?? sortedOrders[0]?.id;
           return (
-            <Link key={order.id} to={`/consumer/messages/${order.id}`} className="flex gap-3 border-b border-zinc-100 px-3 py-3 last:border-b-0">
-              {avatar ? (
-                <img className="h-12 w-12 rounded-[10px] object-cover" src={avatar} alt={order.companion} />
-              ) : (
-                <div className="grid h-12 w-12 place-items-center rounded-[10px] bg-zinc-100">
-                  <Camera size={20} />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="truncate text-sm font-black">{order.companion}</h2>
-                  <span className="shrink-0 text-xs text-zinc-400">{order.dateLabel ?? order.time}</span>
-                </div>
-                <p className="mt-1 truncate text-sm text-zinc-500">
-                  {order.activityName ?? order.title} · {order.place}
-                </p>
-                <p className="mt-1 truncate text-xs text-zinc-400">
-                  {order.orderNo} · {order.statusText} · {formatMoney(order.amountCents)}
-                </p>
+            <Link
+              key={thread.id}
+              to={targetOrderId ? `/consumer/messages/${targetOrderId}` : '/consumer/messages'}
+              className="grid grid-cols-[62px_minmax(0,1fr)_58px] gap-3 rounded-[14px] bg-white px-3 py-3 ring-1 ring-zinc-200"
+            >
+              <div className="min-w-0 text-center">
+                {thread.avatar ? (
+                  <img className="mx-auto h-12 w-12 rounded-[12px] object-cover" src={thread.avatar} alt={thread.name} />
+                ) : (
+                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-[12px] bg-zinc-100">
+                    <Camera size={20} />
+                  </div>
+                )}
+                <p className="mt-1 truncate text-xs font-black text-zinc-950">{thread.name}</p>
+              </div>
+
+              <div className="min-w-0 self-center">
+                <p className="truncate text-sm font-bold leading-5 text-zinc-800">{thread.lastMessage}</p>
+                <p className="mt-1 truncate text-xs font-semibold leading-4 text-zinc-400">{thread.orderInfo}</p>
+              </div>
+
+              <div className="self-start text-right">
+                <p className="text-xs font-semibold text-zinc-500">{thread.dateLabel}</p>
+                <p className="mt-1 text-xs font-semibold tabular-nums text-zinc-400">{thread.timeLabel}</p>
               </div>
             </Link>
           );
@@ -267,6 +272,80 @@ function MessageThreadList({ orders }: { orders: ReturnType<typeof useAppData>['
     </div>
   );
 }
+
+type MessageThread = {
+  id: string;
+  order?: AppOrder;
+  name: string;
+  avatar?: string;
+  lastMessage: string;
+  orderInfo: string;
+  dateLabel: string;
+  timeLabel: string;
+};
+
+function buildMessageThreads(orders: AppOrder[], posts: FeedPost[]): MessageThread[] {
+  const baseThreads = orders.map((order, index) => {
+    const post = posts.find((item) => item.id === order.postId || item.companion.id === order.companionId);
+    return createThreadFromOrder(order, post, index);
+  });
+
+  if (baseThreads.length >= 8 || posts.length === 0) return baseThreads;
+
+  const fallbackOrder = orders[0];
+  const demoPosts = posts.slice(0, 8 - baseThreads.length);
+  const demoThreads = demoPosts.map((post, index) => {
+    const time = demoThreadTimes[(index + baseThreads.length) % demoThreadTimes.length];
+    return {
+      id: `demo-thread-${post.id}`,
+      order: fallbackOrder,
+      name: post.companion.name,
+      avatar: post.companion.avatar || post.companion.photo || post.images[0]?.url,
+      lastMessage: demoLastMessages[index % demoLastMessages.length],
+      orderInfo: `${fallbackOrder?.orderNo ?? 'PP2605'} · ${post.activity || post.title || '拍摄'} · ${post.locationName || post.location}`,
+      dateLabel: time.date,
+      timeLabel: time.time,
+    };
+  });
+
+  return [...baseThreads, ...demoThreads];
+}
+
+function createThreadFromOrder(order: AppOrder, post: FeedPost | undefined, index: number): MessageThread {
+  const time = demoThreadTimes[index % demoThreadTimes.length];
+  return {
+    id: `order-thread-${order.id}`,
+    order,
+    name: order.companion,
+    avatar: post?.companion.avatar || post?.companion.photo || post?.images[0]?.url,
+    lastMessage: demoLastMessages[index % demoLastMessages.length],
+    orderInfo: `${order.orderNo} · ${order.statusText} · ${formatMoney(order.amountCents)} · ${order.activityName ?? order.title}`,
+    dateLabel: order.dateLabel || time.date,
+    timeLabel: order.timeLabel || time.time,
+  };
+}
+
+const demoLastMessages = [
+  '我看了你的样片，建议第一段先从街角自然光开始。',
+  '可以，今天人流会多一点，我会提前帮你找干净背景。',
+  '这组更适合低饱和质感，服装颜色尽量简单。',
+  '订单时间我这边已经确认，集合点发你定位。',
+  '如果想拍同款，可以把第一张作为主参考。',
+  '修图需求收到，先保留肤色和现场氛围。',
+  '明天下午光线更稳，我们可以往河边走一段。',
+  '这单我会带反光板，夜景部分会补一点光。'
+];
+
+const demoThreadTimes = [
+  { date: '今天', time: '18:42' },
+  { date: '今天', time: '16:18' },
+  { date: '今天', time: '13:05' },
+  { date: '昨天', time: '21:36' },
+  { date: '昨天', time: '15:20' },
+  { date: '6月11日', time: '20:08' },
+  { date: '6月10日', time: '11:44' },
+  { date: '6月09日', time: '19:12' },
+];
 
 function getMessageSender(role?: string) {
   if (role === 'admin') return 'admin';

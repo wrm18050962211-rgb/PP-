@@ -128,6 +128,8 @@ function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
         insertColumnItem(leftColumn, leftTile, 'end');
         insertColumnItem(rightColumn, rightTile, 'middle');
       }
+
+      balanceColumnsBeforeHero(leftColumn, rightColumn, sectionIndex, firstPost, lastPost);
     }
 
     sections.push({
@@ -139,6 +141,36 @@ function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
   }
 
   return sections;
+}
+
+function balanceColumnsBeforeHero(leftColumn: FeedColumnItem[], rightColumn: FeedColumnItem[], sectionIndex: number, firstPost?: FeedPost, lastPost?: FeedPost) {
+  const columns: [FeedColumnItem[], FeedColumnItem[]] = [leftColumn, rightColumn];
+  const heights = columns.map(estimateColumnHeight);
+  const shorterIndex = heights[0] <= heights[1] ? 0 : 1;
+  const diff = Math.abs(heights[0] - heights[1]);
+
+  if (diff < 0.18) return;
+
+  const post = shorterIndex === 0 ? firstPost : lastPost;
+  const tile =
+    sectionIndex % 3 === 0
+      ? createPhotographerRecommendation(post, `recommend-balance-photographer-${sectionIndex}`)
+      : createSameStyleRecommendation(post, `recommend-balance-style-${sectionIndex}`);
+
+  insertColumnItem(columns[shorterIndex], { type: 'recommendation', tile }, 'end');
+}
+
+function estimateColumnHeight(column: FeedColumnItem[]) {
+  return column.reduce((height, item) => height + estimateItemHeight(item), 0);
+}
+
+function estimateItemHeight(item: FeedColumnItem) {
+  if (item.type === 'recommendation') return 0.16;
+  const variant = getDiscoveryLayoutRule(item.post, item.index).variant;
+  if (variant === 'tall') return 1.35;
+  if (variant === 'portrait') return 1.22;
+  if (variant === 'soft') return 1.04;
+  return 0.58;
 }
 
 function insertColumnItem(column: FeedColumnItem[], item: FeedColumnItem, placement: 'middle' | 'end') {
@@ -171,18 +203,18 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
   return (
     <Link
       to={tile.href}
-      className={`flex h-[18px] items-center gap-0.5 overflow-hidden bg-transparent px-0.5 text-white/42 transition active:bg-white/[0.035] ${className}`}
+      className={`flex h-7 items-center gap-1 overflow-hidden bg-transparent px-1 text-white/48 transition active:bg-white/[0.035] ${className}`}
       title={[tile.eyebrow, tile.title, tile.meta].filter(Boolean).join(' · ')}
     >
-      <Icon size={8} className="shrink-0 text-white/20" />
-      <span className="min-w-0 truncate text-[8px] font-semibold leading-none text-white/42">
-        <span className="text-white/26">{tile.eyebrow}</span>
-        <span className="px-0.5 text-white/20">·</span>
+      <Icon size={9} className="shrink-0 text-white/24" />
+      <span className="min-w-0 truncate text-[9px] font-semibold leading-none text-white/48">
+        <span className="text-white/30">{tile.eyebrow}</span>
+        <span className="px-0.5 text-white/22">·</span>
         <span>{tile.title}</span>
         {tile.meta ? (
           <>
-            <span className="px-0.5 text-white/20">·</span>
-            <span className="text-white/30">{tile.meta}</span>
+            <span className="px-0.5 text-white/22">·</span>
+            <span className="text-white/34">{tile.meta}</span>
           </>
         ) : null}
       </span>
