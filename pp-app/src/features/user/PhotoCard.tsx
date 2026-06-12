@@ -8,7 +8,7 @@ const aspectByVariant: Record<PhotoCardVariant, string> = {
   tall: 'aspect-[0.74]',
   portrait: 'aspect-[0.82]',
   soft: 'aspect-[0.96]',
-  wide: 'aspect-[1.32]',
+  wide: 'aspect-[1.72]',
 };
 
 const fallbackPalettes = [

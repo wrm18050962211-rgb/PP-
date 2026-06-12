@@ -16,41 +16,49 @@ type RecommendationTile = {
   href: string;
 };
 
-type DiscoveryFeedItem =
+type FeedColumnItem =
   | { type: 'post'; post: FeedPost; index: number }
-  | { type: 'recommendation'; tile: RecommendationTile; index: number };
+  | { type: 'recommendation'; tile: RecommendationTile };
+
+type FeedSection = {
+  id: string;
+  columns: [FeedColumnItem[], FeedColumnItem[]];
+  hero?: { post: FeedPost; index: number };
+};
 
 export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
   if (posts.length === 0) {
     return (
       <section className="bg-[#050505] px-4 pb-24 pt-8">
         <div className="rounded-[8px] border border-dashed border-white/20 bg-white/6 px-5 py-8 text-center">
-          <p className="text-base font-black text-white">没有找到匹配的陪拍</p>
-          <p className="mt-2 text-sm leading-6 text-white/58">换个地点、时间或预算试试，平台会优先展示可预约且已通过审核的陪拍者。</p>
+          <p className="text-base font-black text-white">没有找到匹配的摄影师</p>
+          <p className="mt-2 text-sm leading-6 text-white/58">换个地点、时间或预算试试，平台会优先展示可预约且已通过审核的摄影师。</p>
         </div>
       </section>
     );
   }
 
-  const feedItems = createDiscoveryFeedItems(posts);
+  const sections = createDiscoverySections(posts);
 
   return (
     <section className="bg-[#050505] px-2 pb-24 pt-2">
-      <div className="columns-2 gap-2">
-        {feedItems.map((item) => {
-          if (item.type === 'recommendation') {
-            return <RecommendationCard key={item.tile.id} tile={item.tile} />;
-          }
-
-          const layout = getDiscoveryLayoutRule(item.post, item.index);
+      <div className="space-y-2">
+        {sections.map((section) => {
+          const hasColumns = section.columns.some((column) => column.length > 0);
           return (
-            <PhotoCard
-              key={item.post.id}
-              post={item.post}
-              priority={item.index < 4}
-              variant={layout.variant}
-              className="mb-2 break-inside-avoid"
-            />
+            <div key={section.id} className="space-y-2">
+              {hasColumns ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {section.columns.map((column, columnIndex) => (
+                    <div key={`${section.id}-${columnIndex}`} className="flex h-full flex-col gap-2">
+                      {column.map((item) => renderColumnItem(item, item.type === 'post' && item.index < 4))}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {section.hero ? <PhotoCard post={section.hero.post} priority={section.hero.index < 4} variant="wide" className="w-full" /> : null}
+            </div>
           );
         })}
       </div>
@@ -58,31 +66,75 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
   );
 }
 
-function createDiscoveryFeedItems(posts: FeedPost[]): DiscoveryFeedItem[] {
-  const recommendationSlots = new Map<number, RecommendationTile>([
-    [1, createPlaceRecommendation(posts[0])],
-    [4, createPhotographerRecommendation(posts[3] ?? posts[0])],
-    [8, createSameStyleRecommendation(posts[6] ?? posts[0])],
-    [13, createPlaceRecommendation(posts[10] ?? posts[0], 'recommend-place-2')],
-    [17, createPhotographerRecommendation(posts[14] ?? posts[0], 'recommend-photographer-2')],
-  ]);
+function renderColumnItem(item: FeedColumnItem, priority: boolean) {
+  if (item.type === 'recommendation') {
+    return <RecommendationCard key={item.tile.id} tile={item.tile} className="flex-1" />;
+  }
 
-  return posts.flatMap((post, index) => {
-    const items: DiscoveryFeedItem[] = [{ type: 'post', post, index }];
-    const tile = recommendationSlots.get(index);
-    if (tile) items.push({ type: 'recommendation', tile, index });
-    return items;
+  const layout = getDiscoveryLayoutRule(item.post, item.index);
+  return <PhotoCard key={item.post.id} post={item.post} priority={priority} variant={layout.variant} className="w-full" />;
+}
+
+function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
+  const verticalItems: Array<{ post: FeedPost; index: number }> = [];
+  const horizontalItems: Array<{ post: FeedPost; index: number }> = [];
+
+  posts.forEach((post, index) => {
+    if (isHorizontalPost(post)) horizontalItems.push({ post, index });
+    else verticalItems.push({ post, index });
   });
+
+  const sections: FeedSection[] = [];
+  let verticalCursor = 0;
+  let horizontalCursor = 0;
+  let sectionIndex = 0;
+
+  while (verticalCursor < verticalItems.length || horizontalCursor < horizontalItems.length) {
+    const verticalSlice = verticalItems.slice(verticalCursor, verticalCursor + 6);
+    verticalCursor += verticalSlice.length;
+
+    const leftColumn = verticalSlice
+      .filter((_, index) => index % 2 === 0)
+      .map((item): FeedColumnItem => ({ type: 'post', post: item.post, index: item.index }));
+    const rightColumn = verticalSlice
+      .filter((_, index) => index % 2 === 1)
+      .map((item): FeedColumnItem => ({ type: 'post', post: item.post, index: item.index }));
+
+    const hero = horizontalItems[horizontalCursor];
+    if (hero) horizontalCursor += 1;
+
+    if (verticalSlice.length > 0) {
+      const firstPost = verticalSlice[0]?.post ?? hero?.post;
+      const lastPost = verticalSlice[verticalSlice.length - 1]?.post ?? hero?.post;
+      leftColumn.push({ type: 'recommendation', tile: createPlaceRecommendation(firstPost, `recommend-place-${sectionIndex}`) });
+      rightColumn.push({
+        type: 'recommendation',
+        tile:
+          sectionIndex % 2 === 0
+            ? createSameStyleRecommendation(hero?.post ?? lastPost, `recommend-same-style-${sectionIndex}`)
+            : createPhotographerRecommendation(lastPost, `recommend-photographer-${sectionIndex}`),
+      });
+    }
+
+    sections.push({
+      id: `feed-section-${sectionIndex}`,
+      columns: [leftColumn, rightColumn],
+      hero,
+    });
+    sectionIndex += 1;
+  }
+
+  return sections;
+}
+
+function isHorizontalPost(post: FeedPost) {
+  const cover = post.images[0];
+  const ratio = cover?.width && cover?.height ? cover.width / cover.height : 0;
+  return ratio >= 1.16;
 }
 
 function getDiscoveryLayoutRule(post: FeedPost, index: number): FeedLayoutRule {
-  const cover = post.images[0];
-  const ratio = cover?.width && cover?.height ? cover.width / cover.height : 0;
-  const isRealHorizontal = ratio >= 1.16;
-
-  // Discovery feed rule: true horizontal works stay in one column; vertical cards
-  // alternate heights so the two columns keep a staggered rhythm.
-  if (isRealHorizontal) {
+  if (isHorizontalPost(post)) {
     return { variant: 'wide' };
   }
 
@@ -90,13 +142,13 @@ function getDiscoveryLayoutRule(post: FeedPost, index: number): FeedLayoutRule {
   return { variant: verticalCycle[index % verticalCycle.length] };
 }
 
-function RecommendationCard({ tile }: { tile: RecommendationTile }) {
+function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile; className?: string }) {
   const Icon = tile.kind === 'place' ? MapPin : tile.kind === 'photographer' ? Camera : Sparkles;
 
   return (
     <Link
       to={tile.href}
-      className="mb-2 flex min-h-24 break-inside-avoid flex-col justify-between overflow-hidden rounded-[2px] border border-white/10 bg-white px-3 py-2.5 text-black"
+      className={`flex min-h-20 flex-col justify-between overflow-hidden rounded-[2px] border border-white/10 bg-white px-3 py-2.5 text-black ${className}`}
     >
       <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
         <Icon size={11} />
@@ -115,7 +167,7 @@ function createPlaceRecommendation(post?: FeedPost, id = 'recommend-place'): Rec
     kind: 'place',
     eyebrow: '网红地点',
     title: `${area} 附近可拍`,
-    meta: '自动筛选地点去拍摄',
+    meta: '点开自动筛选地点',
     href: `/consumer/companions?area=${encodeURIComponent(area)}`,
   };
 }
@@ -132,11 +184,11 @@ function createPhotographerRecommendation(post?: FeedPost, id = 'recommend-photo
   };
 }
 
-function createSameStyleRecommendation(post?: FeedPost): RecommendationTile {
+function createSameStyleRecommendation(post?: FeedPost, id = 'recommend-same-style'): RecommendationTile {
   const title = post?.locationName || post?.location || '同款作品';
   const style = post?.activity || post?.styleTags[0] || '街拍';
   return {
-    id: 'recommend-same-style',
+    id,
     kind: 'same-style',
     eyebrow: '创作者同款',
     title: `${title} 拍同款`,
