@@ -4,7 +4,6 @@ import type { FeedPost } from '../../types/api';
 import { PhotoCard, type PhotoCardVariant } from './PhotoCard';
 
 type FeedLayoutRule = {
-  spanAll: boolean;
   variant: PhotoCardVariant;
 };
 
@@ -50,7 +49,7 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
               post={item.post}
               priority={item.index < 4}
               variant={layout.variant}
-              className={`mb-2 break-inside-avoid ${layout.spanAll ? '[column-span:all]' : ''}`}
+              className="mb-2 break-inside-avoid"
             />
           );
         })}
@@ -61,9 +60,11 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
 
 function createDiscoveryFeedItems(posts: FeedPost[]): DiscoveryFeedItem[] {
   const recommendationSlots = new Map<number, RecommendationTile>([
-    [3, createPlaceRecommendation(posts[0])],
-    [7, createPhotographerRecommendation(posts[3] ?? posts[0])],
-    [12, createSameStyleRecommendation(posts[6] ?? posts[0])],
+    [1, createPlaceRecommendation(posts[0])],
+    [4, createPhotographerRecommendation(posts[3] ?? posts[0])],
+    [8, createSameStyleRecommendation(posts[6] ?? posts[0])],
+    [13, createPlaceRecommendation(posts[10] ?? posts[0], 'recommend-place-2')],
+    [17, createPhotographerRecommendation(posts[14] ?? posts[0], 'recommend-photographer-2')],
   ]);
 
   return posts.flatMap((post, index) => {
@@ -78,16 +79,16 @@ function getDiscoveryLayoutRule(post: FeedPost, index: number): FeedLayoutRule {
   const cover = post.images[0];
   const ratio = cover?.width && cover?.height ? cover.width / cover.height : 0;
   const isRealHorizontal = ratio >= 1.16;
-  const isEditorialBreak = index > 0 && index % 11 === 6;
+  const isEditorialBreak = index > 0 && index % 8 === 5;
 
-  // Discovery feed rule: horizontal images span both columns; otherwise every few cards
-  // one work is promoted into a wide magazine card, while vertical cards alternate heights.
+  // Discovery feed rule: horizontal images stay in one column to avoid cross-column gaps;
+  // vertical cards alternate heights so the two columns keep a staggered rhythm.
   if (isRealHorizontal || isEditorialBreak) {
-    return { spanAll: true, variant: 'wide' };
+    return { variant: 'wide' };
   }
 
-  const verticalCycle: PhotoCardVariant[] = ['tall', 'portrait', 'soft', 'portrait', 'tall'];
-  return { spanAll: false, variant: verticalCycle[index % verticalCycle.length] };
+  const verticalCycle: PhotoCardVariant[] = ['tall', 'soft', 'portrait', 'tall', 'portrait', 'soft'];
+  return { variant: verticalCycle[index % verticalCycle.length] };
 }
 
 function RecommendationCard({ tile }: { tile: RecommendationTile }) {
@@ -108,10 +109,10 @@ function RecommendationCard({ tile }: { tile: RecommendationTile }) {
   );
 }
 
-function createPlaceRecommendation(post?: FeedPost): RecommendationTile {
+function createPlaceRecommendation(post?: FeedPost, id = 'recommend-place'): RecommendationTile {
   const area = post?.locationName || post?.companion.areas[0] || '武康路';
   return {
-    id: 'recommend-place',
+    id,
     kind: 'place',
     eyebrow: '网红地点',
     title: `${area} 附近可拍`,
@@ -120,10 +121,10 @@ function createPlaceRecommendation(post?: FeedPost): RecommendationTile {
   };
 }
 
-function createPhotographerRecommendation(post?: FeedPost): RecommendationTile {
+function createPhotographerRecommendation(post?: FeedPost, id = 'recommend-photographer'): RecommendationTile {
   const style = post?.activity || post?.styleTags[0] || 'Citywalk';
   return {
-    id: 'recommend-photographer',
+    id,
     kind: 'photographer',
     eyebrow: '摄影师',
     title: `${style} 摄影师`,
