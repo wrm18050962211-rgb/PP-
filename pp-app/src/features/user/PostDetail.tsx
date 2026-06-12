@@ -44,7 +44,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const images = post.images;
   const activeMedia = images[activeImage] ?? cover;
   const isLandscape = getImageAspectRatio(activeMedia) >= 1;
-  const mediaAspectClass = isLandscape ? 'aspect-[4/3]' : 'aspect-[3/4]';
+  const mediaHeightClass = isLandscape ? 'h-[34dvh]' : 'h-[52dvh]';
   const baseComments = useMemo(() => buildComments(post, creator), [post, creator.avatar, creator.name]);
   const comments = useMemo(() => [...baseComments, ...localComments], [baseComments, localComments]);
   const likeCount = useMemo(() => formatMetric(1180 + stableMetricSeed(post.id, 620)), [post.id]);
@@ -145,9 +145,9 @@ function PostDetailContent({ postId }: { postId?: string }) {
         </div>
       </header>
 
-      <main className="h-dvh overflow-y-auto bg-black pb-8 pt-[72px]">
-        <section className="bg-black">
-          <div ref={imageTrackRef} className={`flex w-full snap-x snap-mandatory overflow-x-auto scroll-smooth bg-black scrollbar-none ${mediaAspectClass}`} onScroll={handleImageScroll}>
+      <main className="flex h-dvh flex-col overflow-hidden bg-black pt-[72px]">
+        <section className="shrink-0 bg-black">
+          <div ref={imageTrackRef} className={`flex w-full snap-x snap-mandatory overflow-x-auto scroll-smooth bg-black scrollbar-none ${mediaHeightClass}`} onScroll={handleImageScroll}>
             {images.map((image, index) => (
               <figure key={image.id} className="flex h-full w-full shrink-0 snap-center items-center justify-center bg-black">
                 <img className="h-full w-full object-contain" src={image.url} alt={`${post.location} 第${index + 1}张`} loading={index === 0 ? 'eager' : 'lazy'} />
@@ -156,7 +156,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
           </div>
 
           {images.length > 1 ? (
-            <div className="flex h-8 items-center justify-center gap-1.5 bg-black">
+            <div className="flex h-7 items-center justify-center gap-1.5 bg-black">
               {images.map((image, index) => (
                 <button
                   key={image.id}
@@ -169,7 +169,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
           ) : null}
         </section>
 
-        <section className="px-4 pb-8 pt-2">
+        <section className="min-h-0 flex-1 overflow-hidden bg-black/92 px-4 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-2 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -204,23 +204,19 @@ function PostDetailContent({ postId }: { postId?: string }) {
             </button>
           </div>
 
-          <button className="mt-3 flex items-center gap-1 text-xs font-semibold text-white/58" onClick={() => setDrawer('photographer')}>
+          <button className="mt-2 flex items-center gap-1 text-xs font-semibold text-white/58" onClick={() => setDrawer('photographer')}>
             <MapPin size={13} />
             {post.locationName || post.location}
           </button>
 
-          <p className="mt-3 text-[14px] leading-6 text-white/84">
+          <p className="mt-2 text-[13px] leading-5 text-white/84">
             <button className="mr-1 font-black text-white" onClick={() => setDrawer('creator')}>
               {creator.name}
             </button>
             {post.caption}
           </p>
 
-          <button className="mt-2 text-sm font-semibold text-white/42" onClick={() => setCommentsOpen(true)}>
-            查看全部 {comments.length} 条评论
-          </button>
-
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {post.styleTags.slice(0, 4).map((tag) => (
               <span key={tag} className="border border-white/12 px-2.5 py-1 text-[11px] font-bold text-white/48">
                 {tag}
