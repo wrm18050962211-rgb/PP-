@@ -1,5 +1,5 @@
-import { ChevronDown, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppData } from '../../app/useAppData';
 import { fetchFeedPosts, listFeedPosts, mergeApprovedWorkIntoFeed } from '../../services/feedService';
 import type { ConsumerLocation } from '../../services/locationService';
@@ -57,6 +57,8 @@ const genderOptions: Array<{ label: string; value: GenderPreference }> = [
   { label: '不限', value: 'any' },
   { label: '只看女陪拍', value: 'female_only' },
 ];
+const searchHistoryKey = 'pp:consumer-search-history';
+const searchSuggestions = ['黑白大片', 'Citywalk', '探店', '夜景', '武康路', '安福路', '预算300内', '女生摄影师'];
 
 export function HomeFeed() {
   const { workDraft } = useAppData();
@@ -68,6 +70,9 @@ export function HomeFeed() {
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle');
   const [matchedPostIds, setMatchedPostIds] = useState<string[] | null>(null);
   const [locationMessage, setLocationMessage] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState(filters.query);
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => loadSearchHistory());
 
   useEffect(() => {
     let mounted = true;
@@ -133,6 +138,35 @@ export function HomeFeed() {
   );
   const filteredPosts = useMemo(() => sortPostsByMatchedIds(localFilteredPosts, matchedPostIds), [localFilteredPosts, matchedPostIds]);
   const activeFilterCount = getActiveFilterCount(filters);
+
+  const openSearch = useCallback(() => {
+    setSearchDraft(filters.query);
+    setSearchOpen(true);
+  }, [filters.query]);
+
+  const submitSearch = useCallback(
+    (keyword: string) => {
+      const nextKeyword = keyword.trim();
+      setFilters((current) => ({ ...current, query: nextKeyword }));
+
+      if (nextKeyword) {
+        setSearchHistory((current) => {
+          const nextHistory = [nextKeyword, ...current.filter((item) => item !== nextKeyword)].slice(0, 8);
+          saveSearchHistory(nextHistory);
+          return nextHistory;
+        });
+      }
+
+      setSearchDraft(nextKeyword);
+      setSearchOpen(false);
+    },
+    [],
+  );
+
+  const clearSearch = useCallback(() => {
+    setSearchDraft('');
+    setFilters((current) => ({ ...current, query: '' }));
+  }, []);
 
   useEffect(() => {
     if (!filters.nearbyOnly || !consumerLocation) {
@@ -203,54 +237,66 @@ export function HomeFeed() {
             ))}
           </nav>
 
-          <button
-            className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-full ${
-              activeFilterCount ? 'bg-white text-black' : 'bg-white/10 text-white ring-1 ring-white/16'
-            }`}
-            onClick={() => setFilterOpen(true)}
-            aria-label="筛选"
-          >
-            <SlidersHorizontal size={18} />
-            {activeFilterCount ? (
-              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-black px-1 text-[10px] font-black text-white ring-1 ring-white/50">
-                {activeFilterCount}
-              </span>
-            ) : null}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              className={`relative grid h-9 w-9 place-items-center rounded-full ${
+                filters.query ? 'bg-white text-black' : 'bg-white/10 text-white ring-1 ring-white/16'
+              }`}
+              onClick={openSearch}
+              aria-label="搜索"
+            >
+              <Search size={18} />
+              {filters.query ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-black" /> : null}
+            </button>
+            <button
+              className={`relative grid h-9 w-9 place-items-center rounded-full ${
+                activeFilterCount ? 'bg-white text-black' : 'bg-white/10 text-white ring-1 ring-white/16'
+              }`}
+              onClick={() => setFilterOpen(true)}
+              aria-label="筛选"
+            >
+              <SlidersHorizontal size={18} />
+              {activeFilterCount ? (
+                <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-black px-1 text-[10px] font-black text-white ring-1 ring-white/50">
+                  {activeFilterCount}
+                </span>
+              ) : null}
+            </button>
+          </div>
         </div>
 
-        <div className="mt-3 flex items-center gap-2 rounded-full bg-white px-3 py-2 text-black ring-1 ring-white/20">
-          <Search size={17} className="shrink-0 text-zinc-500" />
-          <input
-            className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none placeholder:text-zinc-500"
-            value={filters.query}
-            onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
-            placeholder="搜索商圈、街道、咖啡店"
-          />
-          <button
-            className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-              filters.nearbyOnly ? 'bg-black text-white' : 'bg-zinc-100 text-black'
-            }`}
-            onClick={() => {
-              if (filters.nearbyOnly) {
-                setMatchedPostIds(null);
-                setLocationMessage('');
-                setFilters((current) => ({ ...current, nearbyOnly: false, channel: channels[1] }));
-                return;
-              }
-              requestConsumerLocation();
-            }}
-            aria-label="附近"
-          >
-            <LocateFixed size={16} className={locationStatus === 'locating' ? 'animate-spin' : undefined} />
-          </button>
-        </div>
+        {filters.query ? (
+          <div className="mt-3 flex items-center justify-between gap-2 border border-white/14 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/82">
+            <button className="min-w-0 flex-1 truncate text-left" onClick={openSearch}>
+              搜索：{filters.query}
+            </button>
+            <button className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-white/70" onClick={clearSearch} aria-label="清除搜索">
+              <X size={14} />
+            </button>
+          </div>
+        ) : null}
 
         {locationMessage ? <p className="mt-2 px-1 text-xs font-semibold text-white/52">{locationMessage}</p> : null}
 
       </header>
 
       <PhotoFeed posts={filteredPosts} />
+
+      {searchOpen ? (
+        <SearchOverlay
+          value={searchDraft}
+          history={searchHistory}
+          suggestions={searchSuggestions}
+          onChange={setSearchDraft}
+          onSubmit={submitSearch}
+          onClose={() => setSearchOpen(false)}
+          onPick={submitSearch}
+          onClearHistory={() => {
+            setSearchHistory([]);
+            saveSearchHistory([]);
+          }}
+        />
+      ) : null}
 
       {cityOpen ? <CitySheet city={filters.city} onSelect={(city) => setFilters((current) => ({ ...current, city }))} onClose={() => setCityOpen(false)} /> : null}
       {filterOpen ? (
@@ -274,6 +320,101 @@ export function HomeFeed() {
           onClose={() => setFilterOpen(false)}
         />
       ) : null}
+    </div>
+  );
+}
+
+function SearchOverlay({
+  value,
+  history,
+  suggestions,
+  onChange,
+  onSubmit,
+  onClose,
+  onPick,
+  onClearHistory,
+}: {
+  value: string;
+  history: string[];
+  suggestions: string[];
+  onChange: (value: string) => void;
+  onSubmit: (value: string) => void;
+  onClose: () => void;
+  onPick: (value: string) => void;
+  onClearHistory: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#17171c] text-white">
+      <div className="mx-auto min-h-dvh w-full max-w-md px-4 pb-8 pt-5">
+        <div className="flex items-center gap-3">
+          <button
+            className="grid h-10 w-8 shrink-0 place-items-center text-white/86"
+            onClick={onClose}
+            aria-label="返回"
+          >
+            <ChevronLeft size={28} strokeWidth={1.8} />
+          </button>
+
+          <div className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-full bg-white/10 px-4 text-white ring-1 ring-white/10">
+            <input
+              ref={inputRef}
+              className="min-w-0 flex-1 bg-transparent text-base font-semibold outline-none placeholder:text-white/36"
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') onSubmit(value);
+              }}
+              placeholder="搜索商圈、风格、摄影师"
+            />
+            {value ? (
+              <button className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/12 text-white/58" onClick={() => onChange('')} aria-label="清空">
+                <X size={14} />
+              </button>
+            ) : null}
+            <button className="border-l border-white/10 pl-3 text-sm font-black text-white" onClick={() => onSubmit(value)}>
+              搜索
+            </button>
+          </div>
+        </div>
+
+        {history.length ? (
+          <section className="mt-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-black text-white/86">历史记录</h2>
+              <button className="text-xs font-bold text-white/36" onClick={onClearHistory}>
+                清空
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {history.map((item) => (
+                <button key={item} className="rounded-full border border-white/8 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/78" onClick={() => onPick(item)}>
+                  {item}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="mt-8">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-black text-white/86">猜你想搜</h2>
+            <span className="text-xs font-bold text-white/26">按风格找作品</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+            {suggestions.map((item) => (
+              <button key={item} className="truncate text-left text-lg font-semibold text-white/72" onClick={() => onPick(item)}>
+                {item}
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -426,7 +567,6 @@ function OptionGroup<T extends string | number | null>({
 function getActiveFilterCount(filters: FeedFilters) {
   return [
     filters.city !== initialFilters.city,
-    filters.query.trim().length > 0,
     filters.nearbyOnly,
     filters.date !== initialFilters.date,
     filters.time !== initialFilters.time,
@@ -435,6 +575,30 @@ function getActiveFilterCount(filters: FeedFilters) {
     filters.maxBudgetCents !== initialFilters.maxBudgetCents,
     filters.genderPreference !== initialFilters.genderPreference,
   ].filter(Boolean).length;
+}
+
+function loadSearchHistory() {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const stored = window.localStorage.getItem(searchHistoryKey);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
+function saveSearchHistory(items: string[]) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(searchHistoryKey, JSON.stringify(items));
+  } catch {
+    // Ignore storage errors so private browsing does not block search.
+  }
 }
 
 function sortPostsByMatchedIds(posts: FeedPost[], companionIds: string[] | null) {
