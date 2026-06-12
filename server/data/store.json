@@ -1919,7 +1919,7 @@
       "name": "Kiko",
       "isVirtual": true,
       "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80",
-      "photo": "https://images.unsplash.com/photo-1520975682031-a3d589b0f824?auto=format&fit=crop&w=900&q=80",
+      "photo": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
       "bio": "适合更年轻、更有街头感的照片，会避开杂乱背景，保留城市纹理。",
       "gender": "female",
       "baseCity": "上海",
@@ -4971,7 +4971,7 @@
       "images": [
         {
           "id": "virtual-post-15-image-1",
-          "url": "https://images.unsplash.com/photo-1520975682031-a3d589b0f824?auto=format&fit=crop&w=900&q=80",
+          "url": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
           "width": 900,
           "height": 1200,
           "sortOrder": 1
@@ -4990,7 +4990,7 @@
         "name": "Kiko",
         "isVirtual": true,
         "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80",
-        "photo": "https://images.unsplash.com/photo-1520975682031-a3d589b0f824?auto=format&fit=crop&w=900&q=80",
+        "photo": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
         "bio": "适合更年轻、更有街头感的照片，会避开杂乱背景，保留城市纹理。",
         "gender": "female",
         "baseCity": "上海",
