@@ -17,7 +17,6 @@ import { MessagesPage } from '../features/user/MessagesPage';
 import { MinePage } from '../features/user/MinePage';
 import { OrdersPage } from '../features/user/OrdersPage';
 import { PostDetail } from '../features/user/PostDetail';
-import { ShootSamePage } from '../features/user/ShootSamePage';
 
 export default function App() {
   return (
@@ -27,7 +26,7 @@ export default function App() {
       <Route path="/consumer" element={<ConsumerShell />}>
         <Route index element={<HomeFeed />} />
         <Route path="companions" element={<CompanionFinderPage />} />
-        <Route path="same-style" element={<ShootSamePage />} />
+        <Route path="same-style" element={<Navigate to="/consumer" replace />} />
         <Route path="post/:postId" element={<PostDetail />} />
         <Route path="checkout/:postId" element={<CheckoutPage />} />
         <Route path="orders" element={<OrdersPage />} />
