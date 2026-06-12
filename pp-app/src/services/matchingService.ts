@@ -14,6 +14,7 @@ export type MatchCompanionsInput = {
   activityType?: string;
   durationMinutes?: number;
   maxBudgetCents?: number;
+  maxDistanceMeters?: number;
   genderPreference?: GenderPreference;
   nearbyOnly?: boolean;
   keyword?: string;
@@ -64,7 +65,7 @@ export async function fetchMatchedCompanions(input: MatchCompanionsInput): Promi
   if (hasValue(input.city)) query.set('city', input.city);
   if (input.activityType) query.set('activity', input.activityType);
   if (input.genderPreference === 'female_only') query.set('gender', 'female');
-  if (input.nearbyOnly) query.set('maxDistanceMeters', '5000');
+  if (input.nearbyOnly) query.set('maxDistanceMeters', String(input.maxDistanceMeters ?? 5000));
 
   try {
     const response = await apiGet<{ items: MatchingCompanionItem[] }>(`/api/matching/companions?${query.toString()}`);
@@ -93,11 +94,14 @@ function buildCandidate(post: FeedPost, input: MatchCompanionsInput): MatchCandi
   if (!matchedActivity) return null;
   if (input.maxBudgetCents && matchedActivity.priceCents > input.maxBudgetCents) return null;
 
+  const distanceRank = getDistanceRank(post, locationTexts[0] ?? keywordTexts[0] ?? '', input.nearbyOnly);
+  if (input.nearbyOnly && input.maxDistanceMeters && distanceRank > getMaxDistanceRank(input.maxDistanceMeters)) return null;
+
   return {
     post,
     matchedSlot,
     matchedActivity,
-    distanceRank: getDistanceRank(post, locationTexts[0] ?? keywordTexts[0] ?? '', input.nearbyOnly),
+    distanceRank,
     timeRank: getTimeRank(matchedSlot, input),
     featuredRank: isFeaturedPost(post) ? 0 : 1,
     activeAt: getRecentActiveAt(companion.slots),
@@ -185,6 +189,13 @@ function getDistanceRank(post: FeedPost, location: string, nearbyOnly?: boolean)
 
   if (Number.isFinite(bestAreaRank)) return nearbyOnly ? bestAreaRank : bestAreaRank + 1;
   return post.location.includes(post.companion.baseCity) ? 20 : 99;
+}
+
+function getMaxDistanceRank(maxDistanceMeters: number) {
+  if (maxDistanceMeters <= 1000) return 1;
+  if (maxDistanceMeters <= 3000) return 3;
+  if (maxDistanceMeters <= 5000) return 5;
+  return 8;
 }
 
 function getTimeRank(slot: AvailabilitySlot | null, input: MatchCompanionsInput) {

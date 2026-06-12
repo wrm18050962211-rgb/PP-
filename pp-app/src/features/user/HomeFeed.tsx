@@ -13,6 +13,10 @@ type FeedFilters = {
   city: string;
   district: string;
   area: string;
+  locationPointName: string;
+  locationLat: number | null;
+  locationLng: number | null;
+  maxDistanceKm: number | null;
   channel: FeedChannel;
   query: string;
   nearbyOnly: boolean;
@@ -40,6 +44,10 @@ const initialFilters: FeedFilters = {
   city: '上海',
   district: '不限',
   area: '不限',
+  locationPointName: '当前位置',
+  locationLat: null,
+  locationLng: null,
+  maxDistanceKm: null,
   channel: '发现',
   query: '',
   nearbyOnly: false,
@@ -99,8 +107,28 @@ const genderOptions: Array<{ label: string; value: GenderPreference }> = [
   { label: '不限', value: 'any' },
   { label: '只看女陪拍', value: 'female_only' },
 ];
+const distanceOptions = [
+  { label: '不限', value: null },
+  { label: '1km', value: 1 },
+  { label: '3km', value: 3 },
+  { label: '5km', value: 5 },
+  { label: '10km', value: 10 },
+];
 const searchHistoryKey = 'pp:consumer-search-history';
 const searchSuggestions = ['黑白大片', 'Citywalk', '探店', '夜景', '武康路', '安福路', '预算300内', '女生摄影师'];
+
+const demoMapPoints = [
+  { city: '上海', district: '徐汇区', name: '武康路定位点', address: '武康路 / 安福路', lat: 31.2087, lng: 121.4456, x: 34, y: 36 },
+  { city: '上海', district: '徐汇区', name: '西岸定位点', address: '龙美术馆 / 油罐艺术中心', lat: 31.1745, lng: 121.4617, x: 55, y: 72 },
+  { city: '上海', district: '静安区', name: '巨鹿路定位点', address: '巨鹿路 / 富民路', lat: 31.2246, lng: 121.4569, x: 45, y: 42 },
+  { city: '上海', district: '黄浦区', name: '外滩定位点', address: '外白渡桥 / 圆明园路', lat: 31.2421, lng: 121.4907, x: 70, y: 34 },
+  { city: '上海', district: '虹口区', name: '北外滩定位点', address: '北外滩 / 苏州河', lat: 31.2521, lng: 121.4989, x: 77, y: 28 },
+  { city: '北京', district: '朝阳区', name: '三里屯定位点', address: '太古里 / 机电院', lat: 39.9366, lng: 116.4546, x: 64, y: 38 },
+  { city: '杭州', district: '西湖区', name: '西湖定位点', address: '湖滨 / 北山街', lat: 30.2592, lng: 120.1486, x: 42, y: 50 },
+  { city: '成都', district: '锦江区', name: '太古里定位点', address: '春熙路 / 太古里', lat: 30.6536, lng: 104.0807, x: 52, y: 45 },
+];
+
+type DemoMapPoint = (typeof demoMapPoints)[number];
 
 export function HomeFeed() {
   const { homeChromeCompact = false } = useOutletContext<ConsumerShellContext>();
@@ -153,7 +181,14 @@ export function HomeFeed() {
         });
         setLocationStatus('located');
         setLocationMessage('已按当前位置优先展示附近陪拍者');
-        setFilters((current) => ({ ...current, nearbyOnly: true, channel: channels[2] }));
+        setFilters((current) => ({
+          ...current,
+          locationPointName: '当前位置',
+          locationLat: position.coords.latitude,
+          locationLng: position.coords.longitude,
+          nearbyOnly: true,
+          channel: channels[2],
+        }));
       },
       (error) => {
         setLocationStatus(error.code === error.PERMISSION_DENIED ? 'denied' : 'failed');
@@ -167,13 +202,14 @@ export function HomeFeed() {
   const feedPosts = useMemo(() => mergeApprovedWorkIntoFeed(posts, workDraft), [posts, workDraft]);
   const locationLabel = getLocationLabel(filters);
   const locationKeyword = getLocationKeyword(filters);
-  const locationKeywords = useMemo(() => getLocationKeywords(filters), [filters.area, filters.city, filters.district]);
+  const activeLocation = getActiveLocation(filters, consumerLocation);
+  const locationKeywords = useMemo(() => getLocationKeywords(filters), [filters.area, filters.city, filters.district, filters.locationPointName]);
   const localFilteredPosts = useMemo(
     () =>
       matchCompanions(feedPosts, {
         city: filters.city,
-        lat: consumerLocation?.lat,
-        lng: consumerLocation?.lng,
+        lat: activeLocation?.lat,
+        lng: activeLocation?.lng,
         location: locationKeyword,
         locationKeywords,
         keyword: filters.query,
@@ -182,10 +218,11 @@ export function HomeFeed() {
         activityType: filters.scene,
         durationMinutes: filters.durationMinutes ?? undefined,
         maxBudgetCents: filters.maxBudgetCents ?? undefined,
+        maxDistanceMeters: filters.maxDistanceKm ? filters.maxDistanceKm * 1000 : undefined,
         genderPreference: filters.genderPreference,
         nearbyOnly: filters.nearbyOnly,
       }),
-    [consumerLocation, feedPosts, filters, locationKeyword, locationKeywords],
+    [activeLocation?.lat, activeLocation?.lng, feedPosts, filters, locationKeyword, locationKeywords],
   );
   const channelPostGroups = useMemo(
     () => createChannelPostGroups(localFilteredPosts, matchedPostIds, filters, locationKeywords),
@@ -287,7 +324,7 @@ export function HomeFeed() {
   );
 
   useEffect(() => {
-    if (!filters.nearbyOnly || !consumerLocation) {
+    if (!filters.nearbyOnly || !activeLocation) {
       setMatchedPostIds(null);
       return;
     }
@@ -295,8 +332,8 @@ export function HomeFeed() {
     let mounted = true;
     fetchMatchedCompanions({
       city: filters.city,
-      lat: consumerLocation.lat,
-      lng: consumerLocation.lng,
+      lat: activeLocation.lat,
+      lng: activeLocation.lng,
       location: locationKeyword,
       keyword: filters.query,
       date: filters.date,
@@ -304,6 +341,7 @@ export function HomeFeed() {
       activityType: filters.scene,
       durationMinutes: filters.durationMinutes ?? undefined,
       maxBudgetCents: filters.maxBudgetCents ?? undefined,
+      maxDistanceMeters: filters.maxDistanceKm ? filters.maxDistanceKm * 1000 : undefined,
       genderPreference: filters.genderPreference,
       nearbyOnly: true,
     }).then((items) => {
@@ -315,7 +353,7 @@ export function HomeFeed() {
     return () => {
       mounted = false;
     };
-  }, [consumerLocation, filters, locationKeyword]);
+  }, [activeLocation?.lat, activeLocation?.lng, filters, locationKeyword]);
 
 
   return (
@@ -437,7 +475,11 @@ export function HomeFeed() {
       {cityOpen ? (
         <LocationDrawer
           filters={filters}
-          onChange={(partial) => setFilters((current) => ({ ...current, ...partial }))}
+          onChange={(partial) => {
+            setMatchedPostIds(null);
+            setFilters((current) => ({ ...current, ...partial }));
+          }}
+          onUseCurrentLocation={requestConsumerLocation}
           onClose={() => setCityOpen(false)}
         />
       ) : null}
@@ -622,40 +664,79 @@ function getSearchSuggestionTiles(suggestions: string[], posts: FeedPost[]) {
 function LocationDrawer({
   filters,
   onChange,
+  onUseCurrentLocation,
   onClose,
 }: {
   filters: FeedFilters;
   onChange: (partial: Partial<FeedFilters>) => void;
+  onUseCurrentLocation: () => void;
   onClose: () => void;
 }) {
+  const [mapOpen, setMapOpen] = useState(false);
   const cityOptions = Object.keys(locationOptions);
   const districtOptions = getDistrictOptions(filters.city);
-  const areaOptions = getAreaOptions(filters.city, filters.district);
+  const pointOptions = getMapPointOptions(filters.city, filters.district);
+  const selectedPointLabel = filters.locationPointName || '当前位置';
+  const distanceLabel = filters.maxDistanceKm ? `${filters.maxDistanceKm}km内` : '距离不限';
 
   return (
     <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-start bg-black/70" onClick={onClose}>
       <section className="h-full w-[86%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <SheetHeader title="选择位置" onClose={onClose} />
         <div className="mt-4 rounded-[8px] bg-zinc-50 p-3 text-sm font-black text-zinc-900">
-          {getLocationLabel(filters)}
+          <p>{getLocationLabel(filters)}</p>
+          <p className="mt-1 text-xs font-semibold text-zinc-400">{selectedPointLabel} · {distanceLabel}</p>
         </div>
 
         <LocationOptionColumn
           label="城市"
           options={cityOptions}
           value={filters.city}
-          onSelect={(city) => onChange({ city, district: '不限', area: '不限' })}
+          onSelect={(city) => onChange({ city, district: '不限', area: '不限', locationPointName: '当前位置', locationLat: null, locationLng: null })}
         />
         <LocationOptionColumn
           label="区"
           options={districtOptions}
           value={filters.district}
-          onSelect={(district) => onChange({ district, area: '不限' })}
+          onSelect={(district) => onChange({ district, area: '不限', locationPointName: '当前位置', locationLat: null, locationLng: null })}
         />
-        <LocationOptionColumn label="街道 / 园区" options={areaOptions} value={filters.area} onSelect={(area) => onChange({ area })} />
+
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-bold text-zinc-500">定位点</p>
+          <div className="rounded-[10px] border border-zinc-200 bg-white p-3">
+            <div className="flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700">
+                <MapPin size={17} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-black text-zinc-950">{selectedPointLabel}</p>
+                <p className="mt-0.5 truncate text-xs font-semibold text-zinc-400">
+                  {filters.locationLat !== null && filters.locationLng !== null ? `${filters.locationLat.toFixed(4)}, ${filters.locationLng.toFixed(4)}` : '未手动选点时使用当前定位'}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button className="h-10 rounded-full bg-zinc-100 text-xs font-black text-zinc-700" onClick={onUseCurrentLocation} type="button">
+                使用当前位置
+              </button>
+              <button className="h-10 rounded-full bg-black text-xs font-black text-white" onClick={() => setMapOpen(true)} type="button">
+                打开地图选点
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <OptionGroup
+            label="可接受最大距离"
+            options={distanceOptions}
+            value={filters.maxDistanceKm}
+            onChange={(maxDistanceKm) => onChange({ maxDistanceKm, nearbyOnly: maxDistanceKm ? true : filters.nearbyOnly, channel: maxDistanceKm ? channels[2] : filters.channel })}
+          />
+        </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={() => onChange({ city: '不限', district: '不限', area: '不限' })}>
+          <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={() => onChange({ city: '不限', district: '不限', area: '不限', locationPointName: '当前位置', locationLat: null, locationLng: null, maxDistanceKm: null })}>
             不限
           </button>
           <button className="h-12 rounded-full bg-black text-sm font-bold text-white" onClick={onClose}>
@@ -663,6 +744,24 @@ function LocationDrawer({
           </button>
         </div>
       </section>
+      {mapOpen ? (
+        <MapPointPicker
+          points={pointOptions}
+          selectedName={selectedPointLabel}
+          onSelect={(point) => {
+            onChange({
+              area: '不限',
+              locationPointName: point.name,
+              locationLat: point.lat,
+              locationLng: point.lng,
+              nearbyOnly: true,
+              channel: channels[2],
+            });
+            setMapOpen(false);
+          }}
+          onClose={() => setMapOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -692,6 +791,75 @@ function LocationOptionColumn({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function MapPointPicker({
+  points,
+  selectedName,
+  onSelect,
+  onClose,
+}: {
+  points: DemoMapPoint[];
+  selectedName: string;
+  onSelect: (point: DemoMapPoint) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="absolute inset-0 z-10 flex items-end bg-black/55 px-3 pb-3" onClick={onClose}>
+      <section className="w-full rounded-[14px] bg-zinc-950 p-3 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-black">地图选点</h3>
+            <p className="mt-0.5 text-xs font-semibold text-white/42">选择拍摄起点</p>
+          </div>
+          <button className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white/72" onClick={onClose} aria-label="关闭地图">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="relative mt-3 h-48 overflow-hidden rounded-[10px] bg-[#111] ring-1 ring-white/10">
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:32px_32px]" />
+          <div className="absolute inset-x-0 top-1/2 h-px bg-white/10" />
+          <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />
+          {points.map((point) => {
+            const active = point.name === selectedName;
+            return (
+              <button
+                key={point.name}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-[10px] font-black shadow-lg transition ${
+                  active ? 'bg-white text-black' : 'bg-black/72 text-white ring-1 ring-white/20'
+                }`}
+                style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                onClick={() => onSelect(point)}
+                type="button"
+              >
+                {point.name.replace('定位点', '')}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 max-h-32 space-y-1 overflow-y-auto">
+          {points.map((point) => (
+            <button
+              key={`${point.name}-list`}
+              className={`flex min-h-11 w-full items-center gap-2 rounded-[8px] px-3 text-left ${
+                point.name === selectedName ? 'bg-white text-black' : 'bg-white/[0.06] text-white'
+              }`}
+              onClick={() => onSelect(point)}
+              type="button"
+            >
+              <MapPin size={14} className="shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-black">{point.name}</span>
+                <span className="mt-0.5 block truncate text-[10px] font-semibold opacity-55">{point.address}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -820,7 +988,7 @@ function OptionGroup<T extends string | number | null>({
 function createChannelPostGroups(
   posts: FeedPost[],
   matchedPostIds: string[] | null,
-  filters: Pick<FeedFilters, 'city' | 'district' | 'area'>,
+  filters: Pick<FeedFilters, 'city' | 'district' | 'area' | 'locationPointName' | 'maxDistanceKm'>,
   locationKeywords: string[],
 ): Record<FeedChannel, FeedPost[]> {
   const matchedSortedPosts = sortPostsByMatchedIds(posts, matchedPostIds);
@@ -859,7 +1027,7 @@ function getDiscoveryScore(post: FeedPost, index: number) {
 function getNearbyScore(
   post: FeedPost,
   index: number,
-  filters: Pick<FeedFilters, 'city' | 'district' | 'area'>,
+  filters: Pick<FeedFilters, 'city' | 'district' | 'area' | 'locationPointName' | 'maxDistanceKm'>,
   locationKeywords: string[],
   matchedPostIds: string[] | null,
 ) {
@@ -870,7 +1038,8 @@ function getNearbyScore(
   const cityScore = filters.city !== '不限' && text.includes(filters.city.toLowerCase()) ? 54 : 0;
   const nearbyDemoScore = ['外滩', '武康路', '安福路', '静安寺', '新天地', '徐汇', '黄浦'].some((keyword) => text.includes(keyword.toLowerCase())) ? 70 : 0;
   const availabilityScore = post.companion.slots.some((slot) => slot.status === 'available') ? 36 : 0;
-  return matchedScore + selectedAreaScore + cityScore + nearbyDemoScore + availabilityScore - index * 0.2;
+  const distancePreferenceScore = filters.maxDistanceKm ? Math.max(0, 80 - filters.maxDistanceKm * 4) : 0;
+  return matchedScore + selectedAreaScore + cityScore + nearbyDemoScore + availabilityScore + distancePreferenceScore - index * 0.2;
 }
 
 function getPostSearchText(post: FeedPost) {
@@ -912,6 +1081,8 @@ function clampNumber(value: number, min: number, max: number) {
 function getActiveFilterCount(filters: FeedFilters) {
   return [
     getLocationLabel(filters) !== getLocationLabel(initialFilters),
+    filters.locationPointName !== initialFilters.locationPointName,
+    filters.maxDistanceKm !== initialFilters.maxDistanceKm,
     filters.nearbyOnly,
     filters.date !== initialFilters.date,
     filters.time !== initialFilters.time,
@@ -930,23 +1101,42 @@ function getAreaOptions(city: string, district: string) {
   return locationOptions[city]?.[district] ?? locationOptions[city]?.['不限'] ?? ['不限'];
 }
 
-function getLocationLabel(filters: Pick<FeedFilters, 'city' | 'district' | 'area'>) {
-  if (filters.area !== '不限') return filters.area;
+function getLocationLabel(filters: Pick<FeedFilters, 'city' | 'district'>) {
   if (filters.district !== '不限') return filters.district;
   return filters.city;
 }
 
-function getLocationKeyword(filters: Pick<FeedFilters, 'district' | 'area'>) {
+function getLocationKeyword(filters: Pick<FeedFilters, 'district' | 'area' | 'locationPointName'>) {
+  if (filters.locationPointName && filters.locationPointName !== '当前位置') return cleanLocationPointName(filters.locationPointName);
   if (filters.area !== '不限') return filters.area;
   if (filters.district !== '不限') return filters.district;
   return '';
 }
 
-function getLocationKeywords(filters: Pick<FeedFilters, 'city' | 'district' | 'area'>) {
+function getLocationKeywords(filters: Pick<FeedFilters, 'city' | 'district' | 'area' | 'locationPointName'>) {
+  if (filters.locationPointName && filters.locationPointName !== '当前位置') return [cleanLocationPointName(filters.locationPointName), filters.district].filter((item) => item && item !== '不限');
   if (filters.area !== '不限') return [filters.area];
   if (filters.district === '不限') return [];
 
   return [filters.district, ...getAreaOptions(filters.city, filters.district).filter((area) => area !== '不限')];
+}
+
+function getActiveLocation(filters: Pick<FeedFilters, 'locationLat' | 'locationLng'>, consumerLocation: ConsumerLocation | null) {
+  if (filters.locationLat !== null && filters.locationLng !== null) {
+    return { lat: filters.locationLat, lng: filters.locationLng };
+  }
+
+  return consumerLocation;
+}
+
+function getMapPointOptions(city: string, district: string) {
+  const cityMatched = demoMapPoints.filter((point) => city === '不限' || point.city === city);
+  const districtMatched = cityMatched.filter((point) => district === '不限' || point.district === district);
+  return districtMatched.length ? districtMatched : cityMatched.length ? cityMatched : demoMapPoints;
+}
+
+function cleanLocationPointName(name: string) {
+  return name.replace('定位点', '');
 }
 
 function loadSearchHistory() {
