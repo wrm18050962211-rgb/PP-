@@ -183,7 +183,7 @@ function CompanionFilterSheet({
   const groups = mode === 'all' ? (Object.keys(filterLabels) as FilterKey[]) : [mode];
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/70" onClick={onClose}>
+    <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-end bg-black/70" onClick={onClose}>
       <section className="h-full w-[84%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-base font-black">选择拍摄条件</h2>

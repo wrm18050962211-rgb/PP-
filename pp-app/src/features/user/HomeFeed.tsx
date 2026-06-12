@@ -390,8 +390,8 @@ function SearchOverlay({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#17171c] text-white">
-      <div className="mx-auto min-h-dvh w-full max-w-md px-4 pb-8 pt-5">
+    <div className="fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 bg-[#17171c] text-white">
+      <div className="min-h-dvh w-full px-4 pb-8 pt-5">
         <div className="flex items-center gap-3">
           <button
             className="grid h-10 w-8 shrink-0 place-items-center text-white/86"
@@ -473,7 +473,7 @@ function LocationDrawer({
   const areaOptions = getAreaOptions(filters.city, filters.district);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-start bg-black/70" onClick={onClose}>
+    <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-start bg-black/70" onClick={onClose}>
       <section className="h-full w-[86%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <SheetHeader title="选择位置" onClose={onClose} />
         <div className="mt-4 rounded-[8px] bg-zinc-50 p-3 text-sm font-black text-zinc-900">
@@ -550,7 +550,7 @@ function FilterSheet({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/70" onClick={onClose}>
+    <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-end bg-black/70" onClick={onClose}>
       <section className="h-full w-[84%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <SheetHeader title="筛选" onClose={onClose} />
         <div className="mt-4 space-y-4">
