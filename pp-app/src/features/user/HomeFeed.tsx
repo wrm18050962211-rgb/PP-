@@ -177,7 +177,7 @@ export function HomeFeed() {
   const filteredPosts = useMemo(() => sortPostsByMatchedIds(localFilteredPosts, matchedPostIds), [localFilteredPosts, matchedPostIds]);
   const activeFilterCount = getActiveFilterCount(filters);
   const topChromeHidden = homeChromeCompact && !searchOpen && !cityOpen && !filterOpen;
-  const topPaddingClass = topChromeHidden ? 'pt-0' : filters.query || locationMessage ? 'pt-[122px]' : 'pt-[74px]';
+  const topPaddingClass = 'pt-2';
 
   const openSearch = useCallback(() => {
     setSearchDraft(filters.query);
@@ -243,13 +243,13 @@ export function HomeFeed() {
   return (
     <div className={`min-h-dvh bg-[#050505] text-white transition-[padding] duration-300 ${topPaddingClass}`}>
       <header
-        className={`fixed inset-x-0 top-0 z-30 mx-auto max-w-md border-b border-white/10 bg-black/[0.88] px-4 pb-2.5 pt-2.5 text-white shadow-[0_14px_32px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition-all duration-300 ${
+        className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md px-4 pt-3 text-white transition-all duration-300 ${
           topChromeHidden ? 'pointer-events-none -translate-y-full opacity-0' : 'translate-y-0 opacity-100'
         }`}
       >
         <div className="flex h-10 items-center justify-between gap-3">
           <button
-            className="flex h-9 max-w-[112px] shrink-0 items-center gap-1.5 rounded-full px-1 text-white"
+            className="pointer-events-auto flex h-9 max-w-[112px] shrink-0 items-center gap-1.5 rounded-full bg-black/26 px-2 text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)] backdrop-blur-md"
             onClick={() => setCityOpen(true)}
             aria-label={`选择位置：${locationLabel}`}
             title={locationLabel}
@@ -258,7 +258,7 @@ export function HomeFeed() {
             <span className="min-w-0 truncate text-base font-black leading-none">{locationLabel}</span>
           </button>
 
-          <nav className="flex h-9 items-center gap-5 text-base font-black text-white/42">
+          <nav className="pointer-events-auto flex h-9 items-center gap-5 text-base font-black text-white/48 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
             {channels.map((channel) => (
               <button
                 key={channel}
@@ -282,10 +282,10 @@ export function HomeFeed() {
             ))}
           </nav>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="pointer-events-auto flex shrink-0 items-center gap-2">
             <button
               className={`relative grid h-9 w-9 place-items-center rounded-full transition ${
-                filters.query ? 'bg-white text-black' : 'bg-white/[0.09] text-white ring-1 ring-white/[0.14]'
+                filters.query ? 'bg-white text-black' : 'bg-black/26 text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)] ring-1 ring-white/14 backdrop-blur-md'
               }`}
               onClick={openSearch}
               aria-label="搜索"
@@ -295,7 +295,7 @@ export function HomeFeed() {
             </button>
             <button
               className={`relative grid h-9 w-9 place-items-center rounded-full transition ${
-                activeFilterCount ? 'bg-white text-black' : 'bg-white/[0.09] text-white ring-1 ring-white/[0.14]'
+                activeFilterCount ? 'bg-white text-black' : 'bg-black/26 text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)] ring-1 ring-white/14 backdrop-blur-md'
               }`}
               onClick={() => setFilterOpen(true)}
               aria-label="筛选"
@@ -311,7 +311,7 @@ export function HomeFeed() {
         </div>
 
         {filters.query ? (
-          <div className="mt-3 flex items-center justify-between gap-2 border border-white/14 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/82">
+          <div className="pointer-events-auto mt-3 flex items-center justify-between gap-2 border border-white/14 bg-black/42 px-3 py-2 text-xs font-bold text-white/82 shadow-[0_10px_24px_rgba(0,0,0,0.22)] backdrop-blur-md">
             <button className="min-w-0 flex-1 truncate text-left" onClick={openSearch}>
               搜索：{filters.query}
             </button>
@@ -321,7 +321,7 @@ export function HomeFeed() {
           </div>
         ) : null}
 
-        {locationMessage ? <p className="mt-2 px-1 text-xs font-semibold text-white/52">{locationMessage}</p> : null}
+        {locationMessage ? <p className="pointer-events-auto mt-2 bg-black/36 px-2 py-1 text-xs font-semibold text-white/70 backdrop-blur-md">{locationMessage}</p> : null}
 
       </header>
 

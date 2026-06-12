@@ -58,7 +58,7 @@ export function ConsumerShell() {
         <nav className="pointer-events-none fixed inset-x-0 bottom-3 z-30 mx-auto flex max-w-md justify-center px-4 pb-[env(safe-area-inset-bottom)]">
           <div
             className={`pointer-events-auto grid grid-cols-4 items-center border border-white/10 bg-black/[0.82] shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all duration-300 ${
-              isHome && homeChromeCompact ? 'h-11 w-[248px] rounded-full px-2' : 'h-[60px] w-full rounded-full px-3'
+              isHome && homeChromeCompact ? 'h-12 w-[272px] rounded-full px-2' : 'h-14 w-[304px] max-w-full rounded-full px-3'
             }`}
           >
             {tabs.map(({ to, label, icon: Icon }) => (
@@ -68,16 +68,14 @@ export function ConsumerShell() {
                 end={to === '/consumer'}
                 className={({ isActive }) =>
                   `flex min-w-0 items-center justify-center rounded-full font-black transition-all duration-300 ${
-                    isHome && homeChromeCompact ? 'h-9 gap-0' : 'h-11 gap-1.5'
+                    isHome && homeChromeCompact ? 'h-10 w-11' : 'h-11 w-12'
                   } ${isActive ? 'bg-white/[0.14] text-white' : 'text-white/[0.54]'}`
                 }
                 aria-label={label}
+                title={label}
               >
                 {({ isActive }) => (
-                  <>
-                    <Icon size={isHome && homeChromeCompact ? 20 : 19} strokeWidth={isActive ? 2.6 : 2.2} />
-                    <span className={`text-[11px] transition-all duration-300 ${isHome && homeChromeCompact ? 'sr-only' : 'max-w-12 opacity-100'}`}>{label}</span>
-                  </>
+                  <Icon size={isHome && homeChromeCompact ? 21 : 22} strokeWidth={isActive ? 2.6 : 2.2} />
                 )}
               </NavLink>
             ))}
