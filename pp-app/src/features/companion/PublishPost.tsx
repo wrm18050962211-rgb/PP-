@@ -3,6 +3,7 @@ import { ChangeEvent, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { uploadPostImage } from '../../services/mediaService';
 
 const styleTags = ['自然光', '松弛感', '小红书', '夜景', '旅行感', '咖啡店', '胶片感', '街拍', '文艺', '甜酷'];
@@ -29,7 +30,7 @@ export function PublishPost() {
   }
 
   async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/'));
+    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'));
     if (!files.length) return;
 
     const nextImages = await Promise.all(files.map(uploadPostImage));
@@ -62,7 +63,7 @@ export function PublishPost() {
         <label className="relative block aspect-[4/5] overflow-hidden rounded-[10px] border border-dashed border-zinc-300 bg-zinc-50">
           {coverImage ? (
             <>
-              <img className="h-full w-full object-cover" src={coverImage.url} alt="作品封面预览" />
+              <LivePhotoMedia media={coverImage} alt="作品封面预览" fit="cover" loading="eager" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-white">
                 <p className="text-sm font-black">当前封面</p>
                 <p className="mt-1 line-clamp-1 text-xs text-white/78">{workDraft.location || '选择下方图片可切换封面'}</p>
@@ -77,7 +78,7 @@ export function PublishPost() {
               </div>
             </div>
           )}
-          <input className="sr-only" type="file" accept="image/*" multiple onChange={handleFiles} />
+          <input className="sr-only" type="file" accept="image/*,video/*" multiple onChange={handleFiles} />
         </label>
 
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -90,7 +91,7 @@ export function PublishPost() {
               onClick={() => saveWorkDraft({ coverImageId: image.id })}
               aria-label="选择封面"
             >
-              <img className="h-full w-full object-cover" src={image.url} alt="" />
+              <LivePhotoMedia media={image} alt="" fit="cover" showBadge />
               {image.id === workDraft.coverImageId ? (
                 <span className="absolute left-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-rose-500 text-white">
                   <Check size={13} />
@@ -111,7 +112,7 @@ export function PublishPost() {
           ))}
           <label className="grid h-24 w-20 shrink-0 place-items-center rounded-[8px] border border-dashed border-zinc-300 bg-zinc-50 text-zinc-500">
             <ImagePlus size={22} />
-            <input className="sr-only" type="file" accept="image/*" multiple onChange={handleFiles} />
+            <input className="sr-only" type="file" accept="image/*,video/*" multiple onChange={handleFiles} />
           </label>
         </div>
       </section>

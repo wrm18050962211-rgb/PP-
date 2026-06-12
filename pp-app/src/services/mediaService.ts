@@ -8,12 +8,16 @@ type UploadInput = {
 };
 
 export async function uploadPostImage(file: File): Promise<PostImage> {
-  const policy = await requestUploadPolicy(file, 'post-image');
+  const isVideo = file.type.startsWith('video/');
+  const policy = await requestUploadPolicy(file, isVideo ? 'video' : 'post-image');
   const localPreviewUrl = await readFileAsDataUrl(file);
+  const mediaUrl = policy?.mode === 'production' ? policy.publicUrl : localPreviewUrl;
 
   return {
     id: `draft-image-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    url: policy?.mode === 'production' ? policy.publicUrl : localPreviewUrl,
+    url: mediaUrl,
+    mediaKind: isVideo ? 'live' : 'image',
+    videoUrl: isVideo ? mediaUrl : undefined,
     provider: policy?.provider ?? 'local',
     objectKey: policy?.objectKey,
     contentType: file.type,

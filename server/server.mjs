@@ -1153,20 +1153,43 @@ const VIRTUAL_LANDSCAPE_IMAGES = [
   'https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1200&q=80',
 ];
 
+const VIRTUAL_LIVE_VIDEO_URLS = [
+  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+  'https://media.w3.org/2010/05/sintel/trailer.mp4',
+];
+
 function createVirtualPostImages(postId, index, image, secondaryImage, avatar) {
   const isLandscape = VIRTUAL_LANDSCAPE_INDEXES.has(index);
+  const isLive = index % 4 === 1 || index % 7 === 0;
   const landscapeImageIndex = Math.floor(index / 3) % VIRTUAL_LANDSCAPE_IMAGES.length;
   const coverUrl = isLandscape ? VIRTUAL_LANDSCAPE_IMAGES[landscapeImageIndex] : image;
+  const liveVideoUrl = VIRTUAL_LIVE_VIDEO_URLS[index % VIRTUAL_LIVE_VIDEO_URLS.length];
   return [
-    { id: `${postId}-image-1`, url: coverUrl, width: isLandscape ? 1200 : 900, height: isLandscape ? 800 : 1200, sortOrder: 1 },
-    { id: `${postId}-image-2`, url: secondaryImage || avatar, width: 900, height: 1200, sortOrder: 2 },
+    {
+      id: `${postId}-image-1`,
+      url: coverUrl,
+      mediaKind: isLive ? 'live' : 'image',
+      videoUrl: isLive ? liveVideoUrl : undefined,
+      posterUrl: coverUrl,
+      width: isLandscape ? 1200 : 900,
+      height: isLandscape ? 800 : 1200,
+      sortOrder: 1,
+    },
+    { id: `${postId}-image-2`, url: secondaryImage || avatar, mediaKind: 'image', width: 900, height: 1200, sortOrder: 2 },
   ];
 }
 
 function hasSamePostImages(currentImages = [], nextImages = []) {
   return nextImages.every((nextImage, index) => {
     const currentImage = currentImages[index];
-    return currentImage?.url === nextImage.url && currentImage?.width === nextImage.width && currentImage?.height === nextImage.height;
+    return (
+      currentImage?.url === nextImage.url &&
+      currentImage?.width === nextImage.width &&
+      currentImage?.height === nextImage.height &&
+      currentImage?.mediaKind === nextImage.mediaKind &&
+      currentImage?.videoUrl === nextImage.videoUrl &&
+      currentImage?.posterUrl === nextImage.posterUrl
+    );
   });
 }
 

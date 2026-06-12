@@ -1,6 +1,7 @@
 import { BadgeCheck, Banknote, MapPin, Search, SlidersHorizontal, Star } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
 
@@ -74,14 +75,19 @@ export function CreatorFinderPage() {
 }
 
 function CreatorCard({ creator, index }: { creator: ApprovedCreator; index: number }) {
-  const cover = creator.post.images[0]?.url || creator.avatar;
   const aspectClass = getCreatorAspect(index, creator.post);
 
   return (
     <article className="overflow-hidden rounded-[2px] bg-[#131313] ring-1 ring-white/8">
       <Link to={`/consumer/creator/${creator.id}`} className="block" aria-label={`查看${creator.name}主页`}>
         <div className={`relative ${aspectClass} bg-zinc-950`}>
-          <img className="h-full w-full object-cover saturate-[0.92] contrast-[1.05]" src={cover} alt={getPostTitle(creator.post)} loading={index < 4 ? 'eager' : 'lazy'} />
+          <LivePhotoMedia
+            media={creator.post.images[0]}
+            alt={getPostTitle(creator.post)}
+            loading={index < 4 ? 'eager' : 'lazy'}
+            fallbackSrc={creator.avatar}
+            mediaClassName="saturate-[0.92] contrast-[1.05]"
+          />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/86 via-black/30 to-transparent px-2 pb-2 pt-12">
             <div className="flex items-center gap-1 text-[10px] font-black text-emerald-200">
               <BadgeCheck size={12} />

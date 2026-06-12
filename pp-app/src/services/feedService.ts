@@ -382,13 +382,29 @@ const virtualLandscapeImages = [
   'https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1200&q=80',
 ] as const;
 
+const virtualLiveVideoUrls = [
+  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+  'https://media.w3.org/2010/05/sintel/trailer.mp4',
+] as const;
+
 function createVirtualPostImages(postId: string, profile: (typeof virtualProfiles)[number], index: number) {
   const isLandscape = virtualLandscapeIndexes.has(index);
+  const isLive = index % 4 === 1 || index % 7 === 0;
   const landscapeImageIndex = Math.floor(index / 3) % virtualLandscapeImages.length;
   const coverUrl = isLandscape ? virtualLandscapeImages[landscapeImageIndex] : profile.image;
+  const liveVideoUrl = virtualLiveVideoUrls[index % virtualLiveVideoUrls.length];
   return [
-    { id: `${postId}-image-1`, url: coverUrl, width: isLandscape ? 1200 : 900, height: isLandscape ? 800 : 1200, sortOrder: 1 },
-    { id: `${postId}-image-2`, url: profile.avatar, width: 900, height: 1200, sortOrder: 2 },
+    {
+      id: `${postId}-image-1`,
+      url: coverUrl,
+      mediaKind: isLive ? 'live' : 'image',
+      videoUrl: isLive ? liveVideoUrl : undefined,
+      posterUrl: coverUrl,
+      width: isLandscape ? 1200 : 900,
+      height: isLandscape ? 800 : 1200,
+      sortOrder: 1,
+    },
+    { id: `${postId}-image-2`, url: profile.avatar, mediaKind: 'image', width: 900, height: 1200, sortOrder: 2 },
   ];
 }
 

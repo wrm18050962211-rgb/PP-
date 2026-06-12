@@ -1,6 +1,7 @@
 import { MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
 
@@ -105,7 +106,9 @@ export function CompanionFinderPage() {
       {sameStylePost ? (
         <section className="px-2 pt-2">
           <div className="flex items-center gap-3 rounded-[2px] bg-white p-3 text-black">
-            <img className="h-16 w-12 rounded-[2px] object-cover" src={sameStylePost.images[0]?.url} alt={sameStylePost.location} />
+            <div className="h-16 w-12 shrink-0 overflow-hidden rounded-[2px]">
+              <LivePhotoMedia media={sameStylePost.images[0]} alt={sameStylePost.location} />
+            </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-black text-zinc-500">按这组作品找同款摄影师</p>
               <p className="mt-1 line-clamp-2 text-sm font-bold leading-5">{sameStylePost.locationName || sameStylePost.location}</p>
@@ -164,11 +167,12 @@ function PhotographerResultCard({ result, index }: { result: PhotographerResult;
             className="relative h-full w-full shrink-0 snap-center"
             aria-label={`查看${companion.name}作品 ${getPostTitle(work)}`}
           >
-            <img
-              className="h-full w-full object-cover saturate-[0.9] contrast-[1.05]"
-              src={work.images[0]?.url || companion.photo || companion.avatar}
+            <LivePhotoMedia
+              media={work.images[0]}
               alt={getPostTitle(work)}
               loading={index < 2 && workIndex === 0 ? 'eager' : 'lazy'}
+              fallbackSrc={companion.photo || companion.avatar}
+              mediaClassName="saturate-[0.9] contrast-[1.05]"
             />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/76 via-black/22 to-transparent px-2 pb-2 pt-10">
               <p className="line-clamp-1 text-[11px] font-black text-white/86">{getPostTitle(work)}</p>

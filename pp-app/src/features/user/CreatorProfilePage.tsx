@@ -2,6 +2,7 @@ import { ArrowLeft, Camera, MessageCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
 import type { FeedPost } from '../../types/api';
@@ -105,7 +106,7 @@ function WorkGrid({ works }: { works: FeedPost[] }) {
     <section className="grid grid-cols-3 gap-[1px] bg-black">
       {works.map((post) => (
         <Link key={post.id} to={`/consumer/post/${post.id}`} className="relative aspect-[0.76] overflow-hidden bg-[#111]" aria-label={`查看作品 ${getPostTitle(post)}`}>
-          <img className="h-full w-full object-cover" src={post.images[0]?.url} alt={getPostTitle(post)} loading="lazy" />
+          <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading="lazy" />
           {post.images.length > 1 ? <span className="absolute right-1.5 top-1.5 h-4 w-4 rounded-[4px] border border-white/80 bg-black/12" /> : null}
         </Link>
       ))}

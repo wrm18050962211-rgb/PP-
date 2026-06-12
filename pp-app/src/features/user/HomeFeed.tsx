@@ -2,6 +2,7 @@ import { ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from '
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { fetchFeedPosts, getPostTitle, listFeedPosts, mergeApprovedWorkIntoFeed } from '../../services/feedService';
 import type { ConsumerLocation } from '../../services/locationService';
 import { fetchMatchedCompanions, matchCompanions, type GenderPreference } from '../../services/matchingService';
@@ -556,7 +557,7 @@ function SearchOverlay({
           <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {suggestionTiles.map(({ label, post }) => (
               <button key={label} className="relative h-20 w-36 shrink-0 overflow-hidden rounded-[3px] bg-white/[0.06] text-left" onClick={() => onPick(label)}>
-                {post ? <img className="absolute inset-0 h-full w-full object-cover opacity-75" src={post.images[0]?.url} alt={label} /> : null}
+                {post ? <LivePhotoMedia className="absolute inset-0" media={post.images[0]} alt={label} mediaClassName="opacity-75" /> : null}
                 <span className="absolute inset-0 bg-gradient-to-t from-black/76 via-black/24 to-black/8" />
                 <span className="absolute bottom-2 left-2 right-2 truncate text-sm font-black text-white/78">{label}</span>
               </button>
@@ -567,7 +568,7 @@ function SearchOverlay({
         <section className="mt-3 grid grid-cols-3 gap-px">
           {previewPosts.map((post, index) => (
             <Link key={post.id} to={`/consumer/post/${post.id}`} className="group relative aspect-square overflow-hidden bg-white/[0.04]" aria-label={`查看${getPostTitle(post)}`}>
-              <img className="h-full w-full object-cover transition duration-300 group-active:scale-[0.98]" src={post.images[0]?.url} alt={getPostTitle(post)} loading={index < 9 ? 'eager' : 'lazy'} />
+              <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading={index < 9 ? 'eager' : 'lazy'} mediaClassName="transition duration-300 group-active:scale-[0.98]" />
             </Link>
           ))}
         </section>

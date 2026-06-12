@@ -110,6 +110,9 @@ export type AuthSession = {
 export type PostImage = {
   id: string;
   url: string;
+  mediaKind?: 'image' | 'live' | 'video' | string;
+  videoUrl?: string;
+  posterUrl?: string;
   width?: number;
   height?: number;
   sortOrder: number;

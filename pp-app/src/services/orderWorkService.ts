@@ -65,6 +65,10 @@ export function orderWorkToFeedPost(record: OrderWorkRecord, order: AppOrder, se
   const images: PostImage[] = record.imageUrls.map((url, index) => ({
     id: `${record.orderId}-work-image-${index + 1}`,
     url,
+    mediaKind: isVideoUrl(url) ? 'live' : seedPost.images[index]?.mediaKind || 'image',
+    videoUrl: isVideoUrl(url) ? url : seedPost.images[index]?.videoUrl,
+    posterUrl: seedPost.images[index]?.posterUrl,
+    contentType: parseDataUrlContentType(url) || seedPost.images[index]?.contentType,
     width: seedPost.images[index]?.width ?? seedPost.images[0]?.width ?? 900,
     height: seedPost.images[index]?.height ?? seedPost.images[0]?.height ?? 1200,
     sortOrder: index + 1,
@@ -83,4 +87,13 @@ export function orderWorkToFeedPost(record: OrderWorkRecord, order: AppOrder, se
     styleTags: Array.from(new Set(['订单成片', '共同确认', ...seedPost.styleTags.slice(0, 2)])),
     images: images.length ? images : seedPost.images,
   };
+}
+
+function isVideoUrl(url: string) {
+  return parseDataUrlContentType(url).startsWith('video/') || /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(url);
+}
+
+function parseDataUrlContentType(url: string) {
+  const match = url.match(/^data:([^;,]+)/);
+  return match?.[1] ?? '';
 }

@@ -16,6 +16,7 @@ import {
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { listFeedPosts } from '../../services/feedService';
 import {
   canEditOrderWork,
@@ -299,7 +300,9 @@ function CompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; on
       {record?.imageUrls.length ? (
         <div className="mt-3 grid grid-cols-4 gap-1">
           {record.imageUrls.slice(0, 4).map((url, index) => (
-            <img key={`${url}-${index}`} className="aspect-square w-full rounded-[6px] object-cover" src={url} alt={`成片 ${index + 1}`} />
+            <div key={`${url}-${index}`} className="aspect-square w-full overflow-hidden rounded-[6px]">
+              <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
+            </div>
           ))}
         </div>
       ) : null}
@@ -340,7 +343,7 @@ function OrderWorkDialog({
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
-    const imageUrls = await readFilesAsDataUrls(Array.from(files).slice(0, 9));
+    const imageUrls = await readFilesAsDataUrls(Array.from(files).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/')).slice(0, 9));
     updateEditableDraft({ imageUrls });
   }
 
@@ -393,7 +396,9 @@ function OrderWorkDialog({
 
         <div className="grid grid-cols-3 gap-1">
           {draft.imageUrls.map((url, index) => (
-            <img key={`${url}-${index}`} className="aspect-square w-full rounded-[8px] object-cover" src={url} alt={`成片 ${index + 1}`} />
+            <div key={`${url}-${index}`} className="aspect-square w-full overflow-hidden rounded-[8px]">
+              <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
+            </div>
           ))}
           {!draft.imageUrls.length ? (
             <div className="col-span-3 grid min-h-28 place-items-center rounded-[10px] bg-zinc-100 text-center text-sm font-bold text-zinc-400">
@@ -407,8 +412,8 @@ function OrderWorkDialog({
 
         <label className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-black ${editable ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
           <UploadCloud size={17} />
-          选择上传照片
-          <input className="hidden" type="file" accept="image/*" multiple disabled={!editable} onChange={(event) => void handleFiles(event.target.files)} />
+          选择上传照片/Live
+          <input className="hidden" type="file" accept="image/*,video/*" multiple disabled={!editable} onChange={(event) => void handleFiles(event.target.files)} />
         </label>
 
         <div className="space-y-3">
@@ -642,6 +647,24 @@ function readFilesAsDataUrls(files: File[]) {
         }),
     ),
   );
+}
+
+function mediaFromWorkUrl(url: string, index: number) {
+  const contentType = parseDataUrlContentType(url);
+  const isVideo = contentType.startsWith('video/');
+  return {
+    id: `order-work-preview-${index + 1}`,
+    url,
+    mediaKind: isVideo ? 'live' : 'image',
+    videoUrl: isVideo ? url : undefined,
+    contentType,
+    sortOrder: index + 1,
+  };
+}
+
+function parseDataUrlContentType(url: string) {
+  const match = url.match(/^data:([^;,]+)/);
+  return match?.[1] ?? '';
 }
 
 function loadReviewedOrderIds() {

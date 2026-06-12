@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { BookingSheet } from '../../components/BookingSheet';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle } from '../../services/feedService';
 import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
 
@@ -153,7 +154,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
           <div ref={imageTrackRef} className={`flex w-full snap-x snap-mandatory overflow-x-auto scroll-smooth bg-black scrollbar-none ${mediaHeightClass}`} onScroll={handleImageScroll}>
             {images.map((image, index) => (
               <figure key={image.id} className="flex h-full w-full shrink-0 snap-center items-center justify-center bg-black">
-                <img className="h-full w-full object-contain" src={image.url} alt={`${post.location} 第${index + 1}张`} loading={index === 0 ? 'eager' : 'lazy'} />
+                <LivePhotoMedia media={image} alt={`${post.location} 第${index + 1}张`} fit="contain" loading={index === 0 ? 'eager' : 'lazy'} />
               </figure>
             ))}
           </div>

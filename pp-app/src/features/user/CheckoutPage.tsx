@@ -2,6 +2,7 @@ import { ArrowLeft, CalendarDays, CheckCircle2, CreditCard, MapPin, MessageCircl
 import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { getPostDetail } from '../../services/feedService';
 import { formatMoney } from '../../utils/money';
 
@@ -56,7 +57,9 @@ export function CheckoutPage() {
       </header>
 
       <section className="mt-5 overflow-hidden rounded-[22px] pp-surface">
-        <img className="h-48 w-full object-cover" src={post.images[0]?.url} alt={post.location} />
+        <div className="h-48 w-full">
+          <LivePhotoMedia media={post.images[0]} alt={post.location} loading="eager" />
+        </div>
         <div className="p-4">
           <div className="flex items-center gap-3">
             <img className="h-12 w-12 rounded-[16px] object-cover" src={post.companion.avatar} alt="" />
