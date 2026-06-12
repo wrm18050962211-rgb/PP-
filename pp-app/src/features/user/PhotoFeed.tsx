@@ -70,7 +70,7 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
 
 function renderColumnItem(item: FeedColumnItem, priority: boolean) {
   if (item.type === 'recommendation') {
-    return <RecommendationCard key={item.tile.id} tile={item.tile} className="flex-1" />;
+    return <RecommendationCard key={item.tile.id} tile={item.tile} />;
   }
 
   const layout = getDiscoveryLayoutRule(item.post, item.index);
@@ -170,14 +170,13 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
   return (
     <Link
       to={tile.href}
-      className={`flex min-h-20 flex-col justify-between overflow-hidden rounded-[2px] border border-white/10 bg-white px-3 py-2.5 text-black ${className}`}
+      className={`flex h-14 items-center gap-2 overflow-hidden rounded-[2px] border border-white/8 bg-white/[0.055] px-2.5 text-white/62 backdrop-blur-sm transition hover:bg-white/[0.085] ${className}`}
     >
-      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
-        <Icon size={11} />
-        {tile.eyebrow}
+      <Icon size={12} className="shrink-0 text-white/38" />
+      <span className="min-w-0">
+        <span className="block text-[9px] font-bold leading-3 text-white/34">{tile.eyebrow}</span>
+        <span className="block truncate text-xs font-semibold leading-4 text-white/70">{tile.title}</span>
       </span>
-      <span className="line-clamp-2 text-sm font-black leading-4">{tile.title}</span>
-      <span className="truncate text-[11px] font-bold text-zinc-500">{tile.meta}</span>
     </Link>
   );
 }
@@ -187,21 +186,22 @@ function createPlaceRecommendation(post?: FeedPost, id = 'recommend-place'): Rec
   return {
     id,
     kind: 'place',
-    eyebrow: '网红地点',
-    title: `${area} 附近可拍`,
-    meta: '点开自动筛选地点',
+    eyebrow: '拍摄地',
+    title: area,
+    meta: '',
     href: `/consumer/companions?area=${encodeURIComponent(area)}`,
   };
 }
 
 function createPhotographerRecommendation(post?: FeedPost, id = 'recommend-photographer'): RecommendationTile {
   const style = post?.activity || post?.styleTags[0] || 'Citywalk';
+  const photographer = post?.companion.name || style;
   return {
     id,
     kind: 'photographer',
     eyebrow: '摄影师',
-    title: `${style} 摄影师`,
-    meta: '按风格直接找人',
+    title: photographer,
+    meta: '',
     href: `/consumer/companions?style=${encodeURIComponent(style)}`,
   };
 }
@@ -212,9 +212,9 @@ function createSameStyleRecommendation(post?: FeedPost, id = 'recommend-same-sty
   return {
     id,
     kind: 'same-style',
-    eyebrow: '创作者同款',
-    title: `${title} 拍同款`,
-    meta: '带作品条件进入拍摄',
+    eyebrow: '样板',
+    title,
+    meta: '',
     href: `/consumer/companions?sameStyle=${encodeURIComponent(post?.id ?? '')}&style=${encodeURIComponent(style)}`,
   };
 }
