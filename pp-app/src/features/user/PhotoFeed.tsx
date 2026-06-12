@@ -79,11 +79,10 @@ function getDiscoveryLayoutRule(post: FeedPost, index: number): FeedLayoutRule {
   const cover = post.images[0];
   const ratio = cover?.width && cover?.height ? cover.width / cover.height : 0;
   const isRealHorizontal = ratio >= 1.16;
-  const isEditorialBreak = index > 0 && index % 8 === 5;
 
-  // Discovery feed rule: horizontal images stay in one column to avoid cross-column gaps;
-  // vertical cards alternate heights so the two columns keep a staggered rhythm.
-  if (isRealHorizontal || isEditorialBreak) {
+  // Discovery feed rule: true horizontal works stay in one column; vertical cards
+  // alternate heights so the two columns keep a staggered rhythm.
+  if (isRealHorizontal) {
     return { variant: 'wide' };
   }
 

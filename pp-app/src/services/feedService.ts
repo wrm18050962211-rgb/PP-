@@ -334,20 +334,38 @@ const virtualProfiles = [
   },
 ] as const;
 
+const virtualLandscapeIndexes = new Set([1, 4, 7, 10, 13, 16]);
+const virtualLandscapeImages = [
+  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1200&q=80',
+] as const;
+
+function createVirtualPostImages(postId: string, profile: (typeof virtualProfiles)[number], index: number) {
+  const isLandscape = virtualLandscapeIndexes.has(index);
+  const landscapeImageIndex = Math.floor(index / 3) % virtualLandscapeImages.length;
+  const coverUrl = isLandscape ? virtualLandscapeImages[landscapeImageIndex] : profile.image;
+  return [
+    { id: `${postId}-image-1`, url: coverUrl, width: isLandscape ? 1200 : 900, height: isLandscape ? 800 : 1200, sortOrder: 1 },
+    { id: `${postId}-image-2`, url: profile.avatar, width: 900, height: 1200, sortOrder: 2 },
+  ];
+}
+
 function createVirtualFeedPosts(): FeedPost[] {
   return virtualProfiles.map((profile, index): FeedPost => {
     const companion = createVirtualCompanion(profile, index);
+    const postId = `virtual-post-${index + 1}`;
     return {
-      id: `virtual-post-${index + 1}`,
+      id: postId,
       location: `上海 · ${profile.area}`,
       timeLabel: `${index % 2 === 0 ? '下午' : '傍晚'} / 虚拟样例 / 可替换资料`,
       caption: `${profile.bio} 这是一条虚拟陪拍者样例资料，用于填充页面和调试预约流程。`,
       styleTags: [...profile.styleTags, '虚拟样例'],
       activity: profile.activity,
-      images: [
-        { id: `virtual-post-${index + 1}-image-1`, url: profile.image, width: 900, height: 1200, sortOrder: 1 },
-        { id: `virtual-post-${index + 1}-image-2`, url: profile.avatar, width: 900, height: 1200, sortOrder: 2 },
-      ],
+      images: createVirtualPostImages(postId, profile, index),
       companion,
     };
   });

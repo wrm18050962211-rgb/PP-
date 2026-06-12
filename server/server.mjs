@@ -1120,6 +1120,33 @@ function initialStore() {
   };
 }
 
+const VIRTUAL_LANDSCAPE_INDEXES = new Set([1, 4, 7, 10, 13, 16]);
+const VIRTUAL_LANDSCAPE_IMAGES = [
+  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1200&q=80',
+];
+
+function createVirtualPostImages(postId, index, image, secondaryImage, avatar) {
+  const isLandscape = VIRTUAL_LANDSCAPE_INDEXES.has(index);
+  const landscapeImageIndex = Math.floor(index / 3) % VIRTUAL_LANDSCAPE_IMAGES.length;
+  const coverUrl = isLandscape ? VIRTUAL_LANDSCAPE_IMAGES[landscapeImageIndex] : image;
+  return [
+    { id: `${postId}-image-1`, url: coverUrl, width: isLandscape ? 1200 : 900, height: isLandscape ? 800 : 1200, sortOrder: 1 },
+    { id: `${postId}-image-2`, url: secondaryImage || avatar, width: 900, height: 1200, sortOrder: 2 },
+  ];
+}
+
+function hasSamePostImages(currentImages = [], nextImages = []) {
+  return nextImages.every((nextImage, index) => {
+    const currentImage = currentImages[index];
+    return currentImage?.url === nextImage.url && currentImage?.width === nextImage.width && currentImage?.height === nextImage.height;
+  });
+}
+
 function seedVirtualData(store) {
   let changed = false;
   const profiles = [
@@ -1202,10 +1229,7 @@ function seedVirtualData(store) {
       caption: `${bio} 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。`,
       styleTags: [...styleTags],
       activity: activityName,
-      images: [
-        { id: `${postId}-image-1`, url: image, width: 900, height: 1200, sortOrder: 1 },
-        { id: `${postId}-image-2`, url: secondaryImage || avatar, width: 900, height: 1200, sortOrder: 2 },
-      ],
+      images: createVirtualPostImages(postId, index, image, secondaryImage, avatar),
       companion,
     };
     const postIndex = store.posts.findIndex((item) => item.id === postId);
@@ -1213,7 +1237,12 @@ function seedVirtualData(store) {
     if (!existingPost) {
       store.posts.push(postData);
       changed = true;
-    } else if (existingPost.city !== '上海' || existingPost.locationName !== area || (existingPost.images?.length || 0) < postData.images.length) {
+    } else if (
+      existingPost.city !== '上海' ||
+      existingPost.locationName !== area ||
+      (existingPost.images?.length || 0) < postData.images.length ||
+      !hasSamePostImages(existingPost.images, postData.images)
+    ) {
       store.posts[postIndex] = postData;
       changed = true;
     }
