@@ -171,7 +171,7 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
   return (
     <Link
       to={tile.href}
-      className={`flex h-10 items-center gap-1.5 overflow-hidden rounded-[2px] bg-white/[0.035] px-2 text-white/54 backdrop-blur-sm transition hover:bg-white/[0.07] ${className}`}
+      className={`flex h-10 items-center gap-1.5 overflow-hidden rounded-[2px] bg-transparent px-2 text-white/54 transition active:bg-white/[0.04] ${className}`}
       title={[tile.eyebrow, tile.title, tile.meta].filter(Boolean).join(' · ')}
     >
       <Icon size={11} className="shrink-0 text-white/30" />
