@@ -59,8 +59,8 @@ export async function fetchMatchedCompanions(input: MatchCompanionsInput): Promi
   const query = new URLSearchParams({
     lat: String(input.lat),
     lng: String(input.lng),
-    city: input.city,
   });
+  if (hasValue(input.city)) query.set('city', input.city);
   if (input.activityType) query.set('activity', input.activityType);
   if (input.genderPreference === 'female_only') query.set('gender', 'female');
   if (input.nearbyOnly) query.set('maxDistanceMeters', '5000');
@@ -77,7 +77,7 @@ function buildCandidate(post: FeedPost, input: MatchCompanionsInput): MatchCandi
   const companion = post.companion;
 
   if (companion.status !== 'approved' || !companion.serviceEnabled) return null;
-  if (companion.baseCity !== input.city) return null;
+  if (hasValue(input.city) && companion.baseCity !== input.city) return null;
   if (input.genderPreference === 'female_only' && companion.gender !== 'female') return null;
 
   const searchText = normalizeFreeText(input.location || input.keyword);

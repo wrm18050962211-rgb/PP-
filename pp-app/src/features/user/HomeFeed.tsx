@@ -35,7 +35,7 @@ const initialFilters: FeedFilters = {
   genderPreference: 'any',
 };
 
-const cities = ['上海', '北京', '杭州', '成都'];
+const cities = ['不限', '上海', '北京', '杭州', '成都'];
 const channels = ['关注', '发现', '附近'];
 const dateOptions = ['不限', '今天', '明天', '周末'];
 const timeOptions = ['不限', '上午', '下午', '傍晚', '晚上'];
@@ -205,12 +205,13 @@ export function HomeFeed() {
       <header className="sticky top-0 z-20 border-b border-white/10 bg-black/90 px-4 pb-3 pt-3 backdrop-blur-xl">
         <div className="flex h-10 items-center justify-between gap-3">
           <button
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-black ring-1 ring-white/20"
+            className="flex h-9 max-w-[72px] shrink-0 items-center gap-1.5 rounded-full bg-white px-2 text-black ring-1 ring-white/20"
             onClick={() => setCityOpen(true)}
             aria-label={`选择城市：${filters.city}`}
             title={filters.city}
           >
-            <MapPin size={18} />
+            <MapPin size={15} className="shrink-0" />
+            <span className="min-w-0 truncate text-[11px] font-black leading-none">{filters.city}</span>
           </button>
 
           <nav className="flex items-center gap-5 text-base font-black text-white/42">
