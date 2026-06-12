@@ -1,15 +1,15 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Heart, MapPin, MessageCircle, Share2, Star, X } from 'lucide-react';
+import { ArrowLeft, Bookmark, Heart, MapPin, MessageCircle, Share2, Star, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { BookingSheet } from '../../components/BookingSheet';
 import { buildApprovedWorkPost, fetchPostDetail, getPostDetail } from '../../services/feedService';
-import type { FeedPost, PublishedWorkDraft } from '../../types/api';
+import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
 
 type Comment = {
   id: string;
-  role: 'creator' | 'photographer';
+  role: 'creator' | 'photographer' | 'consumer';
   name: string;
   avatar: string;
   text: string;
@@ -29,16 +29,26 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [drawer, setDrawer] = useState<DrawerType>(null);
   const [activeImage, setActiveImage] = useState(0);
-  const [saved, setSaved] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [localComments, setLocalComments] = useState<Comment[]>([]);
   const [toast, setToast] = useState('');
   const [remotePost, setRemotePost] = useState(() => getInitialPost(postId, workDraft));
   const localPost = useMemo(() => buildApprovedWorkPost(workDraft), [workDraft]);
   const post = localPost && localPost.id === postId ? localPost : remotePost;
   const photographer = post.companion;
   const creator = buildCreator(post);
-  const comments = buildComments(post, creator);
   const cover = post.images[0];
   const images = post.images;
+  const activeMedia = images[activeImage] ?? cover;
+  const isLandscape = getImageAspectRatio(activeMedia) >= 1;
+  const mediaAspectClass = isLandscape ? 'aspect-[4/3]' : 'aspect-[3/4]';
+  const baseComments = useMemo(() => buildComments(post, creator), [post, creator.avatar, creator.name]);
+  const comments = useMemo(() => [...baseComments, ...localComments], [baseComments, localComments]);
+  const likeCount = useMemo(() => formatMetric(1180 + stableMetricSeed(post.id, 620)), [post.id]);
+  const shareCount = useMemo(() => formatMetric(260 + stableMetricSeed(`${post.id}-share`, 180)), [post.id]);
 
   useEffect(() => {
     let mounted = true;
@@ -61,6 +71,9 @@ function PostDetailContent({ postId }: { postId?: string }) {
 
   useEffect(() => {
     setActiveImage(0);
+    setCommentText('');
+    setCommentsOpen(false);
+    setLocalComments([]);
     imageTrackRef.current?.scrollTo({ left: 0 });
   }, [post.id]);
 
@@ -97,120 +110,121 @@ function PostDetailContent({ postId }: { postId?: string }) {
     setActiveImage(Math.min(Math.max(nextIndex, 0), images.length - 1));
   };
 
+  const submitComment = () => {
+    const nextText = commentText.trim();
+    if (!nextText) return;
+
+    setLocalComments((current) => [
+      ...current,
+      {
+        id: `local-comment-${Date.now()}`,
+        role: 'consumer',
+        name: '我',
+        avatar: creator.avatar,
+        text: nextText,
+      },
+    ]);
+    setCommentText('');
+  };
+
   return (
     <div className="relative h-dvh overflow-hidden bg-black text-white">
-      <header className="fixed inset-x-0 top-0 z-40 mx-auto grid h-16 max-w-md grid-cols-5 items-center gap-3 bg-gradient-to-b from-black/56 via-black/18 to-transparent px-4 text-white">
-        <Link to="/consumer" className="grid h-11 w-11 place-items-center rounded-full bg-black/30 text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)] ring-1 ring-white/12 backdrop-blur-md" aria-label="返回发现">
-          <ArrowLeft size={21} />
-        </Link>
-        <TopAvatarAction image={creator.avatar} label="查看创作者" onClick={() => setDrawer('creator')} />
-        <button
-          className={`grid h-11 w-11 place-items-center rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.2)] ring-1 ring-white/12 backdrop-blur-md ${saved ? 'bg-white text-black' : 'bg-black/30 text-white'}`}
-          onClick={() => {
-            setSaved((current) => !current);
-            setToast(saved ? '已取消点赞' : '已点赞作品');
-          }}
-          aria-label="点赞作品"
-        >
-          <Heart size={20} fill={saved ? 'currentColor' : 'none'} />
-        </button>
-        <button className="grid h-11 w-11 place-items-center rounded-full bg-black/30 text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)] ring-1 ring-white/12 backdrop-blur-md" onClick={handleShare} aria-label="分享作品">
-          <Share2 size={20} />
-        </button>
-        <TopAvatarAction image={photographer.photo || photographer.avatar} label="查看摄影师" onClick={() => setDrawer('photographer')} />
+      <header className="fixed inset-x-0 top-0 z-40 mx-auto max-w-md bg-black/96 px-3 py-2 text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
+        <div className="grid h-14 grid-cols-[30px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
+          <Link to="/consumer" className="grid h-8 w-8 place-items-center text-white/88" aria-label="返回发现">
+            <ArrowLeft size={22} />
+          </Link>
+          <ProfileIdentityButton role="创作者" name={creator.name} avatar={creator.avatar} onClick={() => setDrawer('creator')} />
+          <ProfileIdentityButton
+            align="right"
+            role="摄影师"
+            name={photographer.name}
+            avatar={photographer.photo || photographer.avatar}
+            onClick={() => setDrawer('photographer')}
+          />
+        </div>
       </header>
 
-      <main className="h-dvh snap-y snap-mandatory overflow-y-auto bg-black">
-        <section className="relative h-dvh snap-start overflow-hidden bg-black">
-          <div ref={imageTrackRef} className="absolute inset-x-0 bottom-0 top-16 flex snap-x snap-mandatory overflow-x-auto scroll-smooth scrollbar-none" onScroll={handleImageScroll}>
+      <main className="h-dvh overflow-y-auto bg-black pb-8 pt-[72px]">
+        <section className="bg-black">
+          <div ref={imageTrackRef} className={`flex w-full snap-x snap-mandatory overflow-x-auto scroll-smooth bg-black scrollbar-none ${mediaAspectClass}`} onScroll={handleImageScroll}>
             {images.map((image, index) => (
-              <figure key={image.id} className="relative h-full w-full shrink-0 snap-center bg-black">
-                <img className="h-full w-full object-cover" src={image.url} alt={`${post.location} 第${index + 1}张`} loading={index === 0 ? 'eager' : 'lazy'} />
+              <figure key={image.id} className="flex h-full w-full shrink-0 snap-center items-center justify-center bg-black">
+                <img className="h-full w-full object-contain" src={image.url} alt={`${post.location} 第${index + 1}张`} loading={index === 0 ? 'eager' : 'lazy'} />
               </figure>
             ))}
           </div>
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/24 via-transparent to-black/68" />
 
           {images.length > 1 ? (
-            <>
-              <button
-                className="absolute left-4 top-1/2 z-10 -translate-y-1/2 text-white/62 drop-shadow-[0_2px_10px_rgba(0,0,0,0.65)] transition hover:text-white"
-                onClick={() => scrollToImage(activeImage - 1)}
-                aria-label="上一张作品图"
-              >
-                <ChevronLeft size={36} strokeWidth={1.75} />
-              </button>
-              <button
-                className="absolute right-4 top-1/2 z-10 -translate-y-1/2 text-white/62 drop-shadow-[0_2px_10px_rgba(0,0,0,0.65)] transition hover:text-white"
-                onClick={() => scrollToImage(activeImage + 1)}
-                aria-label="下一张作品图"
-              >
-                <ChevronRight size={36} strokeWidth={1.75} />
-              </button>
-            </>
-          ) : null}
-
-          <div className="absolute inset-x-0 bottom-0 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-24">
-            <div className="max-w-[92%] space-y-2">
-              {images.length > 1 ? (
-                <div className="flex items-center gap-2 text-[11px] font-bold text-white/58">
-                  <span className="rounded-full bg-white/12 px-2.5 py-1 backdrop-blur">
-                    {activeImage + 1}/{images.length}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {images.map((image, index) => (
-                      <button
-                        key={image.id}
-                        className={`h-1.5 rounded-full transition-all ${index === activeImage ? 'w-4 bg-white/72' : 'w-1.5 bg-white/30'}`}
-                        onClick={() => scrollToImage(index)}
-                        aria-label={`查看第${index + 1}张作品图`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              <p className="flex items-center gap-1 text-xs font-semibold text-white/62">
-                <MapPin size={13} />
-                {post.locationName || post.location}
-              </p>
-              <p className="text-[13px] font-medium leading-6 text-white/68">{post.caption}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {post.styleTags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="rounded-full bg-white/12 px-2.5 py-1 text-[11px] font-bold text-white/58 backdrop-blur">
-                    {tag}
-                  </span>
-                ))}
-              </div>
+            <div className="flex h-8 items-center justify-center gap-1.5 bg-black">
+              {images.map((image, index) => (
+                <button
+                  key={image.id}
+                  className={`h-1.5 rounded-full transition-all ${index === activeImage ? 'w-5 bg-white' : 'w-1.5 bg-white/32'}`}
+                  onClick={() => scrollToImage(index)}
+                  aria-label={`查看第${index + 1}张作品图`}
+                />
+              ))}
             </div>
-          </div>
+          ) : null}
         </section>
 
-        <section className="min-h-dvh snap-start bg-[#fbf7f2] px-4 pb-8 pt-16 text-[#3f302c]">
+        <section className="px-4 pb-8 pt-2">
           <div className="flex items-center justify-between">
-            <h1 className="flex items-center gap-2 text-xl font-black">
-              <MessageCircle size={20} className="text-[#e85d75]" />
-              评论
-            </h1>
-            <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#9b8e87] ring-1 ring-[#eadfd8]">{comments.length}</span>
+            <div className="flex items-center gap-4">
+              <button
+                className="inline-flex items-center gap-1.5 text-white"
+                onClick={() => {
+                  setLiked((current) => !current);
+                  setToast(liked ? '已取消点赞' : '已点赞');
+                }}
+                aria-label="点赞作品"
+              >
+                <Heart size={27} fill={liked ? 'currentColor' : 'none'} />
+                <span className="text-sm font-bold">{likeCount}</span>
+              </button>
+              <button className="inline-flex items-center gap-1.5 text-white" onClick={() => setCommentsOpen(true)} aria-label="查看评论">
+                <MessageCircle size={27} />
+                <span className="text-sm font-bold">{comments.length}</span>
+              </button>
+              <button className="inline-flex items-center gap-1.5 text-white" onClick={handleShare} aria-label="转发作品">
+                <Share2 size={26} />
+                <span className="text-sm font-bold">{shareCount}</span>
+              </button>
+            </div>
+            <button
+              className="text-white"
+              onClick={() => {
+                setBookmarked((current) => !current);
+                setToast(bookmarked ? '已取消收藏' : '已收藏');
+              }}
+              aria-label="收藏作品"
+            >
+              <Bookmark size={28} fill={bookmarked ? 'currentColor' : 'none'} />
+            </button>
           </div>
-          <div className="mt-5 space-y-3">
-            {comments.map((comment) => (
-              <article key={comment.id} className="rounded-[18px] bg-white p-4 ring-1 ring-[#eadfd8]">
-                <div className="flex items-center gap-3">
-                  <img className="h-10 w-10 rounded-full object-cover" src={comment.avatar} alt={comment.name} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-black">{comment.name}</p>
-                    <p className="text-xs font-bold text-[#e85d75]">{comment.role === 'creator' ? '创作者' : '摄影师'}</p>
-                  </div>
-                  {comment.rating ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#fbf7f2] px-2 py-1 text-xs font-black text-[#8a5a12]">
-                      <Star size={12} className="fill-[#f2c25b] text-[#f2c25b]" />
-                      {comment.rating.toFixed(1)}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-3 text-sm leading-6 text-[#5f514b]">{comment.text}</p>
-              </article>
+
+          <button className="mt-3 flex items-center gap-1 text-xs font-semibold text-white/58" onClick={() => setDrawer('photographer')}>
+            <MapPin size={13} />
+            {post.locationName || post.location}
+          </button>
+
+          <p className="mt-3 text-[14px] leading-6 text-white/84">
+            <button className="mr-1 font-black text-white" onClick={() => setDrawer('creator')}>
+              {creator.name}
+            </button>
+            {post.caption}
+          </p>
+
+          <button className="mt-2 text-sm font-semibold text-white/42" onClick={() => setCommentsOpen(true)}>
+            查看全部 {comments.length} 条评论
+          </button>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {post.styleTags.slice(0, 4).map((tag) => (
+              <span key={tag} className="border border-white/12 px-2.5 py-1 text-[11px] font-bold text-white/48">
+                {tag}
+              </span>
             ))}
           </div>
         </section>
@@ -242,7 +256,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
         name={photographer.name}
         avatar={photographer.photo || photographer.avatar}
         hero={photographer.photo || cover?.url}
-        meta={`￥${Math.round((photographer.activities[0]?.priceCents || 0) / 100)}起 · ${photographer.ratingAvg.toFixed(1)}分`}
+        meta={`¥${Math.round((photographer.activities[0]?.priceCents || 0) / 100)}起 · ${photographer.ratingAvg.toFixed(1)}分`}
         tags={photographer.tags}
         onClose={() => setDrawer(null)}
       >
@@ -254,21 +268,118 @@ function PostDetailContent({ postId }: { postId?: string }) {
         </Link>
       </ProfileDrawer>
 
+      <CommentSheet
+        open={commentsOpen}
+        comments={comments}
+        value={commentText}
+        onChange={setCommentText}
+        onClose={() => setCommentsOpen(false)}
+        onSubmit={submitComment}
+      />
+
       <BookingSheet companion={photographer} postId={post.id} open={bookingOpen} onClose={() => setBookingOpen(false)} />
-      {toast ? <div className="fixed left-1/2 top-20 z-[60] -translate-x-1/2 rounded-full bg-[#3f302c] px-4 py-2 text-sm font-bold text-white shadow-xl">{toast}</div> : null}
+      {toast ? <div className="fixed left-1/2 top-20 z-[60] -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-bold text-black shadow-xl">{toast}</div> : null}
     </div>
   );
 }
 
-function TopAvatarAction({ image, label, onClick }: { image: string; label: string; onClick: () => void }) {
+function ProfileIdentityButton({
+  role,
+  name,
+  avatar,
+  align = 'left',
+  onClick,
+}: {
+  role: string;
+  name: string;
+  avatar: string;
+  align?: 'left' | 'right';
+  onClick: () => void;
+}) {
   return (
-    <button
-      className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-black/30 shadow-[0_8px_24px_rgba(0,0,0,0.2)] ring-1 ring-white/18 backdrop-blur-md"
-      onClick={onClick}
-      aria-label={label}
-    >
-      <img className="h-full w-full object-cover saturate-[0.9] contrast-[1.05]" src={image} alt="" />
+    <button className={`flex min-w-0 items-center gap-2 ${align === 'right' ? 'justify-end text-right' : ''}`} onClick={onClick}>
+      <img className={`h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/28 ${align === 'right' ? 'order-2' : ''}`} src={avatar} alt={name} />
+      <span className="min-w-0">
+        <span className="block text-[10px] font-bold leading-3 text-white/46">{role}</span>
+        <span className="block truncate text-[13px] font-black leading-4 text-white">{name}</span>
+      </span>
     </button>
+  );
+}
+
+function CommentSheet({
+  open,
+  comments,
+  value,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  comments: Comment[];
+  value: string;
+  onChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2">
+      <button className="absolute inset-0 bg-black/58" onClick={onClose} aria-label="关闭评论" />
+      <section className="absolute bottom-0 left-0 right-0 max-h-[78dvh] overflow-hidden rounded-t-[26px] bg-[#111] text-white shadow-2xl ring-1 ring-white/10">
+        <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-white/26" />
+        <div className="flex items-center justify-between px-4 py-4">
+          <div>
+            <h2 className="text-base font-black">评论</h2>
+            <p className="text-xs font-semibold text-white/40">{comments.length} 条讨论</p>
+          </div>
+          <button className="grid h-9 w-9 place-items-center rounded-full bg-white/8 text-white" onClick={onClose} aria-label="关闭评论">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="max-h-[48dvh] space-y-4 overflow-y-auto px-4 pb-4">
+          {comments.map((comment) => (
+            <article key={comment.id} className="flex gap-3">
+              <img className="h-9 w-9 shrink-0 rounded-full object-cover" src={comment.avatar} alt={comment.name} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-sm font-black">{comment.name}</p>
+                  <span className="text-[11px] font-bold text-white/36">{getRoleLabel(comment.role)}</span>
+                  {comment.rating ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-black text-[#f2c25b]">
+                      <Star size={11} className="fill-[#f2c25b]" />
+                      {comment.rating.toFixed(1)}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-white/72">{comment.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <form
+          className="flex items-end gap-2 border-t border-white/10 bg-[#151515] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <textarea
+            className="max-h-28 min-h-11 flex-1 resize-none rounded-[18px] border border-white/10 bg-white/8 px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/32"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="发表评论..."
+            rows={1}
+          />
+          <button className="h-11 rounded-full bg-white px-4 text-sm font-black text-black disabled:bg-white/16 disabled:text-white/26" disabled={!value.trim()} type="submit">
+            发布
+          </button>
+        </form>
+      </section>
+    </div>
   );
 }
 
@@ -369,4 +480,25 @@ function getInitialPost(postId: string | undefined, workDraft: PublishedWorkDraf
   const localPost = buildApprovedWorkPost(workDraft);
   if (localPost && localPost.id === postId) return localPost;
   return getPostDetail(postId);
+}
+
+function getImageAspectRatio(image?: PostImage) {
+  if (!image?.width || !image.height) return 3 / 4;
+  return image.width / image.height;
+}
+
+function stableMetricSeed(value: string, range: number) {
+  return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0) % range;
+}
+
+function formatMetric(value: number) {
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}万`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return String(value);
+}
+
+function getRoleLabel(role: Comment['role']) {
+  if (role === 'creator') return '创作者';
+  if (role === 'photographer') return '摄影师';
+  return '用户';
 }
