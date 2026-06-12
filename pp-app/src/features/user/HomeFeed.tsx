@@ -1,5 +1,6 @@
 import { ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { fetchFeedPosts, listFeedPosts, mergeApprovedWorkIntoFeed } from '../../services/feedService';
 import type { ConsumerLocation } from '../../services/locationService';
@@ -23,6 +24,9 @@ type FeedFilters = {
 };
 
 type LocationStatus = 'idle' | 'locating' | 'located' | 'unsupported' | 'denied' | 'failed';
+type ConsumerShellContext = {
+  homeChromeCompact?: boolean;
+};
 
 const initialFilters: FeedFilters = {
   city: '上海',
@@ -90,6 +94,7 @@ const searchHistoryKey = 'pp:consumer-search-history';
 const searchSuggestions = ['黑白大片', 'Citywalk', '探店', '夜景', '武康路', '安福路', '预算300内', '女生摄影师'];
 
 export function HomeFeed() {
+  const { homeChromeCompact = false } = useOutletContext<ConsumerShellContext>();
   const { workDraft } = useAppData();
   const [posts, setPosts] = useState<FeedPost[]>(() => listFeedPosts());
   const [filters, setFilters] = useState<FeedFilters>(initialFilters);
@@ -171,6 +176,8 @@ export function HomeFeed() {
   );
   const filteredPosts = useMemo(() => sortPostsByMatchedIds(localFilteredPosts, matchedPostIds), [localFilteredPosts, matchedPostIds]);
   const activeFilterCount = getActiveFilterCount(filters);
+  const topChromeHidden = homeChromeCompact && !searchOpen && !cityOpen && !filterOpen;
+  const topPaddingClass = topChromeHidden ? 'pt-0' : filters.query || locationMessage ? 'pt-[122px]' : 'pt-[74px]';
 
   const openSearch = useCallback(() => {
     setSearchDraft(filters.query);
@@ -234,11 +241,15 @@ export function HomeFeed() {
 
 
   return (
-    <div className="min-h-dvh bg-[#050505] text-white">
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-black/90 px-4 pb-3 pt-3 backdrop-blur-xl">
+    <div className={`min-h-dvh bg-[#050505] text-white transition-[padding] duration-300 ${topPaddingClass}`}>
+      <header
+        className={`fixed inset-x-0 top-0 z-30 mx-auto max-w-md border-b border-white/10 bg-black/[0.88] px-4 pb-2.5 pt-2.5 text-white shadow-[0_14px_32px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition-all duration-300 ${
+          topChromeHidden ? 'pointer-events-none -translate-y-full opacity-0' : 'translate-y-0 opacity-100'
+        }`}
+      >
         <div className="flex h-10 items-center justify-between gap-3">
           <button
-            className="flex h-9 max-w-[116px] shrink-0 items-center gap-1.5 px-1 text-white"
+            className="flex h-9 max-w-[112px] shrink-0 items-center gap-1.5 rounded-full px-1 text-white"
             onClick={() => setCityOpen(true)}
             aria-label={`选择位置：${locationLabel}`}
             title={locationLabel}
@@ -273,8 +284,8 @@ export function HomeFeed() {
 
           <div className="flex shrink-0 items-center gap-2">
             <button
-              className={`relative grid h-9 w-9 place-items-center rounded-full ${
-                filters.query ? 'bg-white text-black' : 'bg-white/10 text-white ring-1 ring-white/16'
+              className={`relative grid h-9 w-9 place-items-center rounded-full transition ${
+                filters.query ? 'bg-white text-black' : 'bg-white/[0.09] text-white ring-1 ring-white/[0.14]'
               }`}
               onClick={openSearch}
               aria-label="搜索"
@@ -283,8 +294,8 @@ export function HomeFeed() {
               {filters.query ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-black" /> : null}
             </button>
             <button
-              className={`relative grid h-9 w-9 place-items-center rounded-full ${
-                activeFilterCount ? 'bg-white text-black' : 'bg-white/10 text-white ring-1 ring-white/16'
+              className={`relative grid h-9 w-9 place-items-center rounded-full transition ${
+                activeFilterCount ? 'bg-white text-black' : 'bg-white/[0.09] text-white ring-1 ring-white/[0.14]'
               }`}
               onClick={() => setFilterOpen(true)}
               aria-label="筛选"
