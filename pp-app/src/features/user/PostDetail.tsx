@@ -26,12 +26,12 @@ export function PostDetail() {
 function PostDetailContent({ postId }: { postId?: string }) {
   const { workDraft } = useAppData();
   const imageTrackRef = useRef<HTMLDivElement>(null);
-  const commentsRef = useRef<HTMLElement>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [drawer, setDrawer] = useState<DrawerType>(null);
   const [activeImage, setActiveImage] = useState(0);
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [localComments, setLocalComments] = useState<Comment[]>([]);
@@ -45,7 +45,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const images = post.images;
   const activeMedia = images[activeImage] ?? cover;
   const isLandscape = getImageAspectRatio(activeMedia) >= 1;
-  const mediaHeightClass = isLandscape ? 'h-[36dvh]' : 'h-[52dvh]';
+  const mediaHeightClass = isLandscape ? (captionExpanded ? 'h-[44dvh]' : 'h-[58dvh]') : captionExpanded ? 'h-[56dvh]' : 'h-[66dvh]';
   const baseComments = useMemo(() => buildComments(post, creator), [post, creator.avatar, creator.name]);
   const comments = useMemo(() => [...baseComments, ...localComments], [baseComments, localComments]);
   const likeCount = useMemo(() => formatMetric(1180 + stableMetricSeed(post.id, 620)), [post.id]);
@@ -73,6 +73,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   useEffect(() => {
     setActiveImage(0);
     setCaptionExpanded(false);
+    setCommentsOpen(false);
     setCommentText('');
     setLocalComments([]);
     imageTrackRef.current?.scrollTo({ left: 0 });
@@ -111,10 +112,6 @@ function PostDetailContent({ postId }: { postId?: string }) {
     setActiveImage(Math.min(Math.max(nextIndex, 0), images.length - 1));
   };
 
-  const scrollToComments = () => {
-    commentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   const submitComment = () => {
     const nextText = commentText.trim();
     if (!nextText) return;
@@ -150,7 +147,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
         </div>
       </header>
 
-      <main className="h-dvh overflow-y-auto bg-black pt-[72px]">
+      <main className={`h-dvh bg-black pt-[72px] ${captionExpanded ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         <section className="bg-black">
           <div ref={imageTrackRef} className={`flex w-full snap-x snap-mandatory overflow-x-auto scroll-smooth bg-black scrollbar-none ${mediaHeightClass}`} onScroll={handleImageScroll}>
             {images.map((image, index) => (
@@ -202,7 +199,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
                 <Share2 size={26} />
                 <span className="text-sm font-bold">{shareCount}</span>
               </button>
-              <button className="inline-flex items-center gap-1.5 text-white" onClick={scrollToComments} aria-label="查看评论">
+              <button className="inline-flex items-center gap-1.5 text-white" onClick={() => setCommentsOpen(true)} aria-label="查看评论">
                 <MessageCircle size={27} />
                 <span className="text-sm font-bold">{comments.length}</span>
               </button>
@@ -236,52 +233,6 @@ function PostDetailContent({ postId }: { postId?: string }) {
           </div>
         </section>
 
-        <section ref={commentsRef} className="min-h-[46dvh] border-t border-white/10 bg-[#0d0d0d] px-4 pb-[max(1.2rem,env(safe-area-inset-bottom))] pt-5 text-white">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-black">评论</h2>
-            <span className="text-xs font-bold text-white/36">{comments.length} 条</span>
-          </div>
-
-          <div className="mt-5 space-y-4">
-            {comments.map((comment) => (
-              <article key={comment.id} className="flex gap-3">
-                <img className="h-9 w-9 shrink-0 rounded-full object-cover" src={comment.avatar} alt={comment.name} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-black">{comment.name}</p>
-                    <span className="text-[11px] font-bold text-white/36">{getRoleLabel(comment.role)}</span>
-                    {comment.rating ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-black text-[#f2c25b]">
-                        <Star size={11} className="fill-[#f2c25b]" />
-                        {comment.rating.toFixed(1)}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-white/72">{comment.text}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <form
-            className="mt-5 flex items-end gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitComment();
-            }}
-          >
-            <textarea
-              className="max-h-28 min-h-11 flex-1 resize-none rounded-[18px] border border-white/10 bg-white/8 px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/32"
-              value={commentText}
-              onChange={(event) => setCommentText(event.target.value)}
-              placeholder="发表评论..."
-              rows={1}
-            />
-            <button className="h-11 rounded-full bg-white px-4 text-sm font-black text-black disabled:bg-white/16 disabled:text-white/26" disabled={!commentText.trim()} type="submit">
-              发布
-            </button>
-          </form>
-        </section>
       </main>
 
       <ProfileDrawer
@@ -322,6 +273,15 @@ function PostDetailContent({ postId }: { postId?: string }) {
         </Link>
       </ProfileDrawer>
 
+      <CommentSheet
+        open={commentsOpen}
+        comments={comments}
+        value={commentText}
+        onChange={setCommentText}
+        onClose={() => setCommentsOpen(false)}
+        onSubmit={submitComment}
+      />
+
       <BookingSheet companion={photographer} postId={post.id} open={bookingOpen} onClose={() => setBookingOpen(false)} />
       {toast ? <div className="fixed left-1/2 top-20 z-[60] -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-bold text-black shadow-xl">{toast}</div> : null}
     </div>
@@ -349,6 +309,82 @@ function ProfileIdentityButton({
         <span className="block truncate text-[13px] font-black leading-4 text-white">{name}</span>
       </span>
     </button>
+  );
+}
+
+function CommentSheet({
+  open,
+  comments,
+  value,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  comments: Comment[];
+  value: string;
+  onChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2">
+      <button className="absolute inset-0 bg-black/58" onClick={onClose} aria-label="关闭评论" />
+      <section className="absolute bottom-0 left-0 right-0 max-h-[78dvh] overflow-hidden rounded-t-[26px] bg-[#111] text-white shadow-2xl ring-1 ring-white/10">
+        <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-white/26" />
+        <div className="flex items-center justify-between px-4 py-4">
+          <div>
+            <h2 className="text-base font-black">评论</h2>
+            <p className="text-xs font-semibold text-white/40">{comments.length} 条讨论</p>
+          </div>
+          <button className="grid h-9 w-9 place-items-center rounded-full bg-white/8 text-white" onClick={onClose} aria-label="关闭评论">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="max-h-[48dvh] space-y-4 overflow-y-auto px-4 pb-4">
+          {comments.map((comment) => (
+            <article key={comment.id} className="flex gap-3">
+              <img className="h-9 w-9 shrink-0 rounded-full object-cover" src={comment.avatar} alt={comment.name} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-sm font-black">{comment.name}</p>
+                  <span className="text-[11px] font-bold text-white/36">{getRoleLabel(comment.role)}</span>
+                  {comment.rating ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-black text-[#f2c25b]">
+                      <Star size={11} className="fill-[#f2c25b]" />
+                      {comment.rating.toFixed(1)}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-white/72">{comment.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <form
+          className="flex items-end gap-2 border-t border-white/10 bg-[#151515] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <textarea
+            className="max-h-28 min-h-11 flex-1 resize-none rounded-[18px] border border-white/10 bg-white/8 px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/32"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="发表评论..."
+            rows={1}
+          />
+          <button className="h-11 rounded-full bg-white px-4 text-sm font-black text-black disabled:bg-white/16 disabled:text-white/26" disabled={!value.trim()} type="submit">
+            发布
+          </button>
+        </form>
+      </section>
+    </div>
   );
 }
 
