@@ -1,4 +1,5 @@
 import { Home, MessageCircle, Sparkles, UserRound } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 const photographerTabs = [
@@ -10,15 +11,55 @@ const photographerTabs = [
 
 export function RoleShell() {
   const { pathname } = useLocation();
+  const chromeCanCompact = pathname === '/companion/creators';
+  const [roleChromeCompact, setRoleChromeCompact] = useState(false);
+  const lastScrollYRef = useRef(0);
+
+  useEffect(() => {
+    if (!chromeCanCompact) {
+      setRoleChromeCompact(false);
+      return undefined;
+    }
+
+    lastScrollYRef.current = window.scrollY;
+    let frame = 0;
+
+    const handleScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        const nextScrollY = Math.max(window.scrollY, 0);
+        const delta = nextScrollY - lastScrollYRef.current;
+
+        if (nextScrollY < 24) {
+          setRoleChromeCompact(false);
+        } else if (Math.abs(delta) > 8) {
+          setRoleChromeCompact(delta > 0);
+        }
+
+        lastScrollYRef.current = nextScrollY;
+        frame = 0;
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [chromeCanCompact]);
+
+  const compactChrome = chromeCanCompact && roleChromeCompact;
 
   return (
     <div className="min-h-dvh pp-page">
       <main className="mx-auto min-h-dvh w-full max-w-md pb-24 shadow-[0_0_46px_rgba(91,64,49,0.08)]">
-        <Outlet context={{ homeChromeCompact: false }} />
+        <Outlet context={{ homeChromeCompact: compactChrome }} />
       </main>
 
       <nav
-        className="fixed bottom-4 left-1/2 z-40 flex h-14 w-[304px] -translate-x-1/2 items-center justify-around rounded-full border border-white/12 bg-black/82 px-2 text-white shadow-[0_16px_42px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+        className={`fixed left-1/2 z-40 flex -translate-x-1/2 items-center justify-around rounded-full border border-white/12 bg-black/82 text-white shadow-[0_16px_42px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-300 ${
+          compactChrome ? 'bottom-3 h-12 w-[272px] px-2' : 'bottom-4 h-14 w-[304px] px-2'
+        }`}
         aria-label="摄影师端导航"
       >
         {photographerTabs.map(({ to, label, icon: Icon }) => {
@@ -28,13 +69,13 @@ export function RoleShell() {
               key={to}
               to={to}
               end={to === '/companion'}
-              className={`grid h-11 w-14 place-items-center rounded-full transition ${
-                active ? 'bg-white/18 text-white' : 'text-white/58 hover:bg-white/8 hover:text-white'
-              }`}
+              className={`grid place-items-center rounded-full transition-all duration-300 ${
+                compactChrome ? 'h-10 w-11' : 'h-11 w-14'
+              } ${active ? 'bg-white/18 text-white' : 'text-white/58 hover:bg-white/8 hover:text-white'}`}
               aria-label={label}
               title={label}
             >
-              <Icon size={23} strokeWidth={active ? 2.7 : 2.2} />
+              <Icon size={compactChrome ? 21 : 23} strokeWidth={active ? 2.7 : 2.2} />
             </NavLink>
           );
         })}

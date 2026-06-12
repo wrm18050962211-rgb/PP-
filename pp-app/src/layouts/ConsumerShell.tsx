@@ -12,12 +12,12 @@ const tabs = [
 export function ConsumerShell() {
   const { pathname } = useLocation();
   const isImmersivePost = pathname.startsWith('/consumer/post/');
-  const isHome = pathname === '/consumer';
+  const chromeCanCompact = pathname === '/consumer' || pathname === '/consumer/companions';
   const [homeChromeCompact, setHomeChromeCompact] = useState(false);
   const lastScrollYRef = useRef(0);
 
   useEffect(() => {
-    if (!isHome) {
+    if (!chromeCanCompact) {
       setHomeChromeCompact(false);
       return undefined;
     }
@@ -47,18 +47,20 @@ export function ConsumerShell() {
       window.removeEventListener('scroll', handleScroll);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [isHome]);
+  }, [chromeCanCompact]);
+
+  const compactChrome = chromeCanCompact && homeChromeCompact;
 
   return (
     <div className="min-h-dvh pp-page">
       <main className={`mx-auto min-h-dvh w-full max-w-md shadow-[0_0_46px_rgba(0,0,0,0.32)] ${isImmersivePost ? '' : 'pb-24'}`}>
-        <Outlet context={{ homeChromeCompact: isHome && homeChromeCompact }} />
+        <Outlet context={{ homeChromeCompact: compactChrome }} />
       </main>
       {isImmersivePost ? null : (
         <nav className="pointer-events-none fixed inset-x-0 bottom-3 z-30 mx-auto flex max-w-md justify-center px-4 pb-[env(safe-area-inset-bottom)]">
           <div
             className={`pointer-events-auto grid grid-cols-4 items-center border border-white/10 bg-black/[0.82] shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all duration-300 ${
-              isHome && homeChromeCompact ? 'h-12 w-[272px] rounded-full px-2' : 'h-14 w-[304px] max-w-full rounded-full px-3'
+              compactChrome ? 'h-12 w-[272px] rounded-full px-2' : 'h-14 w-[304px] max-w-full rounded-full px-3'
             }`}
           >
             {tabs.map(({ to, label, icon: Icon }) => (
@@ -68,14 +70,14 @@ export function ConsumerShell() {
                 end={to === '/consumer'}
                 className={({ isActive }) =>
                   `flex min-w-0 items-center justify-center rounded-full font-black transition-all duration-300 ${
-                    isHome && homeChromeCompact ? 'h-10 w-11' : 'h-11 w-12'
+                    compactChrome ? 'h-10 w-11' : 'h-11 w-12'
                   } ${isActive ? 'bg-white/[0.14] text-white' : 'text-white/[0.54]'}`
                 }
                 aria-label={label}
                 title={label}
               >
                 {({ isActive }) => (
-                  <Icon size={isHome && homeChromeCompact ? 21 : 22} strokeWidth={isActive ? 2.6 : 2.2} />
+                  <Icon size={compactChrome ? 21 : 22} strokeWidth={isActive ? 2.6 : 2.2} />
                 )}
               </NavLink>
             ))}

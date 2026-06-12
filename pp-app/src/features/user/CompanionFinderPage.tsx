@@ -1,6 +1,6 @@
 import { MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
@@ -11,6 +11,9 @@ type PhotographerResult = {
   companion: FeedPost['companion'];
   posts: FeedPost[];
   post: FeedPost;
+};
+type ShellContext = {
+  homeChromeCompact?: boolean;
 };
 
 const filterOptions: Record<FilterKey, string[]> = {
@@ -35,6 +38,7 @@ const initialFinderFilters: FinderFilters = {
 };
 
 export function CompanionFinderPage() {
+  const { homeChromeCompact = false } = useOutletContext<ShellContext>();
   const [params] = useSearchParams();
   const sameStylePostId = params.get('sameStyle');
   const posts = listFeedPosts();
@@ -43,6 +47,7 @@ export function CompanionFinderPage() {
   const [filterOpen, setFilterOpen] = useState<FilterKey | 'all' | null>(null);
   const [filters, setFilters] = useState<FinderFilters>(() => createInitialFinderFilters(params, sameStylePost));
   const activeFilterCount = getActiveFilterCount(filters);
+  const topChromeHidden = homeChromeCompact && !filterOpen;
 
   const companions = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -74,8 +79,12 @@ export function CompanionFinderPage() {
   }, [filters, posts, query]);
 
   return (
-    <div className="min-h-dvh bg-[#050505] pb-24 text-white">
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-black/92 px-3 py-2.5 backdrop-blur-xl">
+    <div className={`min-h-dvh bg-[#050505] pb-24 text-white transition-[padding] duration-300 ${topChromeHidden ? 'pt-2' : 'pt-[62px]'}`}>
+      <header
+        className={`fixed inset-x-0 top-0 z-20 mx-auto w-full max-w-md border-b border-white/10 bg-black/92 px-3 py-2.5 backdrop-blur-xl transition-all duration-300 ${
+          topChromeHidden ? 'pointer-events-none -translate-y-full opacity-0' : 'translate-y-0 opacity-100'
+        }`}
+      >
         <div className="flex items-center gap-2">
           <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full bg-white px-3 text-sm font-semibold text-black ring-1 ring-white/20">
             <Search size={16} className="shrink-0 text-zinc-500" />
