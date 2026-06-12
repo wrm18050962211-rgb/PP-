@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppData } from '../../app/useAppData';
 import { fetchFeedPosts, listFeedPosts, mergeApprovedWorkIntoFeed } from '../../services/feedService';
@@ -205,12 +205,12 @@ export function HomeFeed() {
       <header className="sticky top-0 z-20 border-b border-white/10 bg-black/90 px-4 pb-3 pt-3 backdrop-blur-xl">
         <div className="flex h-10 items-center justify-between gap-3">
           <button
-            className="flex min-w-0 items-center gap-1.5 rounded-full bg-white px-3 py-2 text-sm font-black text-black ring-1 ring-white/20"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-black ring-1 ring-white/20"
             onClick={() => setCityOpen(true)}
+            aria-label={`选择城市：${filters.city}`}
+            title={filters.city}
           >
-            <MapPin size={16} className="shrink-0" />
-            <span className="truncate">{filters.city}</span>
-            <ChevronDown size={15} className="shrink-0 text-zinc-500" />
+            <MapPin size={18} />
           </button>
 
           <nav className="flex items-center gap-5 text-base font-black text-white/42">
