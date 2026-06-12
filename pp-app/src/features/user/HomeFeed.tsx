@@ -205,13 +205,13 @@ export function HomeFeed() {
       <header className="sticky top-0 z-20 border-b border-white/10 bg-black/90 px-4 pb-3 pt-3 backdrop-blur-xl">
         <div className="flex h-10 items-center justify-between gap-3">
           <button
-            className="flex h-9 max-w-[72px] shrink-0 items-center gap-1.5 rounded-full bg-white px-2 text-black ring-1 ring-white/20"
+            className="flex h-9 max-w-[92px] shrink-0 items-center gap-1.5 px-1 text-white"
             onClick={() => setCityOpen(true)}
             aria-label={`选择城市：${filters.city}`}
             title={filters.city}
           >
-            <MapPin size={15} className="shrink-0" />
-            <span className="min-w-0 truncate text-[11px] font-black leading-none">{filters.city}</span>
+            <MapPin size={17} className="shrink-0" />
+            <span className="min-w-0 truncate text-base font-black leading-none">{filters.city}</span>
           </button>
 
           <nav className="flex items-center gap-5 text-base font-black text-white/42">
