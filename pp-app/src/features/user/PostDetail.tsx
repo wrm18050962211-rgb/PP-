@@ -1,4 +1,4 @@
-import { ArrowLeft, Camera, Heart, MapPin, MessageCircle, Navigation, Share2, Sparkles, Star, UserRound } from 'lucide-react';
+import { ArrowLeft, Camera, Heart, MapPin, Navigation, Share2, Star, UserRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -31,7 +31,6 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const post = localPost && localPost.id === postId ? localPost : remotePost;
   const photographer = post.companion;
   const creator = buildCreator(post);
-  const priceText = photographer.activities[0] ? `￥${Math.round(photographer.activities[0].priceCents / 100)}起` : '可预约';
   const comments = buildComments(post, creator);
 
   useEffect(() => {
@@ -78,7 +77,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
             className={`grid h-10 w-10 place-items-center rounded-full ${saved ? 'bg-[#3f302c] text-white' : 'bg-white text-[#3f302c] ring-1 ring-[#eadfd8]'}`}
             onClick={() => {
               setSaved((current) => !current);
-              setToast(saved ? '已取消收藏' : '已收藏风格');
+              setToast(saved ? '已取消收藏' : '已收藏作品');
             }}
             aria-label="收藏作品"
           >
@@ -93,16 +92,12 @@ function PostDetailContent({ postId }: { postId?: string }) {
       <section className="bg-[#fbf7f2] px-3 pt-3">
         <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto scrollbar-none">
           {post.images.map((image, index) => (
-            <button
-              key={image.id}
-              className="relative h-[62dvh] w-[92%] shrink-0 snap-center overflow-hidden rounded-[22px] bg-[#eadfd8]"
-              aria-label={`查看第${index + 1}张作品图`}
-            >
+            <figure key={image.id} className="relative h-[62dvh] w-[92%] shrink-0 snap-center overflow-hidden rounded-[22px] bg-[#eadfd8]">
               <img className="h-full w-full object-cover" src={image.url} alt={`${post.location} 第${index + 1}张`} loading={index === 0 ? 'eager' : 'lazy'} />
               <span className="absolute right-3 top-3 rounded-full bg-white/86 px-3 py-1.5 text-xs font-black text-[#3f302c] backdrop-blur">
                 {index + 1}/{post.images.length}
               </span>
-            </button>
+            </figure>
           ))}
         </div>
       </section>
@@ -126,44 +121,27 @@ function PostDetailContent({ postId }: { postId?: string }) {
 
         <div className="grid grid-cols-2 gap-3">
           <RoleCard
+            to={`/consumer/creator/${creator.id}`}
             title="创作者"
             name={creator.name}
             avatar={creator.avatar}
             meta={creator.meta}
             icon={<UserRound size={16} />}
-            actionText="看TA风格"
           />
           <RoleCard
+            to={`/consumer/photographer/${photographer.id}`}
             title="摄影师"
             name={photographer.name}
             avatar={photographer.avatar}
-            meta={`${priceText} · ${photographer.ratingAvg.toFixed(1)}分`}
+            meta={`￥${Math.round((photographer.activities[0]?.priceCents || 0) / 100)}起 · ${photographer.ratingAvg.toFixed(1)}分`}
             icon={<Camera size={16} />}
-            actionText="看服务"
           />
-        </div>
-
-        <div className="rounded-[18px] bg-white p-4 ring-1 ring-[#eadfd8]">
-          <div className="flex items-center gap-2 text-sm font-black">
-            <Sparkles size={17} className="text-[#e85d75]" />
-            你可以这样拍
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button className="rounded-[16px] bg-[#3f302c] px-3 py-3 text-left text-white" onClick={() => setBookingOpen(true)}>
-              <span className="block text-sm font-black">找作品摄影师拍</span>
-              <span className="mt-1 block text-xs leading-5 text-white/76">直接预约这组作品对应的摄影师，风格还原度最高。</span>
-            </button>
-            <Link className="rounded-[16px] bg-[#f6eee8] px-3 py-3 text-left text-[#3f302c]" to={`/consumer/companions?sameStyle=${post.id}`}>
-              <span className="block text-sm font-black">拍同款</span>
-              <span className="mt-1 block text-xs leading-5 text-[#7a6b64]">按定位或自选位置，推荐能拍类似风格的摄影师。</span>
-            </Link>
-          </div>
         </div>
 
         <section className="rounded-[18px] bg-white p-4 ring-1 ring-[#eadfd8]">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-black">评论</h2>
-            <span className="text-xs font-bold text-[#9b8e87]">创作者和摄影师都可参与</span>
+            <span className="text-xs font-bold text-[#9b8e87]">创作者 / 摄影师</span>
           </div>
           <div className="mt-3 space-y-3">
             {comments.map((comment) => (
@@ -206,22 +184,22 @@ function PostDetailContent({ postId }: { postId?: string }) {
 }
 
 function RoleCard({
+  to,
   title,
   name,
   avatar,
   meta,
   icon,
-  actionText,
 }: {
+  to: string;
   title: string;
   name: string;
   avatar: string;
   meta: string;
   icon: ReactNode;
-  actionText: string;
 }) {
   return (
-    <article className="rounded-[18px] bg-white p-3 ring-1 ring-[#eadfd8]">
+    <Link to={to} className="rounded-[18px] bg-white p-3 ring-1 ring-[#eadfd8] transition active:scale-[0.99]">
       <div className="flex items-center gap-2 text-xs font-black text-[#e85d75]">
         {icon}
         {title}
@@ -229,16 +207,14 @@ function RoleCard({
       <img className="mt-3 h-16 w-16 rounded-[18px] object-cover" src={avatar} alt={name} />
       <h2 className="mt-2 truncate text-base font-black">{name}</h2>
       <p className="mt-1 line-clamp-2 min-h-9 text-xs font-semibold leading-5 text-[#7a6b64]">{meta}</p>
-      <button className="mt-3 flex h-9 w-full items-center justify-center gap-1 rounded-full bg-[#f6eee8] text-xs font-black text-[#3f302c]">
-        <MessageCircle size={14} />
-        {actionText}
-      </button>
-    </article>
+      <span className="mt-3 flex h-9 w-full items-center justify-center rounded-full bg-[#f6eee8] text-xs font-black text-[#3f302c]">查看主页</span>
+    </Link>
   );
 }
 
-function buildCreator(post: FeedPost) {
+export function buildCreator(post: FeedPost) {
   return {
+    id: `creator-${post.id}`,
     name: post.companion.isVirtual ? `${post.companion.name} Creator` : '作品创作者',
     avatar: post.images[1]?.url || post.companion.photo || post.companion.avatar,
     meta: `${post.city || '同城'} · ${post.styleTags.slice(0, 2).join(' / ') || '风格作品'}`,
@@ -252,7 +228,7 @@ function buildComments(post: FeedPost, creator: ReturnType<typeof buildCreator>)
       role: 'creator',
       name: creator.name,
       avatar: creator.avatar,
-      text: '这组图的核心是自然走动和轻松表情，如果拍同款，建议保留同样的街区光线和穿搭层次。',
+      text: '这组图的重点是自然走动和轻松表情，拍同款时可以保留街区光线和穿搭层次。',
     },
     {
       id: 'photographer-comment',
@@ -260,7 +236,7 @@ function buildComments(post: FeedPost, creator: ReturnType<typeof buildCreator>)
       name: post.companion.name,
       avatar: post.companion.avatar,
       rating: post.companion.ratingAvg,
-      text: '可以约原路线，也可以根据你的位置调整到附近类似街区。拍摄前会先确认预算、时间、风格和修图需求。',
+      text: '可以约原路线，也可以按你的位置调整到附近类似街区。拍摄前会确认预算、时间、风格和修图需求。',
     },
   ];
 }

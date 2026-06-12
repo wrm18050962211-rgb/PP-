@@ -1,11 +1,14 @@
-import { CalendarDays, LocateFixed, MapPin, MessageCircle, Search, SlidersHorizontal, Sparkles, Star } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { CalendarDays, LocateFixed, MapPin, MessageCircle, Search, SlidersHorizontal, Star } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { listFeedPosts } from '../../services/feedService';
 
 const intentChips = ['现在可拍', '1小时内', 'Citywalk', '探店', '夜景', '预算300内', '女生摄影师', '会指导动作'];
 
 export function CompanionFinderPage() {
+  const [params] = useSearchParams();
+  const sameStylePostId = params.get('sameStyle');
   const posts = listFeedPosts();
+  const sameStylePost = posts.find((post) => post.id === sameStylePostId);
   const companions = Array.from(new Map(posts.map((post) => [post.companion.id, { companion: post.companion, post }])).values());
 
   return (
@@ -14,7 +17,7 @@ export function CompanionFinderPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#e85d75]">Instant Booking</p>
-            <h1 className="mt-1 text-2xl font-black">找陪拍</h1>
+            <h1 className="mt-1 text-2xl font-black">{sameStylePost ? '拍同款' : '找陪拍'}</h1>
           </div>
           <button className="grid h-10 w-10 place-items-center rounded-full bg-white text-[#3f302c] ring-1 ring-[#eadfd8]" aria-label="筛选">
             <SlidersHorizontal size={18} />
@@ -41,17 +44,17 @@ export function CompanionFinderPage() {
         </div>
       </header>
 
-      <section className="px-4 pt-4">
-        <div className="rounded-[18px] bg-white p-4 ring-1 ring-[#eadfd8]">
-          <div className="flex items-center gap-2 text-sm font-black">
-            <Sparkles size={17} className="text-[#e85d75]" />
-            推荐逻辑
+      {sameStylePost ? (
+        <section className="px-3 pt-3">
+          <div className="flex items-center gap-3 rounded-[18px] bg-white p-3 ring-1 ring-[#eadfd8]">
+            <img className="h-16 w-12 rounded-[12px] object-cover" src={sameStylePost.images[0]?.url} alt={sameStylePost.location} />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black text-[#e85d75]">按这组作品找同款摄影师</p>
+              <p className="mt-1 line-clamp-2 text-sm font-bold leading-5">{sameStylePost.locationName || sameStylePost.location}</p>
+            </div>
           </div>
-          <p className="mt-2 text-sm leading-6 text-[#7a6b64]">
-            这里服务的是“我现在就想拍”的用户。后续会把定位、距离、档期、预算、风格、性别偏好、评分和历史成交转化一起放进推荐排序。
-          </p>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       <section className="space-y-3 px-3 pt-3">
         {companions.map(({ companion, post }, index) => {
@@ -60,10 +63,14 @@ export function CompanionFinderPage() {
           return (
             <article key={companion.id} className="rounded-[18px] bg-white p-3 shadow-[0_10px_28px_rgba(91,64,49,0.08)] ring-1 ring-[#eadfd8]/80">
               <div className="flex gap-3">
-                <img className="h-24 w-20 shrink-0 rounded-[14px] object-cover" src={companion.photo || companion.avatar} alt={companion.name} />
+                <Link to={`/consumer/photographer/${companion.id}`} className="shrink-0">
+                  <img className="h-24 w-20 rounded-[14px] object-cover" src={companion.photo || companion.avatar} alt={companion.name} />
+                </Link>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <h2 className="truncate text-base font-black">{companion.name}</h2>
+                    <Link to={`/consumer/photographer/${companion.id}`} className="truncate text-base font-black">
+                      {companion.name}
+                    </Link>
                     <span className="shrink-0 rounded-full bg-[#f6eee8] px-2 py-1 text-xs font-black text-[#3f302c]">
                       ￥{Math.round((activity?.priceCents || 0) / 100)}起
                     </span>

@@ -12,10 +12,12 @@ import { CompanionStudio } from '../features/companion/CompanionStudio';
 import { ServiceRangeSettings } from '../features/companion/ServiceRangeSettings';
 import { CheckoutPage } from '../features/user/CheckoutPage';
 import { CompanionFinderPage } from '../features/user/CompanionFinderPage';
+import { CreatorProfilePage } from '../features/user/CreatorProfilePage';
 import { HomeFeed } from '../features/user/HomeFeed';
 import { MessagesPage } from '../features/user/MessagesPage';
 import { MinePage } from '../features/user/MinePage';
 import { OrdersPage } from '../features/user/OrdersPage';
+import { PhotographerProfilePage } from '../features/user/PhotographerProfilePage';
 import { PostDetail } from '../features/user/PostDetail';
 
 export default function App() {
@@ -28,6 +30,8 @@ export default function App() {
         <Route path="companions" element={<CompanionFinderPage />} />
         <Route path="same-style" element={<Navigate to="/consumer" replace />} />
         <Route path="post/:postId" element={<PostDetail />} />
+        <Route path="creator/:creatorId" element={<CreatorProfilePage />} />
+        <Route path="photographer/:photographerId" element={<PhotographerProfilePage />} />
         <Route path="checkout/:postId" element={<CheckoutPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="messages" element={<MessagesPage />} />
