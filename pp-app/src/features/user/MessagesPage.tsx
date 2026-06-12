@@ -1,7 +1,8 @@
-import { AlertTriangle, ChevronLeft, Flag, LockKeyhole, Send, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Camera, ChevronLeft, Flag, LockKeyhole, Search, Send, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { listFeedPosts } from '../../services/feedService';
 import { evaluateMessageRisk, fetchConversation, getConversation, saveLocalConversation, sendMessage, submitOrderReport } from '../../services/messageService';
 import type { Conversation } from '../../types/api';
 import { formatMoney } from '../../utils/money';
@@ -9,7 +10,7 @@ import { formatMoney } from '../../utils/money';
 export function MessagesPage() {
   const { orderId } = useParams();
   const { orders, session } = useAppData();
-  const activeOrder = useMemo(() => orders.find((order) => order.id === orderId) ?? orders[0], [orderId, orders]);
+  const activeOrder = useMemo(() => (orderId ? orders.find((order) => order.id === orderId) : undefined), [orderId, orders]);
   const [draft, setDraft] = useState('');
   const [conversation, setConversation] = useState<Conversation>(() => getConversation());
   const [allowMediumRisk, setAllowMediumRisk] = useState(false);
@@ -19,6 +20,7 @@ export function MessagesPage() {
   const isMediumRiskWaiting = risk.level === 'medium' && !allowMediumRisk;
 
   useEffect(() => {
+    if (!activeOrder) return () => undefined;
     let mounted = true;
     fetchConversation(activeOrder?.id).then((nextConversation) => {
       if (mounted && activeOrder) {
@@ -70,13 +72,17 @@ export function MessagesPage() {
     setSendBlocked(false);
   }
 
+  if (!orderId) {
+    return <MessageThreadList orders={orders} />;
+  }
+
   if (!activeOrder) {
     return (
       <div className="grid min-h-dvh place-items-center pp-page px-6 text-center">
         <div>
-          <p className="text-base font-bold text-zinc-900">暂无可沟通订单</p>
-          <Link className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-[#3f302c] px-5 text-sm font-bold text-white" to="/consumer/orders">
-            返回订单
+          <p className="text-base font-bold text-zinc-900">没有找到这条会话</p>
+          <Link className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-black px-5 text-sm font-bold text-white" to="/consumer/messages">
+            返回消息
           </Link>
         </div>
       </div>
@@ -89,7 +95,7 @@ export function MessagesPage() {
     <div className="flex min-h-dvh flex-col pp-page">
       <header className="border-b border-[#eadfd8] bg-[#fbf7f2]/92 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
-          <Link className="grid h-9 w-9 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" to="/consumer/orders" aria-label="返回订单">
+          <Link className="grid h-9 w-9 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" to="/consumer/messages" aria-label="返回消息">
             <ChevronLeft size={20} />
           </Link>
           <div className="min-w-0 flex-1 text-center">
@@ -193,6 +199,71 @@ export function MessagesPage() {
           </button>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function MessageThreadList({ orders }: { orders: ReturnType<typeof useAppData>['orders'] }) {
+  const posts = useMemo(() => listFeedPosts(), []);
+  const sortedOrders = useMemo(
+    () => [...orders].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
+    [orders],
+  );
+
+  if (!sortedOrders.length) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-[#f7f7f5] px-6 text-center">
+        <div>
+          <Camera className="mx-auto text-zinc-300" size={48} />
+          <p className="mt-4 text-base font-black text-zinc-900">还没有拍摄会话</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">创建订单后，每位摄影师都会在这里生成一条聊天。</p>
+          <Link className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-black px-6 text-sm font-bold text-white" to="/consumer/companions">
+            去拍摄
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-dvh bg-[#f7f7f5] px-4 py-5 text-zinc-950">
+      <header>
+        <h1 className="text-2xl font-black">消息</h1>
+        <div className="mt-4 flex h-10 items-center gap-2 rounded-full bg-white px-3 text-sm text-zinc-500 ring-1 ring-zinc-200">
+          <Search size={16} />
+          <span>搜索摄影师或订单</span>
+        </div>
+      </header>
+
+      <section className="mt-4 overflow-hidden rounded-[12px] bg-white ring-1 ring-zinc-200">
+        {sortedOrders.map((order) => {
+          const post = posts.find((item) => item.id === order.postId || item.companion.id === order.companionId);
+          const avatar = post?.companion.avatar || post?.companion.photo || post?.images[0]?.url;
+          return (
+            <Link key={order.id} to={`/consumer/messages/${order.id}`} className="flex gap-3 border-b border-zinc-100 px-3 py-3 last:border-b-0">
+              {avatar ? (
+                <img className="h-12 w-12 rounded-[10px] object-cover" src={avatar} alt={order.companion} />
+              ) : (
+                <div className="grid h-12 w-12 place-items-center rounded-[10px] bg-zinc-100">
+                  <Camera size={20} />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="truncate text-sm font-black">{order.companion}</h2>
+                  <span className="shrink-0 text-xs text-zinc-400">{order.dateLabel ?? order.time}</span>
+                </div>
+                <p className="mt-1 truncate text-sm text-zinc-500">
+                  {order.activityName ?? order.title} · {order.place}
+                </p>
+                <p className="mt-1 truncate text-xs text-zinc-400">
+                  {order.orderNo} · {order.statusText} · {formatMoney(order.amountCents)}
+                </p>
+              </div>
+            </Link>
+          );
+        })}
+      </section>
     </div>
   );
 }

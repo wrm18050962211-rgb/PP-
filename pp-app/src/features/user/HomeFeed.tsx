@@ -37,7 +37,6 @@ const initialFilters: FeedFilters = {
 
 const cities = ['上海', '北京', '杭州', '成都'];
 const channels = ['关注', '发现', '附近'];
-const quickScenes = ['今天可拍', 'Citywalk', '探店', '夜景', '同城优先'];
 const dateOptions = ['不限', '今天', '明天', '周末'];
 const timeOptions = ['不限', '上午', '下午', '傍晚', '晚上'];
 const sceneOptions = ['不限', 'Citywalk', '探店', '街拍', '夜景', '旅行'];
@@ -249,21 +248,6 @@ export function HomeFeed() {
 
         {locationMessage ? <p className="mt-2 px-1 text-xs font-semibold text-white/52">{locationMessage}</p> : null}
 
-        <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-none">
-          {quickScenes.map((scene) => (
-            <button
-              key={scene}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
-                filters.scene === scene || (scene === '今天可拍' && filters.date === '今天')
-                  ? 'bg-white text-black'
-                  : 'border border-white/16 bg-white/8 text-white/72'
-              }`}
-              onClick={() => applyQuickScene(scene, setFilters)}
-            >
-              {scene}
-            </button>
-          ))}
-        </div>
       </header>
 
       <PhotoFeed posts={filteredPosts} />
@@ -437,14 +421,6 @@ function OptionGroup<T extends string | number | null>({
       </div>
     </div>
   );
-}
-
-function applyQuickScene(scene: string, setFilters: React.Dispatch<React.SetStateAction<FeedFilters>>) {
-  setFilters((current) => {
-    if (scene === '今天可拍') return { ...current, date: current.date === '今天' ? '不限' : '今天' };
-    if (scene === '同城优先') return { ...current, city: current.city === '上海' ? '北京' : '上海' };
-    return { ...current, scene: current.scene === scene ? '不限' : scene };
-  });
 }
 
 function getActiveFilterCount(filters: FeedFilters) {

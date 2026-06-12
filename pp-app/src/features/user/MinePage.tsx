@@ -1,10 +1,11 @@
-import { ChevronRight, Heart, Settings, ShieldCheck, Store, UserRound, Wrench } from 'lucide-react';
+import { ChevronRight, Heart, ReceiptText, Settings, ShieldCheck, Store, UserRound, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchAuthSession, switchMockRole } from '../../services/authService';
 import type { AuthSession, UserRole } from '../../types/api';
 
 const items = [
+  { icon: ReceiptText, label: '我的订单', to: '/consumer/orders' },
   { icon: Heart, label: '收藏的作品', to: '/consumer' },
   { icon: ShieldCheck, label: '安全与实名认证', to: '/consumer/mine' },
   { icon: Settings, label: '设置', to: '/consumer/mine' },

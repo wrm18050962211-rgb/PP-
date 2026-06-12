@@ -1,9 +1,9 @@
-import { Home, MessageCircle, Search, UserRound } from 'lucide-react';
+import { Camera, Home, MessageCircle, UserRound } from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 const tabs = [
   { to: '/consumer', label: '发现', icon: Home },
-  { to: '/consumer/companions', label: '找陪拍', icon: Search },
+  { to: '/consumer/companions', label: '拍摄', icon: Camera },
   { to: '/consumer/messages', label: '消息', icon: MessageCircle },
   { to: '/consumer/mine', label: '我的', icon: UserRound },
 ];

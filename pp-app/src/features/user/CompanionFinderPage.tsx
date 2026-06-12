@@ -1,4 +1,5 @@
-import { CalendarDays, LocateFixed, MapPin, MessageCircle, Search, SlidersHorizontal, Star } from 'lucide-react';
+import { CalendarDays, LocateFixed, MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listFeedPosts } from '../../services/feedService';
 
@@ -6,50 +7,62 @@ const intentChips = ['现在可拍', '1小时内', 'Citywalk', '探店', '夜景
 
 export function CompanionFinderPage() {
   const [params] = useSearchParams();
+  const [query, setQuery] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedIntent, setSelectedIntent] = useState('');
   const sameStylePostId = params.get('sameStyle');
   const posts = listFeedPosts();
   const sameStylePost = posts.find((post) => post.id === sameStylePostId);
-  const companions = Array.from(new Map(posts.map((post) => [post.companion.id, { companion: post.companion, post }])).values());
+  const companions = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    return Array.from(new Map(posts.map((post) => [post.companion.id, { companion: post.companion, post }])).values()).filter(({ companion, post }) => {
+      const searchable = [post.location, post.locationName, post.activity, ...post.styleTags, companion.name, ...companion.tags, ...companion.areas]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      const matchesKeyword = !keyword || searchable.includes(keyword);
+      const matchesIntent = !selectedIntent || matchesCompanionIntent(selectedIntent, companion.gender, searchable, companion.activities[0]?.priceCents || 0);
+      return matchesKeyword && matchesIntent;
+    });
+  }, [posts, query, selectedIntent]);
 
   return (
-    <div className="min-h-dvh bg-[#fbf7f2] pb-24 text-[#3f302c]">
-      <header className="sticky top-0 z-20 border-b border-[#eadfd8]/80 bg-[#fbf7f2]/94 px-4 pb-4 pt-4 backdrop-blur-xl">
+    <div className="min-h-dvh bg-[#050505] pb-24 text-white">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-black/92 px-4 pb-4 pt-4 backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#e85d75]">Instant Booking</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-white/42">Instant Booking</p>
             <h1 className="mt-1 text-2xl font-black">{sameStylePost ? '拍同款' : '找陪拍'}</h1>
           </div>
-          <button className="grid h-10 w-10 place-items-center rounded-full bg-white text-[#3f302c] ring-1 ring-[#eadfd8]" aria-label="筛选">
+          <button className="relative grid h-10 w-10 place-items-center rounded-full bg-white text-black" aria-label="筛选" onClick={() => setFilterOpen(true)}>
             <SlidersHorizontal size={18} />
+            {selectedIntent ? <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-black ring-2 ring-white" /> : null}
           </button>
         </div>
 
-        <div className="mt-4 rounded-[18px] bg-white p-3 ring-1 ring-[#eadfd8]">
-          <div className="flex items-center gap-2 rounded-full bg-[#f8f1ec] px-3 py-2 text-sm font-semibold text-[#7a6b64]">
+        <div className="mt-4 rounded-[10px] bg-white p-3 text-black">
+          <div className="flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-2 text-sm font-semibold text-zinc-700">
             <Search size={16} className="shrink-0" />
-            <input className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#a99b94]" placeholder="输入地点、风格、预算或拍摄需求" />
+            <input
+              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-zinc-400"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="输入地点、风格、预算或拍摄需求"
+            />
           </div>
-          <button className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-black text-white">
+          <button className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-black text-sm font-black text-white">
             <LocateFixed size={17} />
             使用当前位置推荐附近摄影师
           </button>
-        </div>
-
-        <div className="mt-3 flex gap-2 overflow-x-auto scrollbar-none">
-          {intentChips.map((chip) => (
-            <button key={chip} className="shrink-0 rounded-full bg-white px-3 py-2 text-xs font-bold text-[#6f625d] ring-1 ring-[#eadfd8]">
-              {chip}
-            </button>
-          ))}
         </div>
       </header>
 
       {sameStylePost ? (
         <section className="px-3 pt-3">
-          <div className="flex items-center gap-3 rounded-[18px] bg-white p-3 ring-1 ring-[#eadfd8]">
-            <img className="h-16 w-12 rounded-[12px] object-cover" src={sameStylePost.images[0]?.url} alt={sameStylePost.location} />
+          <div className="flex items-center gap-3 rounded-[10px] bg-white p-3 text-black">
+            <img className="h-16 w-12 rounded-[6px] object-cover" src={sameStylePost.images[0]?.url} alt={sameStylePost.location} />
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-black text-[#e85d75]">按这组作品找同款摄影师</p>
+              <p className="text-xs font-black text-zinc-500">按这组作品找同款摄影师</p>
               <p className="mt-1 line-clamp-2 text-sm font-bold leading-5">{sameStylePost.locationName || sameStylePost.location}</p>
             </div>
           </div>
@@ -110,6 +123,67 @@ export function CompanionFinderPage() {
           );
         })}
       </section>
+
+      {filterOpen ? (
+        <CompanionFilterSheet
+          selectedIntent={selectedIntent}
+          onSelect={(intent) => setSelectedIntent(intent === selectedIntent ? '' : intent)}
+          onReset={() => setSelectedIntent('')}
+          onClose={() => setFilterOpen(false)}
+        />
+      ) : null}
     </div>
   );
+}
+
+function CompanionFilterSheet({
+  selectedIntent,
+  onSelect,
+  onReset,
+  onClose,
+}: {
+  selectedIntent: string;
+  onSelect: (intent: string) => void;
+  onReset: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3" onClick={onClose}>
+      <section className="w-full max-w-md rounded-t-[18px] bg-white p-4 pb-5 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-black">选择拍摄需求</h2>
+          <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" onClick={onClose} aria-label="关闭">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {intentChips.map((chip) => (
+            <button
+              key={chip}
+              className={`h-11 rounded-full text-sm font-black ${selectedIntent === chip ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'}`}
+              onClick={() => onSelect(chip)}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onReset}>
+            清空
+          </button>
+          <button className="h-12 rounded-full bg-black text-sm font-bold text-white" onClick={onClose}>
+            完成
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function matchesCompanionIntent(intent: string, gender: string, searchable: string, priceCents: number) {
+  if (intent === '现在可拍') return searchable.includes('今天') || searchable.includes('现在');
+  if (intent === '1小时内') return searchable.includes('1小时') || searchable.includes('快拍');
+  if (intent === '预算300内') return priceCents <= 30000;
+  if (intent === '女生摄影师') return gender === 'female';
+  return searchable.includes(intent.toLowerCase());
 }
