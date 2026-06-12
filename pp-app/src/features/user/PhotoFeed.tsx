@@ -171,18 +171,18 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
   return (
     <Link
       to={tile.href}
-      className={`flex h-7 items-center gap-1 overflow-hidden bg-transparent px-1 text-white/48 transition active:bg-white/[0.035] ${className}`}
+      className={`flex h-[18px] items-center gap-0.5 overflow-hidden bg-transparent px-0.5 text-white/42 transition active:bg-white/[0.035] ${className}`}
       title={[tile.eyebrow, tile.title, tile.meta].filter(Boolean).join(' · ')}
     >
-      <Icon size={9} className="shrink-0 text-white/24" />
-      <span className="min-w-0 truncate text-[9px] font-semibold leading-none text-white/48">
-        <span className="text-white/30">{tile.eyebrow}</span>
+      <Icon size={8} className="shrink-0 text-white/20" />
+      <span className="min-w-0 truncate text-[8px] font-semibold leading-none text-white/42">
+        <span className="text-white/26">{tile.eyebrow}</span>
         <span className="px-0.5 text-white/20">·</span>
         <span>{tile.title}</span>
         {tile.meta ? (
           <>
             <span className="px-0.5 text-white/20">·</span>
-            <span className="text-white/34">{tile.meta}</span>
+            <span className="text-white/30">{tile.meta}</span>
           </>
         ) : null}
       </span>
