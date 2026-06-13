@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
 import { fetchAdminModerationData, syncAdminModerationAction } from '../../services/adminService';
+import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
 import type { AdminActionType, AdminModerationData, AdminReportCase, AdminRiskMessageCase } from '../../types/api';
 import type { AppOrder, OrderStatus, PublishedWorkDraft } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
@@ -149,7 +150,7 @@ const configSeed: SystemConfig[] = [
 ];
 
 export function AdminDashboard() {
-  const { application, workDraft, orders, reviewApplication, reviewWork, updateOrderStatus } = useAppData();
+  const { application, workDraft, orders, reviewApplication, reviewWork, updateOrderStatus, updateOrderFunding } = useAppData();
   const [activeModule, setActiveModule] = useState<AdminModuleKey>('companions');
   const [selectedOrderId, setSelectedOrderId] = useState(orders[0]?.id ?? '');
   const [riskCases, setRiskCases] = useState(riskSeed);
@@ -264,7 +265,7 @@ export function AdminDashboard() {
           )}
           {activeModule === 'works' && <WorkAuditPanel workDraft={workDraft} onApprove={() => reviewWork('已通过')} onReject={() => reviewWork('需修改')} />}
           {activeModule === 'orders' && selectedOrder && (
-            <OrderPanel orders={orders} selectedOrder={selectedOrder} onSelect={setSelectedOrderId} onUpdateStatus={updateOrderStatus} />
+            <OrderPanel orders={orders} selectedOrder={selectedOrder} onSelect={setSelectedOrderId} onUpdateStatus={updateOrderStatus} onUpdateFunding={updateOrderFunding} />
           )}
           {activeModule === 'risk' && selectedRisk && (
             <RiskPanel
@@ -396,12 +397,25 @@ function OrderPanel({
   selectedOrder,
   onSelect,
   onUpdateStatus,
+  onUpdateFunding,
 }: {
   orders: AppOrder[];
   selectedOrder: AppOrder;
   onSelect: (id: string) => void;
   onUpdateStatus: (orderId: string, status: OrderStatus) => void;
+  onUpdateFunding: ReturnType<typeof useAppData>['updateOrderFunding'];
 }) {
+  const workRecord = listOrderWorkRecords().find((record) => record.orderId === selectedOrder.id);
+  const deliveryStatus = workRecord
+    ? workRecord.deliveryStatus === 'disputed'
+      ? '争议处理中'
+      : isOrderWorkConfirmed(workRecord)
+        ? '双方已确认'
+        : workRecord.previewUrls?.length
+          ? '水印预览已生成'
+          : '未上传'
+    : '未上传';
+
   return (
     <ModuleFrame title="订单管理" count={`${orders.length} 单`}>
       <ListDetailLayout
@@ -420,6 +434,21 @@ function OrderPanel({
                 ['创建时间', formatDate(selectedOrder.createdAt)],
               ]}
             />
+            <InfoGrid
+              items={[
+                ['咨询ID', selectedOrder.consultationId ?? '-'],
+                ['报价ID', selectedOrder.quoteId ?? '-'],
+                ['定金', selectedOrder.depositCents ? formatMoney(selectedOrder.depositCents) : '-'],
+                ['尾款', selectedOrder.balanceCents ? formatMoney(selectedOrder.balanceCents) : '-'],
+                ['定金状态', selectedOrder.depositStatus ?? '-'],
+                ['尾款状态', selectedOrder.balanceStatus ?? '-'],
+                ['托管状态', selectedOrder.fundsStatus ?? '-'],
+                ['结算状态', selectedOrder.settlementStatus ?? '-'],
+                ['交付状态', deliveryStatus],
+                ['预览模式', workRecord?.previewMode ?? '-'],
+                ['争议原因', workRecord?.disputeReason ?? '-'],
+              ]}
+            />
             <div className="mt-4 grid grid-cols-2 gap-2">
               <AdminButton onClick={() => onUpdateStatus(selectedOrder.id, 'confirmed')} disabled={selectedOrder.status === 'confirmed'}>
                 确认服务
@@ -432,6 +461,32 @@ function OrderPanel({
               </AdminButton>
               <AdminButton variant="danger" onClick={() => onUpdateStatus(selectedOrder.id, 'cancelled')} disabled={selectedOrder.status === 'cancelled'}>
                 取消订单
+              </AdminButton>
+              <AdminButton
+                variant="soft"
+                onClick={() => onUpdateFunding(selectedOrder.id, { fundsStatus: 'frozen', settlementStatus: 'frozen' })}
+                disabled={selectedOrder.fundsStatus === 'frozen'}
+              >
+                冻结托管款
+              </AdminButton>
+              <AdminButton
+                variant="soft"
+                onClick={() => {
+                  onUpdateFunding(selectedOrder.id, { fundsStatus: 'refunded', balanceStatus: 'refunded', settlementStatus: 'cancelled' });
+                  onUpdateStatus(selectedOrder.id, 'refunded');
+                }}
+                disabled={selectedOrder.fundsStatus === 'refunded'}
+              >
+                裁定退款
+              </AdminButton>
+              <AdminButton
+                onClick={() => {
+                  onUpdateFunding(selectedOrder.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
+                  onUpdateStatus(selectedOrder.id, 'completed');
+                }}
+                disabled={selectedOrder.fundsStatus === 'settled'}
+              >
+                结算摄影师
               </AdminButton>
             </div>
           </DetailCard>

@@ -20,9 +20,14 @@ import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { listFeedPosts } from '../../services/feedService';
 import {
   canEditOrderWork,
+  createWatermarkText,
   createOrderWorkRecord,
+  getOrderWorkDisplayUrls,
+  getOrderWorkPreviewUrls,
   isOrderWorkConfirmed,
+  isOriginalReleased,
   listOrderWorkRecords,
+  markOrderWorkDisputed,
   saveOrderWorkRecord,
   type OrderWorkRecord,
   type WorkActor,
@@ -175,6 +180,10 @@ export function OrdersPage() {
           record={workByOrderId.get(activeAction.order.id)}
           onClose={() => setActiveAction(null)}
           onSubmit={submitWorkRecord}
+          onDispute={(record, reason) => {
+            submitWorkRecord(markOrderWorkDisputed(record, reason));
+            updateOrderFunding(activeAction.order.id, { fundsStatus: 'frozen', settlementStatus: 'frozen' });
+          }}
         />
       )}
     </div>
@@ -245,7 +254,7 @@ function OrderCard({
         </div>
       </div>
 
-      {order.status === 'completed' && <CompletedWorkPanel record={workRecord} onManage={onManageWork} />}
+      {order.status === 'completed' && <ProtectedCompletedWorkPanel record={workRecord} onManage={onManageWork} />}
       {needsBalance ? (
         <section className="mt-4 rounded-[18px] bg-[#fff7df] p-3 text-[#8a5a12] ring-1 ring-[#f2dfaa]">
           <p className="text-sm font-black">尾款待托管</p>
@@ -298,6 +307,63 @@ function OrderCard({
   );
 }
 
+function ProtectedCompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; onManage: () => void }) {
+  const confirmed = record ? isOrderWorkConfirmed(record) : false;
+  const originalReleased = record ? isOriginalReleased(record) : false;
+  const displayUrls = record ? getOrderWorkDisplayUrls(record) : [];
+  const statusText = !record
+    ? '还未上传成片'
+    : record.deliveryStatus === 'disputed'
+      ? '预览争议处理中'
+      : record.changeRequestBy && !record.changeAccepted
+        ? '修改待另一方确认'
+        : confirmed
+          ? '双方已确认'
+          : '等待双方确认';
+  const publishText =
+    confirmed && (record?.publishToCreator || record?.publishToPhotographer)
+      ? [record.publishToCreator ? '创作者主页' : '', record.publishToPhotographer ? '摄影师主页' : ''].filter(Boolean).join(' / ')
+      : '确认后可选择同步主页';
+
+  return (
+    <section className="mt-4 rounded-[18px] bg-zinc-950 p-3 text-white">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 text-xs font-black text-white/46">
+            <Users size={14} />
+            成片协作
+          </p>
+          <h3 className="mt-1 text-sm font-black">{statusText}</h3>
+          <p className="mt-1 truncate text-xs font-semibold text-white/48">{publishText}</p>
+        </div>
+        <button className="h-9 shrink-0 rounded-full bg-white px-3 text-xs font-black text-zinc-950" onClick={onManage} type="button">
+          {record ? '管理成片' : '上传照片'}
+        </button>
+      </div>
+
+      {record ? (
+        <p className="mt-3 rounded-[10px] bg-white/8 px-3 py-2 text-[11px] font-semibold leading-5 text-white/58">
+          {originalReleased ? '双方确认后已开放原图/无水印图。' : '当前仅展示低清/动态水印预览，原图会在确认完成或平台裁定后开放。'}
+        </p>
+      ) : null}
+
+      {displayUrls.length ? (
+        <div className="mt-3 grid grid-cols-4 gap-1">
+          {displayUrls.slice(0, 4).map((url, index) => (
+            <WatermarkedMedia
+              key={`${url}-${index}`}
+              url={url}
+              index={index}
+              active={!originalReleased}
+              watermarkText={record?.watermarkText ?? 'PP preview'}
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function CompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; onManage: () => void }) {
   const confirmed = record ? isOrderWorkConfirmed(record) : false;
   const statusText = !record
@@ -347,17 +413,22 @@ function OrderWorkDialog({
   record,
   onClose,
   onSubmit,
+  onDispute,
 }: {
   order: AppOrder;
   post?: FeedPost;
   record?: OrderWorkRecord;
   onClose: () => void;
   onSubmit: (record: OrderWorkRecord) => void;
+  onDispute: (record: OrderWorkRecord, reason: string) => void;
 }) {
   const [draft, setDraft] = useState<OrderWorkRecord>(() => record ?? createOrderWorkRecord(order, post));
+  const [disputeReason, setDisputeReason] = useState('');
   const confirmed = isOrderWorkConfirmed(draft);
   const editable = canEditOrderWork(draft);
   const modificationPending = Boolean(draft.changeRequestBy && !draft.changeAccepted);
+  const originalReleased = isOriginalReleased(draft);
+  const previewUrls = getOrderWorkPreviewUrls(draft);
 
   function updateEditableDraft(patch: Partial<OrderWorkRecord>) {
     setDraft((current) => ({
@@ -375,7 +446,15 @@ function OrderWorkDialog({
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
     const imageUrls = await readFilesAsDataUrls(Array.from(files).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/')).slice(0, 9));
-    updateEditableDraft({ imageUrls });
+    updateEditableDraft({
+      imageUrls,
+      originalUrls: imageUrls,
+      previewUrls: imageUrls,
+      watermarkText: createWatermarkText(order),
+      previewMode: 'low_res_watermarked',
+      deliveryStatus: 'preview_ready',
+      disputeReason: undefined,
+    });
   }
 
   function confirm(actor: WorkActor) {
@@ -408,12 +487,19 @@ function OrderWorkDialog({
   }
 
   function submit() {
+    const nextConfirmed = draft.creatorConfirmed && draft.photographerConfirmed;
     onSubmit({
       ...draft,
-      publishToCreator: confirmed ? draft.publishToCreator : false,
-      publishToPhotographer: confirmed ? draft.publishToPhotographer : false,
+      previewMode: nextConfirmed ? 'original_released' : draft.previewMode ?? 'low_res_watermarked',
+      deliveryStatus: nextConfirmed ? 'confirmed' : draft.deliveryStatus ?? (draft.imageUrls.length ? 'preview_ready' : 'draft'),
+      publishToCreator: nextConfirmed ? draft.publishToCreator : false,
+      publishToPhotographer: nextConfirmed ? draft.publishToPhotographer : false,
       updatedAt: new Date().toISOString(),
     });
+  }
+
+  function dispute() {
+    onDispute(draft, disputeReason);
   }
 
   return (
@@ -426,12 +512,17 @@ function OrderWorkDialog({
         </div>
 
         <div className="grid grid-cols-3 gap-1">
-          {draft.imageUrls.map((url, index) => (
-            <div key={`${url}-${index}`} className="aspect-square w-full overflow-hidden rounded-[8px]">
+          {previewUrls.map((url, index) => (
+            <div key={`${url}-${index}`} className="relative aspect-square w-full overflow-hidden rounded-[8px]">
               <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
+              {!originalReleased ? (
+                <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/10 px-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
+                  {draft.watermarkText ?? 'PP preview'}
+                </span>
+              ) : null}
             </div>
           ))}
-          {!draft.imageUrls.length ? (
+          {!previewUrls.length ? (
             <div className="col-span-3 grid min-h-28 place-items-center rounded-[10px] bg-zinc-100 text-center text-sm font-bold text-zinc-400">
               <span className="grid place-items-center gap-2">
                 <ImagePlus size={24} />
@@ -446,6 +537,10 @@ function OrderWorkDialog({
           选择上传照片/Live
           <input className="hidden" type="file" accept="image/*,video/*" multiple disabled={!editable} onChange={(event) => void handleFiles(event.target.files)} />
         </label>
+
+        <div className="rounded-[12px] bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800">
+          摄影师上传原图后，平台先给创作者展示低清/动态水印预览。原图/无水印图只在双方确认完成或管理员裁定后开放；发起争议会冻结托管款。
+        </div>
 
         <div className="space-y-3">
           <label className="block">
@@ -524,6 +619,23 @@ function OrderWorkDialog({
             />
           </div>
         </div>
+
+        {!originalReleased ? (
+          <div className="rounded-[12px] bg-rose-50 p-3">
+            <label className="block">
+              <span className="text-xs font-black text-rose-500">争议说明</span>
+              <textarea
+                className="mt-1 min-h-20 w-full resize-none rounded-[10px] bg-white p-3 text-sm leading-6 outline-none"
+                value={disputeReason}
+                onChange={(event) => setDisputeReason(event.target.value)}
+                placeholder="例如：成片与报价沟通不符、缺少原定场景、质量需要管理员介入。"
+              />
+            </label>
+            <button className="mt-3 h-10 w-full rounded-full bg-rose-600 text-sm font-black text-white" onClick={dispute} type="button">
+              发起争议并冻结托管款
+            </button>
+          </div>
+        ) : null}
 
         <button className="h-11 w-full rounded-full bg-zinc-950 text-sm font-black text-white" onClick={submit} type="button">
           保存协作状态
@@ -651,6 +763,31 @@ function readFilesAsDataUrls(files: File[]) {
           reader.readAsDataURL(file);
         }),
     ),
+  );
+}
+
+function WatermarkedMedia({
+  url,
+  index,
+  active,
+  watermarkText,
+  roundedClassName = 'rounded-[6px]',
+}: {
+  url: string;
+  index: number;
+  active: boolean;
+  watermarkText: string;
+  roundedClassName?: string;
+}) {
+  return (
+    <div className={`relative aspect-square w-full overflow-hidden ${roundedClassName}`}>
+      <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
+      {active ? (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/10 px-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
+          {watermarkText}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
