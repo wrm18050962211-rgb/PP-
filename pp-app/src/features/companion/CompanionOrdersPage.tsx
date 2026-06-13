@@ -181,7 +181,7 @@ function CompanionOrderCard({
       </div>
 
       <div className="mt-4 grid gap-3 text-sm">
-        <InfoLine icon={<UserRound size={17} />} label="用户" value="预约用户" />
+        <InfoLine icon={<UserRound size={17} />} label="用户" value={order.creatorName || order.creatorPhone || '预约用户'} />
         <InfoLine icon={<MapPin size={17} />} label="地点" value={order.place} />
         <InfoLine icon={<CalendarDays size={17} />} label="时间" value={`${order.dateLabel ?? ''} ${order.timeLabel ?? order.time}`.trim()} />
         <InfoLine icon={<Clock3 size={17} />} label="时长" value={order.durationLabel ?? `${order.durationMinutes ?? 0}分钟`} />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createLocalOrder, fetchOrders, listSeedOrders, submitOrder, updateRemoteOrderStatus } from '../services/orderService';
+import { listSeedOrders } from '../services/orderService';
 import {
   getDefaultApplication,
   getDefaultWorkDraft,
@@ -9,6 +9,7 @@ import {
 import { fetchAuthSession } from '../services/authService';
 import { isApiEnabled } from '../services/apiClient';
 import { readDomainJson, writeDomainJson } from '../services/scopedStorage';
+import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderStatus } from '../services/virtualOrderLedger';
 import { defaultBookingSettings } from '../data/bookingSettings';
 import type { AppOrder, CompanionApplication, CompanionBookingSettings, PublishedWorkDraft } from '../types/domain';
 import type { AuthSession, UserRole } from '../types/api';
@@ -34,7 +35,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     fetchAuthSession().then((nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
-      const scopedInitial = loadInitialData(nextSession.role);
+      const scopedInitial = loadInitialData(nextSession.role, nextSession);
       setOrders(scopedInitial.orders);
       setApplication(scopedInitial.application);
       setBookingSettings(scopedInitial.bookingSettings);
@@ -49,7 +50,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     function handleSessionChanged(event: Event) {
       const nextSession = (event as CustomEvent<AuthSession>).detail;
       setSession(nextSession);
-      const scopedInitial = loadInitialData(nextSession.role);
+      const scopedInitial = loadInitialData(nextSession.role, nextSession);
       setOrders(scopedInitial.orders);
       setApplication(scopedInitial.application);
       setBookingSettings(scopedInitial.bookingSettings);
@@ -101,26 +102,18 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       bookingSettings,
       workDraft,
       createOrder: (orderInput) => {
-        const order = createLocalOrder(orderInput);
+        const order = createLedgerOrder(orderInput, session);
         const nextOrders = [order, ...orders];
         setOrders(nextOrders);
         persist({ orders: nextOrders });
-        if (isApiEnabled()) {
-          void submitOrder(orderInput).then((serverOrder) => {
-            setOrders((currentOrders) => {
-              const syncedOrders = currentOrders.map((currentOrder) => (currentOrder.id === order.id ? serverOrder : currentOrder));
-              writeDomainJson(storageKey, { orders: syncedOrders, application, bookingSettings, workDraft }, session?.role);
-              return syncedOrders;
-            });
-          });
-        }
         return order;
       },
       updateOrderStatus: (orderId, status) => {
+        const ledgerOrder = updateLedgerOrderStatus(orderId, status);
         const steps = getOrderSteps(status);
         const nextOrders = orders.map((order) =>
           order.id === orderId
-            ? {
+            ? ledgerOrder ?? {
                 ...order,
                 status,
                 statusText: orderStatusText[status],
@@ -130,16 +123,6 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         );
         setOrders(nextOrders);
         persist({ orders: nextOrders });
-        if (isApiEnabled()) {
-          void updateRemoteOrderStatus(orderId, status).then((serverOrder) => {
-            if (!serverOrder) return;
-            setOrders((currentOrders) => {
-              const syncedOrders = currentOrders.map((currentOrder) => (currentOrder.id === serverOrder.id ? serverOrder : currentOrder));
-              writeDomainJson(storageKey, { orders: syncedOrders, application, bookingSettings, workDraft }, session?.role);
-              return syncedOrders;
-            });
-          });
-        }
       },
       saveApplication: (partial) => {
         const nextApplication = { ...application, ...partial, submitted: false, reviewStatus: '草稿' as const, updatedAt: new Date().toISOString() };
@@ -189,7 +172,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
 
-function loadInitialData(role?: UserRole) {
+function loadInitialData(role?: UserRole, session?: AuthSession | null) {
   try {
     const parsed = readDomainJson<{
       orders?: AppOrder[];
@@ -199,11 +182,11 @@ function loadInitialData(role?: UserRole) {
     } | null>(storageKey, null, role);
 
     if (!parsed) {
-      return { orders: defaultOrders, application: defaultApplication, bookingSettings: defaultBookingSettings, workDraft: defaultWorkDraft };
+      return { orders: session ? listLedgerOrdersForSession(session) : defaultOrders, application: defaultApplication, bookingSettings: defaultBookingSettings, workDraft: defaultWorkDraft };
     }
 
     return {
-      orders: parsed.orders?.length ? mergeSeedOrders(parsed.orders) : defaultOrders,
+      orders: session ? listLedgerOrdersForSession(session) : parsed.orders?.length ? mergeSeedOrders(parsed.orders) : defaultOrders,
       application: { ...defaultApplication, ...parsed.application },
       bookingSettings: mergeBookingSettings(parsed.bookingSettings),
       workDraft: mergeWorkDraft(parsed.workDraft),
@@ -213,10 +196,8 @@ function loadInitialData(role?: UserRole) {
   }
 }
 
-async function refreshOrders(role: UserRole) {
-  if (!isApiEnabled()) return role === 'consumer' ? defaultOrders : [];
-  const orderRole = role === 'companion' ? 'companion' : role === 'admin' ? 'admin' : 'user';
-  return fetchOrders(orderRole);
+async function refreshOrders(_role: UserRole) {
+  return [];
 }
 
 function persistSnapshot(

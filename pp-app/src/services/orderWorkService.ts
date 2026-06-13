@@ -1,5 +1,4 @@
 import type { AppOrder, FeedPost, PostImage } from '../types/api';
-import { readDomainJson, writeDomainJson } from './scopedStorage';
 
 export type WorkActor = 'creator' | 'photographer';
 
@@ -18,15 +17,16 @@ export type OrderWorkRecord = {
 };
 
 const storageKey = 'order-workspaces-v1';
+const sharedStorageKey = `pp-cloud-db:shared:${storageKey}`;
 
 export function listOrderWorkRecords(): OrderWorkRecord[] {
-  return readDomainJson<OrderWorkRecord[]>(storageKey, []);
+  return readSharedWorkRecords();
 }
 
 export function saveOrderWorkRecord(record: OrderWorkRecord) {
   const records = listOrderWorkRecords();
   const nextRecords = [record, ...records.filter((item) => item.orderId !== record.orderId)];
-  writeDomainJson(storageKey, nextRecords);
+  writeSharedWorkRecords(nextRecords);
   return nextRecords;
 }
 
@@ -88,4 +88,19 @@ function isVideoUrl(url: string) {
 function parseDataUrlContentType(url: string) {
   const match = url.match(/^data:([^;,]+)/);
   return match?.[1] ?? '';
+}
+
+function readSharedWorkRecords(): OrderWorkRecord[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(sharedStorageKey);
+    return raw ? (JSON.parse(raw) as OrderWorkRecord[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSharedWorkRecords(records: OrderWorkRecord[]) {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(sharedStorageKey, JSON.stringify(records));
 }

@@ -2,9 +2,10 @@ import { mockConversation, seedOrders } from '../data/mockApi';
 import type { Conversation, Message } from '../types/api';
 import { blockedWords, evaluateMessageRisk, findMessageRiskWords } from '../utils/messageRisk';
 import { apiGet, apiPost, isApiEnabled } from './apiClient';
-import { readDomainJson, writeDomainJson } from './scopedStorage';
+import { findLedgerOrder } from './virtualOrderLedger';
 
 const localConversationStorageKey = 'order-conversations-v1';
+const sharedConversationStorageKey = `pp-cloud-db:shared:${localConversationStorageKey}`;
 
 export function getConversation(): Conversation {
   return mockConversation;
@@ -80,7 +81,7 @@ export function saveLocalConversation(conversation: Conversation) {
   try {
     const conversations = readLocalConversationMessages();
     conversations[conversation.orderId] = conversation.messages;
-    writeDomainJson(localConversationStorageKey, conversations);
+    writeSharedConversationMessages(conversations);
   } catch {
     // Local persistence is best-effort in MVP mode.
   }
@@ -97,7 +98,7 @@ function createLocalMessage(content: string, riskStatus: Message['riskStatus'], 
 }
 
 function getLocalConversation(orderId?: string): Conversation {
-  const order = seedOrders.find((item) => item.id === orderId) ?? seedOrders[0];
+  const order = findLedgerOrder(orderId) ?? seedOrders.find((item) => item.id === orderId) ?? seedOrders[0];
   const savedMessages = readLocalConversationMessages()[order.id];
 
   return {
@@ -110,5 +111,20 @@ function getLocalConversation(orderId?: string): Conversation {
 }
 
 function readLocalConversationMessages(): Record<string, Message[]> {
-  return readDomainJson<Record<string, Message[]>>(localConversationStorageKey, {});
+  return readSharedConversationMessages();
+}
+
+function readSharedConversationMessages(): Record<string, Message[]> {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(sharedConversationStorageKey);
+    return raw ? (JSON.parse(raw) as Record<string, Message[]>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSharedConversationMessages(messages: Record<string, Message[]>) {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(sharedConversationStorageKey, JSON.stringify(messages));
 }

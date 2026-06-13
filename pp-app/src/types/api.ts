@@ -281,6 +281,10 @@ export type AppOrder = {
   amountText: string;
   companion: string;
   companionId: string;
+  creatorId?: string;
+  creatorPhone?: string;
+  creatorName?: string;
+  companionPhone?: string;
   postId: string;
   activityId?: string;
   activityName?: string;

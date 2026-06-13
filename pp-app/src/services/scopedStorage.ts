@@ -7,7 +7,7 @@ export type DataSensitivity = 'device' | 'user' | 'sensitive' | 'regulated';
 export type DataDomainPolicy = {
   layer: StorageLayer;
   sensitivity: DataSensitivity;
-  owner: 'account-role' | 'admin';
+  owner: 'account-role' | 'shared-order' | 'admin';
   migrationTarget: string;
   note: string;
 };
@@ -24,14 +24,14 @@ export const dataDomainPolicies: Record<string, DataDomainPolicy> = {
   'app-data-v1': {
     layer: 'cloud',
     sensitivity: 'sensitive',
-    owner: 'account-role',
+    owner: 'shared-order',
     migrationTarget: 'TencentDB orders / companion_profiles / booking_settings / work_drafts',
     note: 'Orders, onboarding review state, booking settings, and work drafts need server-side authority.',
   },
   'order-workspaces-v1': {
     layer: 'cloud',
     sensitivity: 'sensitive',
-    owner: 'account-role',
+    owner: 'shared-order',
     migrationTarget: 'TencentDB order_workspaces + COS media',
     note: 'Completed-order shared workspaces are visible to both sides and later reviewed before publishing.',
   },
