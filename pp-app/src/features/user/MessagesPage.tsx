@@ -42,11 +42,11 @@ export function MessagesPage() {
   const [sendBlocked, setSendBlocked] = useState(false);
   const risk = useMemo(() => evaluateMessageRisk(draft), [draft]);
   const isMediumRiskWaiting = risk.level === 'medium' && !allowMediumRisk;
-  const activeThreadId = activeOrder ? getThreadId(activeOrder.id) : activeConsultation ? getThreadId(activeConsultation.id) : '';
-  const pinned = activeThreadId ? threadPrefs.pinnedIds.includes(activeThreadId) : false;
   const messagesBasePath = session?.role === 'companion' ? '/companion/messages' : '/consumer/messages';
   const otherProfile = activeOrder ? getOtherParticipant(activeOrder, activePost, session?.role) : activeConsultation ? getOtherParticipantForConsultation(activeConsultation, session?.role) : null;
   const otherProfileUrl = otherProfile?.profileUrl ?? '/consumer/companions';
+  const activeThreadId = otherProfile ? getParticipantThreadId(otherProfile.profileUrl, otherProfile.name) : activeOrder ? getThreadId(activeOrder.id) : activeConsultation ? getThreadId(activeConsultation.id) : '';
+  const pinned = activeThreadId ? threadPrefs.pinnedIds.includes(activeThreadId) : false;
 
   useEffect(() => {
     saveThreadPrefs(threadPrefs);
@@ -326,7 +326,10 @@ function MessageThreadList({
     () => [...orders].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
     [orders],
   );
-  const threads = useMemo(() => [...buildConsultationThreads(consultations, sessionRole), ...buildMessageThreads(sortedOrders, posts, sessionRole)], [consultations, posts, sessionRole, sortedOrders]);
+  const threads = useMemo(
+    () => groupThreadsByParticipant([...buildConsultationThreads(consultations, sessionRole), ...buildMessageThreads(sortedOrders, posts, sessionRole)]),
+    [consultations, posts, sessionRole, sortedOrders],
+  );
   const visibleThreads = useMemo(
     () =>
       threads
@@ -518,7 +521,7 @@ function buildConsultationThreads(consultations: ConsultationRecord[], sessionRo
     const time = demoThreadTimes[index % demoThreadTimes.length];
     const participant = getOtherParticipantForConsultation(consultation, sessionRole);
     return {
-      id: getThreadId(consultation.id),
+      id: getParticipantThreadId(participant.profileUrl, participant.name),
       consultation,
       name: participant.name,
       avatar: participant.avatar,
@@ -567,7 +570,7 @@ function createThreadFromOrder(order: AppOrder, post: FeedPost | undefined, inde
   const participant = getOtherParticipant(order, post, sessionRole);
   const sentAt = lastMessage?.sentAt ? new Date(lastMessage.sentAt) : null;
   return {
-    id: getThreadId(order.id),
+    id: getParticipantThreadId(participant.profileUrl, participant.name),
     order,
     name: participant.name,
     avatar: participant.avatar,
@@ -577,6 +580,40 @@ function createThreadFromOrder(order: AppOrder, post: FeedPost | undefined, inde
     timeLabel: sentAt ? formatThreadTime(sentAt) : order.timeLabel || time.time,
     profileUrl: participant.profileUrl,
   };
+}
+
+function groupThreadsByParticipant(threads: MessageThread[]): MessageThread[] {
+  const grouped = new Map<string, { thread: MessageThread; count: number; orderCount: number; consultationCount: number }>();
+
+  for (const thread of threads) {
+    const key = thread.id;
+    const current = grouped.get(key);
+    if (!current) {
+      grouped.set(key, {
+        thread,
+        count: 1,
+        orderCount: thread.order ? 1 : 0,
+        consultationCount: thread.consultation ? 1 : 0,
+      });
+      continue;
+    }
+
+    current.count += 1;
+    current.orderCount += thread.order ? 1 : 0;
+    current.consultationCount += thread.consultation ? 1 : 0;
+  }
+
+  return Array.from(grouped.values()).map(({ thread, count, orderCount, consultationCount }) => {
+    if (count <= 1) return thread;
+    const countText = [
+      orderCount ? `${orderCount}笔订单` : '',
+      consultationCount ? `${consultationCount}个咨询` : '',
+    ].filter(Boolean).join(' / ');
+    return {
+      ...thread,
+      orderInfo: `${countText} · 最近：${thread.orderInfo}`,
+    };
+  });
 }
 
 function findPostForOrder(order: AppOrder | undefined, posts: FeedPost[]) {
@@ -633,6 +670,10 @@ function formatThreadTime(date: Date) {
 
 function getThreadId(orderId: string) {
   return `order-thread-${orderId}`;
+}
+
+function getParticipantThreadId(profileUrl: string, name: string) {
+  return `participant-thread-${profileUrl || name}`;
 }
 
 const demoThreadTimes = [
