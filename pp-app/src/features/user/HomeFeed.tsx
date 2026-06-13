@@ -283,7 +283,6 @@ export function HomeFeed() {
   const handleFeedPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     setFeedDrag({ active: true, startX: event.clientX, deltaX: 0, pointerId: event.pointerId });
-    event.currentTarget.setPointerCapture(event.pointerId);
   }, []);
 
   const handleFeedPointerMove = useCallback(
@@ -295,6 +294,9 @@ export function HomeFeed() {
       const atRightEdge = activeChannelIndex === channels.length - 1 && rawDelta < 0;
       const resistance = atLeftEdge || atRightEdge ? 0.28 : 1;
       const deltaX = clampNumber(rawDelta * resistance, -width * 0.42, width * 0.42);
+      if (Math.abs(rawDelta) > 8 && !event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
       setFeedDrag((current) => ({ ...current, deltaX }));
     },
     [activeChannelIndex, feedDrag.active, feedDrag.pointerId, feedDrag.startX],
