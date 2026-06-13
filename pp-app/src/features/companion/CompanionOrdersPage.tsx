@@ -169,6 +169,8 @@ function CompanionOrderCard({
   const canConfirm = order.status === 'paid_pending_confirm';
   const canComplete = order.status === 'confirmed' || order.status === 'in_service';
   const canCancel = order.status === 'paid_pending_confirm' || order.status === 'confirmed';
+  const creatorDisplayName = order.creatorName || order.creatorId || '预约用户';
+  const creatorPhone = order.creatorPhone || '未绑定手机号';
 
   return (
     <article className="rounded-[10px] border border-zinc-200 bg-white p-4">
@@ -181,7 +183,8 @@ function CompanionOrderCard({
       </div>
 
       <div className="mt-4 grid gap-3 text-sm">
-        <InfoLine icon={<UserRound size={17} />} label="用户" value={order.creatorName || order.creatorPhone || '预约用户'} />
+        <InfoLine icon={<UserRound size={17} />} label="用户" value={creatorDisplayName} />
+        <InfoLine icon={<UserRound size={17} />} label="手机号" value={creatorPhone} />
         <InfoLine icon={<MapPin size={17} />} label="地点" value={order.place} />
         <InfoLine icon={<CalendarDays size={17} />} label="时间" value={`${order.dateLabel ?? ''} ${order.timeLabel ?? order.time}`.trim()} />
         <InfoLine icon={<Clock3 size={17} />} label="时长" value={order.durationLabel ?? `${order.durationMinutes ?? 0}分钟`} />
@@ -233,12 +236,16 @@ function CompanionOrderCard({
 function OrderDetailSheet({ order, onClose }: { order: AppOrder; onClose: () => void }) {
   const addOnTotal = order.addOns?.reduce((total, item) => total + item.amountCents, 0) ?? 0;
   const basePrice = Math.max(order.amountCents - addOnTotal, 0);
+  const creatorDisplayName = order.creatorName || order.creatorId || '预约用户';
+  const creatorPhone = order.creatorPhone || '未绑定手机号';
 
   return (
     <ActionSheet title="订单详情" onClose={onClose}>
       <div className="space-y-3">
         <InfoLine icon={<ReceiptText size={17} />} label="订单号" value={order.orderNo} />
         <InfoLine icon={<FileText size={17} />} label="项目" value={order.activityName ?? order.title} />
+        <InfoLine icon={<UserRound size={17} />} label="用户" value={creatorDisplayName} />
+        <InfoLine icon={<UserRound size={17} />} label="手机号" value={creatorPhone} />
         <InfoLine icon={<MapPin size={17} />} label="地点" value={order.place} />
         <InfoLine icon={<CalendarDays size={17} />} label="时间" value={`${order.dateLabel ?? ''} ${order.timeLabel ?? order.time}`.trim()} />
         <InfoLine icon={<Clock3 size={17} />} label="时长" value={order.durationLabel ?? `${order.durationMinutes ?? 0}分钟`} />
