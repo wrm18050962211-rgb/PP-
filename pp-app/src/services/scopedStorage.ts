@@ -38,7 +38,7 @@ export const dataDomainPolicies: Record<string, DataDomainPolicy> = {
   'order-conversations-v1': {
     layer: 'cloud',
     sensitivity: 'sensitive',
-    owner: 'account-role',
+    owner: 'shared-order',
     migrationTarget: 'TencentDB conversations / messages / risk_cases',
     note: 'Order chats may trigger risk review and must be syncable with the admin console.',
   },

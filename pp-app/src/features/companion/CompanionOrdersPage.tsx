@@ -200,7 +200,7 @@ function CompanionOrderCard({
           <FileText size={17} />
           详情
         </button>
-        <Link className="flex h-10 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white" to={`/consumer/messages/${order.id}`}>
+        <Link className="flex h-10 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white" to={`/companion/messages/${order.id}`}>
           <MessageCircle size={17} />
           沟通
         </Link>

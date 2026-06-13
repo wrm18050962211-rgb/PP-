@@ -1,5 +1,5 @@
 import { mockConversation, seedOrders } from '../data/mockApi';
-import type { Conversation, Message } from '../types/api';
+import type { AppOrder, Conversation, Message } from '../types/api';
 import { blockedWords, evaluateMessageRisk, findMessageRiskWords } from '../utils/messageRisk';
 import { apiGet, apiPost, isApiEnabled } from './apiClient';
 import { findLedgerOrder } from './virtualOrderLedger';
@@ -16,6 +16,10 @@ export function listBlockedWords() {
 }
 
 export { evaluateMessageRisk, findMessageRiskWords };
+
+export function getConversationForOrder(orderId?: string): Conversation {
+  return getLocalConversation(orderId);
+}
 
 export async function fetchConversation(orderId?: string): Promise<Conversation> {
   if (!isApiEnabled() || !orderId) return getLocalConversation(orderId);
@@ -102,11 +106,49 @@ function getLocalConversation(orderId?: string): Conversation {
   const savedMessages = readLocalConversationMessages()[order.id];
 
   return {
+    ...createSeedConversation(order),
+    id: `local-conversation-${order.id}`,
+    orderId: order.id,
+    orderNo: order.orderNo,
+    messages: savedMessages?.length ? savedMessages : createSeedConversation(order).messages,
+  };
+}
+
+function createSeedConversation(order: AppOrder): Conversation {
+  const createdAt = new Date(order.createdAt || Date.now()).getTime();
+  return {
     ...mockConversation,
     id: `local-conversation-${order.id}`,
     orderId: order.id,
     orderNo: order.orderNo,
-    messages: savedMessages?.length ? savedMessages : mockConversation.messages,
+    messages: [
+      {
+        id: `${order.id}-message-1`,
+        from: 'user',
+        text: `你好，我想约 ${order.activityName ?? order.title}，时间是 ${order.dateLabel ?? order.time} ${order.timeLabel ?? ''}，地点在 ${order.place}。`,
+        sentAt: new Date(createdAt + 60 * 1000).toISOString(),
+        riskStatus: 'clean',
+      },
+      {
+        id: `${order.id}-message-2`,
+        from: 'companion',
+        text: `可以，我看了你的需求，会按 ${order.place} 附近的光线和人流提前规划路线。`,
+        sentAt: new Date(createdAt + 6 * 60 * 1000).toISOString(),
+        riskStatus: 'clean',
+      },
+      {
+        id: `${order.id}-message-3`,
+        from: order.status === 'paid_pending_confirm' ? 'user' : 'companion',
+        text:
+          order.status === 'paid_pending_confirm'
+            ? '我这边已付款，等你确认订单后我们再细化拍摄风格。'
+            : order.status === 'completed'
+              ? '这单已经完成，我们可以在订单里共同编辑成片。'
+              : '订单信息我这边已经确认，有变化我们就在这里同步。',
+        sentAt: new Date(createdAt + 12 * 60 * 1000).toISOString(),
+        riskStatus: 'clean',
+      },
+    ],
   };
 }
 

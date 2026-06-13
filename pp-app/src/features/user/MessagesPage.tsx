@@ -2,8 +2,9 @@ import { AlertTriangle, Camera, ChevronLeft, Flag, LockKeyhole, Pin, Search, Sen
 import { useEffect, useMemo, useState, type PointerEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { listTestAccounts } from '../../services/accountDirectory';
 import { listFeedPosts } from '../../services/feedService';
-import { evaluateMessageRisk, fetchConversation, getConversation, saveLocalConversation, sendMessage, submitOrderReport } from '../../services/messageService';
+import { evaluateMessageRisk, fetchConversation, getConversation, getConversationForOrder, saveLocalConversation, sendMessage, submitOrderReport } from '../../services/messageService';
 import { readDomainJson, writeDomainJson } from '../../services/scopedStorage';
 import type { AppOrder, Conversation, FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
@@ -39,7 +40,9 @@ export function MessagesPage() {
   const isMediumRiskWaiting = risk.level === 'medium' && !allowMediumRisk;
   const activeThreadId = activeOrder ? getThreadId(activeOrder.id) : '';
   const pinned = activeThreadId ? threadPrefs.pinnedIds.includes(activeThreadId) : false;
-  const otherProfileUrl = activeOrder && activePost ? getProfileUrl(activeOrder, activePost) : '/consumer/companions';
+  const messagesBasePath = session?.role === 'companion' ? '/companion/messages' : '/consumer/messages';
+  const otherProfile = activeOrder ? getOtherParticipant(activeOrder, activePost, session?.role) : null;
+  const otherProfileUrl = otherProfile?.profileUrl ?? '/consumer/companions';
 
   useEffect(() => {
     saveThreadPrefs(threadPrefs);
@@ -103,7 +106,7 @@ export function MessagesPage() {
   }
 
   if (!orderId) {
-    return <MessageThreadList orders={orders} prefs={threadPrefs} onUpdatePrefs={updatePrefs} />;
+    return <MessageThreadList orders={orders} prefs={threadPrefs} sessionRole={session?.role} basePath={messagesBasePath} onUpdatePrefs={updatePrefs} />;
   }
 
   if (!activeOrder) {
@@ -111,7 +114,7 @@ export function MessagesPage() {
       <div className="grid min-h-dvh place-items-center pp-page px-6 text-center">
         <div>
           <p className="text-base font-bold text-zinc-900">没有找到这条会话</p>
-          <Link className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-black px-5 text-sm font-bold text-white" to="/consumer/messages">
+          <Link className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-black px-5 text-sm font-bold text-white" to={messagesBasePath}>
             返回消息
           </Link>
         </div>
@@ -125,7 +128,7 @@ export function MessagesPage() {
     <div className="flex min-h-dvh flex-col pp-page">
       <header className="border-b border-[#eadfd8] bg-[#fbf7f2]/92 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
-          <Link className="grid h-9 w-9 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" to="/consumer/messages" aria-label="返回消息">
+          <Link className="grid h-9 w-9 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" to={messagesBasePath} aria-label="返回消息">
             <ChevronLeft size={20} />
           </Link>
           <div className="min-w-0 flex-1 text-center">
@@ -191,9 +194,9 @@ export function MessagesPage() {
           return (
             <div key={message.id} className={`flex items-end gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
               {!mine ? (
-                <Link to={otherProfileUrl} className="shrink-0" aria-label={`查看${activeOrder.companion}主页`}>
-                  {activePost?.companion.avatar || activePost?.companion.photo ? (
-                    <img className="h-8 w-8 rounded-full object-cover ring-1 ring-[#eadfd8]" src={activePost.companion.avatar || activePost.companion.photo} alt={activeOrder.companion} />
+                <Link to={otherProfileUrl} className="shrink-0" aria-label={`查看${otherProfile?.name ?? activeOrder.companion}主页`}>
+                  {otherProfile?.avatar ? (
+                    <img className="h-8 w-8 rounded-full object-cover ring-1 ring-[#eadfd8]" src={otherProfile.avatar} alt={otherProfile.name} />
                   ) : (
                     <div className="grid h-8 w-8 place-items-center rounded-full bg-white ring-1 ring-[#eadfd8]">
                       <Camera size={15} />
@@ -267,10 +270,14 @@ export function MessagesPage() {
 function MessageThreadList({
   orders,
   prefs,
+  sessionRole,
+  basePath,
   onUpdatePrefs,
 }: {
   orders: ReturnType<typeof useAppData>['orders'];
   prefs: ThreadPrefs;
+  sessionRole?: string;
+  basePath: string;
   onUpdatePrefs: (updater: (current: ThreadPrefs) => ThreadPrefs) => void;
 }) {
   const posts = useMemo(() => listFeedPosts(), []);
@@ -280,7 +287,7 @@ function MessageThreadList({
     () => [...orders].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
     [orders],
   );
-  const threads = useMemo(() => buildMessageThreads(sortedOrders, posts), [posts, sortedOrders]);
+  const threads = useMemo(() => buildMessageThreads(sortedOrders, posts, sessionRole), [posts, sessionRole, sortedOrders]);
   const visibleThreads = useMemo(
     () =>
       threads
@@ -381,7 +388,7 @@ function MessageThreadList({
                 </Link>
 
                 <Link
-                  to={targetOrderId ? `/consumer/messages/${targetOrderId}` : '/consumer/messages'}
+                  to={targetOrderId ? `${basePath}/${targetOrderId}` : basePath}
                   className="min-w-0 self-center"
                   onClick={() => {
                     onUpdatePrefs((current) => ({ ...current, unreadIds: removeId(current.unreadIds, thread.id) }));
@@ -420,46 +427,29 @@ type MessageThread = {
   profileUrl: string;
 };
 
-function buildMessageThreads(orders: AppOrder[], posts: FeedPost[]): MessageThread[] {
-  const baseThreads = orders.map((order, index) => {
+function buildMessageThreads(orders: AppOrder[], posts: FeedPost[], sessionRole?: string): MessageThread[] {
+  return orders.map((order, index) => {
     const post = findPostForOrder(order, posts);
-    return createThreadFromOrder(order, post, index);
+    return createThreadFromOrder(order, post, index, sessionRole);
   });
-
-  if (baseThreads.length >= 8 || posts.length === 0) return baseThreads;
-
-  const fallbackOrder = orders[0];
-  const demoPosts = posts.slice(0, 8 - baseThreads.length);
-  const demoThreads = demoPosts.map((post, index) => {
-    const time = demoThreadTimes[(index + baseThreads.length) % demoThreadTimes.length];
-    return {
-      id: `demo-thread-${post.id}`,
-      order: fallbackOrder,
-      name: post.companion.name,
-      avatar: post.companion.avatar || post.companion.photo || post.images[0]?.url,
-      lastMessage: demoLastMessages[index % demoLastMessages.length],
-      orderInfo: `${fallbackOrder?.orderNo ?? 'PP2605'} · ${post.activity || post.title || '拍摄'} · ${post.locationName || post.location}`,
-      dateLabel: time.date,
-      timeLabel: time.time,
-      profileUrl: `/consumer/photographer/${post.companion.id}`,
-    };
-  });
-
-  return [...baseThreads, ...demoThreads];
 }
 
-function createThreadFromOrder(order: AppOrder, post: FeedPost | undefined, index: number): MessageThread {
+function createThreadFromOrder(order: AppOrder, post: FeedPost | undefined, index: number, sessionRole?: string): MessageThread {
   const time = demoThreadTimes[index % demoThreadTimes.length];
+  const conversation = getConversationForOrder(order.id);
+  const lastMessage = conversation.messages.at(-1);
+  const participant = getOtherParticipant(order, post, sessionRole);
+  const sentAt = lastMessage?.sentAt ? new Date(lastMessage.sentAt) : null;
   return {
     id: getThreadId(order.id),
     order,
-    name: order.companion,
-    avatar: post?.companion.avatar || post?.companion.photo || post?.images[0]?.url,
-    lastMessage: demoLastMessages[index % demoLastMessages.length],
+    name: participant.name,
+    avatar: participant.avatar,
+    lastMessage: lastMessage?.text ?? '订单会话已创建，双方可在这里确认拍摄需求。',
     orderInfo: `${order.orderNo} · ${order.statusText} · ${formatMoney(order.amountCents)} · ${order.activityName ?? order.title}`,
-    dateLabel: order.dateLabel || time.date,
-    timeLabel: order.timeLabel || time.time,
-    profileUrl: post ? getProfileUrl(order, post) : `/consumer/photographer/${order.companionId}`,
+    dateLabel: sentAt ? formatThreadDate(sentAt) : order.dateLabel || time.date,
+    timeLabel: sentAt ? formatThreadTime(sentAt) : order.timeLabel || time.time,
+    profileUrl: participant.profileUrl,
   };
 }
 
@@ -468,24 +458,41 @@ function findPostForOrder(order: AppOrder | undefined, posts: FeedPost[]) {
   return posts.find((item) => item.id === order.postId || item.companion.id === order.companionId);
 }
 
-function getProfileUrl(order: AppOrder, post: FeedPost) {
-  return `/consumer/photographer/${post.companion.id || order.companionId}`;
+function getOtherParticipant(order: AppOrder, post: FeedPost | undefined, sessionRole?: string) {
+  if (sessionRole === 'companion') {
+    const creator = listTestAccounts().find((account) => account.role === 'consumer' && (account.creatorId === order.creatorId || account.phone === order.creatorPhone));
+    const fallbackAvatar = post?.creator?.avatar || post?.images[1]?.url || post?.images[0]?.url;
+    return {
+      name: order.creatorName || creator?.name || order.creatorPhone || '预约创作者',
+      avatar: creator?.avatar || fallbackAvatar,
+      profileUrl: order.creatorId ? `/consumer/creator/${order.creatorId}` : '/consumer/creators',
+    };
+  }
+
+  return {
+    name: order.companion,
+    avatar: post?.companion.avatar || post?.companion.photo || post?.images[0]?.url,
+    profileUrl: `/consumer/photographer/${post?.companion.id || order.companionId}`,
+  };
+}
+
+function formatThreadDate(date: Date) {
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startYesterday = startToday - 24 * 60 * 60 * 1000;
+  const value = date.getTime();
+  if (value >= startToday) return '今天';
+  if (value >= startYesterday) return '昨天';
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function formatThreadTime(date: Date) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 function getThreadId(orderId: string) {
   return `order-thread-${orderId}`;
 }
-
-const demoLastMessages = [
-  '我看了你的样片，建议第一段先从街角自然光开始。',
-  '可以，今天人流会多一点，我会提前帮你找干净背景。',
-  '这组更适合低饱和质感，服装颜色尽量简单。',
-  '订单时间我这边已经确认，集合点发你定位。',
-  '如果想拍同款，可以把第一张作为主参考。',
-  '修图需求收到，先保留肤色和现场氛围。',
-  '明天下午光线更稳，我们可以往河边走一段。',
-  '这单我会带反光板，夜景部分会补一点光。',
-];
 
 const demoThreadTimes = [
   { date: '今天', time: '18:42' },
