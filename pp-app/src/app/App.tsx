@@ -15,6 +15,7 @@ import { ServiceRangeSettings } from '../features/companion/ServiceRangeSettings
 import { CheckoutPage } from '../features/user/CheckoutPage';
 import { CompanionFinderPage } from '../features/user/CompanionFinderPage';
 import { CreatorOnboarding } from '../features/user/CreatorOnboarding';
+import { CreatorProfileEditPage } from '../features/user/CreatorProfileEditPage';
 import { CreatorProfilePage } from '../features/user/CreatorProfilePage';
 import { HomeFeed } from '../features/user/HomeFeed';
 import { MessagesPage } from '../features/user/MessagesPage';
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="photographer/:photographerId" element={<PhotographerProfilePage />} />
         <Route path="checkout/:postId" element={<CheckoutPage />} />
         <Route path="onboarding" element={<CreatorOnboarding />} />
+        <Route path="profile" element={<CreatorProfileEditPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="likes" element={<UserCollectionPage mode="likes" />} />
         <Route path="favorites" element={<UserCollectionPage mode="favorites" />} />

@@ -1,16 +1,17 @@
-import { Camera, ChevronRight, ImagePlus, ReceiptText, Settings, UserRound } from 'lucide-react';
+import { Camera, ChevronRight, ImagePlus, ReceiptText, Settings, UserRound, UserRoundPen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
 import { accountHasRole, fetchAuthSession, switchMockRole } from '../../services/authService';
+import { getCreatorIdentity, readCreatorProfile } from '../../services/creatorProfileService';
 import { listFeedPosts } from '../../services/feedService';
 import type { AuthSession, FeedPost, UserRole } from '../../types/api';
-import { buildCreator } from './PostDetail';
 import { getCollectionSummary } from './UserCollectionPage';
 
 type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 
-const menuItems = [
+const creatorMenuItems = [
+  { icon: UserRoundPen, label: '编辑主页', desc: '头像、ID 名称、文字简介', to: '/consumer/profile' },
   { icon: ReceiptText, label: '我的订单', desc: '预约、支付、售后', to: '/consumer/orders' },
   { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1' },
   { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/settings' },
@@ -117,7 +118,7 @@ export function MinePage() {
       </section>
 
       <section className="mt-5 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
-        {menuItems.map(({ icon: Icon, label, desc, to }) => (
+        {creatorMenuItems.map(({ icon: Icon, label, desc, to }) => (
           <Link key={label} to={to} className="flex min-h-16 w-full items-center gap-3 px-4 text-left">
             <Icon size={19} />
             <span className="min-w-0 flex-1">
@@ -150,15 +151,16 @@ function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
     };
   }
 
-  const profilePost = posts.find((item) => buildCreator(item).id === session?.user.id) ?? post;
-  const creator = buildCreator(profilePost);
+  const profilePost = posts.find((item) => getCreatorIdentity(item).id === session?.user.id) ?? post;
+  const creator = getCreatorIdentity(profilePost);
+  const profile = readCreatorProfile('consumer');
   const creatorName = !session || session.role === 'admin' || session.user.nickname === 'Demo Consumer' ? creator.name : session.user.nickname;
   return {
     to: `/consumer/creator/${creator.id}`,
     roleLabel: '创作者主页',
-    name: creatorName,
+    name: profile?.displayName || creatorName,
     handle: phoneHandle || `@${profilePost.id.replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`,
-    avatar: creator.avatar,
+    avatar: profile?.avatarUrl || creator.avatar,
   };
 }
 

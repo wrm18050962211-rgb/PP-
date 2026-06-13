@@ -49,6 +49,13 @@ export const dataDomainPolicies: Record<string, DataDomainPolicy> = {
     migrationTarget: 'TencentDB user_likes / user_favorites / user_follows',
     note: 'Likes, favorites, and follows are account data. MVP stores locally under the cloud namespace.',
   },
+  'creator-profile-v1': {
+    layer: 'cloud',
+    sensitivity: 'user',
+    owner: 'account-role',
+    migrationTarget: 'TencentDB creator_profiles / COS profile_media',
+    note: 'Creator profile avatar, display name, and bio are account-owned profile data. MVP stores locally under the cloud namespace.',
+  },
   'reviewed-orders-v1': {
     layer: 'local',
     sensitivity: 'device',

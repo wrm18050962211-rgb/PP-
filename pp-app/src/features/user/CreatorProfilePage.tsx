@@ -1,13 +1,13 @@
-import { ArrowLeft, Camera, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Camera } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
+import { applyCreatorProfile, getCreatorBio, getCreatorIdentity, readCreatorProfile } from '../../services/creatorProfileService';
 import { getFollowerCountForPerson, getPostLikeCount } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
-import { buildCreator } from './PostDetail';
 
 export function CreatorProfilePage() {
   const { creatorId } = useParams();
@@ -15,9 +15,10 @@ export function CreatorProfilePage() {
   const { orders } = useAppData();
   const [photographersOpen, setPhotographersOpen] = useState(false);
   const posts = listFeedPosts();
-  const ownedPosts = posts.filter((post) => buildCreator(post).id === creatorId);
+  const ownedPosts = posts.filter((post) => getCreatorIdentity(post).id === creatorId);
   const profilePost = ownedPosts[0] || posts[0];
-  const creator = buildCreator(profilePost);
+  const storedProfile = readCreatorProfile('consumer');
+  const creator = applyCreatorProfile(getCreatorIdentity(profilePost), storedProfile);
   const creatorOrderWorks = listOrderWorkRecords()
     .filter((record) => record.publishToCreator && isOrderWorkConfirmed(record))
     .map((record) => {
@@ -28,7 +29,6 @@ export function CreatorProfilePage() {
     .filter((post): post is FeedPost => Boolean(post));
   const works = [...creatorOrderWorks, ...(ownedPosts.length ? ownedPosts : posts.slice(0, 9))];
   const photographers = Array.from(new Map(works.map((post) => [post.companion.id, post.companion])).values());
-  const handle = creator.id.replace(/^creator-/, '@');
   const likeTotal = works.reduce((sum, post) => sum + getPostLikeCount(post.id, posts), 0);
   const followerCount = getFollowerCountForPerson(creator.id, posts);
 
@@ -38,10 +38,8 @@ export function CreatorProfilePage() {
         <button className="grid h-10 w-10 place-items-center text-white/88" onClick={() => navigate(-1)} aria-label="返回">
           <ArrowLeft size={24} />
         </button>
-        <p className="min-w-0 truncate text-lg font-black tracking-tight">{handle}</p>
-        <Link to="/consumer/messages" className="grid h-10 w-10 place-items-center text-white/88" aria-label="发消息">
-          <MessageCircle size={20} />
-        </Link>
+        <p className="min-w-0 truncate text-lg font-black tracking-tight">{creator.name}</p>
+        <span className="h-10 w-10" aria-hidden />
       </header>
 
       <section className="px-4 pb-4 pt-3">
@@ -56,17 +54,13 @@ export function CreatorProfilePage() {
 
         <div className="mt-4">
           <h1 className="text-base font-black">{creator.name}</h1>
-          <p className="mt-1 text-sm font-semibold leading-5 text-white/72">{buildCreatorBio(profilePost)}</p>
-          <p className="mt-2 text-sm font-black text-white/88">{handle}</p>
+          <p className="mt-1 text-sm font-semibold leading-5 text-white/72">{getCreatorBio(profilePost, storedProfile)}</p>
         </div>
 
-        <div className="mt-4 grid grid-cols-[1fr_1fr_40px] gap-2">
+        <div className="mt-4 grid grid-cols-[1fr_48px] gap-2">
           <button className="h-10 rounded-[6px] bg-[#4d5dff] text-sm font-black text-white">
             关注
           </button>
-          <Link className="flex h-10 items-center justify-center rounded-[6px] bg-white/12 text-sm font-black text-white" to="/consumer/messages">
-            发消息
-          </Link>
           <Link className="grid h-10 place-items-center rounded-[6px] bg-white/12 text-white" to={`/consumer/companions?sameStyle=${profilePost.id}`} aria-label="拍同款">
             <Camera size={18} />
           </Link>
