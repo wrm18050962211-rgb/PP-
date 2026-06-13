@@ -8,7 +8,6 @@ import {
   MapPin,
   MessageCircle,
   ReceiptText,
-  RotateCcw,
   Star,
   UploadCloud,
   Users,
@@ -36,7 +35,6 @@ import { formatMoney } from '../../utils/money';
 type OrderAction =
   | { type: 'cancel'; order: AppOrder }
   | { type: 'review'; order: AppOrder }
-  | { type: 'refund'; order: AppOrder }
   | { type: 'work'; order: AppOrder }
   | null;
 
@@ -46,15 +44,17 @@ const statusTabs: Array<{ key: OrderStatus | 'all'; label: string }> = [
   { key: 'confirmed', label: '已确认' },
   { key: 'completed', label: '已完成' },
   { key: 'cancelled', label: '已取消' },
-  { key: 'refunding', label: '退款中' },
 ];
 
 const statusMeta: Record<string, { label: string; tone: string }> = {
   paid_pending_confirm: { label: '待确认', tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
   confirmed: { label: '已确认', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+  in_service: { label: '已确认', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
   completed: { label: '已完成', tone: 'bg-blue-50 text-blue-700 ring-blue-100' },
   cancelled: { label: '已取消', tone: 'bg-zinc-100 text-zinc-500 ring-zinc-200' },
-  refunding: { label: '退款中', tone: 'bg-rose-50 text-rose-700 ring-rose-100' },
+  refunding: { label: '已取消', tone: 'bg-zinc-100 text-zinc-500 ring-zinc-200' },
+  refunded: { label: '已取消', tone: 'bg-zinc-100 text-zinc-500 ring-zinc-200' },
+  disputed: { label: '已取消', tone: 'bg-rose-50 text-rose-700 ring-rose-100' },
 };
 
 const reviewStorageKey = 'reviewed-orders-v1';
@@ -71,7 +71,7 @@ export function OrdersPage() {
   const posts = useMemo(() => listFeedPosts(), []);
 
   const filteredOrders = useMemo(
-    () => orders.filter((order) => activeStatus === 'all' || order.status === activeStatus),
+    () => orders.filter((order) => activeStatus === 'all' || getDisplayOrderStatus(order.status) === activeStatus),
     [activeStatus, orders],
   );
   const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
@@ -109,9 +109,16 @@ export function OrdersPage() {
           <p className="text-sm font-black">已完成订单可以提交共同成片</p>
           <p className="mt-1 text-xs leading-5 text-white/58">创作者和摄影师都可编辑，双方确认后可分别选择是否同步到自己的主页。</p>
         </section>
-      ) : null}
+      ) : (
+        <section className="mt-4 rounded-[16px] bg-white/78 p-3 text-[#3f302c] ring-1 ring-[#eadfd8]">
+          <p className="text-xs font-black text-[#e85d75]">订单分为 4 个主状态</p>
+          <p className="mt-1 text-xs leading-5 text-[#8f8078]">
+            待确认先沟通，摄影师确认后进入已确认并托管款项；拍摄后创作者确认完成；取消按阶段进入平台违约/退款处理。
+          </p>
+        </section>
+      )}
 
-      <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4">
+      <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1">
         {statusTabs.map((tab) => (
           <button
             key={tab.key}
@@ -135,7 +142,6 @@ export function OrdersPage() {
             workRecord={workByOrderId.get(order.id)}
             onCancel={() => setActiveAction({ type: 'cancel', order })}
             onReview={() => setActiveAction({ type: 'review', order })}
-            onRefund={() => setActiveAction({ type: 'refund', order })}
             onManageWork={() => setActiveAction({ type: 'work', order })}
           />
         ))}
@@ -161,7 +167,6 @@ export function OrdersPage() {
       {activeAction?.type === 'review' && (
         <ReviewDialog order={activeAction.order} onClose={() => setActiveAction(null)} onSubmit={() => submitReview(activeAction.order.id)} />
       )}
-      {activeAction?.type === 'refund' && <RefundDialog order={activeAction.order} onClose={() => setActiveAction(null)} />}
       {activeAction?.type === 'work' && (
         <OrderWorkDialog
           order={activeAction.order}
@@ -181,7 +186,6 @@ function OrderCard({
   workRecord,
   onCancel,
   onReview,
-  onRefund,
   onManageWork,
 }: {
   order: AppOrder;
@@ -189,7 +193,6 @@ function OrderCard({
   workRecord?: OrderWorkRecord;
   onCancel: () => void;
   onReview: () => void;
-  onRefund: () => void;
   onManageWork: () => void;
 }) {
   const addOnTotal = order.addOns?.reduce((total, item) => total + item.amountCents, 0) ?? 0;
@@ -271,13 +274,7 @@ function OrderCard({
             {reviewed ? '已评价' : '去评价'}
           </button>
         )}
-        {order.status === 'refunding' && (
-          <button className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#fff1f2] text-sm font-bold text-[#e85d75]" onClick={onRefund} type="button">
-            <RotateCcw size={17} />
-            退款进度
-          </button>
-        )}
-        {order.status === 'cancelled' && (
+        {['cancelled', 'refunding', 'refunded', 'disputed'].includes(order.status) && (
           <span className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#a99b94]">
             <CheckCircle2 size={17} />
             已取消
@@ -533,10 +530,14 @@ function PublishToggle({ label, checked, disabled, onChange }: { label: string; 
 }
 
 function ConfirmCancelDialog({ order, onClose, onConfirm }: { order: AppOrder; onClose: () => void; onConfirm: () => void }) {
+  const isConfirmed = order.status === 'confirmed' || order.status === 'in_service';
   return (
     <ActionSheet title="取消订单" onClose={onClose}>
       <p className="text-sm leading-6 text-zinc-500">
-        确认取消 {order.companion} 的「{order.activityName ?? order.title}」订单吗？MVP 版本会直接将订单标记为已取消。
+        确认取消 {order.companion} 的「{order.activityName ?? order.title}」订单吗？
+        {isConfirmed
+          ? '已确认订单取消会进入违约处理：创作者从托管款中扣除违约金，平台抽点后赔付给摄影师。'
+          : '待确认订单可取消，摄影师未接单前不产生违约金。'}
       </p>
       <div className="mt-5 grid grid-cols-2 gap-3">
         <button className="h-11 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onClose} type="button">
@@ -584,22 +585,6 @@ function ReviewDialog({ order, onClose, onSubmit }: { order: AppOrder; onClose: 
   );
 }
 
-function RefundDialog({ order, onClose }: { order: AppOrder; onClose: () => void }) {
-  return (
-    <ActionSheet title="退款进度" onClose={onClose}>
-      <div className="rounded-[10px] bg-rose-50 p-3">
-        <p className="text-sm font-bold text-rose-700">预计退款 {formatMoney(order.amountCents)}</p>
-        <p className="mt-1 text-xs text-rose-600">平台正在核对服务状态，退款成功后会原路返回。</p>
-      </div>
-      <div className="mt-4 space-y-3">
-        <RefundStep title="已提交退款申请" desc="用户发起取消或退款申请" done />
-        <RefundStep title="平台处理中" desc="核对订单与托管款项" done />
-        <RefundStep title="退款到账" desc="到账时间以支付渠道为准" />
-      </div>
-    </ActionSheet>
-  );
-}
-
 function ActionSheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#3f302c]/30 px-4 pb-4" role="dialog" aria-modal="true">
@@ -612,20 +597,6 @@ function ActionSheet({ title, children, onClose }: { title: string; children: Re
         </div>
         <div className="mt-4">{children}</div>
       </div>
-    </div>
-  );
-}
-
-function RefundStep({ title, desc, done }: { title: string; desc: string; done?: boolean }) {
-  return (
-    <div className="flex gap-3">
-      <span className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full ${done ? 'bg-rose-500 text-white' : 'bg-zinc-100 text-zinc-300'}`}>
-        <CheckCircle2 size={15} />
-      </span>
-      <span>
-        <span className="block text-sm font-bold text-zinc-900">{title}</span>
-        <span className="mt-0.5 block text-xs text-zinc-500">{desc}</span>
-      </span>
     </div>
   );
 }
@@ -686,6 +657,12 @@ function mediaFromWorkUrl(url: string, index: number) {
 function parseDataUrlContentType(url: string) {
   const match = url.match(/^data:([^;,]+)/);
   return match?.[1] ?? '';
+}
+
+function getDisplayOrderStatus(status: OrderStatus): OrderStatus {
+  if (status === 'in_service') return 'confirmed';
+  if (status === 'refunding' || status === 'refunded' || status === 'disputed') return 'cancelled';
+  return status;
 }
 
 function loadReviewedOrderIds() {

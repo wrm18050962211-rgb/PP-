@@ -7,7 +7,6 @@ import {
   MapPin,
   MessageCircle,
   ReceiptText,
-  RotateCcw,
   UserRound,
   XCircle,
 } from 'lucide-react';
@@ -17,7 +16,7 @@ import { useAppData } from '../../app/useAppData';
 import type { AppOrder, OrderStatus } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
 
-type CompanionOrderTab = OrderStatus | 'today';
+type CompanionOrderTab = OrderStatus;
 type ActiveDialog =
   | { type: 'detail'; order: AppOrder }
   | { type: 'confirm'; order: AppOrder }
@@ -28,19 +27,19 @@ type ActiveDialog =
 const tabs: Array<{ key: CompanionOrderTab; label: string }> = [
   { key: 'paid_pending_confirm', label: '待确认' },
   { key: 'confirmed', label: '已确认' },
-  { key: 'today', label: '今日行程' },
   { key: 'completed', label: '已完成' },
   { key: 'cancelled', label: '已取消' },
-  { key: 'refunding', label: '退款中' },
 ];
 
 const statusMeta: Record<string, { label: string; tone: string }> = {
   paid_pending_confirm: { label: '待确认', tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
   confirmed: { label: '已确认', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
-  in_service: { label: '服务中', tone: 'bg-cyan-50 text-cyan-700 ring-cyan-100' },
+  in_service: { label: '已确认', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
   completed: { label: '已完成', tone: 'bg-blue-50 text-blue-700 ring-blue-100' },
   cancelled: { label: '已取消', tone: 'bg-zinc-100 text-zinc-500 ring-zinc-200' },
-  refunding: { label: '退款中', tone: 'bg-rose-50 text-rose-700 ring-rose-100' },
+  refunding: { label: '已取消', tone: 'bg-zinc-100 text-zinc-500 ring-zinc-200' },
+  refunded: { label: '已取消', tone: 'bg-zinc-100 text-zinc-500 ring-zinc-200' },
+  disputed: { label: '已取消', tone: 'bg-rose-50 text-rose-700 ring-rose-100' },
 };
 
 export function CompanionOrdersPage() {
@@ -50,14 +49,13 @@ export function CompanionOrdersPage() {
 
   const counts = useMemo(() => {
     return tabs.reduce<Record<string, number>>((next, tab) => {
-      next[tab.key] = tab.key === 'today' ? orders.filter(isTodayItinerary).length : orders.filter((order) => order.status === tab.key).length;
+      next[tab.key] = orders.filter((order) => getDisplayOrderStatus(order.status) === tab.key).length;
       return next;
     }, {});
   }, [orders]);
 
   const filteredOrders = useMemo(() => {
-    if (activeTab === 'today') return orders.filter(isTodayItinerary);
-    return orders.filter((order) => order.status === activeTab);
+    return orders.filter((order) => getDisplayOrderStatus(order.status) === activeTab);
   }, [activeTab, orders]);
 
   return (
@@ -75,7 +73,14 @@ export function CompanionOrdersPage() {
         </Link>
       </header>
 
-      <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4">
+      <section className="mt-4 rounded-[14px] bg-white p-3 text-zinc-700 ring-1 ring-zinc-200">
+        <p className="text-xs font-black text-rose-500">订单分为 4 个主状态</p>
+        <p className="mt-1 text-xs leading-5 text-zinc-500">
+          待确认先沟通接单，已确认代表款项托管并达成交易意向；完成后可共同编辑上传作品，取消会进入平台违约/退款处理。
+        </p>
+      </section>
+
+      <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -115,7 +120,7 @@ export function CompanionOrdersPage() {
       {activeDialog?.type === 'confirm' && (
         <ConfirmSheet
           title="确认接单"
-          desc={`确认接下订单 ${activeDialog.order.orderNo} 后，用户端会看到订单进入已确认状态，请按约定时间到达。`}
+          desc={`确认接下订单 ${activeDialog.order.orderNo} 后，订单进入已确认状态，用户支付的款项会先托管在平台资金池，拍摄完成后再进入结算。`}
           primaryText="确认接单"
           onClose={() => setActiveDialog(null)}
           onConfirm={() => {
@@ -127,7 +132,7 @@ export function CompanionOrdersPage() {
       {activeDialog?.type === 'complete' && (
         <ConfirmSheet
           title="确认完成"
-          desc={`确认「${activeDialog.order.activityName ?? activeDialog.order.title}」已完成服务吗？确认后订单会进入已完成，收入进入结算流程。`}
+          desc={`确认「${activeDialog.order.activityName ?? activeDialog.order.title}」已完成服务吗？确认后订单进入已完成，双方可以在编辑作品里共同上传成片。`}
           primaryText="确认完成"
           onClose={() => setActiveDialog(null)}
           onConfirm={() => {
@@ -139,7 +144,11 @@ export function CompanionOrdersPage() {
       {activeDialog?.type === 'cancel' && (
         <ConfirmSheet
           title="取消申请"
-          desc={`确认申请取消订单 ${activeDialog.order.orderNo} 吗？MVP 版会先直接标记为已取消。`}
+          desc={
+            activeDialog.order.status === 'confirmed' || activeDialog.order.status === 'in_service'
+              ? `确认申请取消订单 ${activeDialog.order.orderNo} 吗？已确认订单由摄影师取消时，会从摄影师平台押金中扣除违约金，平台抽点后赔付给创作者。`
+              : `确认申请取消订单 ${activeDialog.order.orderNo} 吗？待确认阶段摄影师未接单，可直接取消。`
+          }
           primaryText="提交取消"
           onClose={() => setActiveDialog(null)}
           onConfirm={() => {
@@ -222,10 +231,10 @@ function CompanionOrderCard({
             取消申请
           </button>
         )}
-        {order.status === 'refunding' && (
-          <span className="col-span-2 flex h-10 items-center justify-center gap-2 rounded-full bg-rose-50 text-sm font-bold text-rose-600">
-            <RotateCcw size={17} />
-            等待平台处理退款
+        {['cancelled', 'refunding', 'refunded', 'disputed'].includes(order.status) && (
+          <span className="col-span-2 flex h-10 items-center justify-center gap-2 rounded-full bg-zinc-100 text-sm font-bold text-zinc-500">
+            <CheckCircle2 size={17} />
+            已取消
           </span>
         )}
       </div>
@@ -331,18 +340,8 @@ function formatAddOns(order: AppOrder) {
   return `${count}项 ${formatMoney(amount)}`;
 }
 
-function isTodayItinerary(order: AppOrder) {
-  if (order.status !== 'confirmed' && order.status !== 'in_service') return false;
-  if (order.dateLabel === '今天') return true;
-  if (!order.startAt) return false;
-  return toDateKey(order.startAt) === toDateKey(new Date().toISOString());
-}
-
-function toDateKey(value: string) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(value));
+function getDisplayOrderStatus(status: OrderStatus): OrderStatus {
+  if (status === 'in_service') return 'confirmed';
+  if (status === 'refunding' || status === 'refunded' || status === 'disputed') return 'cancelled';
+  return status;
 }
