@@ -12,6 +12,7 @@ type AuthAccount = {
   phone: string;
   role: PublicRole;
   roles: PublicRole[];
+  completedRoleRegistrations?: PublicRole[];
   nickname: string;
   creatorName?: string;
   photographerName?: string;
@@ -94,7 +95,9 @@ export function getRegisteredAccount() {
 }
 
 export function accountHasRole(role: PublicRole) {
-  return canUseRole(readAccount(), role);
+  const account = readAccount();
+  if (!account) return false;
+  return getUsableRoles(account).includes(role);
 }
 
 export function getPostAuthHome(role = readStoredRole()) {
@@ -170,16 +173,23 @@ export async function logoutAccount() {
 }
 
 export function addRoleToCurrentAccount(role: PublicRole) {
+  return completeRoleRegistration(role);
+}
+
+export function completeRoleRegistration(role: PublicRole, profile: Partial<Pick<AuthAccount, 'creatorName' | 'photographerName' | 'creatorAvatarUrl' | 'photographerAvatarUrl'>> = {}) {
   const account = readAccount();
   if (!account || typeof localStorage === 'undefined') return null;
+  const completedRoleRegistrations = Array.from(new Set([...(account.completedRoleRegistrations ?? []), role]));
   const nextAccount: AuthAccount = {
     ...account,
+    ...profile,
     role,
-    roles: Array.from(new Set([...account.roles, role])),
+    roles: Array.from(new Set([...getUsableRoles(account), role])),
+    completedRoleRegistrations,
     creatorId: role === 'consumer' ? account.creatorId || `creator-local-${account.phone}` : account.creatorId,
     companionId: role === 'companion' ? account.companionId || `companion-local-${account.phone}` : account.companionId,
-    creatorName: role === 'consumer' ? account.creatorName || 'Demo Creator' : account.creatorName,
-    photographerName: role === 'companion' ? account.photographerName || 'Demo Photographer' : account.photographerName,
+    creatorName: profile.creatorName ?? (role === 'consumer' ? account.creatorName || 'Demo Creator' : account.creatorName),
+    photographerName: profile.photographerName ?? (role === 'companion' ? account.photographerName || 'Demo Photographer' : account.photographerName),
   };
   localStorage.setItem(accountStorageKey, JSON.stringify(nextAccount));
   persistRole(role);
@@ -215,34 +225,36 @@ function isUserRole(role: unknown): role is UserRole {
 
 function localSession(role: UserRole): AuthSession {
   const account = readAccount();
-  const companionId = role === 'companion' ? account?.companionId || null : null;
-  const userId = role === 'consumer' ? account?.creatorId : role === 'companion' ? account?.companionId : null;
+  const activeRole = resolveUsableRole(account, role);
+  if (activeRole !== role) persistRole(activeRole);
+  const companionId = activeRole === 'companion' ? account?.companionId || null : null;
+  const userId = activeRole === 'consumer' ? account?.creatorId : activeRole === 'companion' ? account?.companionId : null;
   const nickname =
-    role === 'consumer'
+    activeRole === 'consumer'
       ? account?.creatorName || account?.nickname
-      : role === 'companion'
+      : activeRole === 'companion'
         ? account?.photographerName || account?.nickname
         : account?.nickname;
-  const avatarUrl = role === 'consumer' ? account?.creatorAvatarUrl || '' : role === 'companion' ? account?.photographerAvatarUrl || '' : '';
+  const avatarUrl = activeRole === 'consumer' ? account?.creatorAvatarUrl || '' : activeRole === 'companion' ? account?.photographerAvatarUrl || '' : '';
   return {
-    token: `local-${role}-session`,
+    token: `local-${activeRole}-session`,
     provider: 'mock_wechat',
-    role,
-    roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : account?.roles ?? (role === 'companion' ? ['companion'] : ['consumer']),
+    role: activeRole,
+    roles: activeRole === 'admin' ? ['consumer', 'companion', 'admin'] : account ? getUsableRoles(account) : activeRole === 'companion' ? ['companion'] : ['consumer'],
     user: {
-      id: userId || `local-${role}-user`,
-      openId: `mock-openid-${userId || role}`,
+      id: userId || `local-${activeRole}-user`,
+      openId: `mock-openid-${userId || activeRole}`,
       phone: account?.phone,
-      nickname: nickname ?? (role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer'),
+      nickname: nickname ?? (activeRole === 'admin' ? 'Demo Admin' : activeRole === 'companion' ? 'Demo Companion' : 'Demo Consumer'),
       avatarUrl,
       gender: 'unknown',
       city: 'Shanghai',
       status: 'active',
-      isCompanion: role === 'companion',
-      roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : account?.roles ?? (role === 'companion' ? ['companion'] : ['consumer']),
+      isCompanion: activeRole === 'companion',
+      roles: activeRole === 'admin' ? ['consumer', 'companion', 'admin'] : account ? getUsableRoles(account) : activeRole === 'companion' ? ['companion'] : ['consumer'],
     },
     companionId,
-    adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
+    adminScope: activeRole === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
     loginAt: new Date().toISOString(),
   };
 }
@@ -262,6 +274,7 @@ function mapTestIdentities(identities: TestAccountIdentity[]): AuthAccount {
     phone: identities[0].phone,
     role: defaultRole,
     roles: identities.map((account) => account.role),
+    completedRoleRegistrations: [],
     nickname: (defaultRole === 'consumer' ? creator?.name : photographer?.name) || identities[0].name,
     creatorName: creator?.name,
     photographerName: photographer?.name,
@@ -287,6 +300,7 @@ function readAccount(): AuthAccount | null {
       phone: account.phone,
       role: account.role,
       roles,
+      completedRoleRegistrations: normalizeOptionalRoles(account.completedRoleRegistrations),
       nickname: account.nickname || (account.role === 'companion' ? 'Demo Photographer' : 'Demo Creator'),
       creatorName: account.creatorName,
       photographerName: account.photographerName,
@@ -306,13 +320,30 @@ function readAccount(): AuthAccount | null {
 function canUseRole(account: AuthAccount | null, role: UserRole) {
   if (role === 'admin') return false;
   if (!account) return false;
-  return account.roles.includes(role);
+  return getUsableRoles(account).includes(role);
+}
+
+function getUsableRoles(account: AuthAccount): PublicRole[] {
+  const testRoles = findTestAccountIdentitiesByPhone(account.phone).map((identity) => identity.role);
+  if (testRoles.length) return Array.from(new Set([...testRoles, ...(account.completedRoleRegistrations ?? [])]));
+  return account.roles;
+}
+
+function resolveUsableRole(account: AuthAccount | null, role: UserRole): UserRole {
+  if (role === 'admin' || !account) return role;
+  const usableRoles = getUsableRoles(account);
+  return usableRoles.includes(role) ? role : usableRoles[0] ?? account.role;
 }
 
 function normalizeRoles(roles: unknown, fallbackRole: PublicRole): PublicRole[] {
   if (!Array.isArray(roles)) return [fallbackRole];
   const nextRoles = roles.filter((role): role is PublicRole => role === 'consumer' || role === 'companion');
   return nextRoles.length ? Array.from(new Set(nextRoles)) : [fallbackRole];
+}
+
+function normalizeOptionalRoles(roles: unknown): PublicRole[] {
+  if (!Array.isArray(roles)) return [];
+  return Array.from(new Set(roles.filter((role): role is PublicRole => role === 'consumer' || role === 'companion')));
 }
 
 function validatePhoneCode(phone: string, code: string) {

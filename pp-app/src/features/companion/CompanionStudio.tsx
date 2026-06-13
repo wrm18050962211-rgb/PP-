@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
-import { accountHasRole, addRoleToCurrentAccount, switchMockRole } from '../../services/authService';
+import { accountHasRole, switchMockRole } from '../../services/authService';
 import { fetchCompanionDashboard, getCompanionDashboard } from '../../services/companionService';
 import { listFeedPosts } from '../../services/feedService';
 import type { CompanionDashboard, FeedPost, UserRole } from '../../types/api';
@@ -114,7 +114,7 @@ export function CompanionStudio() {
             const needsRegistration = item.role === 'consumer' && !canUseCreatorRole;
             const label = needsRegistration ? '注册成为创作者' : item.label;
             const desc = needsRegistration ? '选择创作者身份并绑定手机号' : item.desc;
-            const target = needsRegistration ? '/consumer/mine' : item.to;
+            const target = needsRegistration ? '/consumer/onboarding' : item.to;
             return (
               <button
                 key={item.role}
@@ -123,7 +123,6 @@ export function CompanionStudio() {
                 }`}
                 onClick={() => {
                   if (needsRegistration) {
-                    addRoleToCurrentAccount('consumer');
                     navigate(target);
                     return;
                   }

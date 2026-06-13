@@ -2,7 +2,7 @@ import { Camera, ChevronRight, ImagePlus, ReceiptText, Settings, UserRound } fro
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
-import { accountHasRole, addRoleToCurrentAccount, fetchAuthSession, switchMockRole } from '../../services/authService';
+import { accountHasRole, fetchAuthSession, switchMockRole } from '../../services/authService';
 import { listFeedPosts } from '../../services/feedService';
 import type { AuthSession, FeedPost, UserRole } from '../../types/api';
 import { buildCreator } from './PostDetail';
@@ -99,7 +99,6 @@ export function MinePage() {
                 }`}
                 onClick={() => {
                   if (needsRegistration) {
-                    addRoleToCurrentAccount('companion');
                     navigate(target);
                     return;
                   }
