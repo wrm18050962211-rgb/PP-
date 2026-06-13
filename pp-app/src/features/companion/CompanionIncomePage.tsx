@@ -22,7 +22,7 @@ export function CompanionIncomePage() {
   return (
     <div className="min-h-dvh bg-zinc-50 px-4 py-5">
       <header className="flex items-center gap-3">
-        <Link className="grid h-10 w-10 place-items-center rounded-full bg-white text-zinc-700 ring-1 ring-zinc-200" to="/companion" aria-label="返回">
+        <Link className="grid h-10 w-10 place-items-center rounded-full bg-white text-zinc-700 ring-1 ring-zinc-200" to="/companion/mine" aria-label="返回">
           <ChevronLeft size={20} />
         </Link>
         <div>

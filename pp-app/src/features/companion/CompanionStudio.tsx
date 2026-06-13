@@ -18,6 +18,7 @@ import {
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
 import { switchMockRole } from '../../services/authService';
 import { fetchCompanionDashboard, getCompanionDashboard } from '../../services/companionService';
 import { listFeedPosts } from '../../services/feedService';
@@ -171,6 +172,7 @@ export function CompanionStudio() {
 
       <MenuSection className="mt-4" items={setupItems} />
 
+      {loadingRole ? <RoleSwitchLoading /> : null}
     </div>
   );
 }

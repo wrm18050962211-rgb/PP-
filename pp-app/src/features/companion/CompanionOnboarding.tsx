@@ -284,7 +284,7 @@ function ReviewStatusPanel({ application, completedCount, totalCount }: { applic
 function Header({ title }: { title: string }) {
   return (
     <header className="flex items-center gap-3">
-      <Link to="/companion" className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100" aria-label="返回">
+      <Link to="/companion/mine" className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100" aria-label="返回">
         <ArrowLeft size={20} />
       </Link>
       <h1 className="text-2xl font-bold">{title}</h1>

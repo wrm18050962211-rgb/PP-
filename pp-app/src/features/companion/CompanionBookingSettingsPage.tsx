@@ -1,5 +1,6 @@
-import { CalendarDays, Clock3, Plus, Save, Trash2, Zap } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Clock3, Plus, Save, Trash2, Zap } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import {
   bookingDurationOptions,
@@ -55,8 +56,11 @@ export function CompanionBookingSettingsPage() {
 
   return (
     <div className="min-h-dvh bg-zinc-50 px-4 py-5 pb-24">
-      <header className="flex items-start justify-between gap-4">
-        <div>
+      <header className="flex items-start gap-3">
+        <Link className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-zinc-700 ring-1 ring-zinc-200" to="/companion/mine" aria-label="返回我的">
+          <ArrowLeft size={20} />
+        </Link>
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-black text-zinc-950">时间和价格设置</h1>
           <p className="mt-1 text-sm leading-6 text-zinc-500">按活动形式和陪伴时长配置，保存后会同步到用户预约弹窗。</p>
         </div>

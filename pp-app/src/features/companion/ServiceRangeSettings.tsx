@@ -105,7 +105,7 @@ export function ServiceRangeSettings() {
   return (
     <div className="pb-28">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-100 bg-white/95 px-4 py-4 backdrop-blur">
-        <Link to="/companion" className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100" aria-label="返回">
+        <Link to="/companion/mine" className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100" aria-label="返回">
           <ArrowLeft size={20} />
         </Link>
         <div className="min-w-0 flex-1">

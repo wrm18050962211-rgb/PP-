@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Clock3,
@@ -61,8 +62,11 @@ export function CompanionOrdersPage() {
 
   return (
     <div className="min-h-dvh bg-zinc-50 px-4 py-5">
-      <header className="flex items-start justify-between gap-3">
-        <div>
+      <header className="flex items-start gap-3">
+        <Link className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-zinc-700 ring-1 ring-zinc-200" to="/companion/mine" aria-label="返回我的">
+          <ArrowLeft size={20} />
+        </Link>
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-rose-500">陪拍者工作台</p>
           <h1 className="mt-1 text-2xl font-bold">订单管理</h1>
         </div>

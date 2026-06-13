@@ -1,6 +1,7 @@
 import { Bookmark, Camera, ChevronRight, Heart, ReceiptText, Settings, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
 import { fetchAuthSession, switchMockRole } from '../../services/authService';
 import { listFeedPosts } from '../../services/feedService';
 import type { AuthSession, FeedPost, UserRole } from '../../types/api';
@@ -17,8 +18,8 @@ const menuItems = [
 ];
 
 const roleActions: Array<{ role: UserFacingRole; label: string; desc: string; to: string; icon: typeof UserRound }> = [
-  { role: 'consumer', label: '创作者', desc: '作品、点赞、收藏、预约', to: '/consumer', icon: UserRound },
-  { role: 'companion', label: '摄影师', desc: '资料、档期、订单、收入', to: '/companion', icon: Camera },
+  { role: 'consumer', label: '创作者', desc: '作品、点赞、收藏、预约', to: '/consumer/mine', icon: UserRound },
+  { role: 'companion', label: '摄影师', desc: '资料、档期、订单、收入', to: '/companion/mine', icon: Camera },
 ];
 
 export function MinePage() {
@@ -116,6 +117,7 @@ export function MinePage() {
           </Link>
         ))}
       </section>
+      {loadingRole ? <RoleSwitchLoading /> : null}
     </div>
   );
 }
