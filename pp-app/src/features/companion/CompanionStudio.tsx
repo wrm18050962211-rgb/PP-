@@ -22,7 +22,9 @@ import { switchMockRole } from '../../services/authService';
 import { fetchCompanionDashboard, getCompanionDashboard } from '../../services/companionService';
 import { listFeedPosts } from '../../services/feedService';
 import type { CompanionDashboard, FeedPost, UserRole } from '../../types/api';
-import { formatMoney } from '../../utils/money';
+import { getCollectionSummary } from '../user/UserCollectionPage';
+
+type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 
 const photographerMenuItems = [
   { icon: ClipboardList, label: '我的订单', desc: '待确认、已确认、已完成', to: '/companion/orders' },
@@ -46,11 +48,19 @@ const setupItems = [
   { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/consumer/mine' },
 ];
 
+const roleActions: Array<{ role: UserFacingRole; label: string; desc: string; to: string; icon: typeof UserRound }> = [
+  { role: 'consumer', label: '创作者', desc: '作品、点赞、收藏、预约', to: '/consumer/mine', icon: UserRound },
+  { role: 'companion', label: '摄影师', desc: '资料、档期、订单、收入', to: '/companion/mine', icon: Camera },
+];
+
 export function CompanionStudio() {
   const navigate = useNavigate();
   const { application, workDraft } = useAppData();
   const [dashboard, setDashboard] = useState<CompanionDashboard>(() => getCompanionDashboard());
-  const ownProfile = buildPhotographerProfileSummary(listFeedPosts()[0]);
+  const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
+  const posts = listFeedPosts();
+  const ownProfile = buildPhotographerProfileSummary(posts[0]);
+  const collectionSummary = getCollectionSummary(posts);
   const reviewText = application.reviewStatus === '已通过' ? '已认证' : application.reviewStatus;
   const draftText = workDraft.reviewStatus === '草稿' ? '待发布' : workDraft.reviewStatus;
 
@@ -65,8 +75,10 @@ export function CompanionStudio() {
     };
   }, []);
 
-  const handleRoleSwitch = async (role: UserRole, to: string) => {
+  const handleRoleSwitch = async (role: UserFacingRole, to: string) => {
+    setLoadingRole(role);
     await switchMockRole(role);
+    setLoadingRole(null);
     navigate(to);
   };
 
@@ -84,14 +96,38 @@ export function CompanionStudio() {
         </Link>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <SummaryPill label="本周收入" value={formatMoney(dashboard.weeklyEstimatedCents)} />
-          <SummaryPill label="待结算" value={formatMoney(dashboard.pendingCents)} />
-          <SummaryPill label="审核" value={reviewText} />
+          {collectionSummary.map(({ icon: Icon, label, value, to }) => (
+            <Link key={label} to={to} className="rounded-[8px] bg-white/[0.07] px-2 py-3 text-center active:bg-white/[0.11]">
+              <Icon size={16} className="mx-auto text-white/58" />
+              <p className="mt-1 text-sm font-black leading-5">{label}</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-white/42">{value} 项</p>
+            </Link>
+          ))}
         </div>
+      </section>
 
-        <p className="mt-4 line-clamp-2 text-xs font-semibold leading-5 text-white/58">
-          {ownProfile.bio}
-        </p>
+      <section className="mt-5 rounded-[10px] border border-zinc-200 bg-white p-3">
+        <div className="grid grid-cols-2 gap-2">
+          {roleActions.map((item) => {
+            const Icon = item.icon;
+            const active = item.role === 'companion';
+            return (
+              <button
+                key={item.role}
+                className={`min-h-20 rounded-[8px] px-3 py-3 text-left ${
+                  active ? 'bg-[#fff1f3] text-[#3f302c] ring-1 ring-[#f4c8d1]' : 'bg-[#fbf7f2] text-[#5f514b]'
+                }`}
+                onClick={() => void handleRoleSwitch(item.role, item.to)}
+                disabled={loadingRole !== null}
+                type="button"
+              >
+                <Icon size={18} className="mb-2" />
+                <span className="block text-sm font-black">{item.label}</span>
+                <span className="mt-1 block text-xs leading-4 opacity-70">{loadingRole === item.role ? '切换中...' : item.desc}</span>
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       <MenuSection className="mt-5" items={photographerMenuItems} />
@@ -135,26 +171,6 @@ export function CompanionStudio() {
 
       <MenuSection className="mt-4" items={setupItems} />
 
-      <section className="mt-4 rounded-[10px] border border-zinc-200 bg-white p-3">
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            className="flex h-12 items-center justify-center gap-2 rounded-[8px] bg-[#f4f4f5] text-sm font-black text-zinc-700"
-            onClick={() => void handleRoleSwitch('consumer', '/consumer/mine')}
-            type="button"
-          >
-            <UserRound size={16} />
-            创作者
-          </button>
-          <button
-            className="flex h-12 items-center justify-center gap-2 rounded-[8px] bg-zinc-950 text-sm font-black text-white"
-            onClick={() => void handleRoleSwitch('companion', '/companion/mine')}
-            type="button"
-          >
-            <Camera size={16} />
-            摄影师
-          </button>
-        </div>
-      </section>
     </div>
   );
 }
@@ -173,15 +189,6 @@ function MenuSection({ items, className = '' }: { items: typeof photographerMenu
         </Link>
       ))}
     </section>
-  );
-}
-
-function SummaryPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[8px] bg-white/[0.07] px-2 py-3 text-center">
-      <p className="truncate text-sm font-black leading-5">{value}</p>
-      <p className="mt-0.5 text-[11px] font-semibold text-white/42">{label}</p>
-    </div>
   );
 }
 
