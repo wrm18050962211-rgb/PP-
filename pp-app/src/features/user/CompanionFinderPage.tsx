@@ -116,7 +116,7 @@ export function CompanionFinderPage() {
         <section className="px-2 pt-2">
           <div className="flex items-center gap-3 rounded-[2px] bg-white p-3 text-black">
             <div className="h-16 w-12 shrink-0 overflow-hidden rounded-[2px]">
-              <LivePhotoMedia media={sameStylePost.images[0]} alt={sameStylePost.location} />
+              <LivePhotoMedia media={sameStylePost.images[0]} alt={sameStylePost.location} playLive={false} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-black text-zinc-500">按这组作品找同款摄影师</p>
@@ -181,6 +181,7 @@ function PhotographerResultCard({ result, index }: { result: PhotographerResult;
               alt={getPostTitle(work)}
               loading={index < 2 && workIndex === 0 ? 'eager' : 'lazy'}
               fallbackSrc={companion.photo || companion.avatar}
+              playLive={false}
               mediaClassName="saturate-[0.9] contrast-[1.05]"
             />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/76 via-black/22 to-transparent px-2 pb-2 pt-10">

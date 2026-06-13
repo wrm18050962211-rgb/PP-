@@ -9,6 +9,7 @@ type LivePhotoMediaProps = {
   fit?: 'cover' | 'contain';
   loading?: 'eager' | 'lazy';
   fallbackSrc?: string;
+  playLive?: boolean;
 };
 
 export function isLiveMedia(media?: Pick<PostImage, 'contentType' | 'mediaKind' | 'videoUrl'>) {
@@ -23,6 +24,7 @@ export function LivePhotoMedia({
   fit = 'cover',
   loading = 'lazy',
   fallbackSrc,
+  playLive = true,
 }: LivePhotoMediaProps) {
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -30,7 +32,7 @@ export function LivePhotoMedia({
   const fitClass = fit === 'contain' ? 'object-contain' : 'object-cover';
   const imageSrc = imageFailed ? fallbackSrc : media?.posterUrl || media?.url || fallbackSrc;
   const videoSrc = live ? media?.videoUrl || (media?.contentType?.startsWith('video/') ? media.url : undefined) : undefined;
-  const shouldPlayVideo = live && videoSrc && !videoFailed;
+  const shouldPlayVideo = playLive && live && videoSrc && !videoFailed;
 
   useEffect(() => {
     setVideoFailed(false);
@@ -58,6 +60,7 @@ export function LivePhotoMedia({
           src={imageSrc}
           alt={alt}
           loading={loading}
+          decoding="async"
           onError={(event) => {
             if (fallbackSrc && event.currentTarget.src !== fallbackSrc) {
               setImageFailed(true);

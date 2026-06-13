@@ -2,8 +2,41 @@ import { companions, feedPosts } from '../data/mockApi';
 import type { ActivityPricing, AvailabilitySlot, Companion, CompanionExtra, FeedPost, PublishedWorkDraft } from '../types/api';
 import { apiGet, isApiEnabled } from './apiClient';
 
+export type FeedPageRequest = {
+  limit?: number;
+  cursor?: string | null;
+  city?: string;
+};
+
+export type FeedPostPage = {
+  items: FeedPost[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+const defaultFeedPageSize = 18;
+const maxFeedPageSize = 50;
+
 export function listFeedPosts(): FeedPost[] {
   return getExtendedFeedPosts().map(withPostTitle);
+}
+
+export function listFeedPostPage(options: FeedPageRequest = {}): FeedPostPage {
+  const { limit, cursor, city } = normalizeFeedPageRequest(options);
+  const cityKeyword = city.trim().toLowerCase();
+  const source = listFeedPosts().filter((post) => {
+    if (!cityKeyword) return true;
+    return [post.city, post.location, post.locationName].filter(Boolean).join(' ').toLowerCase().includes(cityKeyword);
+  });
+  const start = parseFeedCursor(cursor);
+  const items = source.slice(start, start + limit);
+  const nextOffset = start + items.length;
+
+  return {
+    items,
+    nextCursor: nextOffset < source.length ? String(nextOffset) : null,
+    hasMore: nextOffset < source.length,
+  };
 }
 
 export function getPostDetail(postId?: string): FeedPost {
@@ -48,15 +81,26 @@ export function mergeApprovedWorkIntoFeed(posts: FeedPost[], workDraft: Publishe
   return [approvedPost, ...posts.filter((post) => post.id !== approvedPost.id)];
 }
 
-export async function fetchFeedPosts(): Promise<FeedPost[]> {
-  if (!isApiEnabled()) return listFeedPosts();
+export async function fetchFeedPostPage(options: FeedPageRequest = {}): Promise<FeedPostPage> {
+  if (!isApiEnabled()) return listFeedPostPage(options);
 
   try {
-    const response = await apiGet<{ items: FeedPost[] }>('/api/feed/posts');
-    return response.success ? response.data.items.map(withPostTitle) : listFeedPosts();
+    const response = await apiGet<FeedPostPage>(buildFeedPostsPath(options));
+    return response.success
+      ? {
+          items: response.data.items.map(withPostTitle),
+          nextCursor: response.data.nextCursor ?? null,
+          hasMore: Boolean(response.data.hasMore),
+        }
+      : listFeedPostPage(options);
   } catch {
-    return listFeedPosts();
+    return listFeedPostPage(options);
   }
+}
+
+export async function fetchFeedPosts(): Promise<FeedPost[]> {
+  const page = await fetchFeedPostPage({ limit: maxFeedPageSize });
+  return page.items;
 }
 
 export function getPostTitle(post: Partial<FeedPost>): string {
@@ -72,6 +116,33 @@ export function getPostTitle(post: Partial<FeedPost>): string {
 function withPostTitle(post: FeedPost): FeedPost {
   const title = getPostTitle(post);
   return post.title === title ? post : { ...post, title };
+}
+
+function normalizeFeedPageRequest(options: FeedPageRequest) {
+  return {
+    limit: clampFeedLimit(options.limit),
+    cursor: options.cursor ?? null,
+    city: options.city ?? '',
+  };
+}
+
+function clampFeedLimit(limit?: number) {
+  if (!Number.isFinite(limit)) return defaultFeedPageSize;
+  return Math.max(1, Math.min(Math.floor(limit as number), maxFeedPageSize));
+}
+
+function parseFeedCursor(cursor?: string | null) {
+  const offset = Number.parseInt(cursor || '0', 10);
+  return Number.isFinite(offset) && offset > 0 ? offset : 0;
+}
+
+function buildFeedPostsPath(options: FeedPageRequest) {
+  const request = normalizeFeedPageRequest(options);
+  const params = new URLSearchParams();
+  params.set('limit', String(request.limit));
+  if (request.cursor) params.set('cursor', request.cursor);
+  if (request.city) params.set('city', request.city);
+  return `/api/feed/posts?${params.toString()}`;
 }
 
 function getShortPostLocation(post: Partial<FeedPost>) {

@@ -95,6 +95,7 @@ function CreatorCard({ creator, index }: { creator: ApprovedCreator; index: numb
             alt={getPostTitle(creator.post)}
             loading={index < 4 ? 'eager' : 'lazy'}
             fallbackSrc={creator.avatar}
+            playLive={false}
             mediaClassName="saturate-[0.92] contrast-[1.05]"
           />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/86 via-black/30 to-transparent px-2 pb-2 pt-12">

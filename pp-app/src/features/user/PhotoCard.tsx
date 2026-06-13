@@ -39,6 +39,7 @@ export function PhotoCard({
             alt={post.location}
             loading={priority ? 'eager' : 'lazy'}
             fallbackSrc={getFallbackImage(post.id, variant)}
+            playLive={false}
             mediaClassName="brightness-[0.94] contrast-[1.14] saturate-[0.98] transition duration-500 active:scale-[1.03]"
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-1 bg-gradient-to-t from-black/72 via-black/18 to-transparent px-1.5 pb-1.5 pt-7">

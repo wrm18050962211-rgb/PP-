@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { Link, useOutletContext } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
-import { fetchFeedPosts, getPostTitle, listFeedPosts, mergeApprovedWorkIntoFeed } from '../../services/feedService';
+import { fetchFeedPostPage, getPostTitle, listFeedPostPage, listFeedPosts, mergeApprovedWorkIntoFeed, type FeedPostPage } from '../../services/feedService';
 import type { ConsumerLocation } from '../../services/locationService';
 import { fetchMatchedCompanions, matchCompanions, type GenderPreference } from '../../services/matchingService';
 import type { FeedPost } from '../../types/api';
@@ -114,6 +114,9 @@ const distanceOptions = [
   { label: '5km', value: 5 },
   { label: '10km', value: 10 },
 ];
+const feedPageSize = 18;
+const feedCacheKey = 'pp:consumer-feed-page-cache:v1';
+const feedCacheTtlMs = 1000 * 60 * 5;
 const searchHistoryKey = 'pp:consumer-search-history';
 const searchSuggestions = ['黑白大片', 'Citywalk', '探店', '夜景', '武康路', '安福路', '预算300内', '女生摄影师'];
 
@@ -133,7 +136,11 @@ type DemoMapPoint = (typeof demoMapPoints)[number];
 export function HomeFeed() {
   const { homeChromeCompact = false } = useOutletContext<ConsumerShellContext>();
   const { workDraft } = useAppData();
-  const [posts, setPosts] = useState<FeedPost[]>(() => listFeedPosts());
+  const initialFeedPage = useMemo(() => loadInitialFeedPage(), []);
+  const [posts, setPosts] = useState<FeedPost[]>(initialFeedPage.items);
+  const [feedCursor, setFeedCursor] = useState<string | null>(initialFeedPage.nextCursor);
+  const [hasMoreFeed, setHasMoreFeed] = useState(initialFeedPage.hasMore);
+  const [feedLoading, setFeedLoading] = useState(false);
   const [filters, setFilters] = useState<FeedFilters>(initialFilters);
   const [cityOpen, setCityOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -147,17 +154,44 @@ export function HomeFeed() {
   const [feedDrag, setFeedDrag] = useState<FeedDragState>(idleFeedDragState);
   const [blockFeedClick, setBlockFeedClick] = useState(false);
   const feedSwipeRef = useRef<HTMLDivElement>(null);
+  const feedLoadRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
-    fetchFeedPosts().then((nextPosts) => {
-      if (mounted) setPosts(nextPosts);
-    });
+    setFeedLoading(true);
+    fetchFeedPostPage({ limit: feedPageSize })
+      .then((page) => {
+        if (!mounted) return;
+        setPosts(page.items);
+        setFeedCursor(page.nextCursor);
+        setHasMoreFeed(page.hasMore);
+        saveFeedCache(page);
+      })
+      .finally(() => {
+        if (mounted) setFeedLoading(false);
+      });
 
     return () => {
       mounted = false;
     };
   }, []);
+
+  const loadMoreFeed = useCallback(() => {
+    if (feedLoading || !hasMoreFeed || !feedCursor) return;
+
+    setFeedLoading(true);
+    fetchFeedPostPage({ limit: feedPageSize, cursor: feedCursor })
+      .then((page) => {
+        setPosts((current) => {
+          const nextItems = mergeUniqueFeedPosts(current, page.items);
+          saveFeedCache({ ...page, items: nextItems });
+          return nextItems;
+        });
+        setFeedCursor(page.nextCursor);
+        setHasMoreFeed(page.hasMore);
+      })
+      .finally(() => setFeedLoading(false));
+  }, [feedCursor, feedLoading, hasMoreFeed]);
 
   const requestConsumerLocation = useCallback(() => {
     setMatchedPostIds(null);
@@ -229,6 +263,18 @@ export function HomeFeed() {
     [filters, localFilteredPosts, locationKeywords, matchedPostIds],
   );
   const activeChannelIndex = Math.max(0, channels.indexOf(filters.channel));
+  const visibleChannelPostGroups = useMemo(
+    () =>
+      channels.reduce(
+        (groups, channel, index) => {
+          const channelPosts = channelPostGroups[channel];
+          groups[channel] = index === activeChannelIndex ? channelPosts : Math.abs(index - activeChannelIndex) === 1 ? channelPosts.slice(0, 12) : [];
+          return groups;
+        },
+        {} as Record<FeedChannel, FeedPost[]>,
+      ),
+    [activeChannelIndex, channelPostGroups],
+  );
   const activeFilterCount = getActiveFilterCount(filters);
   const topChromeHidden = homeChromeCompact && !searchOpen && !cityOpen && !filterOpen;
   const topPaddingClass = 'pt-2';
@@ -357,6 +403,21 @@ export function HomeFeed() {
     };
   }, [activeLocation?.lat, activeLocation?.lng, filters, locationKeyword]);
 
+  useEffect(() => {
+    const node = feedLoadRef.current;
+    if (!node || !hasMoreFeed || searchOpen || cityOpen || filterOpen) return;
+    if (typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) loadMoreFeed();
+      },
+      { rootMargin: '720px 0px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [cityOpen, filterOpen, hasMoreFeed, loadMoreFeed, searchOpen]);
+
 
   return (
     <div className={`min-h-dvh bg-[#050505] text-white transition-[padding] duration-300 ${topPaddingClass}`}>
@@ -451,10 +512,13 @@ export function HomeFeed() {
         >
           {channels.map((channel) => (
             <div key={channel} className="w-full shrink-0">
-              <PhotoFeed posts={channelPostGroups[channel]} />
+              <PhotoFeed posts={visibleChannelPostGroups[channel]} />
             </div>
           ))}
         </div>
+      </div>
+      <div ref={feedLoadRef} className="grid h-16 place-items-center bg-[#050505] text-[10px] font-semibold uppercase tracking-[0.18em] text-white/24">
+        {feedLoading ? 'Loading' : null}
       </div>
 
       {searchOpen ? (
@@ -625,7 +689,7 @@ function SearchOverlay({
           <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {suggestionTiles.map(({ label, post }) => (
               <button key={label} className="relative h-20 w-36 shrink-0 overflow-hidden rounded-[3px] bg-white/[0.06] text-left" onClick={() => onPick(label)}>
-                {post ? <LivePhotoMedia className="absolute inset-0" media={post.images[0]} alt={label} mediaClassName="opacity-75" /> : null}
+                {post ? <LivePhotoMedia className="absolute inset-0" media={post.images[0]} alt={label} playLive={false} mediaClassName="opacity-75" /> : null}
                 <span className="absolute inset-0 bg-gradient-to-t from-black/76 via-black/24 to-black/8" />
                 <span className="absolute bottom-2 left-2 right-2 truncate text-sm font-black text-white/78">{label}</span>
               </button>
@@ -636,7 +700,7 @@ function SearchOverlay({
         <section className="mt-3 grid grid-cols-3 gap-px">
           {previewPosts.map((post, index) => (
             <Link key={post.id} to={`/consumer/post/${post.id}`} className="group relative aspect-square overflow-hidden bg-white/[0.04]" aria-label={`查看${getPostTitle(post)}`}>
-              <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading={index < 9 ? 'eager' : 'lazy'} mediaClassName="transition duration-300 group-active:scale-[0.98]" />
+              <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading={index < 9 ? 'eager' : 'lazy'} playLive={false} mediaClassName="transition duration-300 group-active:scale-[0.98]" />
             </Link>
           ))}
         </section>
@@ -661,6 +725,55 @@ function getSearchSuggestionTiles(suggestions: string[], posts: FeedPost[]) {
     const post = source.find((item) => getPostSearchText(item).includes(keyword)) ?? source[index % Math.max(source.length, 1)];
     return { label, post };
   });
+}
+
+function loadInitialFeedPage(): FeedPostPage {
+  return readFeedCache() ?? listFeedPostPage({ limit: feedPageSize });
+}
+
+function readFeedCache(): FeedPostPage | null {
+  if (typeof sessionStorage === 'undefined') return null;
+
+  try {
+    const raw = sessionStorage.getItem(feedCacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as FeedPostPage & { savedAt?: number };
+    if (!parsed.savedAt || Date.now() - parsed.savedAt > feedCacheTtlMs) return null;
+    return {
+      items: Array.isArray(parsed.items) ? parsed.items : [],
+      nextCursor: parsed.nextCursor ?? null,
+      hasMore: Boolean(parsed.hasMore),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveFeedCache(page: FeedPostPage) {
+  if (typeof sessionStorage === 'undefined') return;
+
+  try {
+    sessionStorage.setItem(
+      feedCacheKey,
+      JSON.stringify({
+        ...page,
+        savedAt: Date.now(),
+      }),
+    );
+  } catch {
+    // Ignore storage pressure in local preview and mini program webviews.
+  }
+}
+
+function mergeUniqueFeedPosts(current: FeedPost[], incoming: FeedPost[]) {
+  const seen = new Set(current.map((post) => post.id));
+  const merged = [...current];
+  incoming.forEach((post) => {
+    if (seen.has(post.id)) return;
+    seen.add(post.id);
+    merged.push(post);
+  });
+  return merged;
 }
 
 function LocationDrawer({

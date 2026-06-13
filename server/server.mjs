@@ -93,7 +93,7 @@ async function route(method, url, body, store) {
   if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/logout') return logout(store);
   if (method === 'POST' && path === '/api/media/upload-policy') return createMediaUploadPolicy(store, body);
-  if (method === 'GET' && path === '/api/feed/posts') return json({ items: listFeedPosts(store, url) });
+  if (method === 'GET' && path === '/api/feed/posts') return json(listFeedPostPage(store, url));
   if (method === 'GET' && path === '/api/matching/companions') return matchCompanions(store, url);
   if (method === 'GET' && path.startsWith('/api/posts/')) return getPost(store, last(path));
 
@@ -127,14 +127,21 @@ async function route(method, url, body, store) {
   return error(404, 'NOT_FOUND', 'Route not found');
 }
 
-function listFeedPosts(store, url) {
+function listFeedPostPage(store, url) {
   const city = normalize(url.searchParams.get('city'));
   const limit = clampNumber(toNumber(url.searchParams.get('limit')) ?? 20, 1, 50);
-  return store.posts
+  const cursor = clampNumber(toNumber(url.searchParams.get('cursor')) ?? 0, 0, Number.MAX_SAFE_INTEGER);
+  const source = store.posts
     .filter((post) => post.status === 'approved' && post.isFeedVisible !== false)
-    .filter((post) => !city || normalize(post.city).includes(city) || normalize(post.location).includes(city))
-    .slice(0, limit)
-    .map(withPostTitle);
+    .filter((post) => !city || normalize(post.city).includes(city) || normalize(post.location).includes(city));
+  const items = source.slice(cursor, cursor + limit).map(withPostTitle);
+  const nextOffset = cursor + items.length;
+
+  return {
+    items,
+    nextCursor: nextOffset < source.length ? String(nextOffset) : null,
+    hasMore: nextOffset < source.length,
+  };
 }
 
 function getPost(store, postId) {

@@ -1,4 +1,5 @@
 import { Camera, MapPin, Sparkles } from 'lucide-react';
+import { memo, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { getPostTitle } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
@@ -28,7 +29,9 @@ type FeedSection = {
   heroes: Array<{ post: FeedPost; index: number }>;
 };
 
-export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
+export const PhotoFeed = memo(function PhotoFeed({ posts }: { posts: FeedPost[] }) {
+  const sections = useMemo(() => createDiscoverySections(posts), [posts]);
+
   if (posts.length === 0) {
     return (
       <section className="bg-[#050505] px-4 pb-24 pt-8">
@@ -39,8 +42,6 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
       </section>
     );
   }
-
-  const sections = createDiscoverySections(posts);
 
   return (
     <section className="bg-[#050505] px-[1px] pb-24 pt-[1px]">
@@ -68,7 +69,7 @@ export function PhotoFeed({ posts }: { posts: FeedPost[] }) {
       </div>
     </section>
   );
-}
+});
 
 function renderColumnItem(item: FeedColumnItem, priority: boolean) {
   if (item.type === 'recommendation') {
