@@ -43,6 +43,7 @@ export type MessageRiskStatus = 'clean' | 'blocked' | 'flagged' | 'replaced';
 export type ReportStatus = 'pending' | 'investigating' | 'resolved' | 'rejected';
 
 export type SettlementStatus = 'pending' | 'frozen' | 'settled' | 'cancelled';
+export type CancellationActor = 'creator' | 'photographer' | 'admin';
 
 export type ReviewStatus = '草稿' | '待审核' | '已通过' | '需修改';
 
@@ -311,6 +312,15 @@ export type AppOrder = {
   balanceStatus?: 'unpaid' | 'paid' | 'refunded';
   fundsStatus?: 'none' | 'deposit_escrowed' | 'full_escrowed' | 'frozen' | 'settled' | 'refunded';
   settlementStatus?: SettlementStatus;
+  cancellationActor?: CancellationActor;
+  cancellationPhase?: 'paid_pending_confirm' | 'confirmed_before_balance' | 'full_escrowed' | 'completed' | 'other';
+  cancellationReason?: string;
+  cancellationPenaltyCents?: number;
+  refundToCreatorCents?: number;
+  compensationToCounterpartyCents?: number;
+  platformFeeCents?: number;
+  cancellationSummary?: string;
+  cancelledAt?: string;
   createdAt: string;
   steps: string[];
   currentStep: number;

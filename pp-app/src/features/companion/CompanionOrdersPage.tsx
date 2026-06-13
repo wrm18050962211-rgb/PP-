@@ -13,6 +13,7 @@ import {
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import type { AppOrder, OrderStatus } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
 
@@ -43,7 +44,7 @@ const statusMeta: Record<string, { label: string; tone: string }> = {
 };
 
 export function CompanionOrdersPage() {
-  const { orders, updateOrderStatus } = useAppData();
+  const { orders, updateOrderFunding, updateOrderStatus } = useAppData();
   const [activeTab, setActiveTab] = useState<CompanionOrderTab>('paid_pending_confirm');
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
 
@@ -152,6 +153,7 @@ export function CompanionOrdersPage() {
           primaryText="提交取消"
           onClose={() => setActiveDialog(null)}
           onConfirm={() => {
+            updateOrderFunding(activeDialog.order.id, calculateCancellationSettlement(activeDialog.order, 'photographer'));
             updateOrderStatus(activeDialog.order.id, 'cancelled');
             setActiveDialog(null);
           }}

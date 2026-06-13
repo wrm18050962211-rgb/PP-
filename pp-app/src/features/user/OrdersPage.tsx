@@ -33,6 +33,7 @@ import {
   type WorkActor,
 } from '../../services/orderWorkService';
 import { readDomainJson, writeDomainJson } from '../../services/scopedStorage';
+import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import type { AppOrder, OrderStatus } from '../../types/domain';
 import type { FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
@@ -165,6 +166,7 @@ export function OrdersPage() {
           order={activeAction.order}
           onClose={() => setActiveAction(null)}
           onConfirm={() => {
+            updateOrderFunding(activeAction.order.id, calculateCancellationSettlement(activeAction.order, 'creator'));
             updateOrderStatus(activeAction.order.id, 'cancelled');
             setActiveAction(null);
           }}

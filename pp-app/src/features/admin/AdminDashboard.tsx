@@ -22,6 +22,7 @@ import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
 import { fetchAdminModerationData, syncAdminModerationAction } from '../../services/adminService';
 import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
+import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import type { AdminActionType, AdminModerationData, AdminReportCase, AdminRiskMessageCase } from '../../types/api';
 import type { AppOrder, OrderStatus, PublishedWorkDraft } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
@@ -183,8 +184,16 @@ export function AdminDashboard() {
   }, [orders]);
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0];
+  const localDisputeReports = useMemo(() => buildLocalDisputeReports(orders), [orders]);
+  const visibleReportCases = useMemo(
+    () => [
+      ...localDisputeReports,
+      ...reportCases.filter((item) => !localDisputeReports.some((localItem) => localItem.id === item.id)),
+    ],
+    [localDisputeReports, reportCases],
+  );
   const selectedRisk = riskCases.find((item) => item.id === selectedRiskId) ?? riskCases[0];
-  const selectedReport = reportCases.find((item) => item.id === selectedReportId) ?? reportCases[0];
+  const selectedReport = visibleReportCases.find((item) => item.id === selectedReportId) ?? visibleReportCases[0];
   const selectedSettlement = settlements.find((item) => item.id === selectedSettlementId) ?? settlements[0];
   const selectedAccount = accounts.find((item) => item.id === selectedAccountId) ?? accounts[0];
   const selectedConfig = configs.find((item) => item.id === selectedConfigId) ?? configs[0];
@@ -199,7 +208,7 @@ export function AdminDashboard() {
     [application.reviewStatus, orders.length, riskCases, workDraft.reviewStatus],
   );
 
-  const pendingReports = reportCases.filter((item) => item.status !== '已完结').length;
+  const pendingReports = visibleReportCases.filter((item) => item.status !== '已完结').length;
   const pendingSettlementCents = settlements.filter((item) => item.status === '待结算').reduce((sum, item) => sum + item.payableCents, 0);
 
   function recordRiskAction(id: string, action: string, actionType: AdminActionType) {
@@ -284,7 +293,7 @@ export function AdminDashboard() {
           )}
           {activeModule === 'reports' && selectedReport && (
             <ReportPanel
-              reports={reportCases}
+              reports={visibleReportCases}
               selectedReport={selectedReport}
               selectedOrder={orders.find((order) => order.orderNo === selectedReport.orderNo)}
               actionLogs={reportActionLogs[selectedReport.id] ?? []}
@@ -444,6 +453,13 @@ function OrderPanel({
                 ['尾款状态', selectedOrder.balanceStatus ?? '-'],
                 ['托管状态', selectedOrder.fundsStatus ?? '-'],
                 ['结算状态', selectedOrder.settlementStatus ?? '-'],
+                ['取消方', selectedOrder.cancellationActor ?? '-'],
+                ['取消阶段', selectedOrder.cancellationPhase ?? '-'],
+                ['违约扣除', selectedOrder.cancellationPenaltyCents ? formatMoney(selectedOrder.cancellationPenaltyCents) : '-'],
+                ['退还创作者', selectedOrder.refundToCreatorCents ? formatMoney(selectedOrder.refundToCreatorCents) : '-'],
+                ['赔付对方', selectedOrder.compensationToCounterpartyCents ? formatMoney(selectedOrder.compensationToCounterpartyCents) : '-'],
+                ['平台费用', selectedOrder.platformFeeCents ? formatMoney(selectedOrder.platformFeeCents) : '-'],
+                ['取消说明', selectedOrder.cancellationSummary ?? '-'],
                 ['交付状态', deliveryStatus],
                 ['预览模式', workRecord?.previewMode ?? '-'],
                 ['争议原因', workRecord?.disputeReason ?? '-'],
@@ -459,7 +475,14 @@ function OrderPanel({
               <AdminButton variant="soft" onClick={() => onUpdateStatus(selectedOrder.id, 'refunding')} disabled={selectedOrder.status === 'refunding'}>
                 发起退款
               </AdminButton>
-              <AdminButton variant="danger" onClick={() => onUpdateStatus(selectedOrder.id, 'cancelled')} disabled={selectedOrder.status === 'cancelled'}>
+              <AdminButton
+                variant="danger"
+                onClick={() => {
+                  onUpdateFunding(selectedOrder.id, calculateCancellationSettlement(selectedOrder, 'admin', '管理员后台取消订单'));
+                  onUpdateStatus(selectedOrder.id, 'cancelled');
+                }}
+                disabled={selectedOrder.status === 'cancelled'}
+              >
                 取消订单
               </AdminButton>
               <AdminButton
@@ -815,6 +838,23 @@ function mapRemoteModerationData(data: AdminModerationData): { riskCases: RiskCa
     riskCases: data.messageCases.map(mapRemoteRiskCase),
     reportCases: data.reportCases.map(mapRemoteReportCase),
   };
+}
+
+function buildLocalDisputeReports(orders: AppOrder[]): ReportCase[] {
+  return listOrderWorkRecords()
+    .filter((record) => record.deliveryStatus === 'disputed')
+    .map((record) => {
+      const order = orders.find((item) => item.id === record.orderId);
+      return {
+        id: `work-dispute-${record.orderId}`,
+        type: '成片预览争议',
+        reporter: order?.creatorName || order?.creatorPhone || '创作者',
+        target: order?.companion || '摄影师',
+        orderNo: order?.orderNo || record.orderId,
+        status: '待处理' as const,
+        summary: record.disputeReason || '创作者对低清/动态水印预览发起争议，等待管理员裁定托管款和原图开放。',
+      };
+    });
 }
 
 function mapRemoteRiskCase(item: AdminRiskMessageCase): RiskCase {

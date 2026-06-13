@@ -52,7 +52,7 @@ export function updateLedgerOrderStatus(orderId: string, status: OrderStatus) {
   return nextOrders.find((order) => order.id === orderId) ?? null;
 }
 
-export function updateLedgerOrderFunding(orderId: string, patch: Partial<Pick<AppOrder, 'balanceStatus' | 'fundsStatus' | 'settlementStatus'>>) {
+export function updateLedgerOrderFunding(orderId: string, patch: Partial<AppOrder>) {
   const nextOrders = readLedgerOrders().map((order) => (order.id === orderId ? { ...order, ...patch } : order));
   writeLedgerOrders(nextOrders);
   return nextOrders.find((order) => order.id === orderId) ?? null;
