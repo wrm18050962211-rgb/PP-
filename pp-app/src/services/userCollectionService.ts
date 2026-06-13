@@ -25,7 +25,7 @@ function seedCollections(posts: FeedPost[]): UserCollectionState {
 
 export function readUserCollections(posts: FeedPost[]): UserCollectionState {
   const seeded = seedCollections(posts);
-  const stored = readDomainJson<Partial<UserCollectionState> | null>(storageKey, null);
+  const stored = readStoredCollections();
   return {
     likedPostIds: normalizeIds(stored?.likedPostIds, seeded.likedPostIds),
     favoritePostIds: normalizeIds(stored?.favoritePostIds, seeded.favoritePostIds),
@@ -85,6 +85,18 @@ export function getFollowingPeople(posts: FeedPost[]) {
   return ids.map((id) => people.find((person) => person.id === id)).filter((person): person is ReturnType<typeof getDefaultFollowingPeople>[number] => Boolean(person));
 }
 
+export function getPostLikeCount(postId: string, posts: FeedPost[]) {
+  return getAllVirtualCollections(posts).filter((collections) => collections.likedPostIds.includes(postId)).length;
+}
+
+export function getPostFavoriteCount(postId: string, posts: FeedPost[]) {
+  return getAllVirtualCollections(posts).filter((collections) => collections.favoritePostIds.includes(postId)).length;
+}
+
+export function getFollowerCountForPerson(personId: string, posts: FeedPost[]) {
+  return getAllVirtualCollections(posts).filter((collections) => collections.followingIds.includes(personId)).length;
+}
+
 function getDefaultFollowingPeople(posts: FeedPost[]) {
   const photographers = Array.from(new Map(posts.map((post) => [post.companion.id, post.companion])).values())
     .slice(0, 4)
@@ -134,6 +146,26 @@ function seedAccountCollections(posts: FeedPost[], account: { role: PublicRole; 
     favoritePostIds,
     followingIds,
   };
+}
+
+function getAllVirtualCollections(posts: FeedPost[]): UserCollectionState[] {
+  const activeAccount = getActiveTestAccount();
+  const activeStored = readStoredCollections();
+  return listTestAccounts().map((account) => {
+    if (activeAccount && activeStored && account.id === activeAccount.id) {
+      const seeded = seedAccountCollections(posts, account);
+      return {
+        likedPostIds: normalizeIds(activeStored.likedPostIds, seeded.likedPostIds),
+        favoritePostIds: normalizeIds(activeStored.favoritePostIds, seeded.favoritePostIds),
+        followingIds: normalizeIds(activeStored.followingIds, seeded.followingIds),
+      };
+    }
+    return seedAccountCollections(posts, account);
+  });
+}
+
+function readStoredCollections() {
+  return readDomainJson<Partial<UserCollectionState> | null>(storageKey, null);
 }
 
 function getActiveTestAccount() {

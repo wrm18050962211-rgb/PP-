@@ -5,6 +5,7 @@ import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
+import { getFollowerCountForPerson, getPostLikeCount } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
 import { buildCreator } from './PostDetail';
 
@@ -28,8 +29,8 @@ export function CreatorProfilePage() {
   const works = [...creatorOrderWorks, ...(ownedPosts.length ? ownedPosts : posts.slice(0, 9))];
   const photographers = Array.from(new Map(works.map((post) => [post.companion.id, post.companion])).values());
   const handle = creator.id.replace(/^creator-/, '@');
-  const likeTotal = works.reduce((sum, post) => sum + 1180 + stableMetricSeed(post.id, 620), 0);
-  const followerCount = 120 + works.length * 8;
+  const likeTotal = works.reduce((sum, post) => sum + getPostLikeCount(post.id, posts), 0);
+  const followerCount = getFollowerCountForPerson(creator.id, posts);
 
   return (
     <div className="min-h-dvh bg-[#050505] pb-24 text-white">

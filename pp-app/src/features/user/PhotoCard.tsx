@@ -1,6 +1,8 @@
 import { Heart, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
+import { listFeedPosts } from '../../services/feedService';
+import { getPostLikeCount } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
 
 export type PhotoCardVariant = 'tall' | 'portrait' | 'soft' | 'wide';
@@ -30,6 +32,8 @@ export function PhotoCard({
   variant?: PhotoCardVariant;
   className?: string;
 }) {
+  const likeCount = getPostLikeCount(post.id, listFeedPosts());
+
   return (
     <article className={`overflow-hidden bg-[#050505] ${className}`}>
       <Link to={`/consumer/post/${post.id}`} className="block" aria-label={`查看${post.location}作品详情`}>
@@ -49,7 +53,7 @@ export function PhotoCard({
             </span>
             <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-semibold tabular-nums text-white/72 drop-shadow">
               <Heart size={9} fill="currentColor" />
-              {formatLikeCount(getLikeCount(post.id))}
+              {formatSocialCount(likeCount)}
             </span>
           </div>
         </div>
@@ -59,7 +63,7 @@ export function PhotoCard({
 }
 
 function getFallbackImage(seed: string, variant: PhotoCardVariant) {
-  const palette = fallbackPalettes[getLikeCount(seed) % fallbackPalettes.length];
+  const palette = fallbackPalettes[getPaletteSeed(seed) % fallbackPalettes.length];
   const wide = variant === 'wide';
   const width = wide ? 1200 : 720;
   const height = wide ? 700 : 980;
@@ -82,11 +86,11 @@ function getFallbackImage(seed: string, variant: PhotoCardVariant) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function getLikeCount(seed: string) {
+function getPaletteSeed(seed: string) {
   const score = Array.from(seed).reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return 128 + (score % 8700);
 }
 
-function formatLikeCount(count: number) {
-  return count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count);
+function formatSocialCount(count: number) {
+  return String(count);
 }

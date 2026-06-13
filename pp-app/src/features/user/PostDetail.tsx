@@ -6,7 +6,7 @@ import { useAppData } from '../../app/useAppData';
 import { BookingSheet } from '../../components/BookingSheet';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle, listFeedPosts } from '../../services/feedService';
-import { isPostFavorited, isPostLiked, toggleFavoritePost, toggleLikedPost } from '../../services/userCollectionService';
+import { getPostLikeCount, isPostFavorited, isPostLiked, toggleFavoritePost, toggleLikedPost } from '../../services/userCollectionService';
 import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
 
 type Comment = {
@@ -55,7 +55,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const mediaHeightClass = isLandscape ? (captionExpanded ? 'h-[44dvh]' : 'h-[58dvh]') : captionExpanded ? 'h-[56dvh]' : 'h-[66dvh]';
   const baseComments = useMemo(() => buildComments(post, creator), [post, creator.avatar, creator.name]);
   const comments = useMemo(() => [...baseComments, ...localComments], [baseComments, localComments]);
-  const likeCount = useMemo(() => formatMetric(1180 + stableMetricSeed(post.id, 620)), [post.id]);
+  const [likeCount, setLikeCount] = useState(() => getPostLikeCount(post.id, collectionPosts));
   const shareCount = useMemo(() => formatMetric(260 + stableMetricSeed(`${post.id}-share`, 180)), [post.id]);
 
   useEffect(() => {
@@ -81,6 +81,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
     setActiveImage(0);
     setLiked(isPostLiked(post.id, collectionPosts));
     setBookmarked(isPostFavorited(post.id, collectionPosts));
+    setLikeCount(getPostLikeCount(post.id, collectionPosts));
     setCaptionExpanded(false);
     setCommentsOpen(false);
     setCommentText('');
@@ -188,12 +189,13 @@ function PostDetailContent({ postId }: { postId?: string }) {
                 onClick={() => {
                   const nextLiked = toggleLikedPost(post.id, collectionPosts);
                   setLiked(nextLiked);
+                  setLikeCount(getPostLikeCount(post.id, collectionPosts));
                   setToast(nextLiked ? '已点赞' : '已取消点赞');
                 }}
                 aria-label="点赞作品"
               >
                 <Heart size={27} fill={liked ? 'currentColor' : 'none'} />
-                <span className="text-sm font-bold">{likeCount}</span>
+                <span className="text-sm font-bold">{formatSocialCount(likeCount)}</span>
               </button>
               <button
                 className="text-white"
@@ -511,6 +513,10 @@ function stableMetricSeed(value: string, range: number) {
 function formatMetric(value: number) {
   if (value >= 10000) return `${(value / 10000).toFixed(1)}万`;
   if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return String(value);
+}
+
+function formatSocialCount(value: number) {
   return String(value);
 }
 

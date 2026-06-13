@@ -5,6 +5,7 @@ import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
+import { getFollowerCountForPerson, getPostLikeCount } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
 
 export function PhotographerProfilePage() {
@@ -26,8 +27,8 @@ export function PhotographerProfilePage() {
     .filter((post): post is FeedPost => Boolean(post));
   const works = [...photographerOrderWorks, ...(photographerPosts.length ? photographerPosts : [profilePost])];
   const handle = `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`;
-  const likeTotal = works.reduce((sum, post) => sum + 1180 + stableMetricSeed(post.id, 620), 0);
-  const followerCount = 96 + photographer.ratingCount * 5 + works.length * 9;
+  const likeTotal = works.reduce((sum, post) => sum + getPostLikeCount(post.id, posts), 0);
+  const followerCount = getFollowerCountForPerson(`photographer-${photographer.id}`, posts);
   const ratingDistribution = buildRatingDistribution(photographer.ratingCount, photographer.ratingAvg);
   const reviews = buildPhotographerReviews(photographer, works);
 

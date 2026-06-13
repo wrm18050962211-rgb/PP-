@@ -7,6 +7,7 @@
 - 点赞作品：来自当前账号的 `user-collections-v1.likedPostIds`，每个 ID 都对应 `listFeedPosts()` 里的真实作品。
 - 收藏作品：来自当前账号的 `user-collections-v1.favoritePostIds`，每个 ID 都对应可打开、可下单的真实作品。
 - 我的关注：来自当前账号的 `user-collections-v1.followingIds`，每个 ID 都对应真实创作者或摄影师主页。
+- 公开计数：发现页、作品详情、创作者主页、摄影师主页的点赞数/关注数由所有虚拟账号的行为关系统计得出，不再使用随机热度数字。
 - 数据隔离：同一个手机号的创作者身份和摄影师身份使用不同 scope，因此两边的点赞、收藏、关注互不串数据。
 - 订单账本：来自 `pp-cloud-db:shared:orders-ledger-v1`，创作者下单和摄影师接单更新的是同一笔订单。
 - 订单聊天：来自 `pp-cloud-db:shared:order-conversations-v1`，订单双方看到同一段聊天记录。
