@@ -137,6 +137,7 @@ export function MinePage() {
 function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
   const role = getUserFacingRole(session?.role);
   const posts = listFeedPosts();
+  const phoneHandle = formatPhoneHandle(session?.user.phone);
 
   if (role === 'companion') {
     const profilePost = posts.find((item) => item.companion.id === session?.companionId) ?? post;
@@ -145,7 +146,7 @@ function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
       to: `/consumer/photographer/${photographer.id}`,
       roleLabel: '摄影师主页',
       name: photographer.name,
-      handle: `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`,
+      handle: phoneHandle || `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`,
       avatar: photographer.avatar || photographer.photo,
     };
   }
@@ -157,9 +158,14 @@ function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
     to: `/consumer/creator/${creator.id}`,
     roleLabel: '创作者主页',
     name: creatorName,
-    handle: `@${profilePost.id.replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`,
+    handle: phoneHandle || `@${profilePost.id.replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`,
     avatar: creator.avatar,
   };
+}
+
+function formatPhoneHandle(phone?: string) {
+  const normalizedPhone = phone?.replace(/\D/g, '');
+  return normalizedPhone ? `@${normalizedPhone}` : '';
 }
 
 function getUserFacingRole(role?: UserRole): UserFacingRole {

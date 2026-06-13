@@ -204,11 +204,13 @@ function MenuSection({ items, className = '' }: { items: MenuItem[]; className?:
 }
 
 function buildPhotographerProfileSummary(post: FeedPost | undefined, session: ReturnType<typeof useAppData>['session'], fallbackPost: FeedPost) {
+  const phoneHandle = formatPhoneHandle(session?.user.phone);
+
   if (!post && session?.companionId) {
     return {
       to: `/consumer/photographer/${session.companionId}`,
       name: session.user.nickname || '本地摄影师',
-      handle: `@${session.companionId.replace(/^companion-/, '').replace(/-/g, '')}`,
+      handle: phoneHandle || `@${session.companionId.replace(/^companion-/, '').replace(/-/g, '')}`,
       avatar: session.user.avatarUrl || fallbackPost.companion.avatar || fallbackPost.images[0]?.url,
       bio: '本地注册的摄影师身份',
     };
@@ -219,8 +221,13 @@ function buildPhotographerProfileSummary(post: FeedPost | undefined, session: Re
   return {
     to: `/consumer/photographer/${photographer.id}`,
     name: photographer.name,
-    handle: `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`,
+    handle: phoneHandle || `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`,
     avatar: photographer.avatar || photographer.photo || profilePost.images[0]?.url,
     bio: photographer.bio || `${photographer.areas.slice(0, 2).join(' / ')} · ${photographer.activities[0]?.name || '摄影服务'}`,
   };
+}
+
+function formatPhoneHandle(phone?: string) {
+  const normalizedPhone = phone?.replace(/\D/g, '');
+  return normalizedPhone ? `@${normalizedPhone}` : '';
 }
