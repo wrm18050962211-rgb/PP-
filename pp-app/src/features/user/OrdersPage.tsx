@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   CalendarDays,
   Camera,
   CheckCircle2,
@@ -61,6 +62,7 @@ export function OrdersPage() {
   const { orders, updateOrderStatus } = useAppData();
   const [searchParams] = useSearchParams();
   const workMode = searchParams.get('work') === '1';
+  const backTo = searchParams.get('from') === 'companion' ? '/companion/mine' : '/consumer/mine';
   const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>(() => (searchParams.get('tab') === 'completed' ? 'completed' : 'all'));
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
@@ -91,9 +93,14 @@ export function OrdersPage() {
 
   return (
     <div className="min-h-dvh pp-page px-4 py-5">
-      <header>
-        <p className="text-xs font-semibold text-[#e85d75]">我的预约</p>
-        <h1 className="mt-1 text-2xl font-bold text-[#3f302c]">{workMode ? '编辑作品' : '订单'}</h1>
+      <header className="flex items-start gap-3">
+        <Link className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/82 text-[#3f302c] ring-1 ring-[#eadfd8]" to={backTo} aria-label="返回我的">
+          <ArrowLeft size={20} />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-[#e85d75]">我的预约</p>
+          <h1 className="mt-1 text-2xl font-bold text-[#3f302c]">{workMode ? '编辑作品' : '订单'}</h1>
+        </div>
       </header>
 
       {workMode ? (

@@ -28,7 +28,7 @@ type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 
 const photographerMenuItems = [
   { icon: ClipboardList, label: '我的订单', desc: '待确认、已确认、已完成', to: '/companion/orders' },
-  { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1' },
+  { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1&from=companion' },
 ];
 
 const creatorBusinessItems = [
