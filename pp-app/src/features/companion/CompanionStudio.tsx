@@ -6,10 +6,7 @@ import {
   ClipboardList,
   ImagePlus,
   MapPinned,
-  Search,
   Settings,
-  ShieldCheck,
-  Sparkles,
   UserCheck,
   UserRound,
   UserRoundPen,
@@ -19,9 +16,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
 import { accountHasRole, switchMockRole } from '../../services/authService';
-import { fetchCompanionDashboard, getCompanionDashboard } from '../../services/companionService';
 import { listFeedPosts } from '../../services/feedService';
-import type { CompanionDashboard, FeedPost, UserRole } from '../../types/api';
+import type { FeedPost, UserRole } from '../../types/api';
 import { getCollectionSummary } from '../user/UserCollectionPage';
 
 type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
@@ -30,12 +26,6 @@ type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: s
 const photographerMenuItems: MenuItem[] = [
   { icon: ClipboardList, label: '我的订单', desc: '待确认、已确认、已完成', to: '/companion/orders' },
   { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1&from=companion' },
-];
-
-const creatorBusinessItems: MenuItem[] = [
-  { icon: Sparkles, label: '寻找高质量创作者', desc: '审核通过的创作者与报价', to: '/companion/creators' },
-  { icon: Camera, label: '作品发布', desc: '上传地点、时间、风格和样片', to: '/companion/publish' },
-  { icon: Search, label: '拍摄灵感', desc: '查看发现页作品流', to: '/companion' },
 ];
 
 const setupItems: MenuItem[] = [
@@ -54,26 +44,12 @@ const roleActions: Array<{ role: UserFacingRole; label: string; desc: string; to
 
 export function CompanionStudio() {
   const navigate = useNavigate();
-  const { application, session, workDraft } = useAppData();
-  const [dashboard, setDashboard] = useState<CompanionDashboard>(() => getCompanionDashboard());
+  const { session } = useAppData();
   const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
   const canUseCreatorRole = accountHasRole('consumer');
   const posts = listFeedPosts();
   const ownProfile = buildPhotographerProfileSummary(posts.find((post) => post.companion.id === session?.companionId), session, posts[0]);
   const collectionSummary = getCollectionSummary(posts);
-  const reviewText = application.reviewStatus === '已通过' ? '已认证' : application.reviewStatus;
-  const draftText = workDraft.reviewStatus === '草稿' ? '待发布' : workDraft.reviewStatus;
-
-  useEffect(() => {
-    let mounted = true;
-    fetchCompanionDashboard().then((nextDashboard) => {
-      if (mounted) setDashboard(nextDashboard);
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (!session) return;
@@ -154,42 +130,6 @@ export function CompanionStudio() {
       </section>
 
       <MenuSection className="mt-5" items={photographerMenuItems} />
-      <MenuSection className="mt-4" items={creatorBusinessItems} />
-
-      <section className="mt-4 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
-        <Link to="/companion/onboarding" className="flex min-h-14 items-center gap-3 px-4">
-          <span className={`grid h-9 w-9 place-items-center rounded-full ${application.reviewStatus === '已通过' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-            <ShieldCheck size={18} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black">入驻状态</span>
-            <span className="mt-0.5 block truncate text-xs font-semibold text-zinc-400">{reviewText}</span>
-          </span>
-          <ChevronRight className="text-zinc-300" size={18} />
-        </Link>
-        <Link to="/companion/publish" className="flex min-h-14 items-center gap-3 px-4">
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700">
-            <Camera size={18} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black">作品审核</span>
-            <span className="mt-0.5 block truncate text-xs font-semibold text-zinc-400">{draftText}</span>
-          </span>
-          <ChevronRight className="text-zinc-300" size={18} />
-        </Link>
-        {dashboard.orderStats.map((item) => (
-          <Link key={item} to="/companion/orders" className="flex min-h-14 items-center gap-3 px-4">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700">
-              <ClipboardList size={18} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-black">{item}</span>
-              <span className="mt-0.5 block truncate text-xs font-semibold text-zinc-400">订单状态</span>
-            </span>
-            <ChevronRight className="text-zinc-300" size={18} />
-          </Link>
-        ))}
-      </section>
 
       <MenuSection className="mt-4" items={setupItems} />
 
