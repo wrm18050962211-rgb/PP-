@@ -1,9 +1,13 @@
 import { ArrowLeft, Bookmark, Camera, Heart, UserRound } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getPostTitle, listFeedPosts } from '../../services/feedService';
+import { listFeedPosts } from '../../services/feedService';
+import {
+  getFavoritePosts,
+  getFollowingPeople,
+  getLikedPosts,
+} from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
 import { PhotoCard } from './PhotoCard';
-import { buildCreator } from './PostDetail';
 
 export type UserCollectionMode = 'likes' | 'favorites' | 'following';
 
@@ -58,41 +62,6 @@ export function UserCollectionPage({ mode }: { mode: UserCollectionMode }) {
       )}
     </div>
   );
-}
-
-export function getLikedPosts(posts: FeedPost[]) {
-  return posts.filter((_, index) => index % 2 === 0).slice(0, 12);
-}
-
-export function getFavoritePosts(posts: FeedPost[]) {
-  return posts.filter((_, index) => index % 3 === 1 || index % 5 === 0).slice(0, 10);
-}
-
-export function getFollowingPeople(posts: FeedPost[]) {
-  const photographers = Array.from(new Map(posts.map((post) => [post.companion.id, post.companion])).values())
-    .slice(0, 4)
-    .map((photographer) => ({
-      id: `photographer-${photographer.id}`,
-      kind: '摄影师' as const,
-      name: photographer.name,
-      avatar: photographer.avatar || photographer.photo,
-      meta: photographer.areas.slice(0, 2).join(' / '),
-      to: `/consumer/photographer/${photographer.id}`,
-    }));
-
-  const creators = posts.slice(0, 4).map((post) => {
-    const creator = buildCreator(post);
-    return {
-      id: creator.id,
-      kind: '创作者' as const,
-      name: creator.name,
-      avatar: creator.avatar,
-      meta: getPostTitle(post),
-      to: `/consumer/creator/${creator.id}`,
-    };
-  });
-
-  return [...photographers, ...creators];
 }
 
 export function getCollectionSummary(posts: FeedPost[]) {

@@ -1,5 +1,5 @@
 import type { AppOrder, FeedPost, PostImage } from '../types/api';
-import { readScopedJson, writeScopedJson } from './scopedStorage';
+import { readDomainJson, writeDomainJson } from './scopedStorage';
 
 export type WorkActor = 'creator' | 'photographer';
 
@@ -20,13 +20,13 @@ export type OrderWorkRecord = {
 const storageKey = 'order-workspaces-v1';
 
 export function listOrderWorkRecords(): OrderWorkRecord[] {
-  return readScopedJson<OrderWorkRecord[]>(storageKey, []);
+  return readDomainJson<OrderWorkRecord[]>(storageKey, []);
 }
 
 export function saveOrderWorkRecord(record: OrderWorkRecord) {
   const records = listOrderWorkRecords();
   const nextRecords = [record, ...records.filter((item) => item.orderId !== record.orderId)];
-  writeScopedJson(storageKey, nextRecords);
+  writeDomainJson(storageKey, nextRecords);
   return nextRecords;
 }
 

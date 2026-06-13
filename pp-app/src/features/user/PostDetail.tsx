@@ -5,7 +5,8 @@ import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { BookingSheet } from '../../components/BookingSheet';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
-import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle } from '../../services/feedService';
+import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle, listFeedPosts } from '../../services/feedService';
+import { isPostFavorited, isPostLiked, toggleFavoritePost, toggleLikedPost } from '../../services/userCollectionService';
 import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
 
 type Comment = {
@@ -40,6 +41,10 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const [remotePost, setRemotePost] = useState(() => getInitialPost(postId, workDraft));
   const localPost = useMemo(() => buildApprovedWorkPost(workDraft), [workDraft]);
   const post = localPost && localPost.id === postId ? localPost : remotePost;
+  const collectionPosts = useMemo(() => {
+    const posts = listFeedPosts();
+    return posts.some((item) => item.id === post.id) ? posts : [post, ...posts];
+  }, [post]);
   const postTitle = getPostTitle(post);
   const photographer = post.companion;
   const creator = buildCreator(post);
@@ -74,12 +79,14 @@ function PostDetailContent({ postId }: { postId?: string }) {
 
   useEffect(() => {
     setActiveImage(0);
+    setLiked(isPostLiked(post.id, collectionPosts));
+    setBookmarked(isPostFavorited(post.id, collectionPosts));
     setCaptionExpanded(false);
     setCommentsOpen(false);
     setCommentText('');
     setLocalComments([]);
     imageTrackRef.current?.scrollTo({ left: 0 });
-  }, [post.id]);
+  }, [collectionPosts, post.id]);
 
   const handleShare = async () => {
     try {
@@ -179,8 +186,9 @@ function PostDetailContent({ postId }: { postId?: string }) {
               <button
                 className="inline-flex items-center gap-1.5 text-white"
                 onClick={() => {
-                  setLiked((current) => !current);
-                  setToast(liked ? '已取消点赞' : '已点赞');
+                  const nextLiked = toggleLikedPost(post.id, collectionPosts);
+                  setLiked(nextLiked);
+                  setToast(nextLiked ? '已点赞' : '已取消点赞');
                 }}
                 aria-label="点赞作品"
               >
@@ -190,8 +198,9 @@ function PostDetailContent({ postId }: { postId?: string }) {
               <button
                 className="text-white"
                 onClick={() => {
-                  setBookmarked((current) => !current);
-                  setToast(bookmarked ? '已取消收藏' : '已收藏');
+                  const nextBookmarked = toggleFavoritePost(post.id, collectionPosts);
+                  setBookmarked(nextBookmarked);
+                  setToast(nextBookmarked ? '已收藏' : '已取消收藏');
                 }}
                 aria-label="收藏作品"
               >

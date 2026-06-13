@@ -28,7 +28,7 @@ import {
   type OrderWorkRecord,
   type WorkActor,
 } from '../../services/orderWorkService';
-import { readScopedJson, writeScopedJson } from '../../services/scopedStorage';
+import { readDomainJson, writeDomainJson } from '../../services/scopedStorage';
 import type { AppOrder, OrderStatus } from '../../types/domain';
 import type { FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
@@ -83,7 +83,7 @@ export function OrdersPage() {
   function submitReview(orderId: string) {
     const nextIds = Array.from(new Set([...reviewedOrderIds, orderId]));
     setReviewedOrderIds(nextIds);
-    writeScopedJson(reviewStorageKey, nextIds);
+    writeDomainJson(reviewStorageKey, nextIds);
     setActiveAction(null);
   }
 
@@ -689,5 +689,5 @@ function parseDataUrlContentType(url: string) {
 }
 
 function loadReviewedOrderIds() {
-  return readScopedJson<string[]>(reviewStorageKey, []);
+  return readDomainJson<string[]>(reviewStorageKey, []);
 }

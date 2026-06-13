@@ -131,7 +131,7 @@ export function registerWithPhone(input: RegisterInput) {
     creatorName: input.role === 'consumer' ? existing?.creatorName || 'Demo Creator' : existing?.creatorName,
     photographerName: input.role === 'companion' ? existing?.photographerName || 'Demo Photographer' : existing?.photographerName,
     creatorId: input.role === 'consumer' ? existing?.creatorId || `creator-local-${phone}` : existing?.creatorId,
-    companionId: input.role === 'companion' ? existing?.companionId || 'companion-mori' : existing?.companionId,
+    companionId: input.role === 'companion' ? existing?.companionId || `companion-local-${phone}` : existing?.companionId,
     registeredAt: new Date().toISOString(),
   };
   if (typeof localStorage !== 'undefined') {

@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { listFeedPosts } from '../../services/feedService';
 import { evaluateMessageRisk, fetchConversation, getConversation, saveLocalConversation, sendMessage, submitOrderReport } from '../../services/messageService';
-import { readScopedJson, writeScopedJson } from '../../services/scopedStorage';
+import { readDomainJson, writeDomainJson } from '../../services/scopedStorage';
 import type { AppOrder, Conversation, FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
 
@@ -541,12 +541,12 @@ function normalizeThreadPrefs(prefs: ThreadPrefs): ThreadPrefs {
 
 function loadThreadPrefs(): ThreadPrefs {
   try {
-    return normalizeThreadPrefs({ ...emptyPrefs, ...readScopedJson<Partial<ThreadPrefs>>(threadPrefsKey, {}) });
+    return normalizeThreadPrefs({ ...emptyPrefs, ...readDomainJson<Partial<ThreadPrefs>>(threadPrefsKey, {}) });
   } catch {
     return emptyPrefs;
   }
 }
 
 function saveThreadPrefs(prefs: ThreadPrefs) {
-  writeScopedJson(threadPrefsKey, normalizeThreadPrefs(prefs));
+  writeDomainJson(threadPrefsKey, normalizeThreadPrefs(prefs));
 }

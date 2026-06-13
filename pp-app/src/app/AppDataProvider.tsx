@@ -8,7 +8,7 @@ import {
 } from '../services/companionService';
 import { fetchAuthSession } from '../services/authService';
 import { isApiEnabled } from '../services/apiClient';
-import { readScopedJson, writeScopedJson } from '../services/scopedStorage';
+import { readDomainJson, writeDomainJson } from '../services/scopedStorage';
 import { defaultBookingSettings } from '../data/bookingSettings';
 import type { AppOrder, CompanionApplication, CompanionBookingSettings, PublishedWorkDraft } from '../types/domain';
 import type { AuthSession, UserRole } from '../types/api';
@@ -86,7 +86,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppData>(() => {
     function persist(next: Partial<Pick<AppData, 'orders' | 'application' | 'bookingSettings' | 'workDraft'>>) {
-      writeScopedJson(storageKey, {
+      writeDomainJson(storageKey, {
         orders: next.orders ?? orders,
         application: next.application ?? application,
         bookingSettings: next.bookingSettings ?? bookingSettings,
@@ -109,7 +109,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
           void submitOrder(orderInput).then((serverOrder) => {
             setOrders((currentOrders) => {
               const syncedOrders = currentOrders.map((currentOrder) => (currentOrder.id === order.id ? serverOrder : currentOrder));
-              writeScopedJson(storageKey, { orders: syncedOrders, application, bookingSettings, workDraft }, session?.role);
+              writeDomainJson(storageKey, { orders: syncedOrders, application, bookingSettings, workDraft }, session?.role);
               return syncedOrders;
             });
           });
@@ -135,7 +135,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
             if (!serverOrder) return;
             setOrders((currentOrders) => {
               const syncedOrders = currentOrders.map((currentOrder) => (currentOrder.id === serverOrder.id ? serverOrder : currentOrder));
-              writeScopedJson(storageKey, { orders: syncedOrders, application, bookingSettings, workDraft }, session?.role);
+              writeDomainJson(storageKey, { orders: syncedOrders, application, bookingSettings, workDraft }, session?.role);
               return syncedOrders;
             });
           });
@@ -191,7 +191,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
 function loadInitialData(role?: UserRole) {
   try {
-    const parsed = readScopedJson<{
+    const parsed = readDomainJson<{
       orders?: AppOrder[];
       application?: Partial<CompanionApplication>;
       bookingSettings?: Partial<CompanionBookingSettings>;
@@ -224,7 +224,7 @@ function persistSnapshot(
   rest: Pick<AppData, 'application' | 'bookingSettings' | 'workDraft'>,
   role?: UserRole,
 ) {
-  writeScopedJson(storageKey, {
+  writeDomainJson(storageKey, {
     orders,
     application: rest.application,
     bookingSettings: rest.bookingSettings,
