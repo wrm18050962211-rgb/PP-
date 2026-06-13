@@ -1,6 +1,6 @@
 import type { AuthSession, UserRole } from '../types/api';
 import { apiGet, apiPost, isApiEnabled } from './apiClient';
-import { findTestAccountByPhone, type PublicRole, type TestAccount } from './accountDirectory';
+import { findTestAccountIdentitiesByPhone, type PublicRole, type TestAccountIdentity } from './accountDirectory';
 import { isMiniProgramRuntime, wxLogin } from './miniProgramBridge';
 
 const roleStorageKey = 'pp-auth-role-v1';
@@ -13,10 +13,14 @@ type AuthAccount = {
   role: PublicRole;
   roles: PublicRole[];
   nickname: string;
+  creatorName?: string;
+  photographerName?: string;
   creatorId?: string;
   companionId?: string;
-  avatarUrl?: string;
-  postId?: string;
+  creatorAvatarUrl?: string;
+  photographerAvatarUrl?: string;
+  creatorPostId?: string;
+  photographerPostId?: string;
   registeredAt: string;
 };
 
@@ -116,12 +120,18 @@ export function requestPhoneCode(phone: string) {
 export function registerWithPhone(input: RegisterInput) {
   const phone = normalizePhone(input.phone);
   validatePhoneCode(phone, input.code);
+  const existing = readAccount()?.phone === phone ? readAccount() : null;
 
   const account: AuthAccount = {
+    ...existing,
     phone,
     role: input.role,
-    roles: [input.role],
+    roles: Array.from(new Set([...(existing?.roles ?? []), input.role])),
     nickname: input.role === 'companion' ? 'Demo Photographer' : 'Demo Creator',
+    creatorName: input.role === 'consumer' ? existing?.creatorName || 'Demo Creator' : existing?.creatorName,
+    photographerName: input.role === 'companion' ? existing?.photographerName || 'Demo Photographer' : existing?.photographerName,
+    creatorId: input.role === 'consumer' ? existing?.creatorId || `creator-local-${phone}` : existing?.creatorId,
+    companionId: input.role === 'companion' ? existing?.companionId || 'companion-mori' : existing?.companionId,
     registeredAt: new Date().toISOString(),
   };
   if (typeof localStorage !== 'undefined') {
@@ -168,6 +178,8 @@ export function addRoleToCurrentAccount(role: PublicRole) {
     roles: Array.from(new Set([...account.roles, role])),
     creatorId: role === 'consumer' ? account.creatorId || `creator-local-${account.phone}` : account.creatorId,
     companionId: role === 'companion' ? account.companionId || 'companion-mori' : account.companionId,
+    creatorName: role === 'consumer' ? account.creatorName || 'Demo Creator' : account.creatorName,
+    photographerName: role === 'companion' ? account.photographerName || 'Demo Photographer' : account.photographerName,
   };
   localStorage.setItem(accountStorageKey, JSON.stringify(nextAccount));
   persistRole(role);
@@ -198,7 +210,13 @@ function localSession(role: UserRole): AuthSession {
   const account = readAccount();
   const companionId = role === 'companion' ? account?.companionId || null : null;
   const userId = role === 'consumer' ? account?.creatorId : role === 'companion' ? account?.companionId : null;
-  const avatarUrl = role === account?.role ? account?.avatarUrl : '';
+  const nickname =
+    role === 'consumer'
+      ? account?.creatorName || account?.nickname
+      : role === 'companion'
+        ? account?.photographerName || account?.nickname
+        : account?.nickname;
+  const avatarUrl = role === 'consumer' ? account?.creatorAvatarUrl || '' : role === 'companion' ? account?.photographerAvatarUrl || '' : '';
   return {
     token: `local-${role}-session`,
     provider: 'mock_wechat',
@@ -208,7 +226,7 @@ function localSession(role: UserRole): AuthSession {
       id: userId || `local-${role}-user`,
       openId: `mock-openid-${userId || role}`,
       phone: account?.phone,
-      nickname: account?.nickname ?? (role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer'),
+      nickname: nickname ?? (role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer'),
       avatarUrl,
       gender: 'unknown',
       city: 'Shanghai',
@@ -223,22 +241,29 @@ function localSession(role: UserRole): AuthSession {
 }
 
 function findLoginAccount(phone: string): AuthAccount | null {
-  const testAccount = findTestAccountByPhone(phone);
-  if (testAccount) return mapTestAccount(testAccount);
+  const testIdentities = findTestAccountIdentitiesByPhone(phone);
+  if (testIdentities.length) return mapTestIdentities(testIdentities);
   const account = readAccount();
   return account?.phone === phone ? account : null;
 }
 
-function mapTestAccount(account: TestAccount): AuthAccount {
+function mapTestIdentities(identities: TestAccountIdentity[]): AuthAccount {
+  const creator = identities.find((account) => account.role === 'consumer');
+  const photographer = identities.find((account) => account.role === 'companion');
+  const defaultRole = creator ? 'consumer' : 'companion';
   return {
-    phone: account.phone,
-    role: account.defaultRole,
-    roles: account.roles,
-    nickname: account.name,
-    creatorId: account.creatorId,
-    companionId: account.companionId,
-    avatarUrl: account.avatar,
-    postId: account.postId,
+    phone: identities[0].phone,
+    role: defaultRole,
+    roles: identities.map((account) => account.role),
+    nickname: (defaultRole === 'consumer' ? creator?.name : photographer?.name) || identities[0].name,
+    creatorName: creator?.name,
+    photographerName: photographer?.name,
+    creatorId: creator?.creatorId,
+    companionId: photographer?.companionId,
+    creatorAvatarUrl: creator?.avatar,
+    photographerAvatarUrl: photographer?.avatar,
+    creatorPostId: creator?.postId,
+    photographerPostId: photographer?.postId,
     registeredAt: new Date().toISOString(),
   };
 }
@@ -256,10 +281,14 @@ function readAccount(): AuthAccount | null {
       role: account.role,
       roles,
       nickname: account.nickname || (account.role === 'companion' ? 'Demo Photographer' : 'Demo Creator'),
+      creatorName: account.creatorName,
+      photographerName: account.photographerName,
       creatorId: account.creatorId,
       companionId: account.companionId,
-      avatarUrl: account.avatarUrl,
-      postId: account.postId,
+      creatorAvatarUrl: account.creatorAvatarUrl,
+      photographerAvatarUrl: account.photographerAvatarUrl,
+      creatorPostId: account.creatorPostId,
+      photographerPostId: account.photographerPostId,
       registeredAt: account.registeredAt || new Date().toISOString(),
     };
   } catch {
