@@ -1,4 +1,4 @@
-import { Bookmark, Camera, ChevronRight, Heart, ReceiptText, Settings, UserRound } from 'lucide-react';
+import { Camera, ChevronRight, ImagePlus, ReceiptText, Settings, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
@@ -11,9 +11,7 @@ type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 
 const menuItems = [
   { icon: ReceiptText, label: '我的订单', desc: '预约、支付、售后', to: '/consumer/orders' },
-  { icon: Heart, label: '点赞的作品', desc: '喜欢过的图片', to: '/consumer/likes' },
-  { icon: Bookmark, label: '收藏的作品', desc: '稍后再拍的样板', to: '/consumer/favorites' },
-  { icon: UserRound, label: '我的关注', desc: '我关注的人', to: '/consumer/following' },
+  { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1' },
   { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/consumer/mine' },
 ];
 

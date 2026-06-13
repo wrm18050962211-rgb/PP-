@@ -13,8 +13,8 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { listFeedPosts } from '../../services/feedService';
@@ -59,7 +59,9 @@ const reviewStorageKey = 'pp-reviewed-orders';
 
 export function OrdersPage() {
   const { orders, updateOrderStatus } = useAppData();
-  const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>('all');
+  const [searchParams] = useSearchParams();
+  const workMode = searchParams.get('work') === '1';
+  const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>(() => (searchParams.get('tab') === 'completed' ? 'completed' : 'all'));
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
   const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
@@ -70,6 +72,10 @@ export function OrdersPage() {
     [activeStatus, orders],
   );
   const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'completed') setActiveStatus('completed');
+  }, [searchParams]);
 
   function submitReview(orderId: string) {
     const nextIds = Array.from(new Set([...reviewedOrderIds, orderId]));
@@ -87,8 +93,15 @@ export function OrdersPage() {
     <div className="min-h-dvh pp-page px-4 py-5">
       <header>
         <p className="text-xs font-semibold text-[#e85d75]">我的预约</p>
-        <h1 className="mt-1 text-2xl font-bold text-[#3f302c]">订单</h1>
+        <h1 className="mt-1 text-2xl font-bold text-[#3f302c]">{workMode ? '编辑作品' : '订单'}</h1>
       </header>
+
+      {workMode ? (
+        <section className="mt-4 rounded-[16px] bg-zinc-950 p-4 text-white">
+          <p className="text-sm font-black">已完成订单可以提交共同成片</p>
+          <p className="mt-1 text-xs leading-5 text-white/58">创作者和摄影师都可编辑，双方确认后可分别选择是否同步到自己的主页。</p>
+        </section>
+      ) : null}
 
       <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4">
         {statusTabs.map((tab) => (

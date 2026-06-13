@@ -1,11 +1,10 @@
 import {
   Banknote,
-  Bookmark,
   Calendar,
   Camera,
   ChevronRight,
   ClipboardList,
-  Heart,
+  ImagePlus,
   MapPinned,
   Search,
   Settings,
@@ -29,9 +28,7 @@ type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 
 const photographerMenuItems = [
   { icon: ClipboardList, label: '我的订单', desc: '待确认、已确认、已完成', to: '/companion/orders' },
-  { icon: Heart, label: '点赞的作品', desc: '喜欢过的拍摄参考', to: '/consumer/likes' },
-  { icon: Bookmark, label: '收藏的作品', desc: '准备复拍的样板', to: '/consumer/favorites' },
-  { icon: UserRound, label: '我的关注', desc: '我关注的创作者和摄影师', to: '/consumer/following' },
+  { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1' },
 ];
 
 const creatorBusinessItems = [
