@@ -2,7 +2,7 @@ import { Camera, ChevronRight, ImagePlus, ReceiptText, Settings, UserRound } fro
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
-import { fetchAuthSession, switchMockRole } from '../../services/authService';
+import { accountHasRole, addRoleToCurrentAccount, fetchAuthSession, switchMockRole } from '../../services/authService';
 import { listFeedPosts } from '../../services/feedService';
 import type { AuthSession, FeedPost, UserRole } from '../../types/api';
 import { buildCreator } from './PostDetail';
@@ -26,6 +26,7 @@ export function MinePage() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
   const activeRole = getUserFacingRole(session?.role);
+  const canUsePhotographerRole = accountHasRole('companion');
   const posts = listFeedPosts();
   const ownProfile = buildOwnProfileSummary(session, posts[0]);
   const collectionSummary = getCollectionSummary(posts);
@@ -86,19 +87,30 @@ export function MinePage() {
           {roleActions.map((item) => {
             const Icon = item.icon;
             const active = activeRole === item.role;
+            const needsRegistration = item.role === 'companion' && !canUsePhotographerRole;
+            const label = needsRegistration ? '注册成为摄影师' : item.label;
+            const desc = needsRegistration ? '完善资料、实名与入驻审核' : item.desc;
+            const target = needsRegistration ? '/companion/onboarding' : item.to;
             return (
               <button
                 key={item.role}
                 className={`min-h-20 rounded-[8px] px-3 py-3 text-left ${
                   active ? 'bg-[#fff1f3] text-[#3f302c] ring-1 ring-[#f4c8d1]' : 'bg-[#fbf7f2] text-[#5f514b]'
                 }`}
-                onClick={() => handleRoleSwitch(item.role, item.to)}
+                onClick={() => {
+                  if (needsRegistration) {
+                    addRoleToCurrentAccount('companion');
+                    navigate(target);
+                    return;
+                  }
+                  void handleRoleSwitch(item.role, target);
+                }}
                 disabled={loadingRole !== null}
                 type="button"
               >
                 <Icon size={18} className="mb-2" />
-                <span className="block text-sm font-black">{item.label}</span>
-                <span className="mt-1 block text-xs leading-4 opacity-70">{loadingRole === item.role ? '切换中...' : item.desc}</span>
+                <span className="block text-sm font-black">{label}</span>
+                <span className="mt-1 block text-xs leading-4 opacity-70">{loadingRole === item.role ? '切换中...' : desc}</span>
               </button>
             );
           })}

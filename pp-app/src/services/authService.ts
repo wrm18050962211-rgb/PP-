@@ -1,6 +1,6 @@
 import type { AuthSession, UserRole } from '../types/api';
 import { apiGet, apiPost, isApiEnabled } from './apiClient';
-import { findTestAccountByPhone, type TestAccount } from './accountDirectory';
+import { findTestAccountByPhone, type PublicRole, type TestAccount } from './accountDirectory';
 import { isMiniProgramRuntime, wxLogin } from './miniProgramBridge';
 
 const roleStorageKey = 'pp-auth-role-v1';
@@ -10,9 +10,11 @@ const smsCodeStorageKey = 'pp-auth-sms-code-v1';
 
 type AuthAccount = {
   phone: string;
-  role: Extract<UserRole, 'consumer' | 'companion'>;
+  role: PublicRole;
+  roles: PublicRole[];
   nickname: string;
-  entityId?: string;
+  creatorId?: string;
+  companionId?: string;
   avatarUrl?: string;
   postId?: string;
   registeredAt: string;
@@ -27,7 +29,7 @@ type SmsCodeRecord = {
 export type RegisterInput = {
   phone: string;
   code: string;
-  role: Extract<UserRole, 'consumer' | 'companion'>;
+  role: PublicRole;
 };
 
 export async function fetchAuthSession(): Promise<AuthSession> {
@@ -52,8 +54,10 @@ export async function fetchAuthSession(): Promise<AuthSession> {
 }
 
 export async function switchMockRole(role: UserRole): Promise<AuthSession> {
-  persistRole(role);
   const account = readAccount();
+  if (!canUseRole(account, role)) return localSession(readStoredRole());
+
+  persistRole(role);
   if (!isApiEnabled()) {
     const session = localSession(role);
     notifySessionChanged(session);
@@ -61,7 +65,7 @@ export async function switchMockRole(role: UserRole): Promise<AuthSession> {
   }
 
   try {
-    const response = await apiPost<AuthSession>('/api/auth/wechat/mock-login', { role, companionId: account?.role === 'companion' ? account.entityId : undefined });
+    const response = await apiPost<AuthSession>('/api/auth/wechat/mock-login', { role, companionId: role === 'companion' ? account?.companionId : undefined });
     const session = response.success ? localSession(role) : localSession(role);
     notifySessionChanged(session);
     return session;
@@ -83,6 +87,10 @@ export function isAccountLoggedIn() {
 
 export function getRegisteredAccount() {
   return readAccount();
+}
+
+export function accountHasRole(role: PublicRole) {
+  return canUseRole(readAccount(), role);
 }
 
 export function getPostAuthHome(role = readStoredRole()) {
@@ -112,6 +120,7 @@ export function registerWithPhone(input: RegisterInput) {
   const account: AuthAccount = {
     phone,
     role: input.role,
+    roles: [input.role],
     nickname: input.role === 'companion' ? 'Demo Photographer' : 'Demo Creator',
     registeredAt: new Date().toISOString(),
   };
@@ -150,6 +159,21 @@ export async function logoutAccount() {
   }
 }
 
+export function addRoleToCurrentAccount(role: PublicRole) {
+  const account = readAccount();
+  if (!account || typeof localStorage === 'undefined') return null;
+  const nextAccount: AuthAccount = {
+    ...account,
+    role,
+    roles: Array.from(new Set([...account.roles, role])),
+    creatorId: role === 'consumer' ? account.creatorId || `creator-local-${account.phone}` : account.creatorId,
+    companionId: role === 'companion' ? account.companionId || 'companion-mori' : account.companionId,
+  };
+  localStorage.setItem(accountStorageKey, JSON.stringify(nextAccount));
+  persistRole(role);
+  return nextAccount;
+}
+
 function readStoredRole(): UserRole {
   if (typeof localStorage === 'undefined') return 'consumer';
   const role = localStorage.getItem(roleStorageKey);
@@ -172,24 +196,25 @@ function isUserRole(role: unknown): role is UserRole {
 
 function localSession(role: UserRole): AuthSession {
   const account = readAccount();
-  const matchedAccount = account?.role === role ? account : null;
-  const companionId = role === 'companion' ? matchedAccount?.entityId || 'companion-mori' : null;
+  const companionId = role === 'companion' ? account?.companionId || null : null;
+  const userId = role === 'consumer' ? account?.creatorId : role === 'companion' ? account?.companionId : null;
+  const avatarUrl = role === account?.role ? account?.avatarUrl : '';
   return {
     token: `local-${role}-session`,
     provider: 'mock_wechat',
     role,
-    roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
+    roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : account?.roles ?? (role === 'companion' ? ['companion'] : ['consumer']),
     user: {
-      id: matchedAccount?.entityId || `local-${role}-user`,
-      openId: `mock-openid-${matchedAccount?.entityId || role}`,
-      phone: matchedAccount?.phone,
-      nickname: matchedAccount?.nickname ?? (role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer'),
-      avatarUrl: matchedAccount?.avatarUrl || '',
+      id: userId || `local-${role}-user`,
+      openId: `mock-openid-${userId || role}`,
+      phone: account?.phone,
+      nickname: account?.nickname ?? (role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer'),
+      avatarUrl,
       gender: 'unknown',
       city: 'Shanghai',
       status: 'active',
       isCompanion: role === 'companion',
-      roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
+      roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : account?.roles ?? (role === 'companion' ? ['companion'] : ['consumer']),
     },
     companionId,
     adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
@@ -207,9 +232,11 @@ function findLoginAccount(phone: string): AuthAccount | null {
 function mapTestAccount(account: TestAccount): AuthAccount {
   return {
     phone: account.phone,
-    role: account.role,
+    role: account.defaultRole,
+    roles: account.roles,
     nickname: account.name,
-    entityId: account.entityId,
+    creatorId: account.creatorId,
+    companionId: account.companionId,
     avatarUrl: account.avatar,
     postId: account.postId,
     registeredAt: new Date().toISOString(),
@@ -223,11 +250,14 @@ function readAccount(): AuthAccount | null {
     if (!raw) return null;
     const account = JSON.parse(raw) as Partial<AuthAccount>;
     if (!account.phone || (account.role !== 'consumer' && account.role !== 'companion')) return null;
+    const roles = normalizeRoles(account.roles, account.role);
     return {
       phone: account.phone,
       role: account.role,
+      roles,
       nickname: account.nickname || (account.role === 'companion' ? 'Demo Photographer' : 'Demo Creator'),
-      entityId: account.entityId,
+      creatorId: account.creatorId,
+      companionId: account.companionId,
       avatarUrl: account.avatarUrl,
       postId: account.postId,
       registeredAt: account.registeredAt || new Date().toISOString(),
@@ -235,6 +265,18 @@ function readAccount(): AuthAccount | null {
   } catch {
     return null;
   }
+}
+
+function canUseRole(account: AuthAccount | null, role: UserRole) {
+  if (role === 'admin') return false;
+  if (!account) return false;
+  return account.roles.includes(role);
+}
+
+function normalizeRoles(roles: unknown, fallbackRole: PublicRole): PublicRole[] {
+  if (!Array.isArray(roles)) return [fallbackRole];
+  const nextRoles = roles.filter((role): role is PublicRole => role === 'consumer' || role === 'companion');
+  return nextRoles.length ? Array.from(new Set(nextRoles)) : [fallbackRole];
 }
 
 function validatePhoneCode(phone: string, code: string) {

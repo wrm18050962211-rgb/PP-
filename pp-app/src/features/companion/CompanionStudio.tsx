@@ -18,26 +18,27 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
-import { switchMockRole } from '../../services/authService';
+import { accountHasRole, addRoleToCurrentAccount, switchMockRole } from '../../services/authService';
 import { fetchCompanionDashboard, getCompanionDashboard } from '../../services/companionService';
 import { listFeedPosts } from '../../services/feedService';
 import type { CompanionDashboard, FeedPost, UserRole } from '../../types/api';
 import { getCollectionSummary } from '../user/UserCollectionPage';
 
 type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
+type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: string };
 
-const photographerMenuItems = [
+const photographerMenuItems: MenuItem[] = [
   { icon: ClipboardList, label: '我的订单', desc: '待确认、已确认、已完成', to: '/companion/orders' },
   { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1&from=companion' },
 ];
 
-const creatorBusinessItems = [
+const creatorBusinessItems: MenuItem[] = [
   { icon: Sparkles, label: '寻找高质量创作者', desc: '审核通过的创作者与报价', to: '/companion/creators' },
   { icon: Camera, label: '作品发布', desc: '上传地点、时间、风格和样片', to: '/companion/publish' },
   { icon: Search, label: '拍摄灵感', desc: '查看发现页作品流', to: '/companion' },
 ];
 
-const setupItems = [
+const setupItems: MenuItem[] = [
   { icon: UserRoundPen, label: '资料编辑', desc: '昵称、照片、介绍与互动标签', to: '/companion/profile' },
   { icon: UserCheck, label: '入驻审核', desc: '实名、人脸、视频、生活照', to: '/companion/onboarding' },
   { icon: MapPinned, label: '服务范围', desc: '城市、可接地点和最大公里数', to: '/companion/service-range' },
@@ -56,6 +57,7 @@ export function CompanionStudio() {
   const { application, session, workDraft } = useAppData();
   const [dashboard, setDashboard] = useState<CompanionDashboard>(() => getCompanionDashboard());
   const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
+  const canUseCreatorRole = accountHasRole('consumer');
   const posts = listFeedPosts();
   const ownProfile = buildPhotographerProfileSummary(posts.find((post) => post.companion.id === session?.companionId) ?? posts[0]);
   const collectionSummary = getCollectionSummary(posts);
@@ -109,19 +111,30 @@ export function CompanionStudio() {
           {roleActions.map((item) => {
             const Icon = item.icon;
             const active = item.role === 'companion';
+            const needsRegistration = item.role === 'consumer' && !canUseCreatorRole;
+            const label = needsRegistration ? '注册成为创作者' : item.label;
+            const desc = needsRegistration ? '选择创作者身份并绑定手机号' : item.desc;
+            const target = needsRegistration ? '/consumer/mine' : item.to;
             return (
               <button
                 key={item.role}
                 className={`min-h-20 rounded-[8px] px-3 py-3 text-left ${
                   active ? 'bg-[#fff1f3] text-[#3f302c] ring-1 ring-[#f4c8d1]' : 'bg-[#fbf7f2] text-[#5f514b]'
                 }`}
-                onClick={() => void handleRoleSwitch(item.role, item.to)}
+                onClick={() => {
+                  if (needsRegistration) {
+                    addRoleToCurrentAccount('consumer');
+                    navigate(target);
+                    return;
+                  }
+                  void handleRoleSwitch(item.role, target);
+                }}
                 disabled={loadingRole !== null}
                 type="button"
               >
                 <Icon size={18} className="mb-2" />
-                <span className="block text-sm font-black">{item.label}</span>
-                <span className="mt-1 block text-xs leading-4 opacity-70">{loadingRole === item.role ? '切换中...' : item.desc}</span>
+                <span className="block text-sm font-black">{label}</span>
+                <span className="mt-1 block text-xs leading-4 opacity-70">{loadingRole === item.role ? '切换中...' : desc}</span>
               </button>
             );
           })}
@@ -129,7 +142,6 @@ export function CompanionStudio() {
       </section>
 
       <MenuSection className="mt-5" items={photographerMenuItems} />
-
       <MenuSection className="mt-4" items={creatorBusinessItems} />
 
       <section className="mt-4 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
@@ -174,7 +186,7 @@ export function CompanionStudio() {
   );
 }
 
-function MenuSection({ items, className = '' }: { items: typeof photographerMenuItems; className?: string }) {
+function MenuSection({ items, className = '' }: { items: MenuItem[]; className?: string }) {
   return (
     <section className={`${className} divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white`}>
       {items.map(({ icon: Icon, label, desc, to }) => (
