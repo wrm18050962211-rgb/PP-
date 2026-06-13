@@ -213,7 +213,7 @@ export function MessagesPage() {
         })}
       </section>
 
-      <footer className="sticky bottom-16 border-t border-[#eadfd8] bg-[#fffaf6]/96 p-3 backdrop-blur">
+      <footer className="sticky bottom-0 border-t border-[#eadfd8] bg-[#fffaf6]/96 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         {risk.level === 'high' && (
           <RiskNotice tone="high" text={`检测到高风险内容：${riskKeywords || '联系方式或私下交易'}。为保障双方权益，此消息不能发送。`} />
         )}

@@ -11,8 +11,8 @@ const tabs = [
 
 export function ConsumerShell() {
   const { pathname } = useLocation();
-  const isImmersivePost = pathname.startsWith('/consumer/post/');
-  const chromeCanCompact = pathname === '/consumer' || pathname === '/consumer/companions';
+  const showBottomNav = tabs.some((tab) => tab.to === pathname);
+  const chromeCanCompact = showBottomNav;
   const [homeChromeCompact, setHomeChromeCompact] = useState(false);
   const lastScrollYRef = useRef(0);
 
@@ -49,14 +49,14 @@ export function ConsumerShell() {
     };
   }, [chromeCanCompact]);
 
-  const compactChrome = chromeCanCompact && homeChromeCompact;
+  const compactChrome = showBottomNav && homeChromeCompact;
 
   return (
     <div className="min-h-dvh pp-page">
-      <main className={`mx-auto min-h-dvh w-full max-w-md shadow-[0_0_46px_rgba(0,0,0,0.32)] ${isImmersivePost ? '' : 'pb-24'}`}>
+      <main className={`mx-auto min-h-dvh w-full max-w-md shadow-[0_0_46px_rgba(0,0,0,0.32)] ${showBottomNav ? 'pb-24' : ''}`}>
         <Outlet context={{ homeChromeCompact: compactChrome }} />
       </main>
-      {isImmersivePost ? null : (
+      {showBottomNav ? (
         <nav className="pointer-events-none fixed inset-x-0 bottom-3 z-30 mx-auto flex max-w-md justify-center px-4 pb-[env(safe-area-inset-bottom)]">
           <div
             className={`pointer-events-auto grid grid-cols-4 items-center border border-white/10 bg-black/[0.82] shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all duration-300 ${
@@ -83,7 +83,7 @@ export function ConsumerShell() {
             ))}
           </div>
         </nav>
-      )}
+      ) : null}
     </div>
   );
 }
