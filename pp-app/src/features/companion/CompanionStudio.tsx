@@ -75,12 +75,25 @@ export function CompanionStudio() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!session) return;
+    if (session.role !== 'companion') navigate('/consumer/mine', { replace: true });
+  }, [navigate, session]);
+
   const handleRoleSwitch = async (role: UserFacingRole, to: string) => {
     setLoadingRole(role);
     await switchMockRole(role);
     setLoadingRole(null);
     navigate(to);
   };
+
+  if (!session || session.role !== 'companion') {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-[#f7f7f5] px-6 text-center text-sm font-bold text-zinc-500">
+        正在确认摄影师身份...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-dvh bg-[#f7f7f5] px-4 pb-24 pt-3 text-zinc-950">
@@ -110,7 +123,7 @@ export function CompanionStudio() {
         <div className="grid grid-cols-2 gap-2">
           {roleActions.map((item) => {
             const Icon = item.icon;
-            const active = item.role === 'companion';
+            const active = session?.role === item.role;
             const needsRegistration = item.role === 'consumer' && !canUseCreatorRole;
             const label = needsRegistration ? '注册成为创作者' : item.label;
             const desc = needsRegistration ? '选择创作者身份并绑定手机号' : item.desc;
