@@ -110,7 +110,7 @@ export function ServiceRangeSettings() {
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold">服务范围</h1>
-          <p className="mt-0.5 text-xs text-zinc-500">先设置 base 城市，再选择可接地点和场景</p>
+          <p className="mt-0.5 text-xs text-zinc-500">先设置 base 城市，再设置最大服务公里数和可接地点</p>
         </div>
       </header>
 
@@ -123,7 +123,7 @@ export function ServiceRangeSettings() {
             <div className="min-w-0 flex-1">
               <p className="text-sm text-white/65">当前可服务范围</p>
               <h2 className="mt-1 text-2xl font-bold">{scopeSummary}</h2>
-              <p className="mt-2 text-sm leading-6 text-white/70">MVP 先用城市和地点多选建立接单边界，地图圈选后续接入。</p>
+              <p className="mt-2 text-sm leading-6 text-white/70">MVP 先用城市、可接地点和最大公里数建立接单边界，地图圈选后续接入。</p>
             </div>
           </div>
         </section>
@@ -143,11 +143,11 @@ export function ServiceRangeSettings() {
         </FormSection>
 
         <LocationSection icon={Building2} title="2. 可服务商圈" items={options.businessDistricts} selected={application.areas} onToggle={(item) => toggleList('areas', item)} />
-        <LocationSection icon={Store} title="3. 可服务街区" items={options.streets} selected={safeList(application.streets)} onToggle={(item) => toggleList('streets', item)} />
+        <LocationSection icon={Store} title="3. 可接受地点补充" items={options.streets} selected={safeList(application.streets)} onToggle={(item) => toggleList('streets', item)} />
         <LocationSection icon={Landmark} title="4. 可服务景点" items={options.attractions} selected={safeList(application.attractions)} onToggle={(item) => toggleList('attractions', item)} />
         <LocationSection icon={TrainFront} title="5. 可服务地铁站附近" items={options.metroStations} selected={safeList(application.metroStations)} onToggle={(item) => toggleList('metroStations', item)} />
 
-        <FormSection title="6. 可服务半径">
+        <FormSection title="6. 可接受最大公里数">
           <div className="rounded-[10px] border border-zinc-200 bg-white p-4">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-full bg-rose-50 text-rose-600">

@@ -14,6 +14,7 @@ import {
   Shield,
   Snowflake,
   UserCheck,
+  UserCog,
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -24,7 +25,7 @@ import type { AdminActionType, AdminModerationData, AdminReportCase, AdminRiskMe
 import type { AppOrder, OrderStatus, PublishedWorkDraft } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
 
-type AdminModuleKey = 'companions' | 'works' | 'orders' | 'risk' | 'reports' | 'finance' | 'settings';
+type AdminModuleKey = 'companions' | 'works' | 'orders' | 'risk' | 'reports' | 'accounts' | 'finance' | 'settings';
 
 type RiskCase = {
   id: string;
@@ -64,12 +65,22 @@ type SystemConfig = {
   status: '已启用' | '待完善';
 };
 
+type AccountCase = {
+  id: string;
+  name: string;
+  role: '创作者' | '摄影师' | '普通用户';
+  status: '正常' | '观察中' | '限制中' | '已停用';
+  risk: string;
+  lastActive: string;
+};
+
 const modules: Array<{ key: AdminModuleKey; label: string; icon: React.ElementType }> = [
   { key: 'companions', label: '陪拍者审核', icon: UserCheck },
   { key: 'works', label: '作品审核', icon: FileSearch },
   { key: 'orders', label: '订单管理', icon: CreditCard },
   { key: 'risk', label: '消息风控', icon: MessageSquareWarning },
   { key: 'reports', label: '举报处理', icon: Flag },
+  { key: 'accounts', label: '账号状态', icon: UserCog },
   { key: 'finance', label: '财务结算', icon: Banknote },
   { key: 'settings', label: '系统配置', icon: Settings },
 ];
@@ -124,6 +135,12 @@ const settlementSeed: SettlementCase[] = [
   { id: 'settlement-3', companion: 'Nana', orderNo: 'PP26052404', grossCents: 36900, commissionCents: 5535, payableCents: 31365, status: '冻结中' },
 ];
 
+const accountSeed: AccountCase[] = [
+  { id: 'account-creator-1', name: 'Demo Creator', role: '创作者', status: '正常', risk: '内容发布稳定', lastActive: '今天 18:10' },
+  { id: 'account-photographer-1', name: 'Mori', role: '摄影师', status: '观察中', risk: '近期出现 1 次联系方式拦截', lastActive: '今天 17:42' },
+  { id: 'account-user-1', name: '用户 203', role: '普通用户', status: '限制中', risk: '举报处理中，聊天能力已临时限制', lastActive: '昨天 21:36' },
+];
+
 const configSeed: SystemConfig[] = [
   { id: 'config-1', name: '取消规则', value: '服务开始前 2 小时可免费取消', status: '已启用' },
   { id: 'config-2', name: '平台抽成', value: '15%', status: '已启用' },
@@ -143,6 +160,8 @@ export function AdminDashboard() {
   const [reportActionLogs, setReportActionLogs] = useState<Record<string, string[]>>({});
   const [settlements, setSettlements] = useState(settlementSeed);
   const [selectedSettlementId, setSelectedSettlementId] = useState(settlementSeed[0]?.id ?? '');
+  const [accounts, setAccounts] = useState(accountSeed);
+  const [selectedAccountId, setSelectedAccountId] = useState(accountSeed[0]?.id ?? '');
   const [configs, setConfigs] = useState(configSeed);
   const [selectedConfigId, setSelectedConfigId] = useState(configSeed[0]?.id ?? '');
 
@@ -166,6 +185,7 @@ export function AdminDashboard() {
   const selectedRisk = riskCases.find((item) => item.id === selectedRiskId) ?? riskCases[0];
   const selectedReport = reportCases.find((item) => item.id === selectedReportId) ?? reportCases[0];
   const selectedSettlement = settlements.find((item) => item.id === selectedSettlementId) ?? settlements[0];
+  const selectedAccount = accounts.find((item) => item.id === selectedAccountId) ?? accounts[0];
   const selectedConfig = configs.find((item) => item.id === selectedConfigId) ?? configs[0];
 
   const metrics = useMemo(
@@ -274,6 +294,14 @@ export function AdminDashboard() {
                 const order = orders.find((item) => item.orderNo === orderNo);
                 if (order) updateOrderStatus(order.id, 'disputed');
               }}
+            />
+          )}
+          {activeModule === 'accounts' && selectedAccount && (
+            <AccountPanel
+              accounts={accounts}
+              selectedAccount={selectedAccount}
+              onSelect={setSelectedAccountId}
+              onUpdate={(id, status) => setAccounts((items) => items.map((item) => (item.id === id ? { ...item, status } : item)))}
             />
           )}
           {activeModule === 'finance' && selectedSettlement && (
@@ -589,6 +617,61 @@ function ReportPanel({
               </AdminButton>
             </div>
             <ActionLogList logs={actionLogs} />
+          </DetailCard>
+        }
+      />
+    </ModuleFrame>
+  );
+}
+
+function AccountPanel({
+  accounts,
+  selectedAccount,
+  onSelect,
+  onUpdate,
+}: {
+  accounts: AccountCase[];
+  selectedAccount: AccountCase;
+  onSelect: (id: string) => void;
+  onUpdate: (id: string, status: AccountCase['status']) => void;
+}) {
+  return (
+    <ModuleFrame title="账号状态管理" count={`${accounts.length} 个账号`}>
+      <ListDetailLayout
+        list={accounts.map((account) => (
+          <ListRow
+            key={account.id}
+            active={account.id === selectedAccount.id}
+            title={account.name}
+            subtitle={`${account.role} · ${account.lastActive}`}
+            meta={account.status}
+            onClick={() => onSelect(account.id)}
+          />
+        ))}
+        detail={
+          <DetailCard eyebrow={selectedAccount.role} title={selectedAccount.name} status={selectedAccount.status}>
+            <InfoGrid
+              items={[
+                ['账号类型', selectedAccount.role],
+                ['当前状态', selectedAccount.status],
+                ['最近活跃', selectedAccount.lastActive],
+                ['风控备注', selectedAccount.risk],
+              ]}
+            />
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <AdminButton onClick={() => onUpdate(selectedAccount.id, '正常')} disabled={selectedAccount.status === '正常'}>
+                恢复正常
+              </AdminButton>
+              <AdminButton variant="soft" onClick={() => onUpdate(selectedAccount.id, '观察中')} disabled={selectedAccount.status === '观察中'}>
+                加入观察
+              </AdminButton>
+              <AdminButton variant="soft" icon={<Ban size={16} />} onClick={() => onUpdate(selectedAccount.id, '限制中')} disabled={selectedAccount.status === '限制中'}>
+                限制能力
+              </AdminButton>
+              <AdminButton variant="danger" icon={<PauseCircle size={16} />} onClick={() => onUpdate(selectedAccount.id, '已停用')} disabled={selectedAccount.status === '已停用'}>
+                停用账号
+              </AdminButton>
+            </div>
           </DetailCard>
         }
       />

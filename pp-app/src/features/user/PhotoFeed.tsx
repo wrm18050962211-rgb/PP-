@@ -98,9 +98,8 @@ function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
   let horizontalCursor = 0;
   let sectionIndex = 0;
 
-  while (verticalCursor + 6 <= verticalItems.length) {
+  while (verticalCursor < verticalItems.length || horizontalCursor < horizontalItems.length) {
     const heroCount = sectionIndex % 2 === 0 ? 1 : 2;
-    if (horizontalCursor + heroCount > horizontalItems.length) break;
 
     const verticalSlice = verticalItems.slice(verticalCursor, verticalCursor + 6);
     verticalCursor += verticalSlice.length;
@@ -129,13 +128,13 @@ function createDiscoverySections(posts: FeedPost[]): FeedSection[] {
 
       if (sectionIndex % 2 === 0) {
         insertColumnItem(leftColumn, leftTile, 'middle');
-        insertColumnItem(rightColumn, rightTile, 'end');
+        if (verticalSlice.length >= 4) insertColumnItem(rightColumn, rightTile, 'end');
       } else {
         insertColumnItem(leftColumn, leftTile, 'end');
-        insertColumnItem(rightColumn, rightTile, 'middle');
+        if (verticalSlice.length >= 4) insertColumnItem(rightColumn, rightTile, 'middle');
       }
 
-      balanceColumnsBeforeHero(leftColumn, rightColumn, sectionIndex);
+      if (heroes.length > 0) balanceColumnsBeforeHero(leftColumn, rightColumn, sectionIndex);
     }
 
     sections.push({
@@ -155,7 +154,10 @@ function balanceColumnsBeforeHero(leftColumn: FeedColumnItem[], rightColumn: Fee
   const shorterIndex = heights[0] <= heights[1] ? 0 : 1;
   const diff = Math.abs(heights[0] - heights[1]);
 
-  if (diff < 0.14) return;
+  if (diff < 0.06) {
+    insertColumnItem(columns[shorterIndex], { type: 'spacer', id: `column-spacer-${sectionIndex}-${shorterIndex}`, heightUnits: 0.08 }, 'end');
+    return;
+  }
 
   insertColumnItem(columns[shorterIndex], { type: 'spacer', id: `column-spacer-${sectionIndex}-${shorterIndex}`, heightUnits: diff }, 'end');
 }
@@ -204,7 +206,7 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
   return (
     <Link
       to={tile.href}
-      className={`flex h-7 items-center gap-1 overflow-hidden bg-transparent px-1 text-white/48 transition active:bg-white/[0.035] ${className}`}
+      className={`flex h-6 items-center gap-1 overflow-hidden bg-[#050505] px-1 text-white/42 transition active:bg-white/[0.035] ${className}`}
       title={[tile.eyebrow, tile.title, tile.meta].filter(Boolean).join(' · ')}
     >
       <Icon size={9} className="shrink-0 text-white/24" />
@@ -224,7 +226,7 @@ function RecommendationCard({ tile, className = '' }: { tile: RecommendationTile
 }
 
 function ColumnSpacer({ heightUnits }: { heightUnits: number }) {
-  const clampedUnits = Math.max(0.16, Math.min(heightUnits, 0.72));
+  const clampedUnits = Math.max(0.08, Math.min(heightUnits, 1.1));
 
   return (
     <div
