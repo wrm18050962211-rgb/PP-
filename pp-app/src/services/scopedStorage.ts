@@ -56,6 +56,20 @@ export const dataDomainPolicies: Record<string, DataDomainPolicy> = {
     migrationTarget: 'TencentDB creator_profiles / COS profile_media',
     note: 'Creator profile avatar, display name, and bio are account-owned profile data. MVP stores locally under the cloud namespace.',
   },
+  'companion-package-settings-v1': {
+    layer: 'cloud',
+    sensitivity: 'user',
+    owner: 'account-role',
+    migrationTarget: 'TencentDB companion_packages / companion_pricing_rules',
+    note: 'Photographer package templates and pricing rules are configured once and reused across consultations.',
+  },
+  'consultations-v1': {
+    layer: 'cloud',
+    sensitivity: 'sensitive',
+    owner: 'shared-order',
+    migrationTarget: 'TencentDB consultations / quotes / consultation_attachments',
+    note: 'Consultation request cards, platform chat context, and quotes are shared transaction data before an order exists.',
+  },
   'reviewed-orders-v1': {
     layer: 'local',
     sensitivity: 'device',

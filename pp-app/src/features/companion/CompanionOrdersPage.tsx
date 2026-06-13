@@ -176,7 +176,8 @@ function CompanionOrderCard({
 }) {
   const meta = statusMeta[order.status] ?? { label: order.statusText, tone: 'bg-zinc-100 text-zinc-600 ring-zinc-200' };
   const canConfirm = order.status === 'paid_pending_confirm';
-  const canComplete = order.status === 'confirmed' || order.status === 'in_service';
+  const balanceRequired = Boolean(order.balanceCents && order.balanceStatus !== 'paid');
+  const canComplete = (order.status === 'confirmed' || order.status === 'in_service') && !balanceRequired;
   const canCancel = order.status === 'paid_pending_confirm' || order.status === 'confirmed';
   const creatorDisplayName = order.creatorName || order.creatorId || '预约用户';
   const creatorPhone = order.creatorPhone || '未绑定手机号';
@@ -203,6 +204,11 @@ function CompanionOrderCard({
         <span className="text-sm font-semibold text-zinc-500">订单金额</span>
         <span className="text-lg font-bold text-zinc-950">{formatMoney(order.amountCents)}</span>
       </div>
+      {balanceRequired ? (
+        <div className="mt-3 rounded-[10px] bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800">
+          尾款未托管，暂不开始拍摄，也不要交付底片。请等待创作者在平台内支付尾款 {formatMoney(order.balanceCents ?? 0)}。
+        </div>
+      ) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button className="flex h-10 items-center justify-center gap-2 rounded-full bg-white text-sm font-bold text-zinc-700 ring-1 ring-zinc-200" onClick={onDetail} type="button">

@@ -102,7 +102,8 @@ function createLocalMessage(content: string, riskStatus: Message['riskStatus'], 
 }
 
 function getLocalConversation(orderId?: string): Conversation {
-  const order = findLedgerOrder(orderId) ?? seedOrders.find((item) => item.id === orderId) ?? seedOrders[0];
+  const order = findLedgerOrder(orderId) ?? seedOrders.find((item) => item.id === orderId);
+  if (!order) return getGenericLocalConversation(orderId);
   const savedMessages = readLocalConversationMessages()[order.id];
 
   return {
@@ -111,6 +112,26 @@ function getLocalConversation(orderId?: string): Conversation {
     orderId: order.id,
     orderNo: order.orderNo,
     messages: savedMessages?.length ? savedMessages : createSeedConversation(order).messages,
+  };
+}
+
+function getGenericLocalConversation(orderId?: string): Conversation {
+  const id = orderId || 'local-generic-thread';
+  const savedMessages = readLocalConversationMessages()[id];
+  return {
+    ...mockConversation,
+    id: `local-conversation-${id}`,
+    orderId: id,
+    orderNo: id.startsWith('consultation-') ? '咨询会话' : '本地会话',
+    messages: savedMessages?.length
+      ? savedMessages
+      : [{
+        id: `${id}-message-1`,
+        from: 'user',
+        text: id.startsWith('consultation-') ? '我已提交需求卡，想先咨询档期和报价。' : '会话已创建。',
+        sentAt: new Date().toISOString(),
+        riskStatus: 'clean',
+      }],
   };
 }
 

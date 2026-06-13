@@ -7,6 +7,7 @@ import { CompanionOnboarding } from '../features/companion/CompanionOnboarding';
 import { CompanionBookingSettingsPage } from '../features/companion/CompanionBookingSettingsPage';
 import { CompanionIncomePage } from '../features/companion/CompanionIncomePage';
 import { CompanionOrdersPage } from '../features/companion/CompanionOrdersPage';
+import { CompanionPackageSettings } from '../features/companion/CompanionPackageSettings';
 import { CompanionProfileEdit } from '../features/companion/CompanionProfileEdit';
 import { CreatorFinderPage } from '../features/companion/CreatorFinderPage';
 import { PublishPost } from '../features/companion/PublishPost';
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="onboarding" element={<CompanionOnboarding />} />
         <Route path="booking-settings" element={<CompanionBookingSettingsPage />} />
         <Route path="profile" element={<CompanionProfileEdit />} />
+        <Route path="packages" element={<CompanionPackageSettings />} />
         <Route path="service-range" element={<ServiceRangeSettings />} />
         <Route path="publish" element={<PublishPost />} />
         <Route path="orders" element={<CompanionOrdersPage />} />

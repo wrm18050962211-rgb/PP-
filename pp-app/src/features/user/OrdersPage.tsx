@@ -60,7 +60,7 @@ const statusMeta: Record<string, { label: string; tone: string }> = {
 const reviewStorageKey = 'reviewed-orders-v1';
 
 export function OrdersPage() {
-  const { orders, updateOrderStatus } = useAppData();
+  const { orders, updateOrderFunding, updateOrderStatus } = useAppData();
   const [searchParams] = useSearchParams();
   const workMode = searchParams.get('work') === '1';
   const backTo = searchParams.get('from') === 'companion' ? '/companion/mine' : '/consumer/mine';
@@ -143,6 +143,7 @@ export function OrdersPage() {
             onCancel={() => setActiveAction({ type: 'cancel', order })}
             onReview={() => setActiveAction({ type: 'review', order })}
             onManageWork={() => setActiveAction({ type: 'work', order })}
+            onPayBalance={() => updateOrderFunding(order.id, { balanceStatus: 'paid', fundsStatus: 'full_escrowed' })}
           />
         ))}
       </div>
@@ -187,6 +188,7 @@ function OrderCard({
   onCancel,
   onReview,
   onManageWork,
+  onPayBalance,
 }: {
   order: AppOrder;
   reviewed: boolean;
@@ -194,11 +196,13 @@ function OrderCard({
   onCancel: () => void;
   onReview: () => void;
   onManageWork: () => void;
+  onPayBalance: () => void;
 }) {
   const addOnTotal = order.addOns?.reduce((total, item) => total + item.amountCents, 0) ?? 0;
   const basePrice = Math.max(order.amountCents - addOnTotal, 0);
   const canCancel = order.status === 'paid_pending_confirm' || order.status === 'confirmed';
   const canReview = order.status === 'completed';
+  const needsBalance = order.status === 'confirmed' && order.balanceCents && order.balanceStatus !== 'paid';
   const meta = statusMeta[order.status] ?? { label: order.statusText, tone: 'bg-zinc-100 text-zinc-600 ring-zinc-200' };
 
   return (
@@ -242,6 +246,15 @@ function OrderCard({
       </div>
 
       {order.status === 'completed' && <CompletedWorkPanel record={workRecord} onManage={onManageWork} />}
+      {needsBalance ? (
+        <section className="mt-4 rounded-[18px] bg-[#fff7df] p-3 text-[#8a5a12] ring-1 ring-[#f2dfaa]">
+          <p className="text-sm font-black">尾款待托管</p>
+          <p className="mt-1 text-xs leading-5">拍摄前需将尾款 {formatMoney(order.balanceCents ?? 0)} 托管到平台。未托管尾款时，摄影师可拒绝开始拍摄，不交付底片。</p>
+          <button className="mt-3 h-10 w-full rounded-full bg-[#3f302c] text-sm font-black text-white" onClick={onPayBalance} type="button">
+            支付尾款
+          </button>
+        </section>
+      ) : null}
 
       <div className="mt-4 flex gap-2">
         <Link

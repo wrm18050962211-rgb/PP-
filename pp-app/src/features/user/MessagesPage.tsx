@@ -1,7 +1,8 @@
 import { AlertTriangle, Camera, ChevronLeft, Flag, LockKeyhole, Pin, Search, Send, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState, type PointerEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { closeConsultation, consultationToOrderInput, getConsultation, getConsultationRiskText, listConsultations, sendQuoteForConsultation, type ConsultationRecord } from '../../services/consultationService';
 import { listTestAccounts } from '../../services/accountDirectory';
 import { listFeedPosts } from '../../services/feedService';
 import { evaluateMessageRisk, fetchConversation, getConversation, getConversationForOrder, saveLocalConversation, sendMessage, submitOrderReport } from '../../services/messageService';
@@ -27,9 +28,12 @@ const threadPrefsKey = 'message-thread-prefs-v1';
 
 export function MessagesPage() {
   const { orderId } = useParams();
-  const { orders, session } = useAppData();
+  const navigate = useNavigate();
+  const { orders, session, createOrder } = useAppData();
+  const [consultationVersion, setConsultationVersion] = useState(0);
   const [threadPrefs, setThreadPrefs] = useState<ThreadPrefs>(() => loadThreadPrefs());
   const activeOrder = useMemo(() => (orderId ? orders.find((order) => order.id === orderId) : undefined), [orderId, orders]);
+  const activeConsultation = useMemo(() => (!activeOrder && orderId ? getConsultation(orderId) : null), [activeOrder, consultationVersion, orderId]);
   const activePost = useMemo(() => findPostForOrder(activeOrder, listFeedPosts()), [activeOrder]);
   const [draft, setDraft] = useState('');
   const [conversation, setConversation] = useState<Conversation>(() => getConversation());
@@ -38,10 +42,10 @@ export function MessagesPage() {
   const [sendBlocked, setSendBlocked] = useState(false);
   const risk = useMemo(() => evaluateMessageRisk(draft), [draft]);
   const isMediumRiskWaiting = risk.level === 'medium' && !allowMediumRisk;
-  const activeThreadId = activeOrder ? getThreadId(activeOrder.id) : '';
+  const activeThreadId = activeOrder ? getThreadId(activeOrder.id) : activeConsultation ? getThreadId(activeConsultation.id) : '';
   const pinned = activeThreadId ? threadPrefs.pinnedIds.includes(activeThreadId) : false;
   const messagesBasePath = session?.role === 'companion' ? '/companion/messages' : '/consumer/messages';
-  const otherProfile = activeOrder ? getOtherParticipant(activeOrder, activePost, session?.role) : null;
+  const otherProfile = activeOrder ? getOtherParticipant(activeOrder, activePost, session?.role) : activeConsultation ? getOtherParticipantForConsultation(activeConsultation, session?.role) : null;
   const otherProfileUrl = otherProfile?.profileUrl ?? '/consumer/companions';
 
   useEffect(() => {
@@ -49,15 +53,21 @@ export function MessagesPage() {
   }, [threadPrefs]);
 
   useEffect(() => {
+    if (!activeOrder && !activeConsultation) return () => undefined;
+    if (activeConsultation) {
+      setConversation(createConversationFromConsultation(activeConsultation));
+      return () => undefined;
+    }
     if (!activeOrder) return () => undefined;
+    const order = activeOrder;
     let mounted = true;
-    fetchConversation(activeOrder.id).then((nextConversation) => {
+    fetchConversation(order.id).then((nextConversation) => {
       if (mounted) {
         setConversation({
           ...nextConversation,
-          id: nextConversation.id || `local-conversation-${activeOrder.id}`,
-          orderId: activeOrder.id,
-          orderNo: activeOrder.orderNo,
+          id: nextConversation.id || `local-conversation-${order.id}`,
+          orderId: order.id,
+          orderNo: order.orderNo,
         });
       }
     });
@@ -65,7 +75,7 @@ export function MessagesPage() {
     return () => {
       mounted = false;
     };
-  }, [activeOrder]);
+  }, [activeConsultation, activeOrder]);
 
   function updatePrefs(updater: (current: ThreadPrefs) => ThreadPrefs) {
     setThreadPrefs((current) => normalizeThreadPrefs(updater(current)));
@@ -106,10 +116,10 @@ export function MessagesPage() {
   }
 
   if (!orderId) {
-    return <MessageThreadList orders={orders} prefs={threadPrefs} sessionRole={session?.role} basePath={messagesBasePath} onUpdatePrefs={updatePrefs} />;
+    return <MessageThreadList orders={orders} consultations={listConsultations(session)} prefs={threadPrefs} sessionRole={session?.role} basePath={messagesBasePath} onUpdatePrefs={updatePrefs} />;
   }
 
-  if (!activeOrder) {
+  if (!activeOrder && !activeConsultation) {
     return (
       <div className="grid min-h-dvh place-items-center pp-page px-6 text-center">
         <div>
@@ -123,6 +133,14 @@ export function MessagesPage() {
   }
 
   const riskKeywords = risk.hits.map((hit) => hit.keyword).join('、');
+  const activeTitle = activeOrder?.title ?? activeConsultation?.requestCard.packageName ?? '咨询报价';
+  const activeSubtitle = activeOrder
+    ? `${activeOrder.companion} · ${activeOrder.dateLabel ?? activeOrder.time} ${activeOrder.timeLabel ?? ''}`
+    : activeConsultation
+      ? `${activeConsultation.photographerName} · ${activeConsultation.requestCard.date} ${activeConsultation.requestCard.timeRange}`
+      : '';
+  const activeAmount = activeOrder ? activeOrder.amountCents : activeConsultation?.quote?.totalCents;
+  const activeStatusText = activeOrder?.statusText ?? (activeConsultation?.status === 'quoted' ? '已报价' : activeConsultation?.status === 'closed' ? '已关闭' : '咨询中');
 
   return (
     <div className="flex min-h-dvh flex-col pp-page">
@@ -132,7 +150,7 @@ export function MessagesPage() {
             <ChevronLeft size={20} />
           </Link>
           <div className="min-w-0 flex-1 text-center">
-            <h1 className="truncate text-base font-bold text-[#3f302c]">订单沟通</h1>
+            <h1 className="truncate text-base font-bold text-[#3f302c]">{activeConsultation ? '咨询沟通' : '订单沟通'}</h1>
             <p className="mt-0.5 truncate text-xs text-[#8f8078]">{conversation.orderNo}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -156,7 +174,7 @@ export function MessagesPage() {
               aria-label="举报"
               onClick={() => {
                 setReportSent(true);
-                void submitOrderReport(activeOrder.id);
+                if (activeOrder) void submitOrderReport(activeOrder.id);
               }}
               type="button"
             >
@@ -170,17 +188,36 @@ export function MessagesPage() {
       <section className="border-b border-[#eadfd8] bg-white/72 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-[#a99b94]">{activeOrder.orderNo}</p>
-            <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{activeOrder.title}</h2>
+            <p className="text-xs font-semibold text-[#a99b94]">{activeOrder?.orderNo ?? activeConsultation?.id}</p>
+            <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{activeTitle}</h2>
             <p className="mt-1 truncate text-xs text-[#8f8078]">
-              {activeOrder.companion} · {activeOrder.dateLabel ?? activeOrder.time} {activeOrder.timeLabel ?? ''}
+              {activeSubtitle}
             </p>
           </div>
           <div className="shrink-0 text-right">
-            <p className="text-sm font-bold text-[#3f302c]">{formatMoney(activeOrder.amountCents)}</p>
-            <p className="mt-1 text-xs text-[#a99b94]">{activeOrder.statusText}</p>
+            <p className="text-sm font-bold text-[#3f302c]">{activeAmount ? formatMoney(activeAmount) : '待报价'}</p>
+            <p className="mt-1 text-xs text-[#a99b94]">{activeStatusText}</p>
           </div>
         </div>
+        {activeConsultation ? (
+          <ConsultationActionPanel
+            consultation={activeConsultation}
+            sessionRole={session?.role}
+            onQuote={() => {
+              const post = listFeedPosts().find((item) => item.companion.id === activeConsultation.photographerId);
+              const next = sendQuoteForConsultation(activeConsultation.id, post?.companion);
+              setConsultationVersion((value) => value + 1);
+              if (next) setConversation(createConversationFromConsultation(next));
+            }}
+            onAccept={() => {
+              const input = consultationToOrderInput(activeConsultation);
+              if (!input) return;
+              const order = createOrder(input);
+              closeConsultation(activeConsultation.id);
+              navigate(`/consumer/messages/${order.id}`);
+            }}
+          />
+        ) : null}
       </section>
 
       <section className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
@@ -194,7 +231,7 @@ export function MessagesPage() {
           return (
             <div key={message.id} className={`flex items-end gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
               {!mine ? (
-                <Link to={otherProfileUrl} className="shrink-0" aria-label={`查看${otherProfile?.name ?? activeOrder.companion}主页`}>
+                <Link to={otherProfileUrl} className="shrink-0" aria-label={`查看${otherProfile?.name ?? activeOrder?.companion ?? '对方'}主页`}>
                   {otherProfile?.avatar ? (
                     <img className="h-8 w-8 rounded-full object-cover ring-1 ring-[#eadfd8]" src={otherProfile.avatar} alt={otherProfile.name} />
                   ) : (
@@ -269,12 +306,14 @@ export function MessagesPage() {
 
 function MessageThreadList({
   orders,
+  consultations,
   prefs,
   sessionRole,
   basePath,
   onUpdatePrefs,
 }: {
   orders: ReturnType<typeof useAppData>['orders'];
+  consultations: ConsultationRecord[];
   prefs: ThreadPrefs;
   sessionRole?: string;
   basePath: string;
@@ -287,7 +326,7 @@ function MessageThreadList({
     () => [...orders].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()),
     [orders],
   );
-  const threads = useMemo(() => buildMessageThreads(sortedOrders, posts, sessionRole), [posts, sessionRole, sortedOrders]);
+  const threads = useMemo(() => [...buildConsultationThreads(consultations, sessionRole), ...buildMessageThreads(sortedOrders, posts, sessionRole)], [consultations, posts, sessionRole, sortedOrders]);
   const visibleThreads = useMemo(
     () =>
       threads
@@ -351,7 +390,7 @@ function MessageThreadList({
           const isOpen = openActionThreadId === thread.id;
           const isUnread = prefs.unreadIds.includes(thread.id);
           const isPinned = prefs.pinnedIds.includes(thread.id);
-          const targetOrderId = thread.order?.id ?? sortedOrders[0]?.id;
+          const targetOrderId = thread.order?.id ?? thread.consultation?.id ?? sortedOrders[0]?.id;
           const translateX = swipe?.id === thread.id ? Math.min(0, Math.max(-210, swipe.deltaX)) : isOpen ? -210 : 0;
 
           return (
@@ -418,6 +457,7 @@ function MessageThreadList({
 type MessageThread = {
   id: string;
   order?: AppOrder;
+  consultation?: ConsultationRecord;
   name: string;
   avatar?: string;
   lastMessage: string;
@@ -427,11 +467,97 @@ type MessageThread = {
   profileUrl: string;
 };
 
+function ConsultationActionPanel({
+  consultation,
+  sessionRole,
+  onQuote,
+  onAccept,
+}: {
+  consultation: ConsultationRecord;
+  sessionRole?: string;
+  onQuote: () => void;
+  onAccept: () => void;
+}) {
+  return (
+    <div className="mt-3 rounded-[14px] bg-[#fff7df] p-3 text-xs font-semibold leading-5 text-[#8a5a12] ring-1 ring-[#f2dfaa]">
+      <p className="font-black">需求卡</p>
+      <p className="mt-1">
+        {consultation.requestCard.date} {consultation.requestCard.timeRange} · {consultation.requestCard.place} · {consultation.requestCard.peopleCount} 人 · {consultation.requestCard.packageName}
+      </p>
+      <p className="mt-1">{getConsultationRiskText(consultation)}</p>
+      {consultation.quote ? (
+        <div className="mt-2 rounded-[10px] bg-white/70 p-2 text-[#3f302c]">
+          <p className="font-black">摄影师报价 {formatMoney(consultation.quote.totalCents)}</p>
+          <p className="mt-1">定金 {formatMoney(consultation.quote.depositCents)} · 尾款 {formatMoney(consultation.quote.balanceCents)} 拍摄前托管</p>
+          {consultation.quote.addOnLines.length ? <p className="mt-1 text-[#8f8078]">{consultation.quote.addOnLines.join(' / ')}</p> : null}
+        </div>
+      ) : null}
+      {sessionRole === 'companion' && consultation.status === 'consulting' ? (
+        <button className="mt-3 h-10 w-full rounded-full bg-[#3f302c] text-sm font-black text-white" onClick={onQuote} type="button">
+          发送报价
+        </button>
+      ) : null}
+      {sessionRole !== 'companion' && consultation.status === 'quoted' ? (
+        <button className="mt-3 h-10 w-full rounded-full bg-[#e85d75] text-sm font-black text-white" onClick={onAccept} type="button">
+          接受报价并支付定金
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function buildMessageThreads(orders: AppOrder[], posts: FeedPost[], sessionRole?: string): MessageThread[] {
   return orders.map((order, index) => {
     const post = findPostForOrder(order, posts);
     return createThreadFromOrder(order, post, index, sessionRole);
   });
+}
+
+function buildConsultationThreads(consultations: ConsultationRecord[], sessionRole?: string): MessageThread[] {
+  return consultations.map((consultation, index) => {
+    const time = demoThreadTimes[index % demoThreadTimes.length];
+    const participant = getOtherParticipantForConsultation(consultation, sessionRole);
+    return {
+      id: getThreadId(consultation.id),
+      consultation,
+      name: participant.name,
+      avatar: participant.avatar,
+      lastMessage: consultation.quote ? `报价 ${formatMoney(consultation.quote.totalCents)}，定金 ${formatMoney(consultation.quote.depositCents)}` : '已提交需求卡，等待摄影师报价',
+      orderInfo: `${consultation.id} · ${consultation.status === 'quoted' ? '已报价' : consultation.status === 'closed' ? '已关闭' : '咨询中'} · ${consultation.requestCard.packageName}`,
+      dateLabel: time.date,
+      timeLabel: time.time,
+      profileUrl: participant.profileUrl,
+    };
+  });
+}
+
+function createConversationFromConsultation(consultation: ConsultationRecord): Conversation {
+  const messages = [
+    {
+      id: `${consultation.id}-request`,
+      from: 'user' as const,
+      text: `我想咨询 ${consultation.requestCard.packageName}，时间 ${consultation.requestCard.date} ${consultation.requestCard.timeRange}，地点 ${consultation.requestCard.place}。${consultation.requestCard.note || ''}`,
+      sentAt: consultation.createdAt,
+      riskStatus: 'clean' as const,
+    },
+    ...(consultation.quote
+      ? [{
+        id: `${consultation.id}-quote`,
+        from: 'companion' as const,
+        text: `我根据需求卡报价 ${formatMoney(consultation.quote.totalCents)}，定金 ${formatMoney(consultation.quote.depositCents)}，尾款 ${formatMoney(consultation.quote.balanceCents)} 拍摄前托管。`,
+        sentAt: consultation.quote.createdAt,
+        riskStatus: 'clean' as const,
+      }]
+      : []),
+  ];
+  return {
+    id: `local-conversation-${consultation.id}`,
+    orderId: consultation.id,
+    orderNo: '咨询会话',
+    status: 'active',
+    safetyNotice: '咨询阶段请在平台内沟通，不交换联系方式，不私下转账。',
+    messages,
+  };
 }
 
 function createThreadFromOrder(order: AppOrder, post: FeedPost | undefined, index: number, sessionRole?: string): MessageThread {
@@ -473,6 +599,21 @@ function getOtherParticipant(order: AppOrder, post: FeedPost | undefined, sessio
     name: order.companion,
     avatar: post?.companion.avatar || post?.companion.photo || post?.images[0]?.url,
     profileUrl: `/consumer/photographer/${post?.companion.id || order.companionId}`,
+  };
+}
+
+function getOtherParticipantForConsultation(consultation: ConsultationRecord, sessionRole?: string) {
+  if (sessionRole === 'companion') {
+    return {
+      name: consultation.creatorName || consultation.creatorPhone || '咨询创作者',
+      avatar: undefined,
+      profileUrl: consultation.creatorId ? `/consumer/creator/${consultation.creatorId}` : '/consumer/creators',
+    };
+  }
+  return {
+    name: consultation.photographerName,
+    avatar: consultation.photographerAvatar,
+    profileUrl: `/consumer/photographer/${consultation.photographerId}`,
   };
 }
 

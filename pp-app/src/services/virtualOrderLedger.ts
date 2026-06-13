@@ -52,6 +52,12 @@ export function updateLedgerOrderStatus(orderId: string, status: OrderStatus) {
   return nextOrders.find((order) => order.id === orderId) ?? null;
 }
 
+export function updateLedgerOrderFunding(orderId: string, patch: Partial<Pick<AppOrder, 'balanceStatus' | 'fundsStatus' | 'settlementStatus'>>) {
+  const nextOrders = readLedgerOrders().map((order) => (order.id === orderId ? { ...order, ...patch } : order));
+  writeLedgerOrders(nextOrders);
+  return nextOrders.find((order) => order.id === orderId) ?? null;
+}
+
 export function upsertLedgerOrder(order: AppOrder) {
   const orders = readLedgerOrders();
   writeLedgerOrders([order, ...orders.filter((item) => item.id !== order.id)]);

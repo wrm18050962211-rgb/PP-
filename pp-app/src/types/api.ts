@@ -303,6 +303,14 @@ export type AppOrder = {
   durationMinutes?: number;
   durationLabel?: string;
   addOns?: OrderAddOnInput[];
+  consultationId?: string;
+  quoteId?: string;
+  depositCents?: number;
+  balanceCents?: number;
+  depositStatus?: 'unpaid' | 'paid' | 'refunded' | 'forfeited';
+  balanceStatus?: 'unpaid' | 'paid' | 'refunded';
+  fundsStatus?: 'none' | 'deposit_escrowed' | 'full_escrowed' | 'frozen' | 'settled' | 'refunded';
+  settlementStatus?: SettlementStatus;
   createdAt: string;
   steps: string[];
   currentStep: number;
@@ -335,6 +343,14 @@ export type CreateOrderInput = {
   durationMinutes: number;
   durationLabel: string;
   addOns: OrderAddOnInput[];
+  consultationId?: string;
+  quoteId?: string;
+  depositCents?: number;
+  balanceCents?: number;
+  depositStatus?: 'unpaid' | 'paid' | 'refunded' | 'forfeited';
+  balanceStatus?: 'unpaid' | 'paid' | 'refunded';
+  fundsStatus?: 'none' | 'deposit_escrowed' | 'full_escrowed' | 'frozen' | 'settled' | 'refunded';
+  settlementStatus?: SettlementStatus;
 };
 
 export type Message = {

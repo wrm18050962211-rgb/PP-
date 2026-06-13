@@ -9,7 +9,7 @@ import {
 import { fetchAuthSession } from '../services/authService';
 import { isApiEnabled } from '../services/apiClient';
 import { readDomainJson, writeDomainJson } from '../services/scopedStorage';
-import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderStatus } from '../services/virtualOrderLedger';
+import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderFunding, updateLedgerOrderStatus } from '../services/virtualOrderLedger';
 import { defaultBookingSettings } from '../data/bookingSettings';
 import type { AppOrder, CompanionApplication, CompanionBookingSettings, PublishedWorkDraft } from '../types/domain';
 import type { AuthSession, UserRole } from '../types/api';
@@ -121,6 +121,12 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
               }
             : order,
         );
+        setOrders(nextOrders);
+        persist({ orders: nextOrders });
+      },
+      updateOrderFunding: (orderId, patch) => {
+        const ledgerOrder = updateLedgerOrderFunding(orderId, patch);
+        const nextOrders = orders.map((order) => (order.id === orderId ? ledgerOrder ?? { ...order, ...patch } : order));
         setOrders(nextOrders);
         persist({ orders: nextOrders });
       },

@@ -1,8 +1,10 @@
-import { ArrowLeft, CalendarDays, MapPin, MessageCircle, Star, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarDays, MapPin, MessageCircle, Star } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
+import { ConsultationRequestModal } from './ConsultationRequestModal';
+import { createDefaultPackageSettings, formatCents } from '../../services/companionPackageService';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
 import { getFollowerCountForPerson, getPostLikeCount } from '../../services/userCollectionService';
@@ -11,8 +13,10 @@ import type { FeedPost } from '../../types/api';
 export function PhotographerProfilePage() {
   const { photographerId } = useParams();
   const navigate = useNavigate();
-  const { orders } = useAppData();
+  const { orders, session } = useAppData();
   const [reviewsOpen, setReviewsOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [consultOpen, setConsultOpen] = useState(false);
   const posts = listFeedPosts();
   const photographerPosts = posts.filter((post) => post.companion.id === photographerId);
   const profilePost = photographerPosts[0] || posts[0];
@@ -31,6 +35,7 @@ export function PhotographerProfilePage() {
   const followerCount = getFollowerCountForPerson(`photographer-${photographer.id}`, posts);
   const ratingDistribution = buildRatingDistribution(photographer.ratingCount, photographer.ratingAvg);
   const reviews = buildPhotographerReviews(photographer, works);
+  const packageSettings = createDefaultPackageSettings(photographer);
 
   return (
     <div className="min-h-dvh bg-[#050505] pb-24 text-white">
@@ -63,17 +68,43 @@ export function PhotographerProfilePage() {
           </p>
         </div>
 
-        <div className="mt-4 grid grid-cols-[1fr_1fr_40px] gap-2">
+        <div className="mt-4 grid grid-cols-[1fr_1fr] gap-2">
           <Link className="flex h-10 items-center justify-center rounded-[6px] bg-[#4d5dff] text-sm font-black text-white" to={`/consumer/post/${profilePost.id}`}>
             看作品
           </Link>
-          <Link className="flex h-10 items-center justify-center rounded-[6px] bg-white/12 text-sm font-black text-white" to="/consumer/messages">
-            发消息
-          </Link>
-          <Link className="grid h-10 place-items-center rounded-[6px] bg-white/12 text-white" to={`/consumer/checkout/${profilePost.id}`} aria-label="预约">
-            <UserRound size={18} />
-          </Link>
+          <button className="flex h-10 items-center justify-center rounded-[6px] bg-white/12 text-sm font-black text-white" onClick={() => setConsultOpen(true)} type="button">
+            咨询档期/报价
+          </button>
         </div>
+      </section>
+
+      <section className="mx-4 mb-4 rounded-[10px] bg-white/[0.08] p-3 ring-1 ring-white/10">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-black">价格预期</h2>
+          <button className="text-xs font-black text-white/58" onClick={() => setRulesOpen((value) => !value)} type="button">
+            {rulesOpen ? '收起规则' : '查看完整规则'}
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold">
+          <PriceChip label="起拍价" value={`${formatCents(packageSettings.packages[0].basePriceCents)} / ${Math.round(packageSettings.packages[0].durationMinutes / 60)}小时`} />
+          <PriceChip label="定金" value={`${formatCents(packageSettings.packages[0].depositCents)} 锁档期`} />
+          <PriceChip label="半天" value={formatCents(packageSettings.packages[1].basePriceCents)} />
+          <PriceChip label="全天" value={formatCents(packageSettings.packages[2].basePriceCents)} />
+          <PriceChip label="多人加价" value={`+${formatCents(packageSettings.addOns.extraPersonPerHourCents)} /人/小时`} />
+          <PriceChip label="修图" value={`免费 ${packageSettings.packages[0].includedRetouchedCount} 张，额外 ${formatCents(packageSettings.addOns.retouchPerImageCents)}/张`} />
+        </div>
+        <p className="mt-3 text-[11px] font-semibold leading-5 text-white/50">交通/门票由创作者承担；高温、夜间、远距离、特殊设备可能加价。</p>
+        {rulesOpen ? (
+          <div className="mt-3 space-y-2 border-t border-white/10 pt-3 text-xs font-semibold leading-5 text-white/64">
+            <RuleLine label="可拍时间" value={packageSettings.rules.availableTimeRanges} />
+            <RuleLine label="改期规则" value={packageSettings.rules.reschedulePolicy} />
+            <RuleLine label="取消规则" value={packageSettings.rules.cancellationPolicy} />
+            <RuleLine label="天气规则" value={packageSettings.rules.weatherPolicy} />
+            <RuleLine label="客片发布" value={packageSettings.rules.publicationPolicy} />
+            <RuleLine label="不接范围" value={packageSettings.rules.excludedScenes} />
+            <RuleLine label="交付规则" value={packageSettings.rules.deliveryPolicy} />
+          </div>
+        ) : null}
       </section>
 
       <section className="mx-4 mb-4 rounded-[10px] bg-white/[0.06] p-3 ring-1 ring-white/8">
@@ -111,7 +142,36 @@ export function PhotographerProfilePage() {
           onClose={() => setReviewsOpen(false)}
         />
       ) : null}
+      {consultOpen ? (
+        <ConsultationRequestModal
+          post={profilePost}
+          session={session}
+          onClose={() => setConsultOpen(false)}
+          onSubmitted={(id) => {
+            setConsultOpen(false);
+            navigate(`/consumer/messages/${id}`);
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function PriceChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[8px] bg-black/24 p-2">
+      <p className="text-white/42">{label}</p>
+      <p className="mt-1 text-white">{value}</p>
+    </div>
+  );
+}
+
+function RuleLine({ label, value }: { label: string; value: string }) {
+  return (
+    <p>
+      <span className="mr-2 font-black text-white/88">{label}</span>
+      {value}
+    </p>
   );
 }
 
