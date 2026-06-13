@@ -61,7 +61,11 @@ function readLedgerOrders(): AppOrder[] {
   if (typeof localStorage === 'undefined') return seedLedgerOrders();
   try {
     const raw = localStorage.getItem(ledgerStorageKey);
-    if (raw) return JSON.parse(raw) as AppOrder[];
+    if (raw) {
+      const orders = mergeVirtualTransactionOrders(JSON.parse(raw) as AppOrder[]);
+      writeLedgerOrders(orders);
+      return orders;
+    }
     const seeded = seedLedgerOrders();
     writeLedgerOrders(seeded);
     return seeded;
@@ -82,7 +86,7 @@ function seedLedgerOrders(): AppOrder[] {
   const posts = listFeedPosts();
   const seedOrders = listSeedOrders();
 
-  return seedOrders.map((order, index) => {
+  const mappedSeedOrders = seedOrders.map((order, index) => {
     const creator = creatorAccounts[index % creatorAccounts.length];
     const photographer =
       photographerAccounts.find((account) => account.companionId === order.companionId) ??
@@ -99,6 +103,54 @@ function seedLedgerOrders(): AppOrder[] {
       companionPhone: photographer?.phone,
     };
   });
+
+  return mergeVirtualTransactionOrders(mappedSeedOrders);
+}
+
+function mergeVirtualTransactionOrders(orders: AppOrder[]) {
+  const posts = listFeedPosts().filter((post) => post.id.startsWith('virtual-trade-post-'));
+  const accounts = listTestAccounts();
+  const nextOrders = posts.map((post, index): AppOrder => {
+    const creator = accounts.find((account) => account.role === 'consumer' && (account.creatorId === post.creator?.id || account.phone === post.creator?.phone));
+    const photographer = accounts.find((account) => account.role === 'companion' && account.companionId === post.companion.id);
+    const amountCents = [48900, 32900, 52900, 39900][index] ?? 39900;
+    const dateLabels = ['今天', '昨天', '6月11日', '6月10日'];
+    const timeLabels = ['17:30', '15:30', '19:30', '10:00'];
+    const steps = getOrderSteps('completed');
+
+    return {
+      id: `virtual-trade-order-${index + 1}`,
+      orderNo: `PPV2606${String(index + 1).padStart(4, '0')}`,
+      status: 'completed',
+      statusText: orderStatusText.completed,
+      title: post.activity,
+      time: `${dateLabels[index] ?? '今天'} ${timeLabels[index] ?? '12:00'}`,
+      place: post.locationName || post.location,
+      amountCents,
+      amountText: `¥${Math.round(amountCents / 100)}`,
+      companion: post.companion.name,
+      companionId: post.companion.id,
+      creatorId: post.creator?.id || creator?.creatorId,
+      creatorPhone: post.creator?.phone || creator?.phone,
+      creatorName: post.creator?.name || creator?.name,
+      companionPhone: photographer?.phone,
+      postId: post.id,
+      activityId: post.companion.activities[0]?.id || `virtual-trade-activity-${index + 1}`,
+      activityName: post.activity,
+      slotId: post.companion.slots[0]?.id || `virtual-trade-slot-${index + 1}`,
+      startAt: new Date(Date.UTC(2026, 5, 10 + index, 8 + index, 0, 0)).toISOString(),
+      endAt: new Date(Date.UTC(2026, 5, 10 + index, 10 + index, 0, 0)).toISOString(),
+      dateLabel: dateLabels[index] ?? '今天',
+      timeLabel: timeLabels[index] ?? '12:00',
+      durationMinutes: 120,
+      durationLabel: '2小时',
+      addOns: [],
+      createdAt: new Date(Date.UTC(2026, 5, 10 + index, 6, 0, 0)).toISOString(),
+      ...steps,
+    };
+  });
+
+  return [...nextOrders, ...orders.filter((order) => !order.id.startsWith('virtual-trade-order-'))];
 }
 
 function getOrderActor(companionId: string, session: AuthSession | null): OrderActor {

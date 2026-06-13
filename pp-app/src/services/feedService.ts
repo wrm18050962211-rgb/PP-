@@ -165,6 +165,7 @@ function getCaptionLead(caption?: string) {
 function getExtendedFeedPosts(): FeedPost[] {
   return [
   ...feedPosts,
+  ...createVirtualTransactionPosts(),
   ...createVirtualFeedPosts(),
   {
     ...feedPosts[0],
@@ -242,6 +243,97 @@ function getExtendedFeedPosts(): FeedPost[] {
     ],
   },
   ];
+}
+
+function createVirtualTransactionPosts(): FeedPost[] {
+  const trades = [
+    {
+      id: 'virtual-trade-post-1',
+      companion: companions[0],
+      creator: {
+        id: 'creator-00000000-0000-0000-0000-000000000701',
+        name: 'Creator 1',
+        avatar: feedPosts[0].images[1]?.url || feedPosts[0].images[0]?.url,
+        phone: '13910010001',
+        source: 'order',
+      },
+      location: '上海 · 武康路',
+      timeLabel: '订单成片 / 今天 17:30',
+      activity: 'Citywalk',
+      caption: 'Creator 1 和 Mori 完成的 Citywalk 成片，保留街角自然光、走动抓拍和低干扰沟通节奏。',
+      styleTags: ['订单成片', 'Citywalk', '自然光', '共同确认'],
+      images: [
+        image('virtual-trade-post-1-image-1', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 900, 1200, 1),
+        image('virtual-trade-post-1-image-2', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80', 900, 1200, 2),
+      ],
+    },
+    {
+      id: 'virtual-trade-post-2',
+      companion: companions[1],
+      creator: {
+        id: 'creator-00000000-0000-0000-0000-000000000702',
+        name: 'Creator 2',
+        avatar: feedPosts[1].images[1]?.url || feedPosts[1].images[0]?.url,
+        phone: '13910010002',
+        source: 'order',
+      },
+      location: '上海 · 巨鹿路',
+      timeLabel: '订单成片 / 昨天 15:30',
+      activity: '探店生活照',
+      caption: 'Creator 2 和 Nana 的探店订单成片，咖啡店窗边光、桌面层次和日常穿搭都已双方确认。',
+      styleTags: ['订单成片', '探店', '日常感', '共同确认'],
+      images: [
+        image('virtual-trade-post-2-image-1', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 900, 1200, 1),
+        image('virtual-trade-post-2-image-2', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 900, 1200, 2),
+      ],
+    },
+    {
+      id: 'virtual-trade-post-3',
+      companion: companions[2],
+      creator: {
+        id: 'creator-00000000-0000-0000-0000-000000000703',
+        name: 'Creator 3',
+        avatar: feedPosts[2].images[1]?.url || feedPosts[2].images[0]?.url,
+        phone: '13910010003',
+        source: 'order',
+      },
+      location: '上海 · 外滩',
+      timeLabel: '订单成片 / 6月11日 19:30',
+      activity: '夜景散步',
+      caption: 'Creator 3 和 Echo 的夜景散步订单成片，蓝调时刻、江边线条和补光人像已完成共同编辑。',
+      styleTags: ['订单成片', '夜景', '蓝调', '共同确认'],
+      images: [
+        image('virtual-trade-post-3-image-1', 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=1200&q=80', 1200, 800, 1),
+        image('virtual-trade-post-3-image-2', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=900&q=80', 900, 1200, 2),
+      ],
+    },
+    {
+      id: 'virtual-trade-post-4',
+      companion: companions[0],
+      creator: {
+        id: 'creator-00000000-0000-0000-0000-000000000704',
+        name: 'Creator 4',
+        avatar: feedPosts[0].images[0]?.url,
+        phone: '13910010004',
+        source: 'order',
+      },
+      location: '上海 · 安福路',
+      timeLabel: '订单成片 / 6月10日 10:00',
+      activity: '书店街拍',
+      caption: 'Creator 4 和 Mori 的安福路书店街拍，门窗、书店外立面和阴天柔光适合做主页作品。',
+      styleTags: ['订单成片', '街拍', '文艺', '共同确认'],
+      images: [
+        image('virtual-trade-post-4-image-1', 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80', 900, 1200, 1),
+        image('virtual-trade-post-4-image-2', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', 900, 1200, 2),
+      ],
+    },
+  ] satisfies FeedPost[];
+
+  return trades.map((post) => ({ ...post, city: '上海', locationName: post.location }));
+}
+
+function image(id: string, url: string, width: number, height: number, sortOrder: number) {
+  return { id, url, width, height, sortOrder, mediaKind: 'image' };
 }
 
 const virtualProfiles = [

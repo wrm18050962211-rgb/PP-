@@ -1058,6 +1058,7 @@ function normalizeStore(store) {
   next.workDraft = store.workDraft || { reviewStatus: 'draft', updatedAt: now() };
 
   if (seedVirtualData(next)) changed = true;
+  if (seedVirtualTradeData(next)) changed = true;
   normalizeCompanions(next);
   normalizePosts(next);
   normalizeOrders(next);
@@ -1306,6 +1307,167 @@ function seedVirtualData(store) {
       changed = true;
     }
   }
+  return changed;
+}
+
+function seedVirtualTradeData(store) {
+  let changed = false;
+  const trades = [
+    {
+      id: 'virtual-trade-post-1',
+      orderId: 'virtual-trade-order-1',
+      orderNo: 'PPV26060001',
+      companionId: 'companion-mori',
+      creatorId: 'creator-00000000-0000-0000-0000-000000000701',
+      creatorName: 'Creator 1',
+      creatorPhone: '13910010001',
+      location: '上海 · 武康路',
+      activity: 'Citywalk',
+      caption: 'Creator 1 and Mori completed this Citywalk order. The final work keeps natural street light and relaxed movement.',
+      styleTags: ['订单成片', 'Citywalk', '自然光', '共同确认'],
+      amountCents: 48900,
+      dateLabel: '今天',
+      timeLabel: '17:30',
+      images: [
+        ['virtual-trade-post-1-image-1', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 900, 1200],
+        ['virtual-trade-post-1-image-2', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80', 900, 1200],
+      ],
+    },
+    {
+      id: 'virtual-trade-post-2',
+      orderId: 'virtual-trade-order-2',
+      orderNo: 'PPV26060002',
+      companionId: 'virtual-companion-2',
+      creatorId: 'creator-00000000-0000-0000-0000-000000000702',
+      creatorName: 'Creator 2',
+      creatorPhone: '13910010002',
+      location: '上海 · 巨鹿路',
+      activity: '探店生活照',
+      caption: 'Creator 2 and Aki completed this cafe lifestyle shoot. Window light, table details, and daily outfit shots are confirmed by both sides.',
+      styleTags: ['订单成片', '探店', '日常感', '共同确认'],
+      amountCents: 32900,
+      dateLabel: '昨天',
+      timeLabel: '15:30',
+      images: [
+        ['virtual-trade-post-2-image-1', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 900, 1200],
+        ['virtual-trade-post-2-image-2', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 900, 1200],
+      ],
+    },
+    {
+      id: 'virtual-trade-post-3',
+      orderId: 'virtual-trade-order-3',
+      orderNo: 'PPV26060003',
+      companionId: 'virtual-companion-3',
+      creatorId: 'creator-00000000-0000-0000-0000-000000000703',
+      creatorName: 'Creator 3',
+      creatorPhone: '13910010003',
+      location: '上海 · 外滩',
+      activity: '夜景散步',
+      caption: 'Creator 3 and Mika completed this night walk order. Blue-hour skyline images and light-assisted portraits are jointly edited.',
+      styleTags: ['订单成片', '夜景', '蓝调', '共同确认'],
+      amountCents: 52900,
+      dateLabel: '6月11日',
+      timeLabel: '19:30',
+      images: [
+        ['virtual-trade-post-3-image-1', 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=1200&q=80', 1200, 800],
+        ['virtual-trade-post-3-image-2', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=900&q=80', 900, 1200],
+      ],
+    },
+    {
+      id: 'virtual-trade-post-4',
+      orderId: 'virtual-trade-order-4',
+      orderNo: 'PPV26060004',
+      companionId: 'companion-mori',
+      creatorId: 'creator-00000000-0000-0000-0000-000000000704',
+      creatorName: 'Creator 4',
+      creatorPhone: '13910010004',
+      location: '上海 · 安福路',
+      activity: '书店街拍',
+      caption: 'Creator 4 and Mori completed this bookstore street shoot. The final images use storefront lines and soft cloudy light.',
+      styleTags: ['订单成片', '街拍', '文艺', '共同确认'],
+      amountCents: 39900,
+      dateLabel: '6月10日',
+      timeLabel: '10:00',
+      images: [
+        ['virtual-trade-post-4-image-1', 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80', 900, 1200],
+        ['virtual-trade-post-4-image-2', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', 900, 1200],
+      ],
+    },
+  ];
+
+  for (const [index, trade] of trades.entries()) {
+    const companion = store.companions.find((item) => item.id === trade.companionId) || store.companions[0];
+    if (!companion) continue;
+
+    const postData = {
+      id: trade.id,
+      status: 'approved',
+      isFeedVisible: true,
+      city: '上海',
+      locationName: trade.location,
+      location: trade.location,
+      timeLabel: `订单成片 / ${trade.dateLabel} ${trade.timeLabel}`,
+      caption: trade.caption,
+      styleTags: trade.styleTags,
+      activity: trade.activity,
+      images: trade.images.map(([id, url, width, height], imageIndex) => ({ id, url, width, height, sortOrder: imageIndex + 1, mediaKind: 'image' })),
+      companion,
+      creator: {
+        id: trade.creatorId,
+        name: trade.creatorName,
+        phone: trade.creatorPhone,
+        avatar: trade.images[1]?.[1] || trade.images[0]?.[1],
+        source: 'order',
+      },
+    };
+    const postIndex = store.posts.findIndex((item) => item.id === trade.id);
+    if (postIndex < 0) {
+      store.posts.unshift(postData);
+      changed = true;
+    } else if (store.posts[postIndex].creator?.id !== trade.creatorId || store.posts[postIndex].images?.[0]?.url !== postData.images[0].url) {
+      store.posts[postIndex] = { ...store.posts[postIndex], ...postData };
+      changed = true;
+    }
+
+    const orderData = viewOrder({
+      id: trade.orderId,
+      orderNo: trade.orderNo,
+      status: 'completed',
+      title: trade.activity,
+      time: `${trade.dateLabel} ${trade.timeLabel}`,
+      place: trade.location,
+      amountCents: trade.amountCents,
+      companion: companion.name,
+      companionId: companion.id,
+      creatorId: trade.creatorId,
+      creatorPhone: trade.creatorPhone,
+      creatorName: trade.creatorName,
+      companionPhone: `1393003${String(index + 1).padStart(4, '0')}`,
+      postId: trade.id,
+      activityId: companion.activities?.[0]?.id || `virtual-trade-activity-${index + 1}`,
+      activityName: trade.activity,
+      slotId: companion.slots?.[0]?.id || `virtual-trade-slot-${index + 1}`,
+      startAt: new Date(Date.UTC(2026, 5, 10 + index, 8, 0, 0)).toISOString(),
+      endAt: new Date(Date.UTC(2026, 5, 10 + index, 10, 0, 0)).toISOString(),
+      dateLabel: trade.dateLabel,
+      timeLabel: trade.timeLabel,
+      durationMinutes: 120,
+      durationLabel: '2 hours',
+      addOns: [],
+      createdAt: new Date(Date.UTC(2026, 5, 10 + index, 6, 0, 0)).toISOString(),
+    });
+    const orderIndex = store.orders.findIndex((item) => item.id === trade.orderId);
+    if (orderIndex < 0) {
+      store.orders.unshift(orderData);
+      store.conversations[orderData.id] ||= createConversation(orderData);
+      changed = true;
+    } else if (store.orders[orderIndex].postId !== trade.id || store.orders[orderIndex].status !== 'completed') {
+      store.orders[orderIndex] = { ...store.orders[orderIndex], ...orderData };
+      store.conversations[orderData.id] ||= createConversation(orderData);
+      changed = true;
+    }
+  }
+
   return changed;
 }
 
