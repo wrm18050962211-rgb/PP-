@@ -218,7 +218,7 @@ function authSession(store) {
 
 function mockWechatLogin(store, body = {}) {
   const role = normalizeRole(body.role);
-  const session = createSession(store, role);
+  const session = createSession(store, role, null, { companionId: body.companionId });
   store.activeSession = session;
   return json(session, 200, true);
 }
@@ -254,19 +254,25 @@ function logout(store) {
   return json({ ok: true }, 200, true);
 }
 
-function createSession(store, role, existingUser = null) {
+function createSession(store, role, existingUser = null, options = {}) {
   const user = existingUser || store.activeSession?.user || ensureDemoUser(store, role);
+  const companionId = role === 'companion' ? resolveSessionCompanionId(store, options.companionId || store.activeSession?.companionId) : null;
   const session = {
     token: existingUser?.openId ? `wx-${role}-${existingUser.id}-session` : `local-${role}-session`,
     provider: existingUser?.openId ? 'wechat' : 'mock_wechat',
     role,
     roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
     user,
-    companionId: role === 'companion' ? store.companions[0]?.id || null : null,
+    companionId,
     adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
     loginAt: now(),
   };
   return session;
+}
+
+function resolveSessionCompanionId(store, requestedCompanionId) {
+  if (requestedCompanionId && store.companions.some((item) => item.id === requestedCompanionId)) return requestedCompanionId;
+  return store.companions[0]?.id || null;
 }
 
 function ensureActiveSession(store, fallbackRole = 'consumer') {
