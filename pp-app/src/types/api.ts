@@ -252,6 +252,13 @@ export type FeedPost = {
   lng?: number;
   images: PostImage[];
   companion: Companion;
+  creator?: {
+    id: string;
+    name: string;
+    avatar?: string;
+    phone?: string;
+    source: 'order' | 'creator_upload' | string;
+  };
 };
 
 export type MatchingCompanionItem = {

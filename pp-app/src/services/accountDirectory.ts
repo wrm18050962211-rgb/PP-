@@ -30,13 +30,12 @@ export function listTestAccounts(): TestAccountIdentity[] {
     basePhotographerMap.set(photographer.id, createPhotographerIdentity(post, buildPhone('1392002', basePhotographerMap.size + 1), photographer.name));
   });
 
-  const dualRoleIdentities = virtualPosts.flatMap((post, index): TestAccountIdentity[] => {
+  const virtualPhotographers = virtualPosts.map((post, index): TestAccountIdentity => {
     const phone = buildPhone('1393003', index + 1);
-    const name = post.companion.name;
-    return [createCreatorIdentity(post, phone, `${name} Creator`), createPhotographerIdentity(post, phone, name)];
+    return createPhotographerIdentity(post, phone, post.companion.name);
   });
 
-  return [...creatorOnly, ...basePhotographerMap.values(), ...dualRoleIdentities];
+  return [...creatorOnly, ...basePhotographerMap.values(), ...virtualPhotographers];
 }
 
 export function findTestAccountIdentitiesByPhone(phone: string) {

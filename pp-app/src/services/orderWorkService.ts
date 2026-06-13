@@ -78,6 +78,15 @@ export function orderWorkToFeedPost(record: OrderWorkRecord, order: AppOrder, se
     activity: order.activityName ?? order.title,
     styleTags: Array.from(new Set(['订单成片', '共同确认', ...seedPost.styleTags.slice(0, 2)])),
     images: images.length ? images : seedPost.images,
+    creator: order.creatorId
+      ? {
+          id: order.creatorId,
+          name: order.creatorName || order.creatorPhone || '预约用户',
+          avatar: seedPost.images[1]?.url || seedPost.images[0]?.url,
+          phone: order.creatorPhone,
+          source: 'order',
+        }
+      : undefined,
   };
 }
 

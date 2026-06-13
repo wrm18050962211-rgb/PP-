@@ -47,13 +47,13 @@ function PostDetailContent({ postId }: { postId?: string }) {
   }, [post]);
   const postTitle = getPostTitle(post);
   const photographer = post.companion;
-  const creator = buildCreator(post);
+  const visibleCreator = getVisibleCreator(post);
   const cover = post.images[0];
   const images = post.images;
   const activeMedia = images[activeImage] ?? cover;
   const isLandscape = getImageAspectRatio(activeMedia) >= 1;
   const mediaHeightClass = isLandscape ? (captionExpanded ? 'h-[44dvh]' : 'h-[58dvh]') : captionExpanded ? 'h-[56dvh]' : 'h-[66dvh]';
-  const baseComments = useMemo(() => buildComments(post, creator), [post, creator.avatar, creator.name]);
+  const baseComments = useMemo(() => buildComments(post, visibleCreator), [post, visibleCreator?.avatar, visibleCreator?.name]);
   const comments = useMemo(() => [...baseComments, ...localComments], [baseComments, localComments]);
   const [likeCount, setLikeCount] = useState(() => getPostLikeCount(post.id, collectionPosts));
   const shareCount = useMemo(() => formatMetric(260 + stableMetricSeed(`${post.id}-share`, 180)), [post.id]);
@@ -132,7 +132,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
         id: `local-comment-${Date.now()}`,
         role: 'consumer',
         name: '我',
-        avatar: creator.avatar,
+        avatar: visibleCreator?.avatar || photographer.avatar || photographer.photo,
         text: nextText,
       },
     ]);
@@ -142,11 +142,11 @@ function PostDetailContent({ postId }: { postId?: string }) {
   return (
     <div className="relative h-dvh overflow-hidden bg-black text-white">
       <header className="fixed inset-x-0 top-0 z-40 mx-auto max-w-md bg-black/96 px-3 py-2 text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
-        <div className="grid h-14 grid-cols-[30px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
+        <div className={`grid h-14 items-center gap-2 ${visibleCreator ? 'grid-cols-[30px_minmax(0,1fr)_minmax(0,1fr)]' : 'grid-cols-[30px_minmax(0,1fr)]'}`}>
           <Link to="/consumer" className="grid h-8 w-8 place-items-center text-white/88" aria-label="返回发现">
             <ArrowLeft size={22} />
           </Link>
-          <ProfileIdentityButton role="创作者" name={creator.name} avatar={creator.avatar} onClick={() => setDrawer('creator')} />
+          {visibleCreator ? <ProfileIdentityButton role="创作者" name={visibleCreator.name} avatar={visibleCreator.avatar} onClick={() => setDrawer('creator')} /> : null}
           <ProfileIdentityButton
             align="right"
             role="摄影师"
@@ -227,9 +227,11 @@ function PostDetailContent({ postId }: { postId?: string }) {
           <div className="mt-3">
             <h1 className="line-clamp-1 text-[14px] font-black leading-5 text-white">{postTitle}</h1>
             <p className={`mt-1 ${captionExpanded ? '' : 'line-clamp-1'} text-[13px] leading-5 text-white/84`}>
-              <button className="mr-1 font-black text-white" onClick={() => setDrawer('creator')}>
-                {creator.name}
-              </button>
+              {visibleCreator ? (
+                <button className="mr-1 font-black text-white" onClick={() => setDrawer('creator')}>
+                  {visibleCreator.name}
+                </button>
+              ) : null}
               {post.caption}
             </p>
             <button className="mt-1 text-xs font-semibold text-white/38" onClick={() => setCaptionExpanded((current) => !current)}>
@@ -249,24 +251,26 @@ function PostDetailContent({ postId }: { postId?: string }) {
 
       </main>
 
+      {visibleCreator ? (
       <ProfileDrawer
         open={drawer === 'creator'}
         side="left"
         title="创作者"
-        name={creator.name}
-        avatar={creator.avatar}
-        hero={creator.avatar}
-        meta={creator.meta}
+        name={visibleCreator.name}
+        avatar={visibleCreator.avatar}
+        hero={visibleCreator.avatar}
+        meta={visibleCreator.meta}
         tags={post.styleTags}
         onClose={() => setDrawer(null)}
       >
-        <Link className="flex h-12 items-center justify-center rounded-full bg-[#3f302c] text-sm font-black text-white" to={`/consumer/creator/${creator.id}`}>
+        <Link className="flex h-12 items-center justify-center rounded-full bg-[#3f302c] text-sm font-black text-white" to={`/consumer/creator/${visibleCreator.id}`}>
           查看创作者主页
         </Link>
         <Link className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]" to={`/consumer/companions?sameStyle=${post.id}`}>
           拍同款
         </Link>
       </ProfileDrawer>
+      ) : null}
 
       <ProfileDrawer
         open={drawer === 'photographer'}
@@ -475,15 +479,33 @@ export function buildCreator(post: FeedPost) {
   };
 }
 
-function buildComments(post: FeedPost, creator: ReturnType<typeof buildCreator>): Comment[] {
-  return [
-    {
+function getVisibleCreator(post: FeedPost): ReturnType<typeof buildCreator> | null {
+  if (post.creator) {
+    return {
+      id: post.creator.id,
+      name: post.creator.name,
+      avatar: post.creator.avatar || post.images[1]?.url || post.images[0]?.url || post.companion.avatar,
+      meta: `${post.city || '同城'} · ${post.creator.phone ? `手机号 ${post.creator.phone}` : '订单共同成片'}`,
+    };
+  }
+
+  if (post.companion.isVirtual) return null;
+  return buildCreator(post);
+}
+
+function buildComments(post: FeedPost, creator: ReturnType<typeof buildCreator> | null): Comment[] {
+  const creatorComment: Comment[] = creator
+    ? [{
       id: 'creator-comment',
       role: 'creator',
       name: creator.name,
       avatar: creator.avatar,
       text: '这组图的重点是自然走动和轻松表情，拍同款时可以保留街区光线和穿搭层次。',
-    },
+    }]
+    : [];
+
+  return [
+    ...creatorComment,
     {
       id: 'photographer-comment',
       role: 'photographer',
