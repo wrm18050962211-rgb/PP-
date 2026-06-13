@@ -2,8 +2,9 @@ import { mockConversation, seedOrders } from '../data/mockApi';
 import type { Conversation, Message } from '../types/api';
 import { blockedWords, evaluateMessageRisk, findMessageRiskWords } from '../utils/messageRisk';
 import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { readScopedJson, writeScopedJson } from './scopedStorage';
 
-const localConversationStorageKey = 'pp-order-conversations-v1';
+const localConversationStorageKey = 'order-conversations-v1';
 
 export function getConversation(): Conversation {
   return mockConversation;
@@ -76,12 +77,10 @@ export async function submitOrderReport(orderId: string, description = '用户�
 }
 
 export function saveLocalConversation(conversation: Conversation) {
-  if (typeof localStorage === 'undefined') return;
-
   try {
     const conversations = readLocalConversationMessages();
     conversations[conversation.orderId] = conversation.messages;
-    localStorage.setItem(localConversationStorageKey, JSON.stringify(conversations));
+    writeScopedJson(localConversationStorageKey, conversations);
   } catch {
     // Local persistence is best-effort in MVP mode.
   }
@@ -111,12 +110,5 @@ function getLocalConversation(orderId?: string): Conversation {
 }
 
 function readLocalConversationMessages(): Record<string, Message[]> {
-  if (typeof localStorage === 'undefined') return {};
-
-  try {
-    const raw = localStorage.getItem(localConversationStorageKey);
-    return raw ? (JSON.parse(raw) as Record<string, Message[]>) : {};
-  } catch {
-    return {};
-  }
+  return readScopedJson<Record<string, Message[]>>(localConversationStorageKey, {});
 }

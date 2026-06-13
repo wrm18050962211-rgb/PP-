@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { listFeedPosts } from '../../services/feedService';
 import { evaluateMessageRisk, fetchConversation, getConversation, saveLocalConversation, sendMessage, submitOrderReport } from '../../services/messageService';
+import { readScopedJson, writeScopedJson } from '../../services/scopedStorage';
 import type { AppOrder, Conversation, FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
 
@@ -21,7 +22,7 @@ type SwipeState = {
 } | null;
 
 const emptyPrefs: ThreadPrefs = { pinnedIds: [], unreadIds: [], hiddenIds: [], deletedIds: [] };
-const threadPrefsKey = 'pp-message-thread-prefs-v1';
+const threadPrefsKey = 'message-thread-prefs-v1';
 
 export function MessagesPage() {
   const { orderId } = useParams();
@@ -539,16 +540,13 @@ function normalizeThreadPrefs(prefs: ThreadPrefs): ThreadPrefs {
 }
 
 function loadThreadPrefs(): ThreadPrefs {
-  if (typeof localStorage === 'undefined') return emptyPrefs;
   try {
-    const raw = localStorage.getItem(threadPrefsKey);
-    return raw ? normalizeThreadPrefs({ ...emptyPrefs, ...(JSON.parse(raw) as Partial<ThreadPrefs>) }) : emptyPrefs;
+    return normalizeThreadPrefs({ ...emptyPrefs, ...readScopedJson<Partial<ThreadPrefs>>(threadPrefsKey, {}) });
   } catch {
     return emptyPrefs;
   }
 }
 
 function saveThreadPrefs(prefs: ThreadPrefs) {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(threadPrefsKey, JSON.stringify(normalizeThreadPrefs(prefs)));
+  writeScopedJson(threadPrefsKey, normalizeThreadPrefs(prefs));
 }

@@ -59,7 +59,7 @@ export function CompanionStudio() {
   const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
   const canUseCreatorRole = accountHasRole('consumer');
   const posts = listFeedPosts();
-  const ownProfile = buildPhotographerProfileSummary(posts.find((post) => post.companion.id === session?.companionId) ?? posts[0]);
+  const ownProfile = buildPhotographerProfileSummary(posts.find((post) => post.companion.id === session?.companionId), session, posts[0]);
   const collectionSummary = getCollectionSummary(posts);
   const reviewText = application.reviewStatus === '已通过' ? '已认证' : application.reviewStatus;
   const draftText = workDraft.reviewStatus === '草稿' ? '待发布' : workDraft.reviewStatus;
@@ -203,13 +203,24 @@ function MenuSection({ items, className = '' }: { items: MenuItem[]; className?:
   );
 }
 
-function buildPhotographerProfileSummary(post: FeedPost) {
-  const photographer = post.companion;
+function buildPhotographerProfileSummary(post: FeedPost | undefined, session: ReturnType<typeof useAppData>['session'], fallbackPost: FeedPost) {
+  if (!post && session?.companionId) {
+    return {
+      to: `/consumer/photographer/${session.companionId}`,
+      name: session.user.nickname || '本地摄影师',
+      handle: `@${session.companionId.replace(/^companion-/, '').replace(/-/g, '')}`,
+      avatar: session.user.avatarUrl || fallbackPost.companion.avatar || fallbackPost.images[0]?.url,
+      bio: '本地注册的摄影师身份',
+    };
+  }
+
+  const profilePost = post ?? fallbackPost;
+  const photographer = profilePost.companion;
   return {
     to: `/consumer/photographer/${photographer.id}`,
     name: photographer.name,
     handle: `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`,
-    avatar: photographer.avatar || photographer.photo || post.images[0]?.url,
+    avatar: photographer.avatar || photographer.photo || profilePost.images[0]?.url,
     bio: photographer.bio || `${photographer.areas.slice(0, 2).join(' / ')} · ${photographer.activities[0]?.name || '摄影服务'}`,
   };
 }

@@ -28,6 +28,7 @@ import {
   type OrderWorkRecord,
   type WorkActor,
 } from '../../services/orderWorkService';
+import { readScopedJson, writeScopedJson } from '../../services/scopedStorage';
 import type { AppOrder, OrderStatus } from '../../types/domain';
 import type { FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
@@ -56,7 +57,7 @@ const statusMeta: Record<string, { label: string; tone: string }> = {
   refunding: { label: '退款中', tone: 'bg-rose-50 text-rose-700 ring-rose-100' },
 };
 
-const reviewStorageKey = 'pp-reviewed-orders';
+const reviewStorageKey = 'reviewed-orders-v1';
 
 export function OrdersPage() {
   const { orders, updateOrderStatus } = useAppData();
@@ -82,7 +83,7 @@ export function OrdersPage() {
   function submitReview(orderId: string) {
     const nextIds = Array.from(new Set([...reviewedOrderIds, orderId]));
     setReviewedOrderIds(nextIds);
-    localStorage.setItem(reviewStorageKey, JSON.stringify(nextIds));
+    writeScopedJson(reviewStorageKey, nextIds);
     setActiveAction(null);
   }
 
@@ -688,10 +689,5 @@ function parseDataUrlContentType(url: string) {
 }
 
 function loadReviewedOrderIds() {
-  try {
-    const raw = localStorage.getItem(reviewStorageKey);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
+  return readScopedJson<string[]>(reviewStorageKey, []);
 }

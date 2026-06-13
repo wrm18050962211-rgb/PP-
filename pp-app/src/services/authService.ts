@@ -177,13 +177,20 @@ export function addRoleToCurrentAccount(role: PublicRole) {
     role,
     roles: Array.from(new Set([...account.roles, role])),
     creatorId: role === 'consumer' ? account.creatorId || `creator-local-${account.phone}` : account.creatorId,
-    companionId: role === 'companion' ? account.companionId || 'companion-mori' : account.companionId,
+    companionId: role === 'companion' ? account.companionId || `companion-local-${account.phone}` : account.companionId,
     creatorName: role === 'consumer' ? account.creatorName || 'Demo Creator' : account.creatorName,
     photographerName: role === 'companion' ? account.photographerName || 'Demo Photographer' : account.photographerName,
   };
   localStorage.setItem(accountStorageKey, JSON.stringify(nextAccount));
   persistRole(role);
   return nextAccount;
+}
+
+export function getActiveAccountStorageScope(role: UserRole = readStoredRole()) {
+  const account = readAccount();
+  if (!account) return `guest:${role}`;
+  const identityId = role === 'companion' ? account.companionId || 'unregistered-companion' : account.creatorId || 'unregistered-creator';
+  return `${account.phone}:${role}:${identityId}`;
 }
 
 function readStoredRole(): UserRole {

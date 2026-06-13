@@ -8,13 +8,14 @@ import {
 } from '../services/companionService';
 import { fetchAuthSession } from '../services/authService';
 import { isApiEnabled } from '../services/apiClient';
+import { readScopedJson, writeScopedJson } from '../services/scopedStorage';
 import { defaultBookingSettings } from '../data/bookingSettings';
 import type { AppOrder, CompanionApplication, CompanionBookingSettings, PublishedWorkDraft } from '../types/domain';
 import type { AuthSession, UserRole } from '../types/api';
 import { getOrderSteps, orderStatusText } from '../utils/status';
 import { AppDataContext, type AppData } from './appDataContext';
 
-const storageKey = 'pp-app-data-v1';
+const storageKey = 'app-data-v1';
 const defaultApplication = getDefaultApplication();
 const defaultWorkDraft = getDefaultWorkDraft();
 const defaultOrders = listSeedOrders();
@@ -33,20 +34,30 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     fetchAuthSession().then((nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
+      const scopedInitial = loadInitialData(nextSession.role);
+      setOrders(scopedInitial.orders);
+      setApplication(scopedInitial.application);
+      setBookingSettings(scopedInitial.bookingSettings);
+      setWorkDraft(scopedInitial.workDraft);
       return refreshOrders(nextSession.role).then((serverOrders) => {
         if (!mounted || serverOrders.length === 0) return;
         setOrders(serverOrders);
-        persistSnapshot(serverOrders, initialDataRef.current);
+        persistSnapshot(serverOrders, initialDataRef.current, nextSession.role);
       });
     });
 
     function handleSessionChanged(event: Event) {
       const nextSession = (event as CustomEvent<AuthSession>).detail;
       setSession(nextSession);
+      const scopedInitial = loadInitialData(nextSession.role);
+      setOrders(scopedInitial.orders);
+      setApplication(scopedInitial.application);
+      setBookingSettings(scopedInitial.bookingSettings);
+      setWorkDraft(scopedInitial.workDraft);
       void refreshOrders(nextSession.role).then((serverOrders) => {
         if (serverOrders.length === 0) return;
         setOrders(serverOrders);
-        persistSnapshot(serverOrders, initialDataRef.current);
+        persistSnapshot(serverOrders, initialDataRef.current, nextSession.role);
       });
     }
 
@@ -65,7 +76,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     refreshOrders(session.role).then((serverOrders) => {
       if (!mounted || serverOrders.length === 0) return;
       setOrders(serverOrders);
-      persistSnapshot(serverOrders, initialDataRef.current);
+      persistSnapshot(serverOrders, initialDataRef.current, session.role);
     });
 
     return () => {
@@ -75,15 +86,12 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppData>(() => {
     function persist(next: Partial<Pick<AppData, 'orders' | 'application' | 'bookingSettings' | 'workDraft'>>) {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          orders: next.orders ?? orders,
-          application: next.application ?? application,
-          bookingSettings: next.bookingSettings ?? bookingSettings,
-          workDraft: next.workDraft ?? workDraft,
-        }),
-      );
+      writeScopedJson(storageKey, {
+        orders: next.orders ?? orders,
+        application: next.application ?? application,
+        bookingSettings: next.bookingSettings ?? bookingSettings,
+        workDraft: next.workDraft ?? workDraft,
+      }, session?.role);
     }
 
     return {
@@ -101,7 +109,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
           void submitOrder(orderInput).then((serverOrder) => {
             setOrders((currentOrders) => {
               const syncedOrders = currentOrders.map((currentOrder) => (currentOrder.id === order.id ? serverOrder : currentOrder));
-              localStorage.setItem(storageKey, JSON.stringify({ orders: syncedOrders, application, bookingSettings, workDraft }));
+              writeScopedJson(storageKey, { orders: syncedOrders, application, bookingSettings, workDraft }, session?.role);
               return syncedOrders;
             });
           });
@@ -127,7 +135,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
             if (!serverOrder) return;
             setOrders((currentOrders) => {
               const syncedOrders = currentOrders.map((currentOrder) => (currentOrder.id === serverOrder.id ? serverOrder : currentOrder));
-              localStorage.setItem(storageKey, JSON.stringify({ orders: syncedOrders, application, bookingSettings, workDraft }));
+              writeScopedJson(storageKey, { orders: syncedOrders, application, bookingSettings, workDraft }, session?.role);
               return syncedOrders;
             });
           });
@@ -181,19 +189,18 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
 
-function loadInitialData() {
+function loadInitialData(role?: UserRole) {
   try {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) {
-      return { orders: defaultOrders, application: defaultApplication, bookingSettings: defaultBookingSettings, workDraft: defaultWorkDraft };
-    }
-
-    const parsed = JSON.parse(raw) as {
+    const parsed = readScopedJson<{
       orders?: AppOrder[];
       application?: Partial<CompanionApplication>;
       bookingSettings?: Partial<CompanionBookingSettings>;
       workDraft?: Partial<PublishedWorkDraft>;
-    };
+    } | null>(storageKey, null, role);
+
+    if (!parsed) {
+      return { orders: defaultOrders, application: defaultApplication, bookingSettings: defaultBookingSettings, workDraft: defaultWorkDraft };
+    }
 
     return {
       orders: parsed.orders?.length ? mergeSeedOrders(parsed.orders) : defaultOrders,
@@ -215,16 +222,14 @@ async function refreshOrders(role: UserRole) {
 function persistSnapshot(
   orders: AppOrder[],
   rest: Pick<AppData, 'application' | 'bookingSettings' | 'workDraft'>,
+  role?: UserRole,
 ) {
-  localStorage.setItem(
-    storageKey,
-    JSON.stringify({
-      orders,
-      application: rest.application,
-      bookingSettings: rest.bookingSettings,
-      workDraft: rest.workDraft,
-    }),
-  );
+  writeScopedJson(storageKey, {
+    orders,
+    application: rest.application,
+    bookingSettings: rest.bookingSettings,
+    workDraft: rest.workDraft,
+  }, role);
 }
 
 function mergeSeedOrders(storedOrders: AppOrder[]) {
