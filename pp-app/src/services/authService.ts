@@ -1,5 +1,6 @@
 import type { AuthSession, UserRole } from '../types/api';
 import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { findTestAccountByPhone, type TestAccount } from './accountDirectory';
 import { isMiniProgramRuntime, wxLogin } from './miniProgramBridge';
 
 const roleStorageKey = 'pp-auth-role-v1';
@@ -11,6 +12,9 @@ type AuthAccount = {
   phone: string;
   role: Extract<UserRole, 'consumer' | 'companion'>;
   nickname: string;
+  entityId?: string;
+  avatarUrl?: string;
+  postId?: string;
   registeredAt: string;
 };
 
@@ -27,6 +31,7 @@ export type RegisterInput = {
 };
 
 export async function fetchAuthSession(): Promise<AuthSession> {
+  if (isAccountLoggedIn()) return localSession(readStoredRole());
   if (!isApiEnabled()) return localSession(readStoredRole());
 
   try {
@@ -48,6 +53,7 @@ export async function fetchAuthSession(): Promise<AuthSession> {
 
 export async function switchMockRole(role: UserRole): Promise<AuthSession> {
   persistRole(role);
+  const account = readAccount();
   if (!isApiEnabled()) {
     const session = localSession(role);
     notifySessionChanged(session);
@@ -55,8 +61,8 @@ export async function switchMockRole(role: UserRole): Promise<AuthSession> {
   }
 
   try {
-    const response = await apiPost<AuthSession>('/api/auth/wechat/mock-login', { role });
-    const session = response.success ? response.data : localSession(role);
+    const response = await apiPost<AuthSession>('/api/auth/wechat/mock-login', { role, companionId: account?.role === 'companion' ? account.entityId : undefined });
+    const session = response.success ? localSession(role) : localSession(role);
     notifySessionChanged(session);
     return session;
   } catch {
@@ -118,15 +124,16 @@ export function registerWithPhone(input: RegisterInput) {
 }
 
 export async function loginWithPhoneCode(phone: string, code: string) {
-  const account = readAccount();
   const normalizedPhone = normalizePhone(phone);
-  if (!account) throw new Error('请先完成注册');
-  if (account.phone !== normalizedPhone) throw new Error('手机号与注册账号不一致');
+  const account = findLoginAccount(normalizedPhone);
+  if (!account) throw new Error('请先完成注册，或使用测试账号清单中的手机号');
   validatePhoneCode(normalizedPhone, code);
 
   if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(accountStorageKey, JSON.stringify(account));
     localStorage.setItem(loginStorageKey, '1');
   }
+  persistRole(account.role);
   return switchMockRole(account.role);
 }
 
@@ -165,26 +172,47 @@ function isUserRole(role: unknown): role is UserRole {
 
 function localSession(role: UserRole): AuthSession {
   const account = readAccount();
+  const matchedAccount = account?.role === role ? account : null;
+  const companionId = role === 'companion' ? matchedAccount?.entityId || 'companion-mori' : null;
   return {
     token: `local-${role}-session`,
     provider: 'mock_wechat',
     role,
     roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
     user: {
-      id: `local-${role}-user`,
-      openId: `mock-openid-${role}`,
-      phone: account?.phone,
-      nickname: account?.nickname ?? (role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer'),
-      avatarUrl: '',
+      id: matchedAccount?.entityId || `local-${role}-user`,
+      openId: `mock-openid-${matchedAccount?.entityId || role}`,
+      phone: matchedAccount?.phone,
+      nickname: matchedAccount?.nickname ?? (role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer'),
+      avatarUrl: matchedAccount?.avatarUrl || '',
       gender: 'unknown',
       city: 'Shanghai',
       status: 'active',
       isCompanion: role === 'companion',
       roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
     },
-    companionId: role === 'companion' ? 'companion-mori' : null,
+    companionId,
     adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
     loginAt: new Date().toISOString(),
+  };
+}
+
+function findLoginAccount(phone: string): AuthAccount | null {
+  const testAccount = findTestAccountByPhone(phone);
+  if (testAccount) return mapTestAccount(testAccount);
+  const account = readAccount();
+  return account?.phone === phone ? account : null;
+}
+
+function mapTestAccount(account: TestAccount): AuthAccount {
+  return {
+    phone: account.phone,
+    role: account.role,
+    nickname: account.name,
+    entityId: account.entityId,
+    avatarUrl: account.avatar,
+    postId: account.postId,
+    registeredAt: new Date().toISOString(),
   };
 }
 
@@ -199,6 +227,9 @@ function readAccount(): AuthAccount | null {
       phone: account.phone,
       role: account.role,
       nickname: account.nickname || (account.role === 'companion' ? 'Demo Photographer' : 'Demo Creator'),
+      entityId: account.entityId,
+      avatarUrl: account.avatarUrl,
+      postId: account.postId,
       registeredAt: account.registeredAt || new Date().toISOString(),
     };
   } catch {

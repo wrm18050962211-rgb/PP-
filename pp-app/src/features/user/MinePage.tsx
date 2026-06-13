@@ -5,6 +5,7 @@ import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
 import { fetchAuthSession, switchMockRole } from '../../services/authService';
 import { listFeedPosts } from '../../services/feedService';
 import type { AuthSession, FeedPost, UserRole } from '../../types/api';
+import { buildCreator } from './PostDetail';
 import { getCollectionSummary } from './UserCollectionPage';
 
 type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
@@ -93,6 +94,7 @@ export function MinePage() {
                 }`}
                 onClick={() => handleRoleSwitch(item.role, item.to)}
                 disabled={loadingRole !== null}
+                type="button"
               >
                 <Icon size={18} className="mb-2" />
                 <span className="block text-sm font-black">{item.label}</span>
@@ -122,9 +124,11 @@ export function MinePage() {
 
 function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
   const role = getUserFacingRole(session?.role);
+  const posts = listFeedPosts();
 
   if (role === 'companion') {
-    const photographer = post.companion;
+    const profilePost = posts.find((item) => item.companion.id === session?.companionId) ?? post;
+    const photographer = profilePost.companion;
     return {
       to: `/consumer/photographer/${photographer.id}`,
       roleLabel: '摄影师主页',
@@ -134,14 +138,15 @@ function buildOwnProfileSummary(session: AuthSession | null, post: FeedPost) {
     };
   }
 
-  const creatorId = `creator-${post.id}`;
-  const creatorName = !session || session.role === 'admin' || session.user.nickname === 'Demo Consumer' ? 'Demo Creator' : session.user.nickname;
+  const profilePost = posts.find((item) => buildCreator(item).id === session?.user.id) ?? post;
+  const creator = buildCreator(profilePost);
+  const creatorName = !session || session.role === 'admin' || session.user.nickname === 'Demo Consumer' ? creator.name : session.user.nickname;
   return {
-    to: `/consumer/creator/${creatorId}`,
+    to: `/consumer/creator/${creator.id}`,
     roleLabel: '创作者主页',
     name: creatorName,
-    handle: `@${post.id.replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`,
-    avatar: post.images[1]?.url || post.images[0]?.url || post.companion.avatar,
+    handle: `@${profilePost.id.replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`,
+    avatar: creator.avatar,
   };
 }
 

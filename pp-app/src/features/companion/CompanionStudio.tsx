@@ -53,11 +53,11 @@ const roleActions: Array<{ role: UserFacingRole; label: string; desc: string; to
 
 export function CompanionStudio() {
   const navigate = useNavigate();
-  const { application, workDraft } = useAppData();
+  const { application, session, workDraft } = useAppData();
   const [dashboard, setDashboard] = useState<CompanionDashboard>(() => getCompanionDashboard());
   const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
   const posts = listFeedPosts();
-  const ownProfile = buildPhotographerProfileSummary(posts[0]);
+  const ownProfile = buildPhotographerProfileSummary(posts.find((post) => post.companion.id === session?.companionId) ?? posts[0]);
   const collectionSummary = getCollectionSummary(posts);
   const reviewText = application.reviewStatus === '已通过' ? '已认证' : application.reviewStatus;
   const draftText = workDraft.reviewStatus === '草稿' ? '待发布' : workDraft.reviewStatus;
