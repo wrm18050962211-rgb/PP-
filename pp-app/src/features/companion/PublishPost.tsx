@@ -91,7 +91,7 @@ export function PublishPost() {
               onClick={() => saveWorkDraft({ coverImageId: image.id })}
               aria-label="选择封面"
             >
-              <LivePhotoMedia media={image} alt="" fit="cover" showBadge />
+              <LivePhotoMedia media={image} alt="" fit="cover" />
               {image.id === workDraft.coverImageId ? (
                 <span className="absolute left-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-rose-500 text-white">
                   <Check size={13} />

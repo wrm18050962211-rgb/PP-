@@ -9,7 +9,6 @@ type LivePhotoMediaProps = {
   fit?: 'cover' | 'contain';
   loading?: 'eager' | 'lazy';
   fallbackSrc?: string;
-  showBadge?: boolean;
 };
 
 export function isLiveMedia(media?: Pick<PostImage, 'contentType' | 'mediaKind' | 'videoUrl'>) {
@@ -24,7 +23,6 @@ export function LivePhotoMedia({
   fit = 'cover',
   loading = 'lazy',
   fallbackSrc,
-  showBadge = true,
 }: LivePhotoMediaProps) {
   const [videoFailed, setVideoFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -66,11 +64,6 @@ export function LivePhotoMedia({
             }
           }}
         />
-      ) : null}
-      {live && showBadge ? (
-        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-[2px] bg-black/58 px-1.5 py-0.5 text-[9px] font-black leading-none tracking-[0.14em] text-white/90 backdrop-blur">
-          LIVE
-        </span>
       ) : null}
     </div>
   );
