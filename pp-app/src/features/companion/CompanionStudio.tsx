@@ -43,7 +43,7 @@ const setupItems = [
   { icon: MapPinned, label: '服务范围', desc: '城市、可接地点和最大公里数', to: '/companion/service-range' },
   { icon: Calendar, label: '时间价格', desc: '档期、活动类型、时长和价格', to: '/companion/booking-settings' },
   { icon: Banknote, label: '收入与提现', desc: '本周收入、待结算和提现', to: '/companion/income' },
-  { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/consumer/mine' },
+  { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/settings' },
 ];
 
 const roleActions: Array<{ role: UserFacingRole; label: string; desc: string; to: string; icon: typeof UserRound }> = [

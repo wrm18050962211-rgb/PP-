@@ -12,7 +12,7 @@ type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 const menuItems = [
   { icon: ReceiptText, label: '我的订单', desc: '预约、支付、售后', to: '/consumer/orders' },
   { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1' },
-  { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/consumer/mine' },
+  { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/settings' },
 ];
 
 const roleActions: Array<{ role: UserFacingRole; label: string; desc: string; to: string; icon: typeof UserRound }> = [

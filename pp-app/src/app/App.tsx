@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { ConsumerShell } from '../layouts/ConsumerShell';
 import { RoleShell } from '../layouts/RoleShell';
 import { AdminDashboard } from '../features/admin/AdminDashboard';
+import { AccountSettingsPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAuth } from '../features/auth/AuthPages';
 import { CompanionOnboarding } from '../features/companion/CompanionOnboarding';
 import { CompanionBookingSettingsPage } from '../features/companion/CompanionBookingSettingsPage';
 import { CompanionIncomePage } from '../features/companion/CompanionIncomePage';
@@ -25,9 +26,33 @@ import { UserCollectionPage } from '../features/user/UserCollectionPage';
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/consumer" replace />} />
+      <Route path="/" element={<EntryRedirect />} />
 
-      <Route path="/consumer" element={<ConsumerShell />}>
+      <Route
+        path="/auth/register"
+        element={
+          <GuestOnly>
+            <RegisterPage />
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/auth/login"
+        element={
+          <GuestOnly>
+            <LoginPage />
+          </GuestOnly>
+        }
+      />
+
+      <Route
+        path="/consumer"
+        element={
+          <RequireAuth>
+            <ConsumerShell />
+          </RequireAuth>
+        }
+      >
         <Route index element={<HomeFeed />} />
         <Route path="companions" element={<CompanionFinderPage />} />
         <Route path="same-style" element={<Navigate to="/consumer" replace />} />
@@ -44,7 +69,14 @@ export default function App() {
         <Route path="mine" element={<MinePage />} />
       </Route>
 
-      <Route path="/companion" element={<RoleShell />}>
+      <Route
+        path="/companion"
+        element={
+          <RequireAuth>
+            <RoleShell />
+          </RequireAuth>
+        }
+      >
         <Route index element={<HomeFeed />} />
         <Route path="creators" element={<CreatorFinderPage />} />
         <Route path="messages" element={<MessagesPage />} />
@@ -60,6 +92,14 @@ export default function App() {
       </Route>
 
       <Route path="/admin" element={<AdminDashboard />} />
+      <Route
+        path="/settings"
+        element={
+          <RequireAuth>
+            <AccountSettingsPage />
+          </RequireAuth>
+        }
+      />
 
       <Route path="/post/:postId" element={<LegacyConsumerRedirect target="post" />} />
       <Route path="/checkout/:postId" element={<LegacyConsumerRedirect target="checkout" />} />
