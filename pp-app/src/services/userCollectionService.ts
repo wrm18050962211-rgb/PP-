@@ -1,6 +1,8 @@
 import type { FeedPost } from '../types/api';
 import { getPostTitle } from './feedService';
 import { readDomainJson, writeDomainJson } from './scopedStorage';
+import { getActiveAccountStorageScope } from './authService';
+import { listTestAccounts, type PublicRole } from './accountDirectory';
 
 export type UserCollectionState = {
   likedPostIds: string[];
@@ -11,15 +13,12 @@ export type UserCollectionState = {
 const storageKey = 'user-collections-v1';
 
 function seedCollections(posts: FeedPost[]): UserCollectionState {
+  const account = getActiveTestAccount();
+  if (account) return seedAccountCollections(posts, account);
+
   return {
-    likedPostIds: posts
-      .filter((_, index) => index % 2 === 0)
-      .slice(0, 12)
-      .map((post) => post.id),
-    favoritePostIds: posts
-      .filter((_, index) => index % 3 === 1 || index % 5 === 0)
-      .slice(0, 10)
-      .map((post) => post.id),
+    likedPostIds: posts.slice(0, 6).map((post) => post.id),
+    favoritePostIds: posts.slice(6, 12).map((post) => post.id),
     followingIds: getDefaultFollowingPeople(posts).map((person) => person.id),
   };
 }
@@ -111,6 +110,59 @@ function getDefaultFollowingPeople(posts: FeedPost[]) {
   });
 
   return [...photographers, ...creators];
+}
+
+function seedAccountCollections(posts: FeedPost[], account: { role: PublicRole; postId?: string; companionId?: string; creatorId?: string; phone: string }) {
+  const ownPost = account.postId ? posts.find((post) => post.id === account.postId) : undefined;
+  const ownCompanionId = account.companionId ?? ownPost?.companion.id;
+  const ownCreatorId = account.creatorId ?? (ownPost ? `creator-${ownPost.id}` : undefined);
+  const accountSeed = numberSeed(`${account.phone}:${account.role}:${account.postId ?? account.companionId ?? account.creatorId ?? 'guest'}`);
+  const candidates = rotatePosts(
+    posts.filter((post) => post.id !== ownPost?.id && post.companion.id !== ownCompanionId),
+    accountSeed,
+  );
+  const likedPostIds = pickRealPostIds(candidates, account.role === 'companion' ? 5 : 7);
+  const favoriteSource = candidates.filter((post) => !likedPostIds.includes(post.id));
+  const favoritePostIds = pickRealPostIds(rotatePosts(favoriteSource, accountSeed + 3), account.role === 'companion' ? 4 : 6);
+  const people = getDefaultFollowingPeople(posts).filter((person) => person.id !== ownCreatorId && person.id !== `photographer-${ownCompanionId}`);
+  const followingIds = rotateItems(people, accountSeed + 5)
+    .slice(0, account.role === 'companion' ? 5 : 7)
+    .map((person) => person.id);
+
+  return {
+    likedPostIds,
+    favoritePostIds,
+    followingIds,
+  };
+}
+
+function getActiveTestAccount() {
+  const [phone, role, identityId] = getActiveAccountStorageScope().split(':') as [string, PublicRole | undefined, string | undefined];
+  if (!phone || (role !== 'consumer' && role !== 'companion')) return null;
+  return (
+    listTestAccounts().find((account) => {
+      const currentIdentityId = role === 'companion' ? account.companionId : account.creatorId;
+      return account.phone === phone && account.role === role && currentIdentityId === identityId;
+    }) ?? null
+  );
+}
+
+function pickRealPostIds(posts: FeedPost[], count: number) {
+  return posts.slice(0, count).map((post) => post.id);
+}
+
+function rotatePosts(posts: FeedPost[], offset: number) {
+  return rotateItems(posts, offset);
+}
+
+function rotateItems<T>(items: T[], offset: number) {
+  if (items.length === 0) return [];
+  const start = offset % items.length;
+  return [...items.slice(start), ...items.slice(0, start)];
+}
+
+function numberSeed(value: string) {
+  return Array.from(value).reduce((total, char) => total + char.charCodeAt(0), 0);
 }
 
 function buildCreatorSummary(post: FeedPost) {
