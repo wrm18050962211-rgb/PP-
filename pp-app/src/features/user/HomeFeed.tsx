@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, LocateFixed, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
@@ -20,12 +20,13 @@ type FeedFilters = {
   channel: FeedChannel;
   query: string;
   nearbyOnly: boolean;
-  date: string;
-  time: string;
   scene: string;
-  durationMinutes: number | null;
+  minDurationMinutes: number;
+  maxDurationMinutes: number;
+  minBudgetCents: number;
   maxBudgetCents: number | null;
-  genderPreference: GenderPreference;
+  creatorGenderPreference: GenderPreference;
+  photographerGenderPreference: GenderPreference;
 };
 
 type LocationStatus = 'idle' | 'locating' | 'located' | 'unsupported' | 'denied' | 'failed';
@@ -51,12 +52,13 @@ const initialFilters: FeedFilters = {
   channel: '发现',
   query: '',
   nearbyOnly: false,
-  date: '不限',
-  time: '不限',
   scene: '不限',
-  durationMinutes: null,
+  minDurationMinutes: 60,
+  maxDurationMinutes: 240,
+  minBudgetCents: 0,
   maxBudgetCents: null,
-  genderPreference: 'any',
+  creatorGenderPreference: 'any',
+  photographerGenderPreference: 'any',
 };
 
 const locationOptions: Record<string, Record<string, string[]>> = {
@@ -87,26 +89,17 @@ const locationOptions: Record<string, Record<string, string[]>> = {
 };
 const channels: FeedChannel[] = ['关注', '发现', '附近'];
 const idleFeedDragState: FeedDragState = { active: false, startX: 0, deltaX: 0, pointerId: null };
-const dateOptions = ['不限', '今天', '明天', '周末'];
-const timeOptions = ['不限', '上午', '下午', '傍晚', '晚上'];
 const sceneOptions = ['不限', 'Citywalk', '探店', '街拍', '夜景', '旅行'];
-const durationOptions = [
-  { label: '不限', value: null },
-  { label: '1小时', value: 60 },
-  { label: '1.5小时', value: 90 },
-  { label: '2小时', value: 120 },
-  { label: '4小时', value: 240 },
-];
-const budgetOptions = [
-  { label: '不限', value: null },
-  { label: '¥300内', value: 30000 },
-  { label: '¥400内', value: 40000 },
-  { label: '¥700内', value: 70000 },
-];
 const genderOptions: Array<{ label: string; value: GenderPreference }> = [
   { label: '不限', value: 'any' },
-  { label: '只看女陪拍', value: 'female_only' },
+  { label: '男', value: 'male' },
+  { label: '女', value: 'female' },
 ];
+const minDurationLimit = 30;
+const maxDurationLimit = 480;
+const durationStepMinutes = 30;
+const maxBudgetLimitCents = 200000;
+const budgetStepCents = 5000;
 const distanceOptions = [
   { label: '不限', value: null },
   { label: '1km', value: 1 },
@@ -247,15 +240,15 @@ export function HomeFeed() {
         location: locationKeyword,
         locationKeywords,
         keyword: filters.query,
-        date: filters.date,
-        time: filters.time,
         activityType: filters.scene,
-        durationMinutes: filters.durationMinutes ?? undefined,
+        minDurationMinutes: filters.minDurationMinutes,
+        maxDurationMinutes: filters.maxDurationMinutes,
+        minBudgetCents: filters.minBudgetCents || undefined,
         maxBudgetCents: filters.maxBudgetCents ?? undefined,
         maxDistanceMeters: filters.maxDistanceKm ? filters.maxDistanceKm * 1000 : undefined,
-        genderPreference: filters.genderPreference,
+        genderPreference: filters.photographerGenderPreference,
         nearbyOnly: filters.nearbyOnly,
-      }),
+      }).filter((post) => matchesCreatorGender(post, filters.creatorGenderPreference)),
     [activeLocation?.lat, activeLocation?.lng, feedPosts, filters, locationKeyword, locationKeywords],
   );
   const channelPostGroups = useMemo(
@@ -276,6 +269,7 @@ export function HomeFeed() {
     [activeChannelIndex, channelPostGroups],
   );
   const activeFilterCount = getActiveFilterCount(filters);
+  const nearbyActive = filters.channel === '附近' || filters.nearbyOnly;
   const topChromeHidden = homeChromeCompact && !searchOpen && !cityOpen && !filterOpen;
   const topPaddingClass = 'pt-2';
 
@@ -384,13 +378,13 @@ export function HomeFeed() {
       lng: activeLocation.lng,
       location: locationKeyword,
       keyword: filters.query,
-      date: filters.date,
-      time: filters.time,
       activityType: filters.scene,
-      durationMinutes: filters.durationMinutes ?? undefined,
+      minDurationMinutes: filters.minDurationMinutes,
+      maxDurationMinutes: filters.maxDurationMinutes,
+      minBudgetCents: filters.minBudgetCents || undefined,
       maxBudgetCents: filters.maxBudgetCents ?? undefined,
       maxDistanceMeters: filters.maxDistanceKm ? filters.maxDistanceKm * 1000 : undefined,
-      genderPreference: filters.genderPreference,
+      genderPreference: filters.photographerGenderPreference,
       nearbyOnly: true,
     }).then((items) => {
       if (!mounted) return;
@@ -428,7 +422,9 @@ export function HomeFeed() {
       >
         <div className="flex h-10 items-center justify-between gap-3">
           <button
-            className="pointer-events-auto flex h-9 max-w-[112px] shrink-0 items-center gap-1.5 rounded-full bg-black/26 px-2 text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)] backdrop-blur-md"
+            className={`pointer-events-auto flex h-9 max-w-[112px] shrink-0 items-center gap-1.5 rounded-full px-2 shadow-[0_10px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition ${
+              nearbyActive ? 'bg-white text-black' : 'bg-black/26 text-white'
+            }`}
             onClick={() => setCityOpen(true)}
             aria-label={`选择位置：${locationLabel}`}
             title={locationLabel}
@@ -553,15 +549,6 @@ export function HomeFeed() {
         <FilterSheet
           filters={filters}
           onChange={(partial) => setFilters((current) => ({ ...current, ...partial }))}
-          onNearbyToggle={() => {
-            if (filters.nearbyOnly) {
-              setMatchedPostIds(null);
-              setLocationMessage('');
-              setFilters((current) => ({ ...current, nearbyOnly: false, channel: channels[1] }));
-              return;
-            }
-            requestConsumerLocation();
-          }}
           onReset={() => {
             setMatchedPostIds(null);
             setLocationMessage('');
@@ -982,13 +969,11 @@ function MapPointPicker({
 function FilterSheet({
   filters,
   onChange,
-  onNearbyToggle,
   onReset,
   onClose,
 }: {
   filters: FeedFilters;
   onChange: (partial: Partial<FeedFilters>) => void;
-  onNearbyToggle: () => void;
   onReset: () => void;
   onClose: () => void;
 }) {
@@ -997,36 +982,44 @@ function FilterSheet({
       <section className="h-full w-[84%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <SheetHeader title="筛选" onClose={onClose} />
         <div className="mt-4 space-y-4">
-          <FilterGroup label="日期" options={dateOptions} value={filters.date} onChange={(date) => onChange({ date })} />
-          <FilterGroup label="时间" options={timeOptions} value={filters.time} onChange={(time) => onChange({ time })} />
           <FilterGroup label="活动类型" options={sceneOptions} value={filters.scene} onChange={(scene) => onChange({ scene })} />
-          <OptionGroup
-            label="时长"
-            options={durationOptions}
-            value={filters.durationMinutes}
-            onChange={(durationMinutes) => onChange({ durationMinutes })}
+          <RangeSliderGroup
+            label="时长范围"
+            min={minDurationLimit}
+            max={maxDurationLimit}
+            step={durationStepMinutes}
+            minValue={filters.minDurationMinutes}
+            maxValue={filters.maxDurationMinutes}
+            formatValue={formatDurationLabel}
+            onChange={(minDurationMinutes, maxDurationMinutes) => onChange({ minDurationMinutes, maxDurationMinutes })}
+          />
+          <RangeSliderGroup
+            label="预算范围"
+            min={0}
+            max={maxBudgetLimitCents}
+            step={budgetStepCents}
+            minValue={filters.minBudgetCents}
+            maxValue={filters.maxBudgetCents ?? maxBudgetLimitCents}
+            formatValue={formatBudgetLabel}
+            onChange={(minBudgetCents, maxBudgetCents) =>
+              onChange({
+                minBudgetCents,
+                maxBudgetCents: maxBudgetCents >= maxBudgetLimitCents ? null : maxBudgetCents,
+              })
+            }
           />
           <OptionGroup
-            label="预算"
-            options={budgetOptions}
-            value={filters.maxBudgetCents}
-            onChange={(maxBudgetCents) => onChange({ maxBudgetCents })}
-          />
-          <OptionGroup
-            label="性别偏好"
+            label="创作者性别"
             options={genderOptions}
-            value={filters.genderPreference}
-            onChange={(genderPreference) => onChange({ genderPreference })}
+            value={filters.creatorGenderPreference}
+            onChange={(creatorGenderPreference) => onChange({ creatorGenderPreference })}
           />
-          <button
-            className={`flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm font-bold ${
-              filters.nearbyOnly ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-black'
-            }`}
-            onClick={onNearbyToggle}
-          >
-            <LocateFixed size={16} />
-            优先看附近
-          </button>
+          <OptionGroup
+            label="摄影师性别"
+            options={genderOptions}
+            value={filters.photographerGenderPreference}
+            onChange={(photographerGenderPreference) => onChange({ photographerGenderPreference })}
+          />
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onReset}>
@@ -1095,6 +1088,72 @@ function OptionGroup<T extends string | number | null>({
             {option.label}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function RangeSliderGroup({
+  label,
+  min,
+  max,
+  step,
+  minValue,
+  maxValue,
+  formatValue,
+  onChange,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  minValue: number;
+  maxValue: number;
+  formatValue: (value: number) => string;
+  onChange: (minValue: number, maxValue: number) => void;
+}) {
+  const safeMinValue = clampNumber(minValue, min, max - step);
+  const safeMaxValue = clampNumber(maxValue, min + step, max);
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-xs font-bold text-zinc-500">{label}</p>
+        <p className="text-xs font-black text-zinc-900">
+          {formatValue(safeMinValue)} - {formatValue(safeMaxValue)}
+        </p>
+      </div>
+      <div className="rounded-[12px] bg-zinc-50 px-3 py-3 ring-1 ring-zinc-100">
+        <label className="grid grid-cols-[36px_1fr_52px] items-center gap-2 text-xs font-bold text-zinc-400">
+          下限
+          <input
+            type="range"
+            min={min}
+            max={max - step}
+            step={step}
+            value={safeMinValue}
+            onChange={(event) => {
+              const nextMin = Number(event.target.value);
+              onChange(nextMin, Math.max(safeMaxValue, nextMin + step));
+            }}
+          />
+          <span className="text-right text-zinc-700">{formatValue(safeMinValue)}</span>
+        </label>
+        <label className="mt-2 grid grid-cols-[36px_1fr_52px] items-center gap-2 text-xs font-bold text-zinc-400">
+          上限
+          <input
+            type="range"
+            min={min + step}
+            max={max}
+            step={step}
+            value={safeMaxValue}
+            onChange={(event) => {
+              const nextMax = Number(event.target.value);
+              onChange(Math.min(safeMinValue, nextMax - step), nextMax);
+            }}
+          />
+          <span className="text-right text-zinc-700">{formatValue(safeMaxValue)}</span>
+        </label>
       </div>
     </div>
   );
@@ -1193,18 +1252,41 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function formatDurationLabel(value: number) {
+  if (value < 60) return `${value}分钟`;
+  return value % 60 === 0 ? `${value / 60}小时` : `${Math.floor(value / 60)}.5小时`;
+}
+
+function formatBudgetLabel(value: number) {
+  if (value >= maxBudgetLimitCents) return '不限';
+  if (value <= 0) return '¥0';
+  return `¥${Math.round(value / 100)}`;
+}
+
+function matchesCreatorGender(post: FeedPost, preference: GenderPreference) {
+  if (preference === 'any') return true;
+  const creatorGender = getCreatorGender(post);
+  return creatorGender === preference;
+}
+
+function getCreatorGender(post: FeedPost): GenderPreference | 'unknown' {
+  const explicitGender = (post.creator as { gender?: string } | undefined)?.gender;
+  if (explicitGender === 'male' || explicitGender === 'female') return explicitGender;
+  const seed = `${post.creator?.id ?? post.id}-${post.creator?.name ?? ''}`;
+  return Math.abs(hashString(seed)) % 3 === 0 ? 'male' : 'female';
+}
+
 function getActiveFilterCount(filters: FeedFilters) {
   return [
     getLocationLabel(filters) !== getLocationLabel(initialFilters),
     filters.locationPointName !== initialFilters.locationPointName,
     filters.maxDistanceKm !== initialFilters.maxDistanceKm,
-    filters.nearbyOnly,
-    filters.date !== initialFilters.date,
-    filters.time !== initialFilters.time,
     filters.scene !== initialFilters.scene,
-    filters.durationMinutes !== initialFilters.durationMinutes,
+    filters.minDurationMinutes !== initialFilters.minDurationMinutes || filters.maxDurationMinutes !== initialFilters.maxDurationMinutes,
+    filters.minBudgetCents !== initialFilters.minBudgetCents,
     filters.maxBudgetCents !== initialFilters.maxBudgetCents,
-    filters.genderPreference !== initialFilters.genderPreference,
+    filters.creatorGenderPreference !== initialFilters.creatorGenderPreference,
+    filters.photographerGenderPreference !== initialFilters.photographerGenderPreference,
   ].filter(Boolean).length;
 }
 

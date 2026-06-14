@@ -1,7 +1,7 @@
 import type { ActivityPricing, AvailabilitySlot, FeedPost, MatchingCompanionItem } from '../types/api';
 import { apiGet, isApiEnabled } from './apiClient';
 
-export type GenderPreference = 'any' | 'female_only';
+export type GenderPreference = 'any' | 'male' | 'female';
 
 export type MatchCompanionsInput = {
   city: string;
@@ -13,6 +13,9 @@ export type MatchCompanionsInput = {
   time?: string;
   activityType?: string;
   durationMinutes?: number;
+  minDurationMinutes?: number;
+  maxDurationMinutes?: number;
+  minBudgetCents?: number;
   maxBudgetCents?: number;
   maxDistanceMeters?: number;
   genderPreference?: GenderPreference;
@@ -64,7 +67,7 @@ export async function fetchMatchedCompanions(input: MatchCompanionsInput): Promi
   });
   if (hasValue(input.city)) query.set('city', input.city);
   if (input.activityType) query.set('activity', input.activityType);
-  if (input.genderPreference === 'female_only') query.set('gender', 'female');
+  if (input.genderPreference === 'female' || input.genderPreference === 'male') query.set('gender', input.genderPreference);
   if (input.nearbyOnly) query.set('maxDistanceMeters', String(input.maxDistanceMeters ?? 5000));
 
   try {
@@ -80,7 +83,7 @@ function buildCandidate(post: FeedPost, input: MatchCompanionsInput): MatchCandi
 
   if (companion.status !== 'approved' || !companion.serviceEnabled) return null;
   if (hasValue(input.city) && companion.baseCity !== input.city) return null;
-  if (input.genderPreference === 'female_only' && companion.gender !== 'female') return null;
+  if ((input.genderPreference === 'female' || input.genderPreference === 'male') && companion.gender !== input.genderPreference) return null;
 
   const locationTexts = normalizeSearchTexts(input.locationKeywords?.length ? input.locationKeywords : [input.location]);
   const keywordTexts = normalizeSearchTexts([input.keyword]);
@@ -92,6 +95,7 @@ function buildCandidate(post: FeedPost, input: MatchCompanionsInput): MatchCandi
 
   const matchedActivity = findMatchedActivity(companion.activities, post, input);
   if (!matchedActivity) return null;
+  if (input.minBudgetCents && matchedActivity.priceCents < input.minBudgetCents) return null;
   if (input.maxBudgetCents && matchedActivity.priceCents > input.maxBudgetCents) return null;
 
   const distanceRank = getDistanceRank(post, locationTexts[0] ?? keywordTexts[0] ?? '', input.nearbyOnly);
@@ -123,7 +127,7 @@ function findMatchedActivity(activities: ActivityPricing[], post: FeedPost, inpu
   if (hasValue(input.activityType) && !matchesPostActivity(post, input.activityType)) return null;
 
   return (
-    activities.find((activity) => matchesActivityPrice(activity, input.activityType) && matchesDuration(activity, input.durationMinutes)) ??
+    activities.find((activity) => matchesActivityPrice(activity, input.activityType) && matchesDuration(activity, input)) ??
     null
   );
 }
@@ -154,9 +158,11 @@ function matchesPostActivity(post: FeedPost, activityType?: string) {
   return [post.activity, ...post.styleTags].some((item) => normalizeFreeText(item).includes(target) || target.includes(normalizeFreeText(item)));
 }
 
-function matchesDuration(activity: ActivityPricing, durationMinutes?: number) {
-  if (!durationMinutes) return true;
-  return activity.durationMinutes === durationMinutes;
+function matchesDuration(activity: ActivityPricing, input: Pick<MatchCompanionsInput, 'durationMinutes' | 'minDurationMinutes' | 'maxDurationMinutes'>) {
+  if (input.durationMinutes) return activity.durationMinutes === input.durationMinutes;
+  if (input.minDurationMinutes && activity.durationMinutes < input.minDurationMinutes) return false;
+  if (input.maxDurationMinutes && activity.durationMinutes > input.maxDurationMinutes) return false;
+  return true;
 }
 
 function isPostSearchMatch(post: FeedPost, searchText: string) {
