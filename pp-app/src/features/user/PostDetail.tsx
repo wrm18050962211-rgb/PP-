@@ -138,7 +138,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
         id: `local-comment-${Date.now()}`,
         role: 'consumer',
         name: '我',
-        avatar: visibleCreator?.avatar || photographer.avatar || photographer.photo,
+        avatar: visibleCreator?.avatar || photographer.avatar,
         text: nextText,
       },
     ]);
@@ -157,7 +157,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
             align="right"
             role="摄影师"
             name={photographer.name}
-            avatar={photographer.photo || photographer.avatar}
+            avatar={photographer.avatar}
             onClick={() => setDrawer('photographer')}
           />
         </div>
@@ -283,9 +283,9 @@ function PostDetailContent({ postId }: { postId?: string }) {
         side="right"
         title="摄影师"
         name={photographer.name}
-        avatar={photographer.avatar || photographer.photo}
+        avatar={photographer.avatar}
         hero={cover?.url}
-        heroSlides={photographerWorks.map((work) => ({ id: work.id, image: work.images[0]?.url || photographer.photo || photographer.avatar }))}
+        heroSlides={photographerWorks.flatMap((work) => work.images[0]?.url ? [{ id: work.id, image: work.images[0].url }] : [])}
         meta={`¥${Math.round((photographer.activities[0]?.priceCents || 0) / 100)}起 · ${photographer.ratingAvg.toFixed(1)}分`}
         tags={photographer.tags}
         onClose={() => setDrawer(null)}
@@ -586,7 +586,7 @@ export function buildCreator(post: FeedPost) {
   return {
     id: `creator-${post.id}`,
     name: post.companion.isVirtual ? `${post.companion.name} Creator` : '作品创作者',
-    avatar: post.images[1]?.url || post.companion.photo || post.companion.avatar,
+    avatar: post.images[1]?.url || post.images[0]?.url || post.companion.avatar,
     meta: `${post.city || '同城'} · ${post.styleTags.slice(0, 2).join(' / ') || '风格作品'}`,
   };
 }

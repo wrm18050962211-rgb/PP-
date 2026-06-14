@@ -82,7 +82,7 @@ export function createConsultation(post: FeedPost, card: ConsultationRequestCard
     creatorPhone: session?.user.phone,
     photographerId: post.companion.id,
     photographerName: post.companion.name,
-    photographerAvatar: post.companion.avatar || post.companion.photo,
+    photographerAvatar: post.companion.avatar,
     postId: post.id,
     status: 'consulting',
     requestCard: card,

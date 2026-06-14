@@ -51,7 +51,7 @@ export function PhotographerProfilePage() {
 
       <section className="px-4 pb-4 pt-3">
         <div className="flex items-center gap-5">
-          <img className="h-[86px] w-[86px] shrink-0 rounded-full object-cover ring-1 ring-white/14" src={photographer.avatar || photographer.photo} alt={photographer.name} />
+          <img className="h-[86px] w-[86px] shrink-0 rounded-full object-cover ring-1 ring-white/14" src={photographer.avatar} alt={photographer.name} />
           <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 text-center">
             <ProfileStat value={formatMetric(likeTotal)} label="点赞数" />
             <ProfileStat value={followerCount} label="关注数" />
