@@ -100,6 +100,15 @@ export function accountHasRole(role: PublicRole) {
   return getUsableRoles(account).includes(role);
 }
 
+export function getAvailableLoginRoles(phone?: string): PublicRole[] {
+  const normalizedPhone = normalizePhone(phone ?? '');
+  const testRoles = normalizedPhone ? findTestAccountIdentitiesByPhone(normalizedPhone).map((identity) => identity.role) : [];
+  if (testRoles.length) return Array.from(new Set(testRoles));
+  const account = readAccount();
+  if (!account || (normalizedPhone && account.phone !== normalizedPhone)) return [];
+  return getUsableRoles(account);
+}
+
 export function getPostAuthHome(role = readStoredRole()) {
   return role === 'companion' ? '/companion/mine' : '/consumer';
 }
@@ -145,18 +154,22 @@ export function registerWithPhone(input: RegisterInput) {
   return account;
 }
 
-export async function loginWithPhoneCode(phone: string, code: string) {
+export async function loginWithPhoneCode(phone: string, code: string, role?: PublicRole) {
   const normalizedPhone = normalizePhone(phone);
   const account = findLoginAccount(normalizedPhone);
   if (!account) throw new Error('请先完成注册，或使用测试账号清单中的手机号');
   validatePhoneCode(normalizedPhone, code);
+  const availableRoles = getUsableRoles(account);
+  const loginRole = role ?? account.role;
+  if (!availableRoles.includes(loginRole)) throw new Error(`该手机号尚未注册${loginRole === 'companion' ? '摄影师' : '创作者'}身份`);
 
+  const nextAccount = { ...account, role: loginRole };
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(accountStorageKey, JSON.stringify(account));
+    localStorage.setItem(accountStorageKey, JSON.stringify(nextAccount));
     localStorage.setItem(loginStorageKey, '1');
   }
-  persistRole(account.role);
-  return switchMockRole(account.role);
+  persistRole(loginRole);
+  return switchMockRole(loginRole);
 }
 
 export async function logoutAccount() {

@@ -1,5 +1,6 @@
 import type { AuthSession, Companion, CreateOrderInput, FeedPost } from '../types/api';
 import { evaluateMessageRisk } from '../utils/messageRisk';
+import { listTestAccounts } from './accountDirectory';
 import { createDefaultPackageSettings } from './companionPackageService';
 
 export type ConsultationRequestCard = {
@@ -80,6 +81,10 @@ export function getConsultation(id?: string) {
 }
 
 export function createConsultation(post: FeedPost, card: ConsultationRequestCard, session: AuthSession | null) {
+  if (isSelfConsultation(post, session)) {
+    throw new Error('不能用自己的创作者身份预约自己的摄影师身份');
+  }
+
   const now = new Date().toISOString();
   const record: ConsultationRecord = {
     id: `consultation-${Date.now()}`,
@@ -97,6 +102,14 @@ export function createConsultation(post: FeedPost, card: ConsultationRequestCard
   };
   writeConsultations([record, ...readConsultations()]);
   return record;
+}
+
+export function isSelfConsultation(post: FeedPost, session: AuthSession | null) {
+  if (!session?.user.phone) return false;
+  if (session.companionId && session.companionId === post.companion.id) return true;
+  const photographerAccount = listTestAccounts().find((account) => account.role === 'companion' && account.companionId === post.companion.id);
+  if (photographerAccount?.phone === session.user.phone) return true;
+  return post.companion.id === `companion-local-${session.user.phone}`;
 }
 
 export function sendQuoteForConsultation(id: string, companion: Companion | undefined, override: ConsultationQuoteOverride = {}) {

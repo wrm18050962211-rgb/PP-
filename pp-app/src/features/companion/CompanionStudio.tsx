@@ -1,7 +1,6 @@
 import {
   Banknote,
   Calendar,
-  Camera,
   ChevronRight,
   ClipboardList,
   ImagePlus,
@@ -10,17 +9,14 @@ import {
   UserRound,
   UserRoundPen,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
-import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
-import { accountHasRole, switchMockRole } from '../../services/authService';
 import { listConsultations } from '../../services/consultationService';
 import { listFeedPosts } from '../../services/feedService';
 import type { FeedPost, UserRole } from '../../types/api';
 import { getCollectionSummary } from '../user/UserCollectionPage';
 
-type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: string; badge?: string };
 
 const photographerMenuItems: MenuItem[] = [
@@ -38,16 +34,9 @@ const setupItems: MenuItem[] = [
   { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/settings' },
 ];
 
-const roleActions: Array<{ role: UserFacingRole; label: string; desc: string; to: string; icon: typeof UserRound }> = [
-  { role: 'consumer', label: '创作者', desc: '作品、点赞、收藏、预约', to: '/consumer/mine', icon: UserRound },
-  { role: 'companion', label: '摄影师', desc: '资料、档期、订单、收入', to: '/companion/mine', icon: Camera },
-];
-
 export function CompanionStudio() {
   const navigate = useNavigate();
   const { session } = useAppData();
-  const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
-  const canUseCreatorRole = accountHasRole('consumer');
   const posts = listFeedPosts();
   const ownProfile = buildPhotographerProfileSummary(posts.find((post) => post.companion.id === session?.companionId), session, posts[0]);
   const collectionSummary = getCollectionSummary(posts);
@@ -65,13 +54,6 @@ export function CompanionStudio() {
     if (!session) return;
     if (session.role !== 'companion') navigate('/consumer/mine', { replace: true });
   }, [navigate, session]);
-
-  const handleRoleSwitch = async (role: UserFacingRole, to: string) => {
-    setLoadingRole(role);
-    await switchMockRole(role);
-    setLoadingRole(null);
-    navigate(to);
-  };
 
   if (!session || session.role !== 'companion') {
     return (
@@ -105,45 +87,9 @@ export function CompanionStudio() {
         </div>
       </section>
 
-      <section className="mt-5 rounded-[10px] border border-zinc-200 bg-white p-3">
-        <div className="grid grid-cols-2 gap-2">
-          {roleActions.map((item) => {
-            const Icon = item.icon;
-            const active = session?.role === item.role;
-            const needsRegistration = item.role === 'consumer' && !canUseCreatorRole;
-            const label = needsRegistration ? '注册成为创作者' : item.label;
-            const desc = needsRegistration ? '选择创作者身份并绑定手机号' : item.desc;
-            const target = needsRegistration ? '/consumer/onboarding' : item.to;
-            return (
-              <button
-                key={item.role}
-                className={`min-h-20 rounded-[8px] px-3 py-3 text-left ${
-                  active ? 'bg-[#fff1f3] text-[#3f302c] ring-1 ring-[#f4c8d1]' : 'bg-[#fbf7f2] text-[#5f514b]'
-                }`}
-                onClick={() => {
-                  if (needsRegistration) {
-                    navigate(target);
-                    return;
-                  }
-                  void handleRoleSwitch(item.role, target);
-                }}
-                disabled={loadingRole !== null}
-                type="button"
-              >
-                <Icon size={18} className="mb-2" />
-                <span className="block text-sm font-black">{label}</span>
-                <span className="mt-1 block text-xs leading-4 opacity-70">{loadingRole === item.role ? '切换中...' : desc}</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
       <MenuSection className="mt-5" items={visiblePhotographerMenuItems} />
 
       <MenuSection className="mt-4" items={setupItems} />
-
-      {loadingRole ? <RoleSwitchLoading /> : null}
     </div>
   );
 }

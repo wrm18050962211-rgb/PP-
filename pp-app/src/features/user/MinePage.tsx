@@ -1,8 +1,7 @@
-import { Camera, ChevronRight, ImagePlus, ReceiptText, Settings, UserRound, UserRoundPen } from 'lucide-react';
+import { ChevronRight, ImagePlus, ReceiptText, Settings, UserRound, UserRoundPen } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
-import { accountHasRole, fetchAuthSession, switchMockRole } from '../../services/authService';
+import { Link } from 'react-router-dom';
+import { fetchAuthSession } from '../../services/authService';
 import { listConsultations } from '../../services/consultationService';
 import { getCreatorIdentity, readCreatorProfile } from '../../services/creatorProfileService';
 import { listFeedPosts } from '../../services/feedService';
@@ -19,17 +18,8 @@ const creatorMenuItems: CreatorMenuItem[] = [
   { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/settings' },
 ];
 
-const roleActions: Array<{ role: UserFacingRole; label: string; desc: string; to: string; icon: typeof UserRound }> = [
-  { role: 'consumer', label: '创作者', desc: '作品、点赞、收藏、预约', to: '/consumer/mine', icon: UserRound },
-  { role: 'companion', label: '摄影师', desc: '资料、档期、订单、收入', to: '/companion/mine', icon: Camera },
-];
-
 export function MinePage() {
-  const navigate = useNavigate();
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [loadingRole, setLoadingRole] = useState<UserFacingRole | null>(null);
-  const activeRole = getUserFacingRole(session?.role);
-  const canUsePhotographerRole = accountHasRole('companion');
   const posts = listFeedPosts();
   const ownProfile = buildOwnProfileSummary(session, posts[0]);
   const collectionSummary = getCollectionSummary(posts);
@@ -53,14 +43,6 @@ export function MinePage() {
       mounted = false;
     };
   }, []);
-
-  async function handleRoleSwitch(role: UserFacingRole, to: string) {
-    setLoadingRole(role);
-    const nextSession = await switchMockRole(role);
-    setSession(nextSession);
-    setLoadingRole(null);
-    navigate(to);
-  }
 
   return (
     <div className="px-4 pb-5 pt-3">
@@ -94,40 +76,6 @@ export function MinePage() {
         </div>
       </section>
 
-      <section className="mt-5 rounded-[10px] border border-zinc-200 bg-white p-3">
-        <div className="grid grid-cols-2 gap-2">
-          {roleActions.map((item) => {
-            const Icon = item.icon;
-            const active = activeRole === item.role;
-            const needsRegistration = item.role === 'companion' && !canUsePhotographerRole;
-            const label = needsRegistration ? '注册成为摄影师' : item.label;
-            const desc = needsRegistration ? '完善资料、实名与入驻审核' : item.desc;
-            const target = needsRegistration ? '/companion/onboarding' : item.to;
-            return (
-              <button
-                key={item.role}
-                className={`min-h-20 rounded-[8px] px-3 py-3 text-left ${
-                  active ? 'bg-[#fff1f3] text-[#3f302c] ring-1 ring-[#f4c8d1]' : 'bg-[#fbf7f2] text-[#5f514b]'
-                }`}
-                onClick={() => {
-                  if (needsRegistration) {
-                    navigate(target);
-                    return;
-                  }
-                  void handleRoleSwitch(item.role, target);
-                }}
-                disabled={loadingRole !== null}
-                type="button"
-              >
-                <Icon size={18} className="mb-2" />
-                <span className="block text-sm font-black">{label}</span>
-                <span className="mt-1 block text-xs leading-4 opacity-70">{loadingRole === item.role ? '切换中...' : desc}</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
       <section className="mt-5 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
         {visibleCreatorMenuItems.map(({ icon: Icon, label, desc, to, badge }) => (
           <Link key={label} to={to} className="flex min-h-16 w-full items-center gap-3 px-4 text-left">
@@ -143,7 +91,6 @@ export function MinePage() {
           </Link>
         ))}
       </section>
-      {loadingRole ? <RoleSwitchLoading /> : null}
     </div>
   );
 }

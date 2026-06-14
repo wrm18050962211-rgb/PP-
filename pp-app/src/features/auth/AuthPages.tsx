@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   getPostAuthHome,
+  getAvailableLoginRoles,
   getRegisteredAccount,
   hasRegisteredAccount,
   isAccountLoggedIn,
@@ -105,13 +106,18 @@ export function LoginPage() {
   const navigate = useNavigate();
   const account = getRegisteredAccount();
   const [phone, setPhone] = useState(account?.phone ?? '');
+  const [role, setRole] = useState<PublicRole>(account?.role ?? 'consumer');
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
+  const availableRoles = getAvailableLoginRoles(phone);
+  const loginRoleOptions = availableRoles.length ? roleOptions.filter((item) => availableRoles.includes(item.role)) : roleOptions;
 
   function sendCode() {
     try {
       const nextCode = requestPhoneCode(phone);
+      const roles = getAvailableLoginRoles(phone);
+      if (roles.length && !roles.includes(role)) setRole(roles[0]);
       setDemoCode(nextCode);
       setError('');
     } catch (nextError) {
@@ -121,7 +127,7 @@ export function LoginPage() {
 
   async function submit() {
     try {
-      const session = await loginWithPhoneCode(phone, code);
+      const session = await loginWithPhoneCode(phone, code, role);
       navigate(getPostAuthHome(session.role), { replace: true });
     } catch (nextError) {
       setError(getErrorMessage(nextError));
@@ -133,9 +139,32 @@ export function LoginPage() {
       {account ? (
         <div className="mb-4 flex items-center gap-3 rounded-[10px] bg-zinc-950 p-3 text-white">
           <CheckCircle2 size={18} className="text-emerald-300" />
-          <span className="min-w-0 flex-1 text-sm font-bold">已注册为 {account.role === 'companion' ? '摄影师' : '创作者'}</span>
+          <span className="min-w-0 flex-1 text-sm font-bold">
+            已注册 {account.roles.map((item) => (item === 'companion' ? '摄影师' : '创作者')).join(' / ')}
+          </span>
         </div>
       ) : null}
+
+      <div className="grid grid-cols-2 gap-2">
+        {loginRoleOptions.map((item) => {
+          const Icon = item.icon;
+          const active = role === item.role;
+          return (
+            <button
+              key={item.role}
+              type="button"
+              className={`min-h-24 rounded-[10px] px-3 py-3 text-left ring-1 transition ${
+                active ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-white text-zinc-700 ring-zinc-200'
+              }`}
+              onClick={() => setRole(item.role)}
+            >
+              <Icon size={19} />
+              <span className="mt-2 block text-base font-black">{item.title}</span>
+              <span className={`mt-1 block text-xs leading-5 ${active ? 'text-white/62' : 'text-zinc-400'}`}>{item.desc}</span>
+            </button>
+          );
+        })}
+      </div>
 
       <PhoneCodeForm phone={phone} code={code} onPhoneChange={setPhone} onCodeChange={setCode} onSendCode={sendCode} demoCode={demoCode} />
       {error ? <ErrorLine text={error} /> : null}

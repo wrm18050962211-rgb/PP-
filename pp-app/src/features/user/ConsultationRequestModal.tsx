@@ -1,7 +1,7 @@
 import { ImagePlus, LocateFixed, MapPin, Send, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { AuthSession, FeedPost } from '../../types/api';
-import { createConsultation, type ConsultationRequestCard } from '../../services/consultationService';
+import { createConsultation, isSelfConsultation, type ConsultationRequestCard } from '../../services/consultationService';
 import { createDefaultPackageSettings } from '../../services/companionPackageService';
 import { requestConsumerLocation } from '../../services/locationService';
 
@@ -49,7 +49,9 @@ export function ConsultationRequestModal({
   const [endTime, setEndTime] = useState('18:00');
   const [mapOpen, setMapOpen] = useState(false);
   const [locationStatus, setLocationStatus] = useState('');
-  const canSubmit = card.date.trim() && card.timeRange.trim() && card.place.trim();
+  const selfConsultation = isSelfConsultation(post, session);
+  const [submitError, setSubmitError] = useState('');
+  const canSubmit = card.date.trim() && card.timeRange.trim() && card.place.trim() && !selfConsultation;
 
   function updateTimeRange(nextStart: string, nextEnd: string) {
     const safeEnd = timeToMinutes(nextEnd) > timeToMinutes(nextStart) ? nextEnd : getNextTimeOption(nextStart, timeOptions);
@@ -89,8 +91,12 @@ export function ConsultationRequestModal({
   function submit() {
     if (!canSubmit) return;
     const selectedPackage = settings.packages.find((item) => item.id === card.packageId) ?? settings.packages[0];
-    const record = createConsultation(post, { ...card, packageName: selectedPackage.name }, session);
-    onSubmitted(record.id);
+    try {
+      const record = createConsultation(post, { ...card, packageName: selectedPackage.name }, session);
+      onSubmitted(record.id);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : '提交失败，请重试');
+    }
   }
 
   return (
@@ -193,6 +199,9 @@ export function ConsultationRequestModal({
           </label>
           {card.referenceImages.length ? <p className="text-xs font-bold text-zinc-400">已选择 {card.referenceImages.length} 张参考图</p> : null}
         </div>
+
+        {selfConsultation ? <p className="mt-4 rounded-[10px] bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">不能用自己的创作者身份预约自己的摄影师身份。</p> : null}
+        {submitError ? <p className="mt-4 rounded-[10px] bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">{submitError}</p> : null}
 
         <button className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-black text-white ${canSubmit ? 'bg-zinc-950' : 'bg-zinc-300'}`} disabled={!canSubmit} onClick={submit} type="button">
           <Send size={17} />
