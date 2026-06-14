@@ -31,8 +31,13 @@ export function ConsultationRequestModal({
     packageName: settings.packages[0].name,
     sceneType: 'outdoor',
     needsRetouch: true,
+    retouchSelection: '4',
+    customRetouchCount: 12,
     needsVideo: false,
+    videoCount: 1,
+    videoAverageDurationSeconds: 15,
     needsPolaroid: false,
+    polaroidCount: 1,
     acceptsPublication: false,
     needsRoutePlanning: true,
     needsCompanionQueueing: false,
@@ -94,7 +99,7 @@ export function ConsultationRequestModal({
         <div className="sticky top-0 z-10 -mx-3 flex items-center justify-between bg-[#f7f7f5]/95 px-3 pb-3 pt-1 backdrop-blur-xl">
           <div className="min-w-0">
             <p className="text-xs font-black text-rose-500">咨询档期/报价</p>
-            <h2 className="truncate text-xl font-black tracking-normal text-zinc-950">提交轻量需求卡</h2>
+            <h2 className="truncate text-xl font-black tracking-normal text-zinc-950">需求卡</h2>
           </div>
           <button className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-zinc-500 ring-1 ring-zinc-200 backdrop-blur" onClick={onClose} type="button" aria-label="关闭">
             <XCircle size={18} />
@@ -172,6 +177,7 @@ export function ConsultationRequestModal({
             <Check label="包含陪逛/排队" checked={card.needsCompanionQueueing} onChange={(value) => setCard((current) => ({ ...current, needsCompanionQueueing: value }))} />
             <Check label="涉及门票/入园" checked={card.hasTicketOrEntry} onChange={(value) => setCard((current) => ({ ...current, hasTicketOrEntry: value }))} />
           </div>
+          <AddOnDetailPanel card={card} onChange={setCard} />
           <Field label="文字备注">
             <textarea
               className="field min-h-28 resize-none rounded-[10px] py-3"
@@ -197,11 +203,79 @@ export function ConsultationRequestModal({
   );
 }
 
+function AddOnDetailPanel({
+  card,
+  onChange,
+}: {
+  card: ConsultationRequestCard;
+  onChange: React.Dispatch<React.SetStateAction<ConsultationRequestCard>>;
+}) {
+  if (!card.needsRetouch && !card.needsVideo && !card.needsPolaroid) return null;
+
+  return (
+    <div className="grid gap-2 rounded-[12px] bg-white p-3 ring-1 ring-zinc-200">
+      {card.needsRetouch ? (
+        <div className="grid grid-cols-2 gap-2">
+          <MiniField label="修图张数">
+            <select className="mini-field" value={card.retouchSelection ?? '4'} onChange={(event) => onChange((current) => ({ ...current, retouchSelection: event.target.value as ConsultationRequestCard['retouchSelection'] }))}>
+              <option value="4">4 张</option>
+              <option value="9">9 张</option>
+              <option value="all">全部</option>
+              <option value="custom">自定义数量</option>
+            </select>
+          </MiniField>
+          {(card.retouchSelection ?? '4') === 'custom' ? (
+            <MiniField label="自定义">
+              <select className="mini-field" value={card.customRetouchCount ?? 12} onChange={(event) => onChange((current) => ({ ...current, customRetouchCount: Number(event.target.value) }))}>
+                {Array.from({ length: 30 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} 张</option>)}
+              </select>
+            </MiniField>
+          ) : null}
+        </div>
+      ) : null}
+      {card.needsVideo ? (
+        <div className="grid grid-cols-2 gap-2">
+          <MiniField label="视频数量">
+            <select className="mini-field" value={card.videoCount ?? 1} onChange={(event) => onChange((current) => ({ ...current, videoCount: Number(event.target.value) }))}>
+              {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} 条</option>)}
+            </select>
+          </MiniField>
+          <MiniField label="平均时长">
+            <select className="mini-field" value={card.videoAverageDurationSeconds ?? 15} onChange={(event) => onChange((current) => ({ ...current, videoAverageDurationSeconds: Number(event.target.value) }))}>
+              {[15, 30, 60, 90, 120, 180].map((seconds) => <option key={seconds} value={seconds}>{seconds < 60 ? `${seconds} 秒` : `${seconds / 60} 分钟`}</option>)}
+            </select>
+          </MiniField>
+        </div>
+      ) : null}
+      {card.needsPolaroid ? (
+        <div className="grid grid-cols-2 gap-2">
+          <MiniField label="拍立得/胶片">
+            <select className="mini-field" value={card.polaroidCount ?? 1} onChange={(event) => onChange((current) => ({ ...current, polaroidCount: Number(event.target.value) }))}>
+              {Array.from({ length: 30 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} 片</option>)}
+            </select>
+          </MiniField>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-black text-zinc-950">{label}</span>
       <span className="block [&_.field]:min-h-11 [&_.field]:w-full [&_.field]:rounded-[10px] [&_.field]:border [&_.field]:border-zinc-100 [&_.field]:bg-white [&_.field]:px-3 [&_.field]:text-sm [&_.field]:font-black [&_.field]:text-zinc-950 [&_.field]:outline-none [&_.field]:placeholder:text-zinc-300 [&_option]:bg-white [&_option]:text-zinc-950">
+        {children}
+      </span>
+    </label>
+  );
+}
+
+function MiniField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-black text-zinc-500">{label}</span>
+      <span className="block [&_.mini-field]:h-10 [&_.mini-field]:w-full [&_.mini-field]:rounded-[10px] [&_.mini-field]:border [&_.mini-field]:border-zinc-100 [&_.mini-field]:bg-[#f7f7f5] [&_.mini-field]:px-3 [&_.mini-field]:text-xs [&_.mini-field]:font-black [&_.mini-field]:text-zinc-950 [&_.mini-field]:outline-none [&_option]:bg-white [&_option]:text-zinc-950">
         {children}
       </span>
     </label>

@@ -14,8 +14,13 @@ export type ConsultationRequestCard = {
   packageName: string;
   sceneType: 'outdoor' | 'indoor';
   needsRetouch: boolean;
+  retouchSelection?: '4' | '9' | 'all' | 'custom';
+  customRetouchCount?: number;
   needsVideo: boolean;
+  videoCount?: number;
+  videoAverageDurationSeconds?: number;
   needsPolaroid: boolean;
+  polaroidCount?: number;
   acceptsPublication: boolean;
   needsRoutePlanning: boolean;
   needsCompanionQueueing: boolean;
@@ -103,12 +108,16 @@ export function sendQuoteForConsultation(id: string, companion: Companion | unde
       addOnLines.push(`多人加价 ¥${Math.round(amount / 100)}`);
     }
     if (item.requestCard.needsVideo) {
-      totalCents += settings.addOns.videoPerClipCents;
-      addOnLines.push(`视频片段 ¥${Math.round(settings.addOns.videoPerClipCents / 100)}`);
+      const videoCount = Math.max(1, item.requestCard.videoCount ?? 1);
+      const amount = settings.addOns.videoPerClipCents * videoCount;
+      totalCents += amount;
+      addOnLines.push(`视频 ${videoCount} 条 ¥${Math.round(amount / 100)}`);
     }
     if (item.requestCard.needsPolaroid) {
-      totalCents += settings.addOns.polaroidPerShotCents * 5;
-      addOnLines.push(`拍立得 5 张 ¥${Math.round((settings.addOns.polaroidPerShotCents * 5) / 100)}`);
+      const polaroidCount = Math.max(1, item.requestCard.polaroidCount ?? 1);
+      const amount = settings.addOns.polaroidPerShotCents * polaroidCount;
+      totalCents += amount;
+      addOnLines.push(`拍立得/胶片 ${polaroidCount} 张 ¥${Math.round(amount / 100)}`);
     }
     if (item.requestCard.sceneType === 'outdoor' && settings.addOns.outdoorFeeCents) {
       totalCents += settings.addOns.outdoorFeeCents;
