@@ -129,7 +129,7 @@ export function CompanionBookingSettingsPage() {
                 onClick={() => toggleExpandedDay(day)}
               >
                 <span className={`text-[11px] font-black ${isExpanded || isSelected ? 'text-white' : 'text-white/55'}`}>{day.short}</span>
-                <span className={`grid h-10 w-10 place-items-center rounded-full text-lg font-black ${isExpanded ? 'bg-blue-500 text-white' : isSelected ? 'bg-white text-black' : 'text-white/80'}`}>
+                <span className={`grid h-10 w-10 place-items-center rounded-full text-lg font-black transition-all duration-300 ease-out ${isExpanded ? 'bg-blue-500 text-white' : isSelected ? 'bg-white text-black' : 'text-white/80'}`}>
                   {day.day}
                 </span>
               </button>
@@ -158,19 +158,21 @@ export function CompanionBookingSettingsPage() {
         <section className="py-4">
           <p className="text-center text-lg font-black">{expandedDay ? `${formatFullDate(expandedDay.date)} · ${expandedDay.label}` : formatWeekRange(weekStart)}</p>
           <p className="mt-1 text-center text-xs font-bold text-white/45">
-            {expandedDay ? '点击当天时间表可收起回七天总览' : '点击某一天的竖向档期条，展开当天完整任务'}
+            {expandedDay ? '再点一次当前档期列会原地收起' : '点击某一天的竖向档期条，会从原位置展开'}
           </p>
         </section>
 
-        {expandedDay ? (
-          <>
-            <ExpandedDayTimeline
-              day={expandedDay}
-              ranges={selectedRanges}
-              orders={selectedOrders}
-              onAdd={() => addRange(expandedDay.weekday)}
-              onCollapse={() => setExpandedDateValue('')}
-            />
+        <WeekTimeline
+          days={weekDays}
+          draft={draft}
+          orders={occupiedOrders}
+          selectedDateValue={selectedDateValue}
+          expandedDateValue={expandedDateValue}
+          onToggleDay={toggleExpandedDay}
+        />
+
+        <div className={`grid transition-all duration-300 ease-out ${expandedDay ? 'mt-4 max-h-[900px] opacity-100' : 'max-h-0 overflow-hidden opacity-0'}`}>
+          {expandedDay ? (
             <DaySchedule
               day={expandedDay}
               ranges={selectedRanges}
@@ -179,16 +181,8 @@ export function CompanionBookingSettingsPage() {
               onChange={(rangeId, patch) => updateRange(expandedDay.weekday, rangeId, patch)}
               onRemove={(rangeId) => removeRange(expandedDay.weekday, rangeId)}
             />
-          </>
-        ) : (
-          <WeekTimeline
-            days={weekDays}
-            draft={draft}
-            orders={occupiedOrders}
-            selectedDateValue={selectedDateValue}
-            onToggleDay={toggleExpandedDay}
-          />
-        )}
+          ) : null}
+        </div>
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md border-t border-white/10 bg-black/90 p-4 backdrop-blur">
@@ -207,23 +201,32 @@ function WeekTimeline({
   draft,
   orders,
   selectedDateValue,
+  expandedDateValue,
   onToggleDay,
 }: {
   days: WeekDay[];
   draft: CompanionBookingSettings;
   orders: AppOrder[];
   selectedDateValue: string;
+  expandedDateValue: string;
   onToggleDay: (day: WeekDay) => void;
 }) {
+  const expandedDay = days.find((day) => day.dateValue === expandedDateValue) ?? null;
+  const gridTemplateColumns = expandedDay
+    ? days.map((day) => (day.dateValue === expandedDateValue ? 'minmax(0,1fr)' : 'minmax(0,0fr)')).join(' ')
+    : 'repeat(7, minmax(0, 1fr))';
+
   return (
-    <section className="rounded-[8px] border border-white/10 bg-black">
+    <section className="overflow-hidden rounded-[8px] border border-white/10 bg-black transition-all duration-300 ease-out">
       <div className="flex items-center justify-between border-b border-white/10 px-3 py-3">
         <div className="flex min-w-0 items-center gap-2 text-xs font-black text-white/55">
           <CalendarDays size={16} />
-          <span className="truncate">蓝色可约 · 灰色占用 · 空白不可约</span>
+          <span className="truncate">
+            {expandedDay ? `${formatFullDate(expandedDay.date)} · 再点一次收起` : '蓝色可约 · 灰色占用 · 空白不可约'}
+          </span>
         </div>
       </div>
-      <div className="relative h-[640px] overflow-hidden">
+      <div className={`relative overflow-hidden transition-[height] duration-300 ease-out ${expandedDay ? 'h-[860px]' : 'h-[640px]'}`}>
         <div className="absolute inset-y-0 left-0 w-[44px] bg-black" />
         <div className="absolute inset-y-0 left-[44px] right-0">
           {timelineHours.map((minute) => (
@@ -237,130 +240,63 @@ function WeekTimeline({
               className="absolute right-1 -translate-y-1/2 text-[10px] font-bold text-white/30"
               style={{ top: `${((minute - dayStartMinutes) / dayTotalMinutes) * 100}%` }}
             >
-              {formatCompactHourLabel(minute)}
+              {expandedDay ? formatHourLabel(minute) : formatCompactHourLabel(minute)}
             </span>
           ))}
         </div>
-        <div className="absolute inset-y-0 left-[48px] right-0 grid grid-cols-7 gap-1 pr-1">
+        <div className="absolute inset-y-0 left-[48px] right-0 grid gap-1 pr-1 transition-[grid-template-columns] duration-300 ease-out" style={{ gridTemplateColumns }}>
           {days.map((day) => {
             const ranges = getDayRanges(draft, day.weekday);
             const dayOrders = getOrdersForDate(orders, day.dateValue);
             const isSelected = selectedDateValue === day.dateValue;
+            const isExpanded = expandedDateValue === day.dateValue;
+            const isCollapsedByOtherDay = Boolean(expandedDateValue) && !isExpanded;
             return (
               <button
                 key={day.dateValue}
                 type="button"
-                className={`relative h-full min-w-0 border-x text-left transition ${isSelected ? 'border-white/30 bg-white/[0.03]' : 'border-white/10'}`}
+                className={`relative h-full min-w-0 overflow-hidden border-x text-left transition-all duration-300 ease-out ${
+                  isSelected || isExpanded ? 'border-white/30 bg-white/[0.03]' : 'border-white/10'
+                } ${isCollapsedByOtherDay ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
                 onClick={() => onToggleDay(day)}
                 aria-label={`${day.label} ${day.month}/${day.day}`}
               >
                 {ranges.map((range) => (
                   <span
                     key={range.id}
-                    className="absolute left-1 right-1 rounded-[4px] bg-blue-500/70 shadow-[inset_2px_0_0_rgba(191,219,254,0.95)]"
+                    className={`absolute rounded-[4px] bg-blue-500/70 shadow-[inset_2px_0_0_rgba(191,219,254,0.95)] transition-all duration-300 ease-out ${
+                      isExpanded ? 'left-0 right-2 px-3 py-2' : 'left-1 right-1'
+                    }`}
                     style={getTimelineBlockStyle(range.startTime, range.endTime)}
-                  />
+                  >
+                    <span className={`block text-sm font-black text-blue-100 transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>可预约</span>
+                    <span className={`mt-0.5 block text-xs font-bold text-blue-100/75 transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
+                      {range.startTime} - {range.endTime}
+                    </span>
+                  </span>
                 ))}
                 {dayOrders.map((order) => (
                   <span
                     key={order.id}
-                    className="absolute left-1 right-1 rounded-[4px] bg-zinc-500/80 shadow-[inset_2px_0_0_rgba(228,228,231,0.9)]"
+                    className={`absolute rounded-[4px] bg-zinc-500/80 shadow-[inset_2px_0_0_rgba(228,228,231,0.9)] transition-all duration-300 ease-out ${
+                      isExpanded ? 'left-0 right-2 px-3 py-2' : 'left-1 right-1'
+                    }`}
                     style={getTimelineBlockStyle(formatOrderTime(order), formatOrderEndTime(order))}
                     title={`${order.orderNo} ${order.place}`}
-                  />
+                  >
+                    <span className={`block truncate text-sm font-black text-white transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
+                      {order.title || order.orderNo}
+                    </span>
+                    <span className={`mt-0.5 block truncate text-xs font-bold text-white/75 transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
+                      {formatOrderTime(order)} - {formatOrderEndTime(order)} · {order.place}
+                    </span>
+                  </span>
                 ))}
               </button>
             );
           })}
         </div>
       </div>
-    </section>
-  );
-}
-
-function ExpandedDayTimeline({
-  day,
-  ranges,
-  orders,
-  onAdd,
-  onCollapse,
-}: {
-  day: WeekDay;
-  ranges: BookingTimeRange[];
-  orders: AppOrder[];
-  onAdd: () => void;
-  onCollapse: () => void;
-}) {
-  return (
-    <section className="rounded-[8px] border border-white/10 bg-zinc-950">
-      <button className="flex w-full items-center justify-between border-b border-white/10 px-4 py-3 text-left" type="button" onClick={onCollapse}>
-        <div>
-          <p className="text-base font-black">{formatFullDate(day.date)} · {day.label}</p>
-          <p className="mt-1 text-xs font-bold text-white/45">再次点击收起，灰色块展示订单地点和任务</p>
-        </div>
-        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/70">收起</span>
-      </button>
-      <div className="flex items-center justify-end border-b border-white/10 px-4 py-3">
-        <button
-          className="inline-flex h-10 items-center gap-1 rounded-full bg-white px-3 text-xs font-black text-black"
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onAdd();
-          }}
-        >
-          <Plus size={15} />
-          添加
-        </button>
-      </div>
-      <button className="relative block min-h-[860px] w-full text-left" type="button" onClick={onCollapse}>
-        <div className="absolute inset-y-0 left-0 w-[58px] bg-zinc-950" />
-        <div className="absolute inset-y-0 left-[58px] right-0">
-          {timelineHours.map((minute) => (
-            <div key={minute} className="absolute left-0 right-0 border-t border-white/10" style={{ top: `${((minute - dayStartMinutes) / dayTotalMinutes) * 100}%` }} />
-          ))}
-        </div>
-        <div className="absolute inset-y-0 left-0 w-[58px]">
-          {timelineHours.map((minute) => (
-            <span
-              key={minute}
-              className="absolute right-2 -translate-y-1/2 text-[11px] font-bold text-white/35"
-              style={{ top: `${((minute - dayStartMinutes) / dayTotalMinutes) * 100}%` }}
-            >
-              {formatHourLabel(minute)}
-            </span>
-          ))}
-        </div>
-        <div className="absolute inset-y-0 left-[64px] right-0">
-          {ranges.map((range) => (
-            <div
-              key={range.id}
-              className="absolute left-0 right-2 rounded-[6px] border border-blue-300/35 bg-blue-500/35 px-3 py-2 text-blue-100 shadow-[inset_4px_0_0_rgba(147,197,253,0.95)]"
-              style={getTimelineBlockStyle(range.startTime, range.endTime)}
-            >
-              <p className="text-sm font-black">可预约</p>
-              <p className="mt-0.5 text-xs font-bold text-blue-100/75">{range.startTime} - {range.endTime}</p>
-            </div>
-          ))}
-          {orders.map((order) => (
-            <div
-              key={order.id}
-              className="absolute left-0 right-2 rounded-[6px] border border-zinc-300/20 bg-zinc-500/75 px-3 py-2 text-white shadow-[inset_4px_0_0_rgba(228,228,231,0.9)]"
-              style={getTimelineBlockStyle(formatOrderTime(order), formatOrderEndTime(order))}
-            >
-              <p className="truncate text-sm font-black">{order.title || order.orderNo}</p>
-              <p className="mt-0.5 truncate text-xs font-bold text-white/75">
-                {formatOrderTime(order)} - {formatOrderEndTime(order)} · {order.place}
-              </p>
-            </div>
-          ))}
-        </div>
-      </button>
-      {!ranges.length && !orders.length ? (
-        <p className="border-t border-white/10 px-4 py-5 text-center text-xs font-bold text-white/35">
-          {day.month}/{day.day} 暂无可预约档期，点击添加创建时间段。
-        </p>
-      ) : null}
     </section>
   );
 }
