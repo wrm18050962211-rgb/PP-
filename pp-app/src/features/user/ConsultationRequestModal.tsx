@@ -1,8 +1,9 @@
-import { ImagePlus, Send, XCircle } from 'lucide-react';
-import { useState } from 'react';
+import { ImagePlus, LocateFixed, MapPin, Send, XCircle } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import type { AuthSession, FeedPost } from '../../types/api';
 import { createConsultation, type ConsultationRequestCard } from '../../services/consultationService';
 import { createDefaultPackageSettings } from '../../services/companionPackageService';
+import { requestConsumerLocation } from '../../services/locationService';
 
 export function ConsultationRequestModal({
   post,
@@ -16,10 +17,15 @@ export function ConsultationRequestModal({
   onSubmitted: (id: string) => void;
 }) {
   const settings = createDefaultPackageSettings(post.companion);
+  const dateOptions = useMemo(() => buildDateOptions(45), []);
+  const timeOptions = useMemo(() => buildTimeOptions(), []);
+  const placeOptions = useMemo(() => buildPlaceOptions(post), [post]);
   const [card, setCard] = useState<ConsultationRequestCard>({
-    date: '本周末',
+    date: dateOptions[0]?.value ?? '',
     timeRange: '14:00-18:00',
     place: post.locationName || post.location,
+    placeLat: post.lat,
+    placeLng: post.lng,
     peopleCount: 1,
     packageId: settings.packages[0].id,
     packageName: settings.packages[0].name,
@@ -34,7 +40,40 @@ export function ConsultationRequestModal({
     note: '',
     referenceImages: [],
   });
+  const [startTime, setStartTime] = useState('14:00');
+  const [endTime, setEndTime] = useState('18:00');
+  const [mapOpen, setMapOpen] = useState(false);
+  const [locationStatus, setLocationStatus] = useState('');
   const canSubmit = card.date.trim() && card.timeRange.trim() && card.place.trim();
+
+  function updateTimeRange(nextStart: string, nextEnd: string) {
+    const safeEnd = timeToMinutes(nextEnd) > timeToMinutes(nextStart) ? nextEnd : getNextTimeOption(nextStart, timeOptions);
+    setStartTime(nextStart);
+    setEndTime(safeEnd);
+    setCard((current) => ({ ...current, timeRange: `${nextStart}-${safeEnd}` }));
+  }
+
+  async function useCurrentLocation() {
+    setLocationStatus('正在获取定位...');
+    try {
+      const location = await requestConsumerLocation();
+      setCard((current) => ({
+        ...current,
+        place: `当前位置 ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`,
+        placeLat: location.lat,
+        placeLng: location.lng,
+      }));
+      setLocationStatus(`已定位，精度约 ${Math.round(location.accuracy ?? 0)}m`);
+    } catch {
+      setLocationStatus('定位失败，请在地图候选点中选择或检查浏览器定位权限');
+    }
+  }
+
+  function selectPlace(place: PlaceOption) {
+    setCard((current) => ({ ...current, place: place.label, placeLat: place.lat, placeLng: place.lng }));
+    setMapOpen(false);
+    setLocationStatus(place.lat && place.lng ? `已选择地图点：${place.label}` : '');
+  }
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
@@ -63,11 +102,57 @@ export function ConsultationRequestModal({
         </div>
 
         <div className="mt-4 grid gap-3">
-          <Field label="日期"><input className="field" value={card.date} onChange={(event) => setCard((current) => ({ ...current, date: event.target.value }))} /></Field>
-          <Field label="时间段"><input className="field" value={card.timeRange} onChange={(event) => setCard((current) => ({ ...current, timeRange: event.target.value }))} /></Field>
-          <Field label="地点"><input className="field" value={card.place} onChange={(event) => setCard((current) => ({ ...current, place: event.target.value }))} /></Field>
+          <Field label="日期">
+            <select className="field" value={card.date} onChange={(event) => setCard((current) => ({ ...current, date: event.target.value }))}>
+              {dateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="人数"><input className="field" type="number" min={1} value={card.peopleCount} onChange={(event) => setCard((current) => ({ ...current, peopleCount: Number(event.target.value) }))} /></Field>
+            <Field label="开始时间">
+              <select className="field" value={startTime} onChange={(event) => updateTimeRange(event.target.value, endTime)}>
+                {timeOptions.slice(0, -1).map((time) => <option key={time} value={time}>{time}</option>)}
+              </select>
+            </Field>
+            <Field label="结束时间">
+              <select className="field" value={endTime} onChange={(event) => updateTimeRange(startTime, event.target.value)}>
+                {timeOptions.filter((time) => timeToMinutes(time) > timeToMinutes(startTime)).map((time) => <option key={time} value={time}>{time}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="地点">
+            <select className="field" value={card.place} onChange={(event) => selectPlace(placeOptions.find((place) => place.label === event.target.value) ?? { label: event.target.value })}>
+              {placeOptions.map((place) => <option key={place.label} value={place.label}>{place.label}</option>)}
+            </select>
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <button className="flex h-10 items-center justify-center gap-2 rounded-full bg-white text-xs font-black text-zinc-800 ring-1 ring-zinc-200" onClick={() => void useCurrentLocation()} type="button">
+              <LocateFixed size={15} />
+              使用当前位置
+            </button>
+            <button className="flex h-10 items-center justify-center gap-2 rounded-full bg-white text-xs font-black text-zinc-800 ring-1 ring-zinc-200" onClick={() => setMapOpen((value) => !value)} type="button">
+              <MapPin size={15} />
+              地图选择
+            </button>
+          </div>
+          {locationStatus ? <p className="text-xs font-bold text-zinc-400">{locationStatus}</p> : null}
+          {mapOpen ? (
+            <div className="rounded-[14px] bg-white p-3 ring-1 ring-zinc-200">
+              <p className="text-xs font-black text-zinc-500">地图候选点</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {placeOptions.map((place) => (
+                  <button key={place.label} className="min-h-10 rounded-[10px] bg-zinc-100 px-3 py-2 text-left text-xs font-bold text-zinc-700" onClick={() => selectPlace(place)} type="button">
+                    {place.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="人数">
+              <select className="field" value={card.peopleCount} onChange={(event) => setCard((current) => ({ ...current, peopleCount: Number(event.target.value) }))}>
+                {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}人</option>)}
+              </select>
+            </Field>
             <Field label="套餐/时长">
               <select className="field" value={card.packageId} onChange={(event) => setCard((current) => ({ ...current, packageId: event.target.value }))}>
                 {settings.packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
@@ -122,6 +207,64 @@ function Toggle({ label, active, onClick }: { label: string; active: boolean; on
 
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return <label className="flex items-center gap-2 rounded-[8px] bg-white px-3 py-2 text-xs font-bold ring-1 ring-zinc-200"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />{label}</label>;
+}
+
+type PlaceOption = {
+  label: string;
+  lat?: number;
+  lng?: number;
+};
+
+function buildDateOptions(days: number) {
+  const formatter = new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', weekday: 'short' });
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() + index);
+    const value = date.toISOString().slice(0, 10);
+    const prefix = index === 0 ? '今天' : index === 1 ? '明天' : index === 2 ? '后天' : '';
+    return {
+      value,
+      label: [prefix, formatter.format(date)].filter(Boolean).join(' · '),
+    };
+  });
+}
+
+function buildTimeOptions() {
+  const options: string[] = [];
+  for (let minutes = 6 * 60; minutes <= 24 * 60; minutes += 15) {
+    const hour = Math.floor(minutes / 60);
+    const minute = minutes % 60;
+    options.push(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+  }
+  return options;
+}
+
+function timeToMinutes(value: string) {
+  const [hour, minute] = value.split(':').map(Number);
+  return hour * 60 + minute;
+}
+
+function getNextTimeOption(startTime: string, options: string[]) {
+  return options.find((time) => timeToMinutes(time) > timeToMinutes(startTime)) ?? options.at(-1) ?? startTime;
+}
+
+function buildPlaceOptions(post: FeedPost): PlaceOption[] {
+  const basePlaces: PlaceOption[] = [
+    { label: post.locationName || post.location, lat: post.lat, lng: post.lng },
+    { label: post.location, lat: post.lat, lng: post.lng },
+    ...post.companion.areas.map((area) => ({ label: `${post.companion.baseCity} · ${area}` })),
+    { label: '上海 · 武康路', lat: 31.2104, lng: 121.4386 },
+    { label: '上海 · 安福路', lat: 31.2172, lng: 121.4472 },
+    { label: '上海 · 静安寺', lat: 31.2231, lng: 121.4451 },
+    { label: '上海 · 外滩', lat: 31.2397, lng: 121.4903 },
+    { label: '上海 · 新天地', lat: 31.2197, lng: 121.4752 },
+  ];
+  const seen = new Set<string>();
+  return basePlaces.filter((place) => {
+    if (!place.label || seen.has(place.label)) return false;
+    seen.add(place.label);
+    return true;
+  });
 }
 
 function readFileAsDataUrl(file: File) {

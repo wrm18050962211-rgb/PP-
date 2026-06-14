@@ -7,6 +7,8 @@ export type ConsultationRequestCard = {
   date: string;
   timeRange: string;
   place: string;
+  placeLat?: number;
+  placeLng?: number;
   peopleCount: number;
   packageId: string;
   packageName: string;
