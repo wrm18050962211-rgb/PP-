@@ -1,6 +1,5 @@
 import type { AuthSession, Companion, CreateOrderInput, FeedPost } from '../types/api';
 import { evaluateMessageRisk } from '../utils/messageRisk';
-import { readDomainJson, writeDomainJson } from './scopedStorage';
 import { createDefaultPackageSettings } from './companionPackageService';
 
 export type ConsultationRequestCard = {
@@ -59,6 +58,7 @@ export type ConsultationRecord = {
 };
 
 const storageKey = 'consultations-v1';
+const sharedConsultationStorageKey = `pp-cloud-db:shared:${storageKey}`;
 
 export function listConsultations(session?: AuthSession | null) {
   const records = readConsultations();
@@ -190,9 +190,33 @@ export function getConsultationRiskText(record: ConsultationRecord) {
 }
 
 function readConsultations() {
-  return readDomainJson<ConsultationRecord[]>(storageKey, []);
+  if (typeof localStorage === 'undefined') return [];
+  const records = new Map<string, ConsultationRecord>();
+  for (const record of readConsultationStorageValue(sharedConsultationStorageKey)) {
+    records.set(record.id, record);
+  }
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || key === sharedConsultationStorageKey || !key.endsWith(`:${storageKey}`)) continue;
+    for (const record of readConsultationStorageValue(key)) {
+      records.set(record.id, record);
+    }
+  }
+
+  return Array.from(records.values()).sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
 }
 
 function writeConsultations(records: ConsultationRecord[]) {
-  writeDomainJson(storageKey, records);
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(sharedConsultationStorageKey, JSON.stringify(records));
+}
+
+function readConsultationStorageValue(key: string) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as ConsultationRecord[]) : [];
+  } catch {
+    return [];
+  }
 }

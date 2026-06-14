@@ -3,14 +3,16 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
 import { accountHasRole, fetchAuthSession, switchMockRole } from '../../services/authService';
+import { listConsultations } from '../../services/consultationService';
 import { getCreatorIdentity, readCreatorProfile } from '../../services/creatorProfileService';
 import { listFeedPosts } from '../../services/feedService';
 import type { AuthSession, FeedPost, UserRole } from '../../types/api';
 import { getCollectionSummary } from './UserCollectionPage';
 
 type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
+type CreatorMenuItem = { icon: typeof UserRoundPen; label: string; desc: string; to: string; badge?: string };
 
-const creatorMenuItems = [
+const creatorMenuItems: CreatorMenuItem[] = [
   { icon: UserRoundPen, label: '编辑主页', desc: '头像、ID 名称、文字简介', to: '/consumer/profile' },
   { icon: ReceiptText, label: '我的订单', desc: '预约、支付、售后', to: '/consumer/orders' },
   { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1' },
@@ -31,6 +33,15 @@ export function MinePage() {
   const posts = listFeedPosts();
   const ownProfile = buildOwnProfileSummary(session, posts[0]);
   const collectionSummary = getCollectionSummary(posts);
+  const activeConsultationCount = session ? listConsultations(session).filter((item) => item.status !== 'closed').length : 0;
+  const visibleCreatorMenuItems = creatorMenuItems.map((item) => {
+    if (item.label !== '我的订单' || activeConsultationCount <= 0) return item;
+    return {
+      ...item,
+      desc: `${item.desc} · ${activeConsultationCount} 个咨询`,
+      badge: `${activeConsultationCount}`,
+    };
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -118,11 +129,14 @@ export function MinePage() {
       </section>
 
       <section className="mt-5 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
-        {creatorMenuItems.map(({ icon: Icon, label, desc, to }) => (
+        {visibleCreatorMenuItems.map(({ icon: Icon, label, desc, to, badge }) => (
           <Link key={label} to={to} className="flex min-h-16 w-full items-center gap-3 px-4 text-left">
             <Icon size={19} />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold">{label}</span>
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <span>{label}</span>
+                {badge ? <span className="rounded-full bg-[#e85d75] px-2 py-0.5 text-[10px] font-black leading-4 text-white">{badge}</span> : null}
+              </span>
               <span className="mt-0.5 block truncate text-xs text-zinc-400">{desc}</span>
             </span>
             <ChevronRight className="text-zinc-300" size={18} />

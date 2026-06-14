@@ -370,7 +370,7 @@ function MessageThreadList({
         <div>
           <Camera className="mx-auto text-zinc-300" size={48} />
           <p className="mt-4 text-base font-black text-zinc-900">还没有拍摄会话</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-500">创建订单后，每位摄影师都会在这里生成一条聊天。</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">发起咨询或创建订单后，每位摄影师都会在这里生成一条聊天。</p>
           <Link className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-black px-6 text-sm font-bold text-white" to="/consumer/companions">
             去拍摄
           </Link>

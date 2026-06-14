@@ -16,12 +16,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { RoleSwitchLoading } from '../../components/RoleSwitchLoading';
 import { accountHasRole, switchMockRole } from '../../services/authService';
+import { listConsultations } from '../../services/consultationService';
 import { listFeedPosts } from '../../services/feedService';
 import type { FeedPost, UserRole } from '../../types/api';
 import { getCollectionSummary } from '../user/UserCollectionPage';
 
 type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
-type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: string };
+type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: string; badge?: string };
 
 const photographerMenuItems: MenuItem[] = [
   { icon: ClipboardList, label: '我的订单', desc: '待确认、已确认、已完成', to: '/companion/orders' },
@@ -51,6 +52,15 @@ export function CompanionStudio() {
   const posts = listFeedPosts();
   const ownProfile = buildPhotographerProfileSummary(posts.find((post) => post.companion.id === session?.companionId), session, posts[0]);
   const collectionSummary = getCollectionSummary(posts);
+  const newConsultationCount = session ? listConsultations(session).filter((item) => item.status === 'consulting').length : 0;
+  const visiblePhotographerMenuItems = photographerMenuItems.map((item) => {
+    if (item.label !== '我的订单' || newConsultationCount <= 0) return item;
+    return {
+      ...item,
+      desc: `${item.desc} · ${newConsultationCount} 个新询价`,
+      badge: `${newConsultationCount}`,
+    };
+  });
 
   useEffect(() => {
     if (!session) return;
@@ -130,7 +140,7 @@ export function CompanionStudio() {
         </div>
       </section>
 
-      <MenuSection className="mt-5" items={photographerMenuItems} />
+      <MenuSection className="mt-5" items={visiblePhotographerMenuItems} />
 
       <MenuSection className="mt-4" items={setupItems} />
 
@@ -142,11 +152,14 @@ export function CompanionStudio() {
 function MenuSection({ items, className = '' }: { items: MenuItem[]; className?: string }) {
   return (
     <section className={`${className} divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white`}>
-      {items.map(({ icon: Icon, label, desc, to }) => (
+      {items.map(({ icon: Icon, label, desc, to, badge }) => (
         <Link key={label} to={to} className="flex min-h-16 w-full items-center gap-3 px-4 text-left">
           <Icon size={19} />
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">{label}</span>
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <span>{label}</span>
+              {badge ? <span className="rounded-full bg-[#e85d75] px-2 py-0.5 text-[10px] font-black leading-4 text-white">{badge}</span> : null}
+            </span>
             <span className="mt-0.5 block truncate text-xs text-zinc-400">{desc}</span>
           </span>
           <ChevronRight className="text-zinc-300" size={18} />
