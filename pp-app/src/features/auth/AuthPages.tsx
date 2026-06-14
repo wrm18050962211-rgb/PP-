@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   getPostAuthHome,
-  getAvailableLoginRoles,
   getRegisteredAccount,
   hasRegisteredAccount,
   isAccountLoggedIn,
   loginWithPhoneCode,
   logoutAccount,
+  MissingRoleRegistrationError,
   registerWithPhone,
   requestPhoneCode,
   type RegisterInput,
@@ -41,8 +41,10 @@ export function GuestOnly({ children }: { children: React.ReactNode }) {
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<PublicRole>('consumer');
-  const [phone, setPhone] = useState('');
+  const location = useLocation();
+  const registerState = location.state as { role?: PublicRole; phone?: string } | null;
+  const [role, setRole] = useState<PublicRole>(registerState?.role ?? 'consumer');
+  const [phone, setPhone] = useState(registerState?.phone ?? '');
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
@@ -110,14 +112,10 @@ export function LoginPage() {
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
-  const availableRoles = getAvailableLoginRoles(phone);
-  const loginRoleOptions = availableRoles.length ? roleOptions.filter((item) => availableRoles.includes(item.role)) : roleOptions;
 
   function sendCode() {
     try {
       const nextCode = requestPhoneCode(phone);
-      const roles = getAvailableLoginRoles(phone);
-      if (roles.length && !roles.includes(role)) setRole(roles[0]);
       setDemoCode(nextCode);
       setError('');
     } catch (nextError) {
@@ -130,6 +128,10 @@ export function LoginPage() {
       const session = await loginWithPhoneCode(phone, code, role);
       navigate(getPostAuthHome(session.role), { replace: true });
     } catch (nextError) {
+      if (nextError instanceof MissingRoleRegistrationError) {
+        navigate('/auth/register', { replace: true, state: { role: nextError.role, phone } });
+        return;
+      }
       setError(getErrorMessage(nextError));
     }
   }
@@ -146,7 +148,7 @@ export function LoginPage() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-2">
-        {loginRoleOptions.map((item) => {
+        {roleOptions.map((item) => {
           const Icon = item.icon;
           const active = role === item.role;
           return (
@@ -173,7 +175,7 @@ export function LoginPage() {
         登录
       </button>
       <Link className="mt-4 block text-center text-sm font-bold text-zinc-500" to="/auth/register">
-        重新注册身份
+        注册
       </Link>
     </AuthFrame>
   );

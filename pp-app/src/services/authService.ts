@@ -37,6 +37,13 @@ export type RegisterInput = {
   role: PublicRole;
 };
 
+export class MissingRoleRegistrationError extends Error {
+  constructor(public readonly role: PublicRole) {
+    super(`该手机号尚未注册${role === 'companion' ? '摄影师' : '创作者'}身份`);
+    this.name = 'MissingRoleRegistrationError';
+  }
+}
+
 export async function fetchAuthSession(): Promise<AuthSession> {
   if (isAccountLoggedIn()) return localSession(readStoredRole());
   if (!isApiEnabled()) return localSession(readStoredRole());
@@ -157,11 +164,11 @@ export function registerWithPhone(input: RegisterInput) {
 export async function loginWithPhoneCode(phone: string, code: string, role?: PublicRole) {
   const normalizedPhone = normalizePhone(phone);
   const account = findLoginAccount(normalizedPhone);
-  if (!account) throw new Error('请先完成注册，或使用测试账号清单中的手机号');
+  if (!account) throw new MissingRoleRegistrationError(role ?? 'consumer');
   validatePhoneCode(normalizedPhone, code);
   const availableRoles = getUsableRoles(account);
   const loginRole = role ?? account.role;
-  if (!availableRoles.includes(loginRole)) throw new Error(`该手机号尚未注册${loginRole === 'companion' ? '摄影师' : '创作者'}身份`);
+  if (!availableRoles.includes(loginRole)) throw new MissingRoleRegistrationError(loginRole);
 
   const nextAccount = { ...account, role: loginRole };
   if (typeof localStorage !== 'undefined') {
