@@ -128,20 +128,30 @@ export function CompanionBookingSettingsPage() {
             <ArrowLeft size={20} />
             档期
           </Link>
-          <div className="flex items-center gap-2 rounded-full bg-white/10 p-1">
-            <button className="grid h-9 w-9 place-items-center rounded-full text-white" onClick={() => moveWeek(-7)} aria-label="上一周">
-              <ChevronLeft size={18} />
-            </button>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="grid min-w-[168px] grid-cols-2 rounded-full bg-white/10 p-1">
+              <button
+                type="button"
+                className={`h-9 rounded-full px-2 text-[11px] font-black transition ${applyMode === 'weekly' ? 'bg-white text-black' : 'text-white/55'}`}
+                onClick={() => setApplyMode('weekly')}
+              >
+                每周
+              </button>
+              <button
+                type="button"
+                className={`h-9 rounded-full px-2 text-[11px] font-black transition ${applyMode === 'single_week' ? 'bg-white text-black' : 'text-white/55'}`}
+                onClick={() => setApplyMode('single_week')}
+              >
+                本周
+              </button>
+            </div>
             <button
-              className={`grid h-9 w-9 place-items-center rounded-full ${draft.temporaryAccepting ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/50'}`}
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${draft.temporaryAccepting ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/50'}`}
               onClick={() => updateDraft({ temporaryAccepting: !draft.temporaryAccepting })}
               aria-label="临时接单"
               title="临时接单"
             >
               <Zap size={17} />
-            </button>
-            <button className="grid h-9 w-9 place-items-center rounded-full text-white" onClick={() => moveWeek(7)} aria-label="下一周">
-              <ChevronRight size={18} />
             </button>
           </div>
         </div>
@@ -186,24 +196,18 @@ export function CompanionBookingSettingsPage() {
 
       <main className="px-3">
         <section className="py-4">
-          <p className="text-center text-lg font-black">{expandedDay ? `${formatFullDate(expandedDay.date)} · ${expandedDay.label}` : formatWeekRange(weekStart)}</p>
-          <p className="mt-1 text-center text-xs font-bold text-white/45">
-            {expandedDay ? '再点一次当前档期列会原地收起' : '默认显示手机当前日期所在周，过去日期已压暗'}
-          </p>
-          <div className="mt-4 grid grid-cols-2 rounded-full bg-white/10 p-1">
-            <button
-              type="button"
-              className={`h-10 rounded-full text-xs font-black transition ${applyMode === 'weekly' ? 'bg-white text-black' : 'text-white/55'}`}
-              onClick={() => setApplyMode('weekly')}
-            >
-              应用到每一周
+          <div className="grid grid-cols-[44px_1fr_44px] items-center gap-3">
+            <button className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white" onClick={() => moveWeek(-7)} aria-label="上一周">
+              <ChevronLeft size={18} />
             </button>
-            <button
-              type="button"
-              className={`h-10 rounded-full text-xs font-black transition ${applyMode === 'single_week' ? 'bg-white text-black' : 'text-white/55'}`}
-              onClick={() => setApplyMode('single_week')}
-            >
-              仅本周应用
+            <div className="min-w-0 text-center">
+              <p className="text-lg font-black">{expandedDay ? `${formatFullDate(expandedDay.date)} · ${expandedDay.label}` : formatWeekRange(weekStart)}</p>
+              <p className="mt-1 text-xs font-bold text-white/45">
+                {expandedDay ? '再点一次当前档期列会原地收起' : '默认显示手机当前日期所在周，过去日期已压暗'}
+              </p>
+            </div>
+            <button className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white" onClick={() => moveWeek(7)} aria-label="下一周">
+              <ChevronRight size={18} />
             </button>
           </div>
         </section>
