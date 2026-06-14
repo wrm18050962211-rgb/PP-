@@ -203,7 +203,7 @@ export function completeRoleRegistration(role: PublicRole, profile: Partial<Pick
   const nextAccount: AuthAccount = {
     ...account,
     ...profile,
-    role,
+    role: account.role,
     roles: Array.from(new Set([...getUsableRoles(account), role])),
     completedRoleRegistrations,
     creatorId: role === 'consumer' ? account.creatorId || `creator-local-${account.phone}` : account.creatorId,
@@ -212,7 +212,6 @@ export function completeRoleRegistration(role: PublicRole, profile: Partial<Pick
     photographerName: profile.photographerName ?? (role === 'companion' ? account.photographerName || 'Demo Photographer' : account.photographerName),
   };
   localStorage.setItem(accountStorageKey, JSON.stringify(nextAccount));
-  persistRole(role);
   return nextAccount;
 }
 

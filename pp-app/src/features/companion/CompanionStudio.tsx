@@ -22,7 +22,7 @@ type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: s
 const photographerMenuItems: MenuItem[] = [
   { icon: Banknote, label: '咨询报价', desc: '查看需求卡并调整报价', to: '/companion/consultations' },
   { icon: ClipboardList, label: '我的订单', desc: '待确认、已确认、已完成', to: '/companion/orders' },
-  { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1&from=companion' },
+  { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/companion/orders?tab=completed&work=1' },
 ];
 
 const setupItems: MenuItem[] = [

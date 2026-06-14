@@ -1,7 +1,7 @@
 import { ArrowLeft, BadgeCheck, ImagePlus, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { completeRoleRegistration, getRegisteredAccount, switchMockRole } from '../../services/authService';
+import { completeRoleRegistration, getRegisteredAccount, logoutAccount } from '../../services/authService';
 
 export function CreatorOnboarding() {
   const navigate = useNavigate();
@@ -17,8 +17,8 @@ export function CreatorOnboarding() {
       creatorName: nickname.trim(),
       creatorAvatarUrl: avatarImage.trim(),
     });
-    await switchMockRole('consumer');
-    navigate('/consumer/mine');
+    await logoutAccount();
+    navigate('/auth/login', { replace: true, state: { role: 'consumer', phone: account?.phone } });
   }
 
   return (

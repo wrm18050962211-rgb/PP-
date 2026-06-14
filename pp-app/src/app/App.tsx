@@ -2,7 +2,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { ConsumerShell } from '../layouts/ConsumerShell';
 import { RoleShell } from '../layouts/RoleShell';
 import { AdminDashboard } from '../features/admin/AdminDashboard';
-import { AccountSettingsPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAuth } from '../features/auth/AuthPages';
+import { AccountSettingsPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAuth, RequireRole } from '../features/auth/AuthPages';
 import { CompanionOnboarding } from '../features/companion/CompanionOnboarding';
 import { CompanionBookingSettingsPage } from '../features/companion/CompanionBookingSettingsPage';
 import { CompanionIncomePage } from '../features/companion/CompanionIncomePage';
@@ -26,6 +26,7 @@ import { OrdersPage } from '../features/user/OrdersPage';
 import { PhotographerProfilePage } from '../features/user/PhotographerProfilePage';
 import { PostDetail } from '../features/user/PostDetail';
 import { UserCollectionPage } from '../features/user/UserCollectionPage';
+import { getRegisteredAccount } from '../services/authService';
 
 export default function App() {
   return (
@@ -57,29 +58,115 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<HomeFeed />} />
-        <Route path="companions" element={<CompanionFinderPage />} />
+        <Route
+          index
+          element={
+            <RequireRole role="consumer" fallback="/companion">
+              <HomeFeed />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="companions"
+          element={
+            <RequireRole role="consumer" fallback="/companion">
+              <CompanionFinderPage />
+            </RequireRole>
+          }
+        />
         <Route path="same-style" element={<Navigate to="/consumer" replace />} />
         <Route path="post/:postId" element={<PostDetail />} />
         <Route path="creator/:creatorId" element={<CreatorProfilePage />} />
         <Route path="photographer/:photographerId" element={<PhotographerProfilePage />} />
-        <Route path="checkout/:postId" element={<CheckoutPage />} />
-        <Route path="onboarding" element={<CreatorOnboarding />} />
-        <Route path="profile" element={<CreatorProfileEditPage />} />
-        <Route path="orders" element={<OrdersPage />} />
-        <Route path="likes" element={<UserCollectionPage mode="likes" />} />
-        <Route path="favorites" element={<UserCollectionPage mode="favorites" />} />
-        <Route path="following" element={<UserCollectionPage mode="following" />} />
-        <Route path="messages" element={<MessagesPage />} />
-        <Route path="messages/:orderId" element={<MessagesPage />} />
-        <Route path="mine" element={<MinePage />} />
+        <Route
+          path="checkout/:postId"
+          element={
+            <RequireRole role="consumer" fallback="/companion">
+              <CheckoutPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="onboarding"
+          element={
+            <RequireRole role="companion" fallback="/consumer/mine">
+              <CreatorOnboarding />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="profile"
+          element={
+            <RequireRole role="consumer" fallback="/companion/mine">
+              <CreatorProfileEditPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="orders"
+          element={
+            <RequireRole role="consumer" fallback="/companion/orders">
+              <OrdersPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="likes"
+          element={
+            <RequireRole role="consumer" fallback="/companion/mine">
+              <UserCollectionPage mode="likes" />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="favorites"
+          element={
+            <RequireRole role="consumer" fallback="/companion/mine">
+              <UserCollectionPage mode="favorites" />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="following"
+          element={
+            <RequireRole role="consumer" fallback="/companion/mine">
+              <UserCollectionPage mode="following" />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="messages"
+          element={
+            <RequireRole role="consumer" fallback="/companion/messages">
+              <MessagesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="messages/:orderId"
+          element={
+            <RequireRole role="consumer" fallback="/companion/messages">
+              <MessagesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="mine"
+          element={
+            <RequireRole role="consumer" fallback="/companion/mine">
+              <MinePage />
+            </RequireRole>
+          }
+        />
       </Route>
 
       <Route
         path="/companion"
         element={
           <RequireAuth>
-            <RoleShell />
+            <RequireRole role="companion" fallback="/consumer/mine">
+              <RoleShell />
+            </RequireRole>
           </RequireAuth>
         }
       >
@@ -111,10 +198,10 @@ export default function App() {
 
       <Route path="/post/:postId" element={<LegacyConsumerRedirect target="post" />} />
       <Route path="/checkout/:postId" element={<LegacyConsumerRedirect target="checkout" />} />
-      <Route path="/orders" element={<Navigate to="/consumer/orders" replace />} />
-      <Route path="/messages" element={<Navigate to="/consumer/messages" replace />} />
-      <Route path="/mine" element={<Navigate to="/consumer/mine" replace />} />
-      <Route path="*" element={<Navigate to="/consumer" replace />} />
+      <Route path="/orders" element={<LegacyRoleRedirect target="orders" />} />
+      <Route path="/messages" element={<LegacyRoleRedirect target="messages" />} />
+      <Route path="/mine" element={<LegacyRoleRedirect target="mine" />} />
+      <Route path="*" element={<EntryRedirect />} />
     </Routes>
   );
 }
@@ -122,4 +209,10 @@ export default function App() {
 function LegacyConsumerRedirect({ target }: { target: 'post' | 'checkout' }) {
   const { postId } = useParams();
   return <Navigate to={`/consumer/${target}/${postId ?? ''}`} replace />;
+}
+
+function LegacyRoleRedirect({ target }: { target: 'orders' | 'messages' | 'mine' }) {
+  const role = getRegisteredAccount()?.role;
+  const basePath = role === 'companion' ? '/companion' : '/consumer';
+  return <Navigate to={`${basePath}/${target}`} replace />;
 }

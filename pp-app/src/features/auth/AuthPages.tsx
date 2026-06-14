@@ -34,6 +34,14 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   return children;
 }
 
+export function RequireRole({ role, fallback, children }: { role: PublicRole; fallback: string; children: React.ReactNode }) {
+  const location = useLocation();
+  if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace state={{ from: location.pathname }} />;
+  if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
+  if (getRegisteredAccount()?.role !== role) return <Navigate to={fallback} replace />;
+  return children;
+}
+
 export function GuestOnly({ children }: { children: React.ReactNode }) {
   if (isAccountLoggedIn()) return <Navigate to={getPostAuthHome(getRegisteredAccount()?.role)} replace />;
   return children;
@@ -106,9 +114,11 @@ export function RegisterPage() {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const loginState = location.state as { role?: PublicRole; phone?: string } | null;
   const account = getRegisteredAccount();
-  const [phone, setPhone] = useState(account?.phone ?? '');
-  const [role, setRole] = useState<PublicRole>(account?.role ?? 'consumer');
+  const [phone, setPhone] = useState(loginState?.phone ?? account?.phone ?? '');
+  const [role, setRole] = useState<PublicRole>(loginState?.role ?? account?.role ?? 'consumer');
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');

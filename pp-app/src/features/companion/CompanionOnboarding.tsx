@@ -16,7 +16,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
-import { completeRoleRegistration, switchMockRole } from '../../services/authService';
+import { completeRoleRegistration, logoutAccount } from '../../services/authService';
 import type { CompanionApplication } from '../../types/domain';
 
 const cityOptions = ['上海', '北京', '广州', '深圳', '杭州', '成都', '南京', '苏州'];
@@ -26,7 +26,7 @@ const tags = ['会指导动作', '轻松聊天', '懂女生需求', '适合第�
 
 export function CompanionOnboarding() {
   const navigate = useNavigate();
-  const { application, saveApplication, submitApplication } = useAppData();
+  const { application, saveApplication, submitApplication, session } = useAppData();
   const auditItems = getAuditItems(application);
   const completedCount = auditItems.filter((item) => item.done).length;
   const canSubmit = completedCount === auditItems.length && application.reviewStatus !== '待审核' && application.reviewStatus !== '已通过';
@@ -64,8 +64,8 @@ export function CompanionOnboarding() {
       photographerName: application.nickname || 'Demo Photographer',
       photographerAvatarUrl: application.avatarImage,
     });
-    await switchMockRole('companion');
-    navigate('/companion/mine');
+    await logoutAccount();
+    navigate('/auth/login', { replace: true, state: { role: 'companion', phone: session?.user.phone || application.phone } });
   }
 
   return (
