@@ -23,11 +23,13 @@ export function CompanionBookingSettingsPage() {
   const { bookingSettings, orders, saveBookingSettings } = useAppData();
   const [draft, setDraft] = useState<CompanionBookingSettings>(() => ensureWeeklyRanges(bookingSettings));
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
+  const [selectedDateValue, setSelectedDateValue] = useState('');
   const [savedNotice, setSavedNotice] = useState('');
 
   const occupiedOrders = useMemo(() => getScheduleOrders(orders), [orders]);
   const routeWarnings = useMemo(() => getRouteWarnings(occupiedOrders), [occupiedOrders]);
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
+  const selectedDay = weekDays.find((day) => day.dateValue === selectedDateValue) ?? null;
 
   const updateDraft = (partial: Partial<CompanionBookingSettings>) => {
     setDraft((current) => ensureWeeklyRanges({ ...current, ...partial }));
@@ -145,25 +147,45 @@ export function CompanionBookingSettingsPage() {
 
         <div className="mt-4 grid grid-cols-7 gap-1 rounded-[8px] bg-zinc-100 p-1 text-center text-[11px] font-black text-zinc-500">
           {weekDays.map((day) => (
-            <span key={day.dateValue} className="rounded-[6px] bg-white py-1.5">
+            <button
+              key={day.dateValue}
+              type="button"
+              className={`rounded-[6px] py-1.5 transition ${
+                selectedDateValue === day.dateValue ? 'bg-zinc-950 text-white shadow-sm' : 'bg-white text-zinc-500'
+              }`}
+              onClick={() => setSelectedDateValue(day.dateValue)}
+            >
               {day.short}
-              <span className="mt-0.5 block text-[10px] text-zinc-400">{day.month}/{day.day}</span>
-            </span>
+              <span className={`mt-0.5 block text-[10px] ${selectedDateValue === day.dateValue ? 'text-white/70' : 'text-zinc-400'}`}>
+                {day.month}/{day.day}
+              </span>
+            </button>
           ))}
         </div>
 
-        <div className="mt-4 space-y-4">
-          {weekDays.map((day) => (
+        <WeeklyTimetable
+          days={weekDays}
+          draft={draft}
+          orders={occupiedOrders}
+          selectedDateValue={selectedDateValue}
+          onSelect={setSelectedDateValue}
+        />
+
+        <div className="mt-4">
+          {selectedDay ? (
             <DaySchedule
-              key={day.dateValue}
-              day={day}
-              ranges={getDayRanges(draft, day.weekday)}
-              orders={getOrdersForDate(occupiedOrders, day.dateValue)}
-              onAdd={() => addRange(day.weekday)}
-              onChange={(rangeId, patch) => updateRange(day.weekday, rangeId, patch)}
-              onRemove={(rangeId) => removeRange(day.weekday, rangeId)}
+              day={selectedDay}
+              ranges={getDayRanges(draft, selectedDay.weekday)}
+              orders={getOrdersForDate(occupiedOrders, selectedDay.dateValue)}
+              onAdd={() => addRange(selectedDay.weekday)}
+              onChange={(rangeId, patch) => updateRange(selectedDay.weekday, rangeId, patch)}
+              onRemove={(rangeId) => removeRange(selectedDay.weekday, rangeId)}
             />
-          ))}
+          ) : (
+            <div className="rounded-[8px] border border-dashed border-zinc-200 bg-zinc-50 px-4 py-7 text-center text-xs font-bold leading-5 text-zinc-400">
+              点击上方日期方块，展开当天的时间调整模块。
+            </div>
+          )}
         </div>
       </section>
 
@@ -181,6 +203,83 @@ export function CompanionBookingSettingsPage() {
           <Save size={18} />
           保存课表
         </button>
+      </div>
+    </div>
+  );
+}
+
+function WeeklyTimetable({
+  days,
+  draft,
+  orders,
+  selectedDateValue,
+  onSelect,
+}: {
+  days: WeekDay[];
+  draft: CompanionBookingSettings;
+  orders: AppOrder[];
+  selectedDateValue: string;
+  onSelect: (dateValue: string) => void;
+}) {
+  return (
+    <div className="mt-4 rounded-[8px] bg-zinc-50 p-3 ring-1 ring-zinc-100">
+      <div className="grid grid-cols-[48px_1fr] gap-x-2 gap-y-2">
+        <span />
+        <div className="grid grid-cols-4 text-[10px] font-black text-zinc-300">
+          <span>06</span>
+          <span>12</span>
+          <span>18</span>
+          <span className="text-right">24</span>
+        </div>
+        {days.map((day) => {
+          const ranges = getDayRanges(draft, day.weekday);
+          const dayOrders = getOrdersForDate(orders, day.dateValue);
+          const isSelected = selectedDateValue === day.dateValue;
+
+          return (
+            <div key={day.dateValue} className="contents">
+              <button
+                type="button"
+                className={`rounded-[6px] py-1 text-left text-[10px] font-black leading-4 ${
+                  isSelected ? 'text-zinc-950' : 'text-zinc-400'
+                }`}
+                onClick={() => onSelect(day.dateValue)}
+              >
+                <span className="block">{day.short}</span>
+                <span className="block">{day.month}/{day.day}</span>
+              </button>
+              <button
+                type="button"
+                className={`relative h-8 overflow-hidden rounded-[8px] bg-white ring-1 ${
+                  isSelected ? 'ring-zinc-950' : 'ring-zinc-200'
+                }`}
+                onClick={() => onSelect(day.dateValue)}
+                aria-label={`${day.label} ${day.month}/${day.day}`}
+              >
+                {ranges.map((range) => (
+                  <span
+                    key={range.id}
+                    className="absolute top-1/2 h-4 -translate-y-1/2 rounded-full bg-blue-500"
+                    style={getSegmentStyle(range.startTime, range.endTime)}
+                  />
+                ))}
+                {dayOrders.map((order) => (
+                  <span
+                    key={order.id}
+                    className="absolute top-1/2 h-6 -translate-y-1/2 rounded-full bg-zinc-400"
+                    style={getSegmentStyle(formatOrderTime(order), formatOrderEndTime(order))}
+                    title={`${order.orderNo} ${order.place}`}
+                  />
+                ))}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3 text-[10px] font-black text-zinc-400">
+        <span className="inline-flex items-center gap-1"><i className="h-2.5 w-5 rounded-full bg-blue-500" />可预约</span>
+        <span className="inline-flex items-center gap-1"><i className="h-2.5 w-5 rounded-full bg-zinc-400" />已占用</span>
+        <span className="inline-flex items-center gap-1"><i className="h-2.5 w-5 rounded-full bg-white ring-1 ring-zinc-200" />不可预约</span>
       </div>
     </div>
   );
@@ -217,7 +316,7 @@ function DaySchedule({
       <div className="relative mt-3 h-8 rounded-full bg-white ring-1 ring-zinc-200">
         <div className="absolute left-0 top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-zinc-100" />
         {ranges.map((range) => (
-          <div key={range.id} className="absolute top-1/2 h-3 -translate-y-1/2 rounded-full bg-emerald-400" style={getSegmentStyle(range.startTime, range.endTime)} />
+          <div key={range.id} className="absolute top-1/2 h-3 -translate-y-1/2 rounded-full bg-blue-500" style={getSegmentStyle(range.startTime, range.endTime)} />
         ))}
         {orders.map((order) => (
           <div
