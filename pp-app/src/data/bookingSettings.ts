@@ -48,6 +48,8 @@ export const defaultBookingSettings: CompanionBookingSettings = {
     ],
     0: [{ id: 'sun-afternoon', startTime: '14:00', endTime: '18:00' }],
   },
+  scheduleApplyMode: 'weekly',
+  weekOverrides: {},
   repeatEnabled: true,
   repeatWeekdays: [0, 1, 2, 3, 4, 5, 6],
   temporaryAccepting: true,
@@ -81,6 +83,7 @@ export function buildAvailabilitySlots(settings: CompanionBookingSettings): Avai
   if (!settings.temporaryAccepting) return [];
 
   const dateSet = new Set(settings.availableDates);
+  const weekOverrides = settings.weekOverrides ?? {};
 
   if (settings.repeatEnabled) {
     getNextDates(14)
@@ -88,11 +91,25 @@ export function buildAvailabilitySlots(settings: CompanionBookingSettings): Avai
       .forEach((date) => dateSet.add(toDateInputValue(date)));
   }
 
+  Object.keys(weekOverrides).forEach((weekStart) => {
+    const weekStartDate = new Date(`${weekStart}T00:00:00+08:00`);
+    if (Number.isNaN(weekStartDate.getTime())) return;
+    Object.entries(weekOverrides[weekStart]).forEach(([weekday, ranges]) => {
+      if (!ranges?.length) return;
+      const dayOffset = Number(weekday) === 0 ? 6 : Number(weekday) - 1;
+      const date = new Date(weekStartDate);
+      date.setDate(weekStartDate.getDate() + dayOffset);
+      dateSet.add(toDateInputValue(date));
+    });
+  });
+
   return Array.from(dateSet)
     .sort()
     .flatMap((date) => {
       const weekday = new Date(`${date}T00:00:00+08:00`).getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6;
-      const ranges = settings.weeklyTimeRanges?.[weekday] ?? (settings.repeatWeekdays.includes(weekday) ? settings.timeRanges : []);
+      const weekStart = toDateInputValue(getWeekStart(new Date(`${date}T00:00:00+08:00`)));
+      const dateOverrideRanges = weekOverrides[weekStart]?.[weekday];
+      const ranges = dateOverrideRanges ?? settings.weeklyTimeRanges?.[weekday] ?? (settings.repeatWeekdays.includes(weekday) ? settings.timeRanges : []);
       return ranges.map((range) => {
         const startAt = new Date(`${date}T${range.startTime}:00+08:00`).toISOString();
         const endAt = new Date(`${date}T${range.endTime}:00+08:00`).toISOString();
@@ -172,6 +189,15 @@ function getNextDates(days: number) {
     date.setDate(start.getDate() + index);
     return date;
   });
+}
+
+function getWeekStart(date: Date) {
+  const start = new Date(date);
+  const day = start.getDay();
+  const delta = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + delta);
+  start.setHours(0, 0, 0, 0);
+  return start;
 }
 
 function toDateInputValue(date: Date) {

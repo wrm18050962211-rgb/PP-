@@ -14,6 +14,8 @@ const weekdayOptions: Array<{ label: string; short: string; value: RepeatWeekday
   { label: '周日', short: '日', value: 0 },
 ];
 
+type ScheduleApplyMode = NonNullable<CompanionBookingSettings['scheduleApplyMode']>;
+
 const dayStartMinutes = 6 * 60;
 const dayEndMinutes = 24 * 60;
 const dayTotalMinutes = dayEndMinutes - dayStartMinutes;
@@ -22,28 +24,55 @@ const timelineHours = Array.from({ length: 19 }, (_, index) => dayStartMinutes +
 
 export function CompanionBookingSettingsPage() {
   const { bookingSettings, orders, saveBookingSettings } = useAppData();
-  const [draft, setDraft] = useState<CompanionBookingSettings>(() => ensureWeeklyRanges(bookingSettings));
+  const [draft, setDraft] = useState<CompanionBookingSettings>(() => ensureBookingSettings(bookingSettings));
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedDateValue, setSelectedDateValue] = useState(() => toDateValue(new Date()));
   const [expandedDateValue, setExpandedDateValue] = useState('');
   const [savedNotice, setSavedNotice] = useState('');
 
+  const todayValue = toDateValue(new Date());
   const occupiedOrders = useMemo(() => getScheduleOrders(orders), [orders]);
   const routeWarnings = useMemo(() => getRouteWarnings(occupiedOrders), [occupiedOrders]);
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
+  const weekKey = toDateValue(weekStart);
+  const applyMode = draft.scheduleApplyMode ?? 'weekly';
   const expandedDay = weekDays.find((day) => day.dateValue === expandedDateValue) ?? null;
   const selectedDay = expandedDay ?? weekDays.find((day) => day.dateValue === selectedDateValue) ?? weekDays[0];
-  const selectedRanges = selectedDay ? getDayRanges(draft, selectedDay.weekday) : [];
+  const selectedRanges = selectedDay ? getDayRanges(draft, selectedDay.weekday, weekKey) : [];
   const selectedOrders = selectedDay ? getOrdersForDate(occupiedOrders, selectedDay.dateValue) : [];
 
   const updateDraft = (partial: Partial<CompanionBookingSettings>) => {
-    setDraft((current) => ensureWeeklyRanges({ ...current, ...partial }));
+    setDraft((current) => ensureBookingSettings({ ...current, ...partial }));
+  };
+
+  const setApplyMode = (mode: ScheduleApplyMode) => {
+    updateDraft({
+      scheduleApplyMode: mode,
+      repeatEnabled: mode === 'weekly',
+    });
+    setExpandedDateValue('');
   };
 
   const updateDayRanges = (weekday: RepeatWeekday, ranges: BookingTimeRange[]) => {
+    if (applyMode === 'single_week') {
+      const currentWeek = draft.weekOverrides?.[weekKey] ?? {};
+      updateDraft({
+        weekOverrides: {
+          ...(draft.weekOverrides ?? {}),
+          [weekKey]: { ...currentWeek, [weekday]: ranges },
+        },
+        availableDates: buildAvailableDatesForWeek(weekStart, {
+          ...currentWeek,
+          [weekday]: ranges,
+        }),
+      });
+      return;
+    }
+
     const nextWeeklyTimeRanges = { ...(draft.weeklyTimeRanges ?? {}), [weekday]: ranges };
     updateDraft({
       weeklyTimeRanges: nextWeeklyTimeRanges,
+      repeatEnabled: true,
       repeatWeekdays: ranges.length
         ? (Array.from(new Set([...draft.repeatWeekdays, weekday])).sort() as RepeatWeekday[])
         : draft.repeatWeekdays.filter((value) => value !== weekday),
@@ -51,14 +80,14 @@ export function CompanionBookingSettingsPage() {
   };
 
   const addRange = (weekday: RepeatWeekday) => {
-    const ranges = getDayRanges(draft, weekday);
-    updateDayRanges(weekday, [...ranges, { id: `weekday-${weekday}-${Date.now()}`, startTime: '10:00', endTime: '12:00' }]);
+    const ranges = getDayRanges(draft, weekday, weekKey);
+    updateDayRanges(weekday, [...ranges, { id: `${applyMode}-${weekday}-${Date.now()}`, startTime: '10:00', endTime: '12:00' }]);
   };
 
   const updateRange = (weekday: RepeatWeekday, rangeId: string, patch: Partial<BookingTimeRange>) => {
     updateDayRanges(
       weekday,
-      getDayRanges(draft, weekday).map((range) => {
+      getDayRanges(draft, weekday, weekKey).map((range) => {
         if (range.id !== rangeId) return range;
         const nextRange = { ...range, ...patch };
         const start = timeToMinutes(nextRange.startTime);
@@ -70,7 +99,7 @@ export function CompanionBookingSettingsPage() {
   };
 
   const removeRange = (weekday: RepeatWeekday, rangeId: string) => {
-    updateDayRanges(weekday, getDayRanges(draft, weekday).filter((range) => range.id !== rangeId));
+    updateDayRanges(weekday, getDayRanges(draft, weekday, weekKey).filter((range) => range.id !== rangeId));
   };
 
   const moveWeek = (days: number) => {
@@ -86,8 +115,8 @@ export function CompanionBookingSettingsPage() {
   };
 
   const save = () => {
-    saveBookingSettings(normalizeDraftForSave(draft));
-    setSavedNotice('档期课表已保存，用户端预约会读取最新可约时间。');
+    saveBookingSettings(normalizeDraftForSave(draft, weekStart));
+    setSavedNotice(applyMode === 'weekly' ? '已保存为每周重复档期。' : '已保存为本周专用档期。');
     window.setTimeout(() => setSavedNotice(''), 1800);
   };
 
@@ -121,11 +150,12 @@ export function CompanionBookingSettingsPage() {
           {weekDays.map((day) => {
             const isSelected = selectedDateValue === day.dateValue;
             const isExpanded = expandedDateValue === day.dateValue;
+            const isPast = day.dateValue < todayValue;
             return (
               <button
                 key={day.dateValue}
                 type="button"
-                className="grid justify-items-center gap-1 rounded-[8px] py-1 text-center"
+                className={`grid justify-items-center gap-1 rounded-[8px] py-1 text-center transition-opacity ${isPast ? 'opacity-35' : 'opacity-100'}`}
                 onClick={() => toggleExpandedDay(day)}
               >
                 <span className={`text-[11px] font-black ${isExpanded || isSelected ? 'text-white' : 'text-white/55'}`}>{day.short}</span>
@@ -158,8 +188,24 @@ export function CompanionBookingSettingsPage() {
         <section className="py-4">
           <p className="text-center text-lg font-black">{expandedDay ? `${formatFullDate(expandedDay.date)} · ${expandedDay.label}` : formatWeekRange(weekStart)}</p>
           <p className="mt-1 text-center text-xs font-bold text-white/45">
-            {expandedDay ? '再点一次当前档期列会原地收起' : '点击某一天的竖向档期条，会从原位置展开'}
+            {expandedDay ? '再点一次当前档期列会原地收起' : '默认显示手机当前日期所在周，过去日期已压暗'}
           </p>
+          <div className="mt-4 grid grid-cols-2 rounded-full bg-white/10 p-1">
+            <button
+              type="button"
+              className={`h-10 rounded-full text-xs font-black transition ${applyMode === 'weekly' ? 'bg-white text-black' : 'text-white/55'}`}
+              onClick={() => setApplyMode('weekly')}
+            >
+              应用到每一周
+            </button>
+            <button
+              type="button"
+              className={`h-10 rounded-full text-xs font-black transition ${applyMode === 'single_week' ? 'bg-white text-black' : 'text-white/55'}`}
+              onClick={() => setApplyMode('single_week')}
+            >
+              仅本周应用
+            </button>
+          </div>
         </section>
 
         <WeekTimeline
@@ -168,6 +214,8 @@ export function CompanionBookingSettingsPage() {
           orders={occupiedOrders}
           selectedDateValue={selectedDateValue}
           expandedDateValue={expandedDateValue}
+          weekKey={weekKey}
+          todayValue={todayValue}
           onToggleDay={toggleExpandedDay}
         />
 
@@ -177,6 +225,7 @@ export function CompanionBookingSettingsPage() {
               day={expandedDay}
               ranges={selectedRanges}
               orders={selectedOrders}
+              mode={applyMode}
               onAdd={() => addRange(expandedDay.weekday)}
               onChange={(rangeId, patch) => updateRange(expandedDay.weekday, rangeId, patch)}
               onRemove={(rangeId) => removeRange(expandedDay.weekday, rangeId)}
@@ -202,6 +251,8 @@ function WeekTimeline({
   orders,
   selectedDateValue,
   expandedDateValue,
+  weekKey,
+  todayValue,
   onToggleDay,
 }: {
   days: WeekDay[];
@@ -209,6 +260,8 @@ function WeekTimeline({
   orders: AppOrder[];
   selectedDateValue: string;
   expandedDateValue: string;
+  weekKey: string;
+  todayValue: string;
   onToggleDay: (day: WeekDay) => void;
 }) {
   const expandedDay = days.find((day) => day.dateValue === expandedDateValue) ?? null;
@@ -222,7 +275,7 @@ function WeekTimeline({
         <div className="flex min-w-0 items-center gap-2 text-xs font-black text-white/55">
           <CalendarDays size={16} />
           <span className="truncate">
-            {expandedDay ? `${formatFullDate(expandedDay.date)} · 再点一次收起` : '蓝色可约 · 灰色占用 · 空白不可约'}
+            {expandedDay ? `${formatFullDate(expandedDay.date)} · 再点一次收起` : '蓝色可约 · 灰色占用 · 过去日期加深'}
           </span>
         </div>
       </div>
@@ -246,10 +299,11 @@ function WeekTimeline({
         </div>
         <div className="absolute inset-y-0 left-[48px] right-0 grid gap-1 pr-1 transition-[grid-template-columns] duration-300 ease-out" style={{ gridTemplateColumns }}>
           {days.map((day) => {
-            const ranges = getDayRanges(draft, day.weekday);
+            const ranges = getDayRanges(draft, day.weekday, weekKey);
             const dayOrders = getOrdersForDate(orders, day.dateValue);
             const isSelected = selectedDateValue === day.dateValue;
             const isExpanded = expandedDateValue === day.dateValue;
+            const isPast = day.dateValue < todayValue;
             const isCollapsedByOtherDay = Boolean(expandedDateValue) && !isExpanded;
             return (
               <button
@@ -257,10 +311,11 @@ function WeekTimeline({
                 type="button"
                 className={`relative h-full min-w-0 overflow-hidden border-x text-left transition-all duration-300 ease-out ${
                   isSelected || isExpanded ? 'border-white/30 bg-white/[0.03]' : 'border-white/10'
-                } ${isCollapsedByOtherDay ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
+                } ${isCollapsedByOtherDay ? 'pointer-events-none opacity-0' : 'opacity-100'} ${isPast ? 'brightness-[0.35]' : ''}`}
                 onClick={() => onToggleDay(day)}
                 aria-label={`${day.label} ${day.month}/${day.day}`}
               >
+                {isPast ? <span className="absolute inset-0 z-10 bg-black/45" /> : null}
                 {ranges.map((range) => (
                   <span
                     key={range.id}
@@ -305,6 +360,7 @@ function DaySchedule({
   day,
   ranges,
   orders,
+  mode,
   onAdd,
   onChange,
   onRemove,
@@ -312,6 +368,7 @@ function DaySchedule({
   day: WeekDay;
   ranges: BookingTimeRange[];
   orders: AppOrder[];
+  mode: ScheduleApplyMode;
   onAdd: () => void;
   onChange: (rangeId: string, patch: Partial<BookingTimeRange>) => void;
   onRemove: (rangeId: string) => void;
@@ -321,7 +378,7 @@ function DaySchedule({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-base font-black">编辑 {day.label}</p>
-          <p className="mt-0.5 text-xs font-bold text-zinc-400">{day.month}月{day.day}日 · 调整后记得保存</p>
+          <p className="mt-0.5 text-xs font-bold text-zinc-400">{mode === 'weekly' ? '会同步到每一周' : `${day.month}月${day.day}日所在周专用`}</p>
         </div>
         <button className="flex h-9 items-center gap-1 rounded-full bg-black px-3 text-xs font-black text-white" onClick={onAdd} type="button">
           <Plus size={15} />
@@ -407,27 +464,43 @@ type WeekDay = {
   day: number;
 };
 
-function ensureWeeklyRanges(settings: CompanionBookingSettings): CompanionBookingSettings {
-  if (settings.weeklyTimeRanges) return settings;
-  const weeklyTimeRanges = Object.fromEntries(settings.repeatWeekdays.map((weekday) => [weekday, settings.timeRanges])) as Partial<Record<RepeatWeekday, BookingTimeRange[]>>;
-  return { ...settings, weeklyTimeRanges };
+function ensureBookingSettings(settings: CompanionBookingSettings): CompanionBookingSettings {
+  if (settings.weeklyTimeRanges && settings.scheduleApplyMode) return settings;
+  const weeklyTimeRanges = settings.weeklyTimeRanges ?? Object.fromEntries(settings.repeatWeekdays.map((weekday) => [weekday, settings.timeRanges])) as Partial<Record<RepeatWeekday, BookingTimeRange[]>>;
+  return { ...settings, weeklyTimeRanges, scheduleApplyMode: settings.scheduleApplyMode ?? 'weekly', weekOverrides: settings.weekOverrides ?? {} };
 }
 
-function normalizeDraftForSave(settings: CompanionBookingSettings): CompanionBookingSettings {
-  const weeklyTimeRanges = settings.weeklyTimeRanges ?? {};
+function normalizeDraftForSave(settings: CompanionBookingSettings, currentWeekStart: Date): CompanionBookingSettings {
+  const nextSettings = ensureBookingSettings(settings);
+  const weeklyTimeRanges = nextSettings.weeklyTimeRanges ?? {};
   const repeatWeekdays = weekdayOptions.map((item) => item.value).filter((weekday) => (weeklyTimeRanges[weekday]?.length ?? 0) > 0);
   const firstRanges = repeatWeekdays.flatMap((weekday) => weeklyTimeRanges[weekday] ?? []).slice(0, 3);
+  const currentWeekRanges = nextSettings.weekOverrides?.[toDateValue(currentWeekStart)] ?? {};
   return {
-    ...settings,
-    repeatEnabled: true,
+    ...nextSettings,
+    repeatEnabled: nextSettings.scheduleApplyMode !== 'single_week',
     repeatWeekdays,
-    timeRanges: firstRanges.length ? firstRanges : settings.timeRanges,
+    timeRanges: firstRanges.length ? firstRanges : nextSettings.timeRanges,
     weeklyTimeRanges,
+    availableDates: nextSettings.scheduleApplyMode === 'single_week' ? buildAvailableDatesForWeek(currentWeekStart, currentWeekRanges) : nextSettings.availableDates,
   };
 }
 
-function getDayRanges(settings: CompanionBookingSettings, weekday: RepeatWeekday) {
-  return [...(settings.weeklyTimeRanges?.[weekday] ?? [])].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
+function getDayRanges(settings: CompanionBookingSettings, weekday: RepeatWeekday, weekKey: string) {
+  const ensuredSettings = ensureBookingSettings(settings);
+  if (ensuredSettings.scheduleApplyMode === 'single_week') {
+    return [...(ensuredSettings.weekOverrides?.[weekKey]?.[weekday] ?? [])].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
+  }
+  return [...(ensuredSettings.weeklyTimeRanges?.[weekday] ?? [])].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
+}
+
+function buildAvailableDatesForWeek(weekStart: Date, rangesByWeekday: Partial<Record<RepeatWeekday, BookingTimeRange[]>>) {
+  return weekdayOptions
+    .filter((item) => (rangesByWeekday[item.value]?.length ?? 0) > 0)
+    .map((item) => {
+      const offset = item.value === 0 ? 6 : item.value - 1;
+      return toDateValue(addDays(weekStart, offset));
+    });
 }
 
 function getScheduleOrders(orders: AppOrder[]) {
