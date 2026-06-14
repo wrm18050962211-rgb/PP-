@@ -1,13 +1,14 @@
 import { ArrowLeft, Bookmark, Heart, MapPin, MessageCircle, Share2, Star, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
-import { BookingSheet } from '../../components/BookingSheet';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
+import { createDefaultPackageSettings, formatCents } from '../../services/companionPackageService';
 import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle, listFeedPosts } from '../../services/feedService';
 import { getPostLikeCount, isPostFavorited, isPostLiked, toggleFavoritePost, toggleLikedPost } from '../../services/userCollectionService';
 import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
+import { ConsultationRequestModal } from './ConsultationRequestModal';
 
 type Comment = {
   id: string;
@@ -26,9 +27,10 @@ export function PostDetail() {
 }
 
 function PostDetailContent({ postId }: { postId?: string }) {
-  const { workDraft } = useAppData();
+  const navigate = useNavigate();
+  const { session, workDraft } = useAppData();
   const imageTrackRef = useRef<HTMLDivElement>(null);
-  const [bookingOpen, setBookingOpen] = useState(false);
+  const [consultOpen, setConsultOpen] = useState(false);
   const [drawer, setDrawer] = useState<DrawerType>(null);
   const [activeImage, setActiveImage] = useState(0);
   const [liked, setLiked] = useState(false);
@@ -102,9 +104,9 @@ function PostDetailContent({ postId }: { postId?: string }) {
     }
   };
 
-  const openBooking = () => {
+  const openConsultation = () => {
     setDrawer(null);
-    setBookingOpen(true);
+    setConsultOpen(true);
   };
 
   const scrollToImage = (index: number) => {
@@ -283,12 +285,13 @@ function PostDetailContent({ postId }: { postId?: string }) {
         tags={photographer.tags}
         onClose={() => setDrawer(null)}
       >
-        <button className="h-12 rounded-full bg-[#3f302c] text-sm font-black text-white" onClick={openBooking}>
-          预约这位摄影师
-        </button>
+        <PhotographerDrawerSummary post={post} />
         <Link className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]" to={`/consumer/photographer/${photographer.id}`}>
           查看摄影师主页
         </Link>
+        <button className="h-12 rounded-full bg-[#3f302c] text-sm font-black text-white" onClick={openConsultation}>
+          预约这位摄影师
+        </button>
       </ProfileDrawer>
 
       <CommentSheet
@@ -300,7 +303,17 @@ function PostDetailContent({ postId }: { postId?: string }) {
         onSubmit={submitComment}
       />
 
-      <BookingSheet companion={photographer} postId={post.id} open={bookingOpen} onClose={() => setBookingOpen(false)} />
+      {consultOpen ? (
+        <ConsultationRequestModal
+          post={post}
+          session={session}
+          onClose={() => setConsultOpen(false)}
+          onSubmitted={(id) => {
+            setConsultOpen(false);
+            navigate(`/consumer/messages/${id}`);
+          }}
+        />
+      ) : null}
       {toast ? <div className="fixed left-1/2 top-20 z-[60] -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-bold text-black shadow-xl">{toast}</div> : null}
     </div>
   );
@@ -402,6 +415,41 @@ function CommentSheet({
           </button>
         </form>
       </section>
+    </div>
+  );
+}
+
+function PhotographerDrawerSummary({ post }: { post: FeedPost }) {
+  const photographer = post.companion;
+  const packageSettings = createDefaultPackageSettings(photographer);
+  const firstPackage = packageSettings.packages[0];
+  const halfDayPackage = packageSettings.packages[1];
+
+  return (
+    <div className="space-y-3 rounded-[18px] bg-white p-3 text-[#3f302c] ring-1 ring-[#eadfd8]">
+      <div>
+        <p className="text-xs font-black text-[#9b8c84]">自我介绍</p>
+        <p className="mt-1 text-xs font-bold leading-5 text-[#6f5f58]">{photographer.bio}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs font-black">
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">起拍价</p>
+          <p className="mt-1 text-[#3f302c]">{formatCents(firstPackage.basePriceCents)} / {Math.round(firstPackage.durationMinutes / 60)}小时</p>
+        </div>
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">定金</p>
+          <p className="mt-1 text-[#3f302c]">{formatCents(firstPackage.depositCents)} 锁档期</p>
+        </div>
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">半天</p>
+          <p className="mt-1 text-[#3f302c]">{formatCents(halfDayPackage.basePriceCents)}</p>
+        </div>
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">修图</p>
+          <p className="mt-1 text-[#3f302c]">含 {firstPackage.includedRetouchedCount} 张</p>
+        </div>
+      </div>
+      <p className="text-[11px] font-bold leading-5 text-[#9b8c84]">交通/门票默认由创作者承担；高温、夜间、远距离可能加价，最终以咨询报价为准。</p>
     </div>
   );
 }
