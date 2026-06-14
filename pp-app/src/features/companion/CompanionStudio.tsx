@@ -25,6 +25,7 @@ type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: string; badge?: string };
 
 const photographerMenuItems: MenuItem[] = [
+  { icon: Banknote, label: '咨询报价', desc: '查看需求卡并调整报价', to: '/companion/consultations' },
   { icon: ClipboardList, label: '我的订单', desc: '待确认、已确认、已完成', to: '/companion/orders' },
   { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1&from=companion' },
 ];
@@ -54,7 +55,7 @@ export function CompanionStudio() {
   const collectionSummary = getCollectionSummary(posts);
   const newConsultationCount = session ? listConsultations(session).filter((item) => item.status === 'consulting').length : 0;
   const visiblePhotographerMenuItems = photographerMenuItems.map((item) => {
-    if (item.label !== '我的订单' || newConsultationCount <= 0) return item;
+    if (item.label !== '咨询报价' || newConsultationCount <= 0) return item;
     return {
       ...item,
       desc: `${item.desc} · ${newConsultationCount} 个新询价`,

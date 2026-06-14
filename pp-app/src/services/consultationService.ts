@@ -41,6 +41,12 @@ export type ConsultationQuote = {
   createdAt: string;
 };
 
+export type ConsultationQuoteOverride = {
+  totalCents?: number;
+  depositCents?: number;
+  addOnLines?: string[];
+};
+
 export type ConsultationRecord = {
   id: string;
   creatorId?: string;
@@ -93,7 +99,7 @@ export function createConsultation(post: FeedPost, card: ConsultationRequestCard
   return record;
 }
 
-export function sendQuoteForConsultation(id: string, companion: Companion | undefined) {
+export function sendQuoteForConsultation(id: string, companion: Companion | undefined, override: ConsultationQuoteOverride = {}) {
   const settings = createDefaultPackageSettings(companion);
   const records = readConsultations();
   const nextRecords = records.map((item) => {
@@ -123,7 +129,9 @@ export function sendQuoteForConsultation(id: string, companion: Companion | unde
       totalCents += settings.addOns.outdoorFeeCents;
       addOnLines.push(`室外附加 ¥${Math.round(settings.addOns.outdoorFeeCents / 100)}`);
     }
-    const depositCents = selectedPackage.depositCents;
+    const totalCentsWithOverride = Math.max(0, override.totalCents ?? totalCents);
+    const depositCents = Math.min(totalCentsWithOverride, Math.max(0, override.depositCents ?? selectedPackage.depositCents));
+    const addOnLinesWithOverride = override.addOnLines ?? addOnLines;
     return {
       ...item,
       status: 'quoted' as const,
@@ -131,10 +139,10 @@ export function sendQuoteForConsultation(id: string, companion: Companion | unde
         id: `quote-${Date.now()}`,
         packageId: selectedPackage.id,
         packageName: selectedPackage.name,
-        totalCents,
+        totalCents: totalCentsWithOverride,
         depositCents,
-        balanceCents: Math.max(0, totalCents - depositCents),
-        addOnLines,
+        balanceCents: Math.max(0, totalCentsWithOverride - depositCents),
+        addOnLines: addOnLinesWithOverride,
         place: item.requestCard.place,
         time: `${item.requestCard.date} ${item.requestCard.timeRange}`,
         createdAt: new Date().toISOString(),

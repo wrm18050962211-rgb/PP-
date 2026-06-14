@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 const photographerTabs = [
   { to: '/companion', label: '发现', icon: Home },
-  { to: '/companion/creators', label: '找创作者', icon: Sparkles },
+  { to: '/companion/creators', label: '敬请期待', icon: Sparkles },
   { to: '/companion/messages', label: '消息', icon: MessageCircle },
   { to: '/companion/mine', label: '我的', icon: UserRound },
 ];

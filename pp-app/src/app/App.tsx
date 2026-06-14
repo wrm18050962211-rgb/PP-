@@ -6,10 +6,11 @@ import { AccountSettingsPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage,
 import { CompanionOnboarding } from '../features/companion/CompanionOnboarding';
 import { CompanionBookingSettingsPage } from '../features/companion/CompanionBookingSettingsPage';
 import { CompanionIncomePage } from '../features/companion/CompanionIncomePage';
+import { CompanionComingSoonPage } from '../features/companion/CompanionComingSoonPage';
+import { CompanionConsultationsPage } from '../features/companion/CompanionConsultationsPage';
 import { CompanionOrdersPage } from '../features/companion/CompanionOrdersPage';
 import { CompanionPackageSettings } from '../features/companion/CompanionPackageSettings';
 import { CompanionProfileEdit } from '../features/companion/CompanionProfileEdit';
-import { CreatorFinderPage } from '../features/companion/CreatorFinderPage';
 import { PublishPost } from '../features/companion/PublishPost';
 import { CompanionStudio } from '../features/companion/CompanionStudio';
 import { ServiceRangeSettings } from '../features/companion/ServiceRangeSettings';
@@ -83,7 +84,8 @@ export default function App() {
         }
       >
         <Route index element={<HomeFeed />} />
-        <Route path="creators" element={<CreatorFinderPage />} />
+        <Route path="creators" element={<CompanionComingSoonPage />} />
+        <Route path="consultations" element={<CompanionConsultationsPage />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="messages/:orderId" element={<MessagesPage />} />
         <Route path="mine" element={<CompanionStudio />} />
