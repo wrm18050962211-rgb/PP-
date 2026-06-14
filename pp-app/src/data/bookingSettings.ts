@@ -30,7 +30,7 @@ const defaultCompanionId = '00000000-0000-0000-0000-000000000301';
 
 export const defaultBookingSettings: CompanionBookingSettings = {
   companionId: defaultCompanionId,
-  availableDates: ['2026-05-26', '2026-05-27', '2026-05-30'],
+  availableDates: ['2026-06-14', '2026-06-15', '2026-06-16'],
   timeRanges: [
     { id: 'range-morning', startTime: '10:00', endTime: '12:00' },
     { id: 'range-afternoon', startTime: '14:00', endTime: '16:00' },
@@ -151,7 +151,8 @@ export function formatDateLabel(dateValue: string) {
 }
 
 function getNextDates(days: number) {
-  const start = new Date('2026-05-25T00:00:00+08:00');
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
   return Array.from({ length: days }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);

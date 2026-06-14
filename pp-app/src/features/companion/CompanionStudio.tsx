@@ -7,7 +7,6 @@ import {
   ImagePlus,
   MapPinned,
   Settings,
-  UserCheck,
   UserRound,
   UserRoundPen,
 } from 'lucide-react';
@@ -33,9 +32,8 @@ const photographerMenuItems: MenuItem[] = [
 const setupItems: MenuItem[] = [
   { icon: UserRoundPen, label: '资料编辑', desc: '昵称、照片、介绍与互动标签', to: '/companion/profile' },
   { icon: Banknote, label: '套餐与报价', desc: '定金、尾款、加价项和取消规则', to: '/companion/packages' },
-  { icon: UserCheck, label: '入驻审核', desc: '实名、人脸、视频、生活照', to: '/companion/onboarding' },
+  { icon: Calendar, label: '档期设置', desc: '空闲时间、订单占用和路线提醒', to: '/companion/booking-settings' },
   { icon: MapPinned, label: '服务范围', desc: '城市、可接地点和最大公里数', to: '/companion/service-range' },
-  { icon: Calendar, label: '时间价格', desc: '档期、活动类型、时长和价格', to: '/companion/booking-settings' },
   { icon: Banknote, label: '收入与提现', desc: '本周收入、待结算和提现', to: '/companion/income' },
   { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/settings' },
 ];
