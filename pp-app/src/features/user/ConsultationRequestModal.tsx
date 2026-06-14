@@ -89,14 +89,14 @@ export function ConsultationRequestModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/72 px-0 sm:px-3" role="dialog" aria-modal="true">
-      <section className="max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[22px] border border-white/10 bg-black px-3 pb-6 pt-3 text-white shadow-[0_-22px_70px_rgba(0,0,0,0.55)] sm:rounded-[22px]">
-        <div className="sticky top-0 z-10 -mx-3 flex items-center justify-between bg-black/92 px-3 pb-3 pt-1 backdrop-blur-xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/62 px-0 sm:px-3" role="dialog" aria-modal="true">
+      <section className="max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[22px] border border-zinc-200 bg-[#f7f7f5] px-3 pb-6 pt-3 text-zinc-950 shadow-[0_-22px_70px_rgba(0,0,0,0.28)] sm:rounded-[22px]">
+        <div className="sticky top-0 z-10 -mx-3 flex items-center justify-between bg-[#f7f7f5]/95 px-3 pb-3 pt-1 backdrop-blur-xl">
           <div className="min-w-0">
-            <p className="text-xs font-black text-white/42">咨询档期/报价</p>
-            <h2 className="truncate text-xl font-black tracking-normal text-white">提交轻量需求卡</h2>
+            <p className="text-xs font-black text-rose-500">咨询档期/报价</p>
+            <h2 className="truncate text-xl font-black tracking-normal text-zinc-950">提交轻量需求卡</h2>
           </div>
-          <button className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/10 text-white/72 ring-1 ring-white/12 backdrop-blur" onClick={onClose} type="button" aria-label="关闭">
+          <button className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-zinc-500 ring-1 ring-zinc-200 backdrop-blur" onClick={onClose} type="button" aria-label="关闭">
             <XCircle size={18} />
           </button>
         </div>
@@ -125,22 +125,22 @@ export function ConsultationRequestModal({
             </select>
           </Field>
           <div className="grid grid-cols-2 gap-2">
-            <button className="flex h-10 items-center justify-center gap-2 rounded-full bg-white/8 text-xs font-black text-white ring-1 ring-white/12 backdrop-blur" onClick={() => void useCurrentLocation()} type="button">
+            <button className="flex h-10 items-center justify-center gap-2 rounded-full bg-white text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => void useCurrentLocation()} type="button">
               <LocateFixed size={15} />
               使用当前位置
             </button>
-            <button className="flex h-10 items-center justify-center gap-2 rounded-full bg-white/8 text-xs font-black text-white ring-1 ring-white/12 backdrop-blur" onClick={() => setMapOpen((value) => !value)} type="button">
+            <button className="flex h-10 items-center justify-center gap-2 rounded-full bg-white text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => setMapOpen((value) => !value)} type="button">
               <MapPin size={15} />
               地图选择
             </button>
           </div>
-          {locationStatus ? <p className="rounded-[8px] bg-white/6 px-3 py-2 text-xs font-bold leading-5 text-white/48">{locationStatus}</p> : null}
+          {locationStatus ? <p className="rounded-[8px] bg-white px-3 py-2 text-xs font-bold leading-5 text-zinc-400 ring-1 ring-zinc-100">{locationStatus}</p> : null}
           {mapOpen ? (
-            <div className="rounded-[14px] bg-white/8 p-3 ring-1 ring-white/12 backdrop-blur">
-              <p className="text-xs font-black text-white/46">地图候选点</p>
+            <div className="rounded-[14px] bg-white p-3 ring-1 ring-zinc-200">
+              <p className="text-xs font-black text-zinc-500">地图候选点</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {placeOptions.map((place) => (
-                  <button key={place.label} className="min-h-10 rounded-[10px] bg-black/46 px-3 py-2 text-left text-xs font-bold leading-4 text-white/76 ring-1 ring-white/10" onClick={() => selectPlace(place)} type="button">
+                  <button key={place.label} className="min-h-10 rounded-[10px] bg-zinc-100 px-3 py-2 text-left text-xs font-bold leading-4 text-zinc-700 ring-1 ring-zinc-100" onClick={() => selectPlace(place)} type="button">
                     {place.label}
                   </button>
                 ))}
@@ -180,15 +180,15 @@ export function ConsultationRequestModal({
               onChange={(event) => setCard((current) => ({ ...current, note: event.target.value }))}
             />
           </Field>
-          <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-full bg-white text-sm font-black text-black">
+          <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white">
             <ImagePlus size={17} />
             上传参考图（最多 6 张）
             <input className="hidden" type="file" accept="image/*" multiple onChange={(event) => void handleFiles(event.target.files)} />
           </label>
-          {card.referenceImages.length ? <p className="text-xs font-bold text-white/46">已选择 {card.referenceImages.length} 张参考图</p> : null}
+          {card.referenceImages.length ? <p className="text-xs font-bold text-zinc-400">已选择 {card.referenceImages.length} 张参考图</p> : null}
         </div>
 
-        <button className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-black ${canSubmit ? 'bg-white text-black' : 'bg-white/12 text-white/38'}`} disabled={!canSubmit} onClick={submit} type="button">
+        <button className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-black text-white ${canSubmit ? 'bg-zinc-950' : 'bg-zinc-300'}`} disabled={!canSubmit} onClick={submit} type="button">
           <Send size={17} />
           提交并进入咨询
         </button>
@@ -200,8 +200,8 @@ export function ConsultationRequestModal({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-black text-white">{label}</span>
-      <span className="block [&_.field]:min-h-11 [&_.field]:w-full [&_.field]:rounded-[10px] [&_.field]:border [&_.field]:border-white/10 [&_.field]:bg-white/8 [&_.field]:px-3 [&_.field]:text-sm [&_.field]:font-black [&_.field]:text-white [&_.field]:outline-none [&_.field]:backdrop-blur [&_.field]:placeholder:text-white/34 [&_option]:bg-zinc-950 [&_option]:text-white">
+      <span className="mb-2 block text-sm font-black text-zinc-950">{label}</span>
+      <span className="block [&_.field]:min-h-11 [&_.field]:w-full [&_.field]:rounded-[10px] [&_.field]:border [&_.field]:border-zinc-100 [&_.field]:bg-white [&_.field]:px-3 [&_.field]:text-sm [&_.field]:font-black [&_.field]:text-zinc-950 [&_.field]:outline-none [&_.field]:placeholder:text-zinc-300 [&_option]:bg-white [&_option]:text-zinc-950">
         {children}
       </span>
     </label>
@@ -209,11 +209,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function Toggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return <button className={`h-10 rounded-full text-sm font-black ${active ? 'bg-white text-black' : 'bg-white/8 text-white/52 ring-1 ring-white/12'}`} onClick={onClick} type="button">{label}</button>;
+  return <button className={`h-10 rounded-full text-sm font-black ${active ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-500 ring-1 ring-zinc-200'}`} onClick={onClick} type="button">{label}</button>;
 }
 
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  return <label className="flex min-h-10 items-center gap-2 rounded-[8px] bg-white/8 px-3 py-2 text-xs font-bold text-white ring-1 ring-white/12"><input className="h-4 w-4 accent-white" type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />{label}</label>;
+  return <label className="flex min-h-10 items-center gap-2 rounded-[8px] bg-white px-3 py-2 text-xs font-bold text-zinc-950 ring-1 ring-zinc-200"><input className="h-4 w-4 accent-zinc-950" type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />{label}</label>;
 }
 
 type PlaceOption = {
