@@ -36,8 +36,20 @@ export const defaultBookingSettings: CompanionBookingSettings = {
     { id: 'range-afternoon', startTime: '14:00', endTime: '16:00' },
     { id: 'range-evening', startTime: '19:00', endTime: '21:00' },
   ],
+  weeklyTimeRanges: {
+    1: [{ id: 'mon-afternoon', startTime: '14:00', endTime: '18:00' }],
+    2: [{ id: 'tue-morning', startTime: '10:00', endTime: '12:00' }],
+    3: [{ id: 'wed-afternoon', startTime: '14:00', endTime: '18:00' }],
+    4: [{ id: 'thu-evening', startTime: '19:00', endTime: '21:00' }],
+    5: [{ id: 'fri-afternoon', startTime: '14:00', endTime: '18:00' }],
+    6: [
+      { id: 'sat-morning', startTime: '10:00', endTime: '12:00' },
+      { id: 'sat-afternoon', startTime: '14:00', endTime: '18:00' },
+    ],
+    0: [{ id: 'sun-afternoon', startTime: '14:00', endTime: '18:00' }],
+  },
   repeatEnabled: true,
-  repeatWeekdays: [5, 6],
+  repeatWeekdays: [0, 1, 2, 3, 4, 5, 6],
   temporaryAccepting: true,
   activities: companionBookingActivityNames.map((name, index) => ({
     id: `activity-setting-${index + 1}`,
@@ -78,8 +90,10 @@ export function buildAvailabilitySlots(settings: CompanionBookingSettings): Avai
 
   return Array.from(dateSet)
     .sort()
-    .flatMap((date) =>
-      settings.timeRanges.map((range) => {
+    .flatMap((date) => {
+      const weekday = new Date(`${date}T00:00:00+08:00`).getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6;
+      const ranges = settings.weeklyTimeRanges?.[weekday] ?? (settings.repeatWeekdays.includes(weekday) ? settings.timeRanges : []);
+      return ranges.map((range) => {
         const startAt = new Date(`${date}T${range.startTime}:00+08:00`).toISOString();
         const endAt = new Date(`${date}T${range.endTime}:00+08:00`).toISOString();
         const dateLabel = formatDateLabel(date);
@@ -92,8 +106,8 @@ export function buildAvailabilitySlots(settings: CompanionBookingSettings): Avai
           endAt,
           status: 'available' as const,
         };
-      }),
-    );
+      });
+    });
 }
 
 export function buildActivityPricing(settings: CompanionBookingSettings): ActivityPricing[] {

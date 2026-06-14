@@ -1,78 +1,77 @@
-import { AlertTriangle, ArrowLeft, CalendarDays, Clock3, MapPinned, Plus, Save, Trash2, Zap } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Plus, Save, Trash2, Zap } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
-import {
-  bookingDurationOptions,
-  buildAvailabilitySlots,
-  companionBookingActivityNames,
-  formatDateLabel,
-  getDurationLabel,
-} from '../../data/bookingSettings';
+import { bookingDurationOptions, companionBookingActivityNames, getDurationLabel } from '../../data/bookingSettings';
 import type { AppOrder, BookingDurationMinutes, BookingTimeRange, CompanionBookingSettings, RepeatWeekday } from '../../types/api';
 import { formatMoney, yuanToCents } from '../../utils/money';
 
-const weekdayOptions: Array<{ label: string; value: RepeatWeekday }> = [
-  { label: '周日', value: 0 },
-  { label: '周一', value: 1 },
-  { label: '周二', value: 2 },
-  { label: '周三', value: 3 },
-  { label: '周四', value: 4 },
-  { label: '周五', value: 5 },
-  { label: '周六', value: 6 },
+const weekdayOptions: Array<{ label: string; short: string; value: RepeatWeekday }> = [
+  { label: '周一', short: '一', value: 1 },
+  { label: '周二', short: '二', value: 2 },
+  { label: '周三', short: '三', value: 3 },
+  { label: '周四', short: '四', value: 4 },
+  { label: '周五', short: '五', value: 5 },
+  { label: '周六', short: '六', value: 6 },
+  { label: '周日', short: '日', value: 0 },
 ];
+
+const dayStartMinutes = 6 * 60;
+const dayEndMinutes = 24 * 60;
+const dayTotalMinutes = dayEndMinutes - dayStartMinutes;
+const sliderStepMinutes = 15;
 
 export function CompanionBookingSettingsPage() {
   const { bookingSettings, orders, saveBookingSettings } = useAppData();
-  const [draft, setDraft] = useState<CompanionBookingSettings>(bookingSettings);
-  const [dateInput, setDateInput] = useState('');
+  const [draft, setDraft] = useState<CompanionBookingSettings>(() => ensureWeeklyRanges(bookingSettings));
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [savedNotice, setSavedNotice] = useState('');
 
   const enabledActivities = useMemo(() => draft.activities.filter((activity) => activity.enabled), [draft.activities]);
   const occupiedOrders = useMemo(() => getScheduleOrders(orders), [orders]);
   const routeWarnings = useMemo(() => getRouteWarnings(occupiedOrders), [occupiedOrders]);
-  const scheduleSlots = useMemo(() => {
-    const availableSlots = buildAvailabilitySlots(draft).map((slot) => ({
-        ...slot,
-        occupiedOrder: findOccupyingOrder(slot.startAt, slot.endAt, occupiedOrders),
-      }));
-    const orderSlots = occupiedOrders
-      .filter((order) => !availableSlots.some((slot) => slot.occupiedOrder?.id === order.id))
-      .map((order) => ({
-        id: `occupied-${order.id}`,
-        dateLabel: formatOrderDate(order),
-        timeLabel: `${formatOrderTime(order)}-${formatOrderEndTime(order)}`,
-        startAt: order.startAt || order.createdAt,
-        endAt: order.endAt || order.createdAt,
-        occupiedOrder: order,
-      }));
-    return [...availableSlots, ...orderSlots]
-      .sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime())
-      .slice(0, 36);
-  }, [draft, occupiedOrders]);
+  const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
 
   const updateDraft = (partial: Partial<CompanionBookingSettings>) => {
-    setDraft((current) => ({ ...current, ...partial }));
+    setDraft((current) => ensureWeeklyRanges({ ...current, ...partial }));
   };
 
-  const addDate = () => {
-    if (!dateInput || draft.availableDates.includes(dateInput)) return;
-    updateDraft({ availableDates: [...draft.availableDates, dateInput].sort() });
-    setDateInput('');
-  };
-
-  const addTimeRange = () => {
+  const updateDayRanges = (weekday: RepeatWeekday, ranges: BookingTimeRange[]) => {
+    const nextWeeklyTimeRanges = { ...(draft.weeklyTimeRanges ?? {}), [weekday]: ranges };
     updateDraft({
-      timeRanges: [
-        ...draft.timeRanges,
-        { id: `range-${Date.now()}`, startTime: '10:00', endTime: '12:00' },
-      ],
+      weeklyTimeRanges: nextWeeklyTimeRanges,
+      repeatWeekdays: ranges.length
+        ? Array.from(new Set([...draft.repeatWeekdays, weekday])).sort() as RepeatWeekday[]
+        : draft.repeatWeekdays.filter((value) => value !== weekday),
     });
   };
 
+  const addRange = (weekday: RepeatWeekday) => {
+    const ranges = getDayRanges(draft, weekday);
+    updateDayRanges(weekday, [...ranges, { id: `weekday-${weekday}-${Date.now()}`, startTime: '10:00', endTime: '12:00' }]);
+  };
+
+  const updateRange = (weekday: RepeatWeekday, rangeId: string, patch: Partial<BookingTimeRange>) => {
+    updateDayRanges(
+      weekday,
+      getDayRanges(draft, weekday).map((range) => {
+        if (range.id !== rangeId) return range;
+        const nextRange = { ...range, ...patch };
+        const start = timeToMinutes(nextRange.startTime);
+        const end = timeToMinutes(nextRange.endTime);
+        if (end <= start) nextRange.endTime = minutesToTime(Math.min(dayEndMinutes, start + sliderStepMinutes));
+        return nextRange;
+      }),
+    );
+  };
+
+  const removeRange = (weekday: RepeatWeekday, rangeId: string) => {
+    updateDayRanges(weekday, getDayRanges(draft, weekday).filter((range) => range.id !== rangeId));
+  };
+
   const save = () => {
-    saveBookingSettings(draft);
-    setSavedNotice('设置已保存，用户端预约弹窗会读取最新时间和价格。');
+    saveBookingSettings(normalizeDraftForSave(draft));
+    setSavedNotice('档期课表已保存，用户端预约会读取最新可约时间。');
     window.setTimeout(() => setSavedNotice(''), 1800);
   };
 
@@ -84,7 +83,7 @@ export function CompanionBookingSettingsPage() {
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-black text-zinc-950">档期设置</h1>
-          <p className="mt-1 text-sm leading-6 text-zinc-500">选择可接单档期，已确认订单会自动占用时间，并提示路线风险。</p>
+          <p className="mt-1 text-sm leading-6 text-zinc-500">按周课表维护空闲档期，订单占用会自动变灰不可选择。</p>
         </div>
         <button
           className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${draft.temporaryAccepting ? 'bg-emerald-500 text-white' : 'bg-zinc-200 text-zinc-500'}`}
@@ -130,129 +129,44 @@ export function CompanionBookingSettingsPage() {
 
       <section className="mt-4 rounded-[8px] border border-zinc-200 bg-white p-4">
         <div className="flex items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-base font-bold text-zinc-950">
-              <MapPinned size={18} />
-              未来档期时间表
+              <CalendarDays size={18} />
+              周课表
             </h2>
-            <p className="mt-1 text-xs leading-5 text-zinc-500">灰色为已确认订单占用；白色为可接单档期，可用来规划当天路线。</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">{formatWeekRange(weekStart)} · 右侧切换周次</p>
           </div>
-          <span className="shrink-0 rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-500">{scheduleSlots.length} 档</span>
-        </div>
-        <div className="mt-3 space-y-2">
-          {scheduleSlots.length ? (
-            scheduleSlots.map((slot) => (
-              <div
-                key={slot.id}
-                className={`rounded-[8px] border p-3 ${
-                  slot.occupiedOrder ? 'border-zinc-200 bg-zinc-100 text-zinc-400' : 'border-zinc-100 bg-white text-zinc-950'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-black">{slot.dateLabel}</p>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-black ${
-                      slot.occupiedOrder ? 'bg-zinc-200 text-zinc-500' : 'bg-emerald-50 text-emerald-700'
-                    }`}
-                  >
-                    {slot.occupiedOrder ? '已占用' : '可预约'}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs font-semibold">{slot.timeLabel}</p>
-                {slot.occupiedOrder ? (
-                  <p className="mt-2 text-xs font-semibold leading-5">
-                    {slot.occupiedOrder.orderNo} · {slot.occupiedOrder.creatorName || '预约用户'} · {slot.occupiedOrder.place}
-                  </p>
-                ) : null}
-              </div>
-            ))
-          ) : (
-            <div className="rounded-[8px] bg-zinc-50 px-4 py-8 text-center text-sm font-bold text-zinc-400">当前没有可展示档期，先添加日期和时间段。</div>
-          )}
-        </div>
-      </section>
-
-      <section className="mt-4 rounded-[8px] border border-zinc-200 bg-white p-4">
-        <h2 className="flex items-center gap-2 text-base font-bold text-zinc-950">
-          <CalendarDays size={18} />
-          可预约日期
-        </h2>
-        <div className="mt-3 flex gap-2">
-          <input className="h-11 min-w-0 flex-1 rounded-[8px] border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-950" type="date" value={dateInput} onChange={(event) => setDateInput(event.target.value)} />
-          <button className="grid h-11 w-11 place-items-center rounded-[8px] bg-zinc-950 text-white" onClick={addDate} aria-label="添加日期">
-            <Plus size={18} />
-          </button>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {draft.availableDates.map((date) => (
-            <button
-              key={date}
-              className="rounded-full bg-zinc-100 px-3 py-2 text-xs font-bold text-zinc-700"
-              onClick={() => updateDraft({ availableDates: draft.availableDates.filter((item) => item !== date) })}
-              title="点击移除"
-            >
-              {formatDateLabel(date)}
+          <div className="flex shrink-0 gap-2">
+            <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" onClick={() => setWeekStart(addDays(weekStart, -7))} aria-label="上一周">
+              <ChevronLeft size={18} />
             </button>
+            <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" onClick={() => setWeekStart(addDays(weekStart, 7))} aria-label="下一周">
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-7 gap-1 rounded-[8px] bg-zinc-100 p-1 text-center text-[11px] font-black text-zinc-500">
+          {weekDays.map((day) => (
+            <span key={day.dateValue} className="rounded-[6px] bg-white py-1.5">
+              {day.short}
+              <span className="mt-0.5 block text-[10px] text-zinc-400">{day.month}/{day.day}</span>
+            </span>
           ))}
         </div>
-      </section>
 
-      <section className="mt-4 rounded-[8px] border border-zinc-200 bg-white p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 text-base font-bold text-zinc-950">
-            <Clock3 size={18} />
-            可预约时间段
-          </h2>
-          <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" onClick={addTimeRange} aria-label="添加时间段">
-            <Plus size={17} />
-          </button>
-        </div>
-        <div className="mt-3 space-y-2">
-          {draft.timeRanges.map((range) => (
-            <TimeRangeRow
-              key={range.id}
-              range={range}
-              onChange={(nextRange) =>
-                updateDraft({ timeRanges: draft.timeRanges.map((item) => (item.id === range.id ? nextRange : item)) })
-              }
-              onRemove={() => updateDraft({ timeRanges: draft.timeRanges.filter((item) => item.id !== range.id) })}
+        <div className="mt-4 space-y-4">
+          {weekDays.map((day) => (
+            <DaySchedule
+              key={day.dateValue}
+              day={day}
+              ranges={getDayRanges(draft, day.weekday)}
+              orders={getOrdersForDate(occupiedOrders, day.dateValue)}
+              onAdd={() => addRange(day.weekday)}
+              onChange={(rangeId, patch) => updateRange(day.weekday, rangeId, patch)}
+              onRemove={(rangeId) => removeRange(day.weekday, rangeId)}
             />
           ))}
-        </div>
-      </section>
-
-      <section className="mt-4 rounded-[8px] border border-zinc-200 bg-white p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-zinc-950">重复时间规则</h2>
-            <p className="mt-1 text-xs text-zinc-500">按星期自动生成未来两周可约档期。</p>
-          </div>
-          <button
-            className={`h-8 w-14 rounded-full p-1 transition ${draft.repeatEnabled ? 'bg-rose-500' : 'bg-zinc-200'}`}
-            onClick={() => updateDraft({ repeatEnabled: !draft.repeatEnabled })}
-            aria-label="重复时间规则开关"
-          >
-            <span className={`block h-6 w-6 rounded-full bg-white transition ${draft.repeatEnabled ? 'translate-x-6' : ''}`} />
-          </button>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {weekdayOptions.map((weekday) => {
-            const active = draft.repeatWeekdays.includes(weekday.value);
-            return (
-              <button
-                key={weekday.value}
-                className={`rounded-full px-3 py-2 text-xs font-bold ${active ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-700'}`}
-                onClick={() => {
-                  const nextWeekdays = active
-                    ? draft.repeatWeekdays.filter((value) => value !== weekday.value)
-                    : [...draft.repeatWeekdays, weekday.value].sort();
-                  updateDraft({ repeatWeekdays: nextWeekdays });
-                }}
-              >
-                {weekday.label}
-              </button>
-            );
-          })}
         </div>
       </section>
 
@@ -324,9 +238,7 @@ export function CompanionBookingSettingsPage() {
       <section className="mt-4 rounded-[8px] bg-zinc-950 p-4 text-white">
         <p className="text-xs font-semibold text-white/60">预约弹窗预览</p>
         <p className="mt-2 text-sm font-bold">
-          {draft.temporaryAccepting
-            ? `${draft.availableDates.length} 个指定日期，${draft.timeRanges.length} 个时间段，${occupiedOrders.length} 个订单占用`
-            : '当前暂停接单'}
+          {draft.temporaryAccepting ? `${countWeeklyRanges(draft)} 条周课表档期，${occupiedOrders.length} 个订单占用` : '当前暂停接单'}
         </p>
         <p className="mt-1 text-xs text-white/58">
           默认展示 {enabledActivities[0]?.name ?? '暂无活动'} · {getDurationLabel(enabledActivities[0]?.durationMinutes ?? 120)}
@@ -337,29 +249,126 @@ export function CompanionBookingSettingsPage() {
         {savedNotice ? <p className="mb-2 text-center text-xs font-bold text-emerald-600">{savedNotice}</p> : null}
         <button className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-500 text-sm font-black text-white shadow-lg shadow-rose-200" onClick={save}>
           <Save size={18} />
-          保存设置
+          保存课表
         </button>
       </div>
     </div>
   );
 }
 
-function TimeRangeRow({
-  range,
+function DaySchedule({
+  day,
+  ranges,
+  orders,
+  onAdd,
   onChange,
   onRemove,
 }: {
-  range: BookingTimeRange;
-  onChange: (range: BookingTimeRange) => void;
-  onRemove: () => void;
+  day: WeekDay;
+  ranges: BookingTimeRange[];
+  orders: AppOrder[];
+  onAdd: () => void;
+  onChange: (rangeId: string, patch: Partial<BookingTimeRange>) => void;
+  onRemove: (rangeId: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-[1fr_1fr_36px] gap-2">
-      <input className="h-10 rounded-[8px] border border-zinc-200 px-2 text-sm font-semibold outline-none" type="time" value={range.startTime} onChange={(event) => onChange({ ...range, startTime: event.target.value })} aria-label="开始时间" />
-      <input className="h-10 rounded-[8px] border border-zinc-200 px-2 text-sm font-semibold outline-none" type="time" value={range.endTime} onChange={(event) => onChange({ ...range, endTime: event.target.value })} aria-label="结束时间" />
-      <button className="grid h-10 w-9 place-items-center rounded-[8px] bg-zinc-100 text-zinc-500" onClick={onRemove} aria-label="删除时间段">
-        <Trash2 size={16} />
-      </button>
+    <div className="rounded-[8px] border border-zinc-100 bg-zinc-50 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-zinc-950">{day.label}</p>
+          <p className="mt-0.5 text-xs font-semibold text-zinc-400">{day.month}月{day.day}日</p>
+        </div>
+        <button className="flex h-9 items-center gap-1 rounded-full bg-zinc-950 px-3 text-xs font-black text-white" onClick={onAdd} type="button">
+          <Plus size={15} />
+          添加
+        </button>
+      </div>
+
+      <div className="relative mt-3 h-8 rounded-full bg-white ring-1 ring-zinc-200">
+        <div className="absolute left-0 top-1/2 h-1 w-full -translate-y-1/2 rounded-full bg-zinc-100" />
+        {ranges.map((range) => (
+          <div key={range.id} className="absolute top-1/2 h-3 -translate-y-1/2 rounded-full bg-emerald-400" style={getSegmentStyle(range.startTime, range.endTime)} />
+        ))}
+        {orders.map((order) => (
+          <div
+            key={order.id}
+            className="absolute top-1/2 h-5 -translate-y-1/2 rounded-full bg-zinc-400/75"
+            style={getSegmentStyle(formatOrderTime(order), formatOrderEndTime(order))}
+            title={`${order.orderNo} ${order.place}`}
+          />
+        ))}
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] font-bold text-zinc-300">
+        <span>06:00</span>
+        <span>12:00</span>
+        <span>18:00</span>
+        <span>24:00</span>
+      </div>
+
+      <div className="mt-3 space-y-3">
+        {ranges.map((range) => (
+          <TimeRangeSlider
+            key={range.id}
+            range={range}
+            onChange={(patch) => onChange(range.id, patch)}
+            onRemove={() => onRemove(range.id)}
+          />
+        ))}
+        {orders.map((order) => (
+          <div key={order.id} className="rounded-[8px] bg-zinc-200 px-3 py-2 text-xs font-bold leading-5 text-zinc-500">
+            已占用 {formatOrderTime(order)}-{formatOrderEndTime(order)} · {order.orderNo} · {order.place}
+          </div>
+        ))}
+        {!ranges.length && !orders.length ? <p className="rounded-[8px] bg-white px-3 py-4 text-center text-xs font-bold text-zinc-300">当天还没有空闲档期</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function TimeRangeSlider({ range, onChange, onRemove }: { range: BookingTimeRange; onChange: (patch: Partial<BookingTimeRange>) => void; onRemove: () => void }) {
+  const start = timeToMinutes(range.startTime);
+  const end = timeToMinutes(range.endTime);
+
+  return (
+    <div className="rounded-[8px] bg-white p-3 ring-1 ring-zinc-100">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-black text-zinc-950">{range.startTime} - {range.endTime}</p>
+        <button className="grid h-8 w-8 place-items-center rounded-full bg-zinc-100 text-zinc-500" onClick={onRemove} aria-label="删除时间段" type="button">
+          <Trash2 size={15} />
+        </button>
+      </div>
+      <div className="mt-3 grid gap-2">
+        <label className="grid grid-cols-[42px_1fr_48px] items-center gap-2 text-xs font-bold text-zinc-400">
+          起始
+          <input
+            type="range"
+            min={dayStartMinutes}
+            max={dayEndMinutes - sliderStepMinutes}
+            step={sliderStepMinutes}
+            value={start}
+            onChange={(event) => {
+              const nextStart = Number(event.target.value);
+              onChange({ startTime: minutesToTime(nextStart), endTime: minutesToTime(Math.max(end, nextStart + sliderStepMinutes)) });
+            }}
+          />
+          <span className="text-right text-zinc-600">{range.startTime}</span>
+        </label>
+        <label className="grid grid-cols-[42px_1fr_48px] items-center gap-2 text-xs font-bold text-zinc-400">
+          终止
+          <input
+            type="range"
+            min={dayStartMinutes + sliderStepMinutes}
+            max={dayEndMinutes}
+            step={sliderStepMinutes}
+            value={end}
+            onChange={(event) => {
+              const nextEnd = Number(event.target.value);
+              onChange({ startTime: minutesToTime(Math.min(start, nextEnd - sliderStepMinutes)), endTime: minutesToTime(nextEnd) });
+            }}
+          />
+          <span className="text-right text-zinc-600">{range.endTime}</span>
+        </label>
+      </div>
     </div>
   );
 }
@@ -392,21 +401,51 @@ function MoneyInput({ valueCents, onChange, ariaLabel }: { valueCents: number; o
   );
 }
 
+type WeekDay = {
+  date: Date;
+  dateValue: string;
+  weekday: RepeatWeekday;
+  label: string;
+  short: string;
+  month: number;
+  day: number;
+};
+
+function ensureWeeklyRanges(settings: CompanionBookingSettings): CompanionBookingSettings {
+  if (settings.weeklyTimeRanges) return settings;
+  const weeklyTimeRanges = Object.fromEntries(settings.repeatWeekdays.map((weekday) => [weekday, settings.timeRanges])) as Partial<Record<RepeatWeekday, BookingTimeRange[]>>;
+  return { ...settings, weeklyTimeRanges };
+}
+
+function normalizeDraftForSave(settings: CompanionBookingSettings): CompanionBookingSettings {
+  const weeklyTimeRanges = settings.weeklyTimeRanges ?? {};
+  const repeatWeekdays = weekdayOptions.map((item) => item.value).filter((weekday) => (weeklyTimeRanges[weekday]?.length ?? 0) > 0);
+  const firstRanges = repeatWeekdays.flatMap((weekday) => weeklyTimeRanges[weekday] ?? []).slice(0, 3);
+  return {
+    ...settings,
+    repeatEnabled: true,
+    repeatWeekdays,
+    timeRanges: firstRanges.length ? firstRanges : settings.timeRanges,
+    weeklyTimeRanges,
+  };
+}
+
+function getDayRanges(settings: CompanionBookingSettings, weekday: RepeatWeekday) {
+  return [...(settings.weeklyTimeRanges?.[weekday] ?? [])].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
+}
+
+function countWeeklyRanges(settings: CompanionBookingSettings) {
+  return weekdayOptions.reduce((count, weekday) => count + getDayRanges(settings, weekday.value).length, 0);
+}
+
 function getScheduleOrders(orders: AppOrder[]) {
   return orders
     .filter((order) => ['confirmed', 'in_service', 'completed'].includes(order.status) && order.startAt && order.endAt)
     .sort((left, right) => new Date(left.startAt || '').getTime() - new Date(right.startAt || '').getTime());
 }
 
-function findOccupyingOrder(slotStartAt: string, slotEndAt: string, orders: AppOrder[]) {
-  const slotStart = new Date(slotStartAt).getTime();
-  const slotEnd = new Date(slotEndAt).getTime();
-  return orders.find((order) => {
-    const orderStart = new Date(order.startAt || '').getTime();
-    const orderEnd = new Date(order.endAt || '').getTime();
-    if (!Number.isFinite(orderStart) || !Number.isFinite(orderEnd)) return false;
-    return orderStart < slotEnd && orderEnd > slotStart;
-  });
+function getOrdersForDate(orders: AppOrder[], dateValue: string) {
+  return orders.filter((order) => toDateValue(new Date(order.startAt || order.createdAt)) === dateValue);
 }
 
 function getRouteWarnings(orders: AppOrder[]) {
@@ -433,6 +472,61 @@ function getRouteWarnings(orders: AppOrder[]) {
   return warnings;
 }
 
+function getSegmentStyle(startTime: string, endTime: string) {
+  const start = Math.max(dayStartMinutes, Math.min(dayEndMinutes, timeToMinutes(startTime)));
+  const end = Math.max(start + sliderStepMinutes, Math.min(dayEndMinutes, timeToMinutes(endTime)));
+  return {
+    left: `${((start - dayStartMinutes) / dayTotalMinutes) * 100}%`,
+    width: `${((end - start) / dayTotalMinutes) * 100}%`,
+  };
+}
+
+function buildWeekDays(start: Date): WeekDay[] {
+  return weekdayOptions.map((weekday, index) => {
+    const date = addDays(start, index);
+    return {
+      date,
+      dateValue: toDateValue(date),
+      weekday: weekday.value,
+      label: weekday.label,
+      short: weekday.short,
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+    };
+  });
+}
+
+function getWeekStart(date: Date) {
+  const start = new Date(date);
+  const day = start.getDay();
+  const delta = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + delta);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function formatWeekRange(start: Date) {
+  const end = addDays(start, 6);
+  return `${start.getMonth() + 1}/${start.getDate()} - ${end.getMonth() + 1}/${end.getDate()}`;
+}
+
+function timeToMinutes(time: string) {
+  const [hour = '0', minute = '0'] = time.split(':');
+  return Number(hour) * 60 + Number(minute);
+}
+
+function minutesToTime(totalMinutes: number) {
+  const minutes = Math.max(dayStartMinutes, Math.min(dayEndMinutes, totalMinutes));
+  if (minutes >= dayEndMinutes) return '24:00';
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
 function isSameLocalDate(left: string, right: string) {
   return new Date(left).toLocaleDateString('zh-CN') === new Date(right).toLocaleDateString('zh-CN');
 }
@@ -449,6 +543,6 @@ function formatOrderEndTime(order: AppOrder) {
   return new Date(order.endAt || order.startAt || order.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function formatOrderDate(order: AppOrder) {
-  return new Date(order.startAt || order.createdAt).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', weekday: 'short' });
+function toDateValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

@@ -231,6 +231,7 @@ function mergeBookingSettings(storedSettings?: Partial<CompanionBookingSettings>
     ...storedSettings,
     activities: storedSettings?.activities?.length ? storedSettings.activities : defaultBookingSettings.activities,
     timeRanges: storedSettings?.timeRanges?.length ? storedSettings.timeRanges : defaultBookingSettings.timeRanges,
+    weeklyTimeRanges: storedSettings?.weeklyTimeRanges ?? defaultBookingSettings.weeklyTimeRanges,
     availableDates: storedSettings?.availableDates?.length ? storedSettings.availableDates : defaultBookingSettings.availableDates,
     repeatWeekdays: storedSettings?.repeatWeekdays?.length ? storedSettings.repeatWeekdays : defaultBookingSettings.repeatWeekdays,
   };

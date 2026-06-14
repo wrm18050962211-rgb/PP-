@@ -205,6 +205,7 @@ export type CompanionBookingSettings = {
   companionId: string;
   availableDates: string[];
   timeRanges: BookingTimeRange[];
+  weeklyTimeRanges?: Partial<Record<RepeatWeekday, BookingTimeRange[]>>;
   repeatEnabled: boolean;
   repeatWeekdays: RepeatWeekday[];
   temporaryAccepting: boolean;
