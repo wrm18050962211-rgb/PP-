@@ -49,6 +49,8 @@ function PostDetailContent({ postId }: { postId?: string }) {
   }, [post]);
   const postTitle = getPostTitle(post);
   const photographer = post.companion;
+  const isCompanionMode = session?.role === 'companion';
+  const appHomePath = isCompanionMode ? '/companion' : '/consumer';
   const photographerWorks = useMemo(() => {
     const works = collectionPosts.filter((item) => item.companion.id === photographer.id);
     return works.some((item) => item.id === post.id) ? works : [post, ...works];
@@ -109,6 +111,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   };
 
   const openConsultation = () => {
+    if (isCompanionMode) return;
     setDrawer(null);
     setConsultOpen(true);
   };
@@ -149,7 +152,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
     <div className="relative h-dvh overflow-hidden bg-black text-white">
       <header className="fixed inset-x-0 top-0 z-40 mx-auto max-w-md bg-black/96 px-3 py-2 text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
         <div className={`grid h-14 items-center gap-2 ${visibleCreator ? 'grid-cols-[30px_minmax(0,1fr)_minmax(0,1fr)]' : 'grid-cols-[30px_minmax(0,1fr)]'}`}>
-          <Link to="/consumer" className="grid h-8 w-8 place-items-center text-white/88" aria-label="返回发现">
+          <Link to={appHomePath} className="grid h-8 w-8 place-items-center text-white/88" aria-label="返回发现">
             <ArrowLeft size={22} />
           </Link>
           {visibleCreator ? <ProfileIdentityButton role="创作者" name={visibleCreator.name} avatar={visibleCreator.avatar} onClick={() => setDrawer('creator')} /> : null}
@@ -272,8 +275,11 @@ function PostDetailContent({ postId }: { postId?: string }) {
         <Link className="flex h-12 items-center justify-center rounded-full bg-[#3f302c] text-sm font-black text-white" to={`/consumer/creator/${visibleCreator.id}`}>
           查看创作者主页
         </Link>
-        <Link className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]" to={`/consumer/companions?sameStyle=${post.id}`}>
-          拍同款
+        <Link
+          className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]"
+          to={isCompanionMode ? `/consumer/creator/${visibleCreator.id}` : `/consumer/companions?sameStyle=${post.id}`}
+        >
+          {isCompanionMode ? '查看同款作品' : '拍同款'}
         </Link>
       </ProfileDrawer>
       ) : null}
@@ -294,9 +300,11 @@ function PostDetailContent({ postId }: { postId?: string }) {
         <Link className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]" to={`/consumer/photographer/${photographer.id}`}>
           查看摄影师主页
         </Link>
-        <button className="h-12 rounded-full bg-[#3f302c] text-sm font-black text-white" onClick={openConsultation}>
-          预约这位摄影师
-        </button>
+        {isCompanionMode ? null : (
+          <button className="h-12 rounded-full bg-[#3f302c] text-sm font-black text-white" onClick={openConsultation}>
+            预约这位摄影师
+          </button>
+        )}
       </ProfileDrawer>
 
       <CommentSheet
@@ -308,7 +316,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
         onSubmit={submitComment}
       />
 
-      {consultOpen ? (
+      {consultOpen && !isCompanionMode ? (
         <ConsultationRequestModal
           post={post}
           session={session}

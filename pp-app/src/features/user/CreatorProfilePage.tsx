@@ -12,7 +12,8 @@ import type { FeedPost } from '../../types/api';
 export function CreatorProfilePage() {
   const { creatorId } = useParams();
   const navigate = useNavigate();
-  const { orders } = useAppData();
+  const { orders, session } = useAppData();
+  const isCompanionMode = session?.role === 'companion';
   const [photographersOpen, setPhotographersOpen] = useState(false);
   const posts = listFeedPosts();
   const ownedPosts = posts.filter((post) => getCreatorIdentity(post).id === creatorId);
@@ -61,7 +62,12 @@ export function CreatorProfilePage() {
           <button className="h-10 rounded-[6px] bg-[#4d5dff] text-sm font-black text-white">
             关注
           </button>
-          <Link className="grid h-10 place-items-center rounded-[6px] bg-white/12 text-white" to={`/consumer/companions?sameStyle=${profilePost.id}`} aria-label="拍同款">
+          <Link
+            className="grid h-10 place-items-center rounded-[6px] bg-white/12 text-white"
+            to={isCompanionMode ? `/consumer/post/${profilePost.id}` : `/consumer/companions?sameStyle=${profilePost.id}`}
+            aria-label={isCompanionMode ? '查看同款作品' : '拍同款'}
+            title={isCompanionMode ? '查看同款作品' : '拍同款'}
+          >
             <Camera size={18} />
           </Link>
         </div>

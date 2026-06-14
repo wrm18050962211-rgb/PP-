@@ -14,6 +14,7 @@ export function PhotographerProfilePage() {
   const { photographerId } = useParams();
   const navigate = useNavigate();
   const { orders, session } = useAppData();
+  const isCompanionMode = session?.role === 'companion';
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
@@ -44,9 +45,13 @@ export function PhotographerProfilePage() {
           <ArrowLeft size={24} />
         </button>
         <p className="min-w-0 truncate text-lg font-black tracking-tight">{handle}</p>
-        <Link to="/consumer/messages" className="grid h-10 w-10 place-items-center text-white/88" aria-label="咨询">
-          <MessageCircle size={20} />
-        </Link>
+        {isCompanionMode ? (
+          <span className="h-10 w-10" aria-hidden />
+        ) : (
+          <Link to="/consumer/messages" className="grid h-10 w-10 place-items-center text-white/88" aria-label="咨询">
+            <MessageCircle size={20} />
+          </Link>
+        )}
       </header>
 
       <section className="px-4 pb-4 pt-3">
@@ -68,13 +73,15 @@ export function PhotographerProfilePage() {
           </p>
         </div>
 
-        <div className="mt-4 grid grid-cols-[1fr_1fr] gap-2">
+        <div className={`mt-4 grid gap-2 ${isCompanionMode ? 'grid-cols-1' : 'grid-cols-[1fr_1fr]'}`}>
           <Link className="flex h-10 items-center justify-center rounded-[6px] bg-[#4d5dff] text-sm font-black text-white" to={`/consumer/post/${profilePost.id}`}>
             看作品
           </Link>
-          <button className="flex h-10 items-center justify-center rounded-[6px] bg-white/12 text-sm font-black text-white" onClick={() => setConsultOpen(true)} type="button">
-            咨询档期/报价
-          </button>
+          {isCompanionMode ? null : (
+            <button className="flex h-10 items-center justify-center rounded-[6px] bg-white/12 text-sm font-black text-white" onClick={() => setConsultOpen(true)} type="button">
+              咨询档期/报价
+            </button>
+          )}
         </div>
       </section>
 
@@ -117,13 +124,23 @@ export function PhotographerProfilePage() {
         </div>
         <div className="mt-3 space-y-2">
           {photographer.activities.slice(0, 3).map((item) => (
-            <Link key={item.id} to={`/consumer/checkout/${profilePost.id}`} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-[6px] bg-black/24 px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-xs font-black text-white">{item.name}</p>
-                <p className="mt-0.5 text-[11px] font-semibold text-white/46">{item.durationLabel}</p>
+            isCompanionMode ? (
+              <div key={item.id} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-[6px] bg-black/24 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-black text-white">{item.name}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-white/46">{item.durationLabel}</p>
+                </div>
+                <span className="text-xs font-black text-white">¥{Math.round(item.priceCents / 100)}</span>
               </div>
-              <span className="text-xs font-black text-white">¥{Math.round(item.priceCents / 100)}</span>
-            </Link>
+            ) : (
+              <Link key={item.id} to={`/consumer/checkout/${profilePost.id}`} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-[6px] bg-black/24 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-black text-white">{item.name}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-white/46">{item.durationLabel}</p>
+                </div>
+                <span className="text-xs font-black text-white">¥{Math.round(item.priceCents / 100)}</span>
+              </Link>
+            )
           ))}
         </div>
         <p className="mt-3 flex items-center gap-1 text-[11px] font-semibold text-white/48">
@@ -142,7 +159,7 @@ export function PhotographerProfilePage() {
           onClose={() => setReviewsOpen(false)}
         />
       ) : null}
-      {consultOpen ? (
+      {consultOpen && !isCompanionMode ? (
         <ConsultationRequestModal
           post={profilePost}
           session={session}
