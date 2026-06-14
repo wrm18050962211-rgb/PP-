@@ -54,9 +54,27 @@ export function CompanionBookingSettingsPage() {
   };
 
   const setApplyMode = (mode: ScheduleApplyMode) => {
-    updateDraft({
-      scheduleApplyMode: mode,
-      repeatEnabled: mode === 'weekly',
+    setDraft((current) => {
+      const ensuredSettings = ensureBookingSettings(current);
+      if (mode === 'single_week') {
+        const currentWeekRanges = getWeekOverrideWithFallback(ensuredSettings, weekKey);
+        return ensureBookingSettings({
+          ...ensuredSettings,
+          scheduleApplyMode: mode,
+          repeatEnabled: false,
+          weekOverrides: {
+            ...(ensuredSettings.weekOverrides ?? {}),
+            [weekKey]: currentWeekRanges,
+          },
+          availableDates: buildAvailableDatesForWeek(weekStart, currentWeekRanges),
+        });
+      }
+
+      return ensureBookingSettings({
+        ...ensuredSettings,
+        scheduleApplyMode: mode,
+        repeatEnabled: true,
+      });
     });
     setExpandedDateValue('');
   };
@@ -64,7 +82,7 @@ export function CompanionBookingSettingsPage() {
   const updateDayRanges = (weekday: RepeatWeekday, ranges: BookingTimeRange[]) => {
     const nextRanges = [...ranges].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
     if (applyMode === 'single_week') {
-      const currentWeek = draft.weekOverrides?.[weekKey] ?? {};
+      const currentWeek = getWeekOverrideWithFallback(draft, weekKey);
       updateDraft({
         weekOverrides: {
           ...(draft.weekOverrides ?? {}),
@@ -557,7 +575,7 @@ function normalizeDraftForSave(settings: CompanionBookingSettings, currentWeekSt
   const weeklyTimeRanges = nextSettings.weeklyTimeRanges ?? {};
   const repeatWeekdays = weekdayOptions.map((item) => item.value).filter((weekday) => (weeklyTimeRanges[weekday]?.length ?? 0) > 0);
   const firstRanges = repeatWeekdays.flatMap((weekday) => weeklyTimeRanges[weekday] ?? []).slice(0, 3);
-  const currentWeekRanges = nextSettings.weekOverrides?.[toDateValue(currentWeekStart)] ?? {};
+  const currentWeekRanges = getWeekOverrideWithFallback(nextSettings, toDateValue(currentWeekStart));
   return {
     ...nextSettings,
     repeatEnabled: nextSettings.scheduleApplyMode !== 'single_week',
@@ -571,9 +589,26 @@ function normalizeDraftForSave(settings: CompanionBookingSettings, currentWeekSt
 function getDayRanges(settings: CompanionBookingSettings, weekday: RepeatWeekday, weekKey: string) {
   const ensuredSettings = ensureBookingSettings(settings);
   if (ensuredSettings.scheduleApplyMode === 'single_week') {
-    return [...(ensuredSettings.weekOverrides?.[weekKey]?.[weekday] ?? [])].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
+    return [...(getWeekOverrideWithFallback(ensuredSettings, weekKey)[weekday] ?? [])].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
   }
   return [...(ensuredSettings.weeklyTimeRanges?.[weekday] ?? [])].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
+}
+
+function getWeekOverrideWithFallback(settings: CompanionBookingSettings, weekKey: string): Partial<Record<RepeatWeekday, BookingTimeRange[]>> {
+  const ensuredSettings = ensureBookingSettings(settings);
+  const existingWeek = ensuredSettings.weekOverrides?.[weekKey];
+  if (existingWeek && Object.keys(existingWeek).length > 0) {
+    return cloneRangesByWeekday(existingWeek);
+  }
+  return cloneRangesByWeekday(ensuredSettings.weeklyTimeRanges ?? {});
+}
+
+function cloneRangesByWeekday(rangesByWeekday: Partial<Record<RepeatWeekday, BookingTimeRange[]>>) {
+  return weekdayOptions.reduce<Partial<Record<RepeatWeekday, BookingTimeRange[]>>>((nextRanges, option) => {
+    const ranges = rangesByWeekday[option.value] ?? [];
+    if (ranges.length) nextRanges[option.value] = ranges.map((range) => ({ ...range }));
+    return nextRanges;
+  }, {});
 }
 
 function buildAvailableDatesForWeek(weekStart: Date, rangesByWeekday: Partial<Record<RepeatWeekday, BookingTimeRange[]>>) {
