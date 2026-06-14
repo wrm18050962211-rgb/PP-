@@ -2,9 +2,7 @@ import { AlertTriangle, ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Plus
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
-import { bookingDurationOptions, companionBookingActivityNames, getDurationLabel } from '../../data/bookingSettings';
-import type { AppOrder, BookingDurationMinutes, BookingTimeRange, CompanionBookingSettings, RepeatWeekday } from '../../types/api';
-import { formatMoney, yuanToCents } from '../../utils/money';
+import type { AppOrder, BookingTimeRange, CompanionBookingSettings, RepeatWeekday } from '../../types/api';
 
 const weekdayOptions: Array<{ label: string; short: string; value: RepeatWeekday }> = [
   { label: '周一', short: '一', value: 1 },
@@ -27,7 +25,6 @@ export function CompanionBookingSettingsPage() {
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [savedNotice, setSavedNotice] = useState('');
 
-  const enabledActivities = useMemo(() => draft.activities.filter((activity) => activity.enabled), [draft.activities]);
   const occupiedOrders = useMemo(() => getScheduleOrders(orders), [orders]);
   const routeWarnings = useMemo(() => getRouteWarnings(occupiedOrders), [occupiedOrders]);
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
@@ -170,79 +167,12 @@ export function CompanionBookingSettingsPage() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-[8px] border border-zinc-200 bg-white p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-zinc-950">活动形式和基础价格</h2>
-          <span className="text-xs font-bold text-zinc-500">{enabledActivities.length}/{companionBookingActivityNames.length}</span>
-        </div>
-        <div className="mt-3 space-y-3">
-          {draft.activities.map((activity) => (
-            <div key={activity.id} className="rounded-[8px] border border-zinc-100 bg-zinc-50 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <button
-                  className={`h-7 w-12 rounded-full p-1 transition ${activity.enabled ? 'bg-rose-500' : 'bg-zinc-200'}`}
-                  onClick={() =>
-                    updateDraft({
-                      activities: draft.activities.map((item) => (item.id === activity.id ? { ...item, enabled: !item.enabled } : item)),
-                    })
-                  }
-                  aria-label={`启用${activity.name}`}
-                >
-                  <span className={`block h-5 w-5 rounded-full bg-white transition ${activity.enabled ? 'translate-x-5' : ''}`} />
-                </button>
-                <p className="min-w-0 flex-1 text-sm font-black text-zinc-950">{activity.name}</p>
-                <p className="text-xs font-bold text-rose-500">{formatMoney(activity.basePriceCents)}</p>
-              </div>
-              <div className="mt-3 grid grid-cols-[1fr_112px] gap-2">
-                <select
-                  className="h-10 rounded-[8px] border border-zinc-200 bg-white px-2 text-sm font-semibold outline-none"
-                  value={activity.durationMinutes}
-                  onChange={(event) =>
-                    updateDraft({
-                      activities: draft.activities.map((item) =>
-                        item.id === activity.id ? { ...item, durationMinutes: Number(event.target.value) as BookingDurationMinutes } : item,
-                      ),
-                    })
-                  }
-                >
-                  {bookingDurationOptions.map((option) => (
-                    <option key={option.minutes} value={option.minutes}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <MoneyInput
-                  valueCents={activity.basePriceCents}
-                  ariaLabel={`${activity.name}基础价格`}
-                  onChange={(basePriceCents) =>
-                    updateDraft({
-                      activities: draft.activities.map((item) => (item.id === activity.id ? { ...item, basePriceCents } : item)),
-                    })
-                  }
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-4 rounded-[8px] border border-zinc-200 bg-white p-4">
-        <h2 className="text-base font-bold text-zinc-950">加价项</h2>
-        <div className="mt-3 grid gap-3">
-          <AddonPrice label="精修每张加价" unit="张" valueCents={draft.retouchPriceCents} onChange={(retouchPriceCents) => updateDraft({ retouchPriceCents })} />
-          <AddonPrice label="加急出图价格" unit="单" valueCents={draft.rushPriceCents} onChange={(rushPriceCents) => updateDraft({ rushPriceCents })} />
-          <AddonPrice label="短视频价格" unit="条" valueCents={draft.shortVideoPriceCents} onChange={(shortVideoPriceCents) => updateDraft({ shortVideoPriceCents })} />
-        </div>
-      </section>
-
       <section className="mt-4 rounded-[8px] bg-zinc-950 p-4 text-white">
         <p className="text-xs font-semibold text-white/60">预约弹窗预览</p>
         <p className="mt-2 text-sm font-bold">
           {draft.temporaryAccepting ? `${countWeeklyRanges(draft)} 条周课表档期，${occupiedOrders.length} 个订单占用` : '当前暂停接单'}
         </p>
-        <p className="mt-1 text-xs text-white/58">
-          默认展示 {enabledActivities[0]?.name ?? '暂无活动'} · {getDurationLabel(enabledActivities[0]?.durationMinutes ?? 120)}
-        </p>
+        <p className="mt-1 text-xs text-white/58">价格、套餐、定金和加价规则统一在“套餐与报价”里维护。</p>
       </section>
 
       <div className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-md border-t border-zinc-200 bg-white/95 p-4 backdrop-blur">
@@ -369,34 +299,6 @@ function TimeRangeSlider({ range, onChange, onRemove }: { range: BookingTimeRang
           <span className="text-right text-zinc-600">{range.endTime}</span>
         </label>
       </div>
-    </div>
-  );
-}
-
-function AddonPrice({ label, unit, valueCents, onChange }: { label: string; unit: string; valueCents: number; onChange: (value: number) => void }) {
-  return (
-    <label className="grid grid-cols-[1fr_120px] items-center gap-3 rounded-[8px] bg-zinc-50 p-3">
-      <span>
-        <span className="block text-sm font-bold text-zinc-900">{label}</span>
-        <span className="mt-1 block text-xs text-zinc-500">按{unit}计费</span>
-      </span>
-      <MoneyInput valueCents={valueCents} onChange={onChange} ariaLabel={label} />
-    </label>
-  );
-}
-
-function MoneyInput({ valueCents, onChange, ariaLabel }: { valueCents: number; onChange: (value: number) => void; ariaLabel: string }) {
-  return (
-    <div className="flex h-10 items-center rounded-[8px] border border-zinc-200 bg-white px-2">
-      <span className="text-sm font-bold text-zinc-400">¥</span>
-      <input
-        className="min-w-0 flex-1 bg-transparent pl-1 text-right text-sm font-bold text-zinc-950 outline-none"
-        type="number"
-        min="0"
-        value={Math.round(valueCents / 100)}
-        onChange={(event) => onChange(yuanToCents(Number(event.target.value)))}
-        aria-label={ariaLabel}
-      />
     </div>
   );
 }

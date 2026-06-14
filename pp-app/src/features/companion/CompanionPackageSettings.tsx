@@ -1,9 +1,10 @@
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { createDefaultPackageSettings, formatCents, readCompanionPackageSettings, saveCompanionPackageSettings } from '../../services/companionPackageService';
 import { listFeedPosts } from '../../services/feedService';
+import type { CompanionPackage } from '../../services/companionPackageService';
 
 export function CompanionPackageSettings() {
   const navigate = useNavigate();
@@ -13,11 +14,40 @@ export function CompanionPackageSettings() {
   const [settings, setSettings] = useState(() => readCompanionPackageSettings(companion) ?? createDefaultPackageSettings(companion));
   const primaryPackage = settings.packages[0];
 
-  function updatePrimaryPackage(patch: Partial<typeof primaryPackage>) {
+  function updatePackage(packageId: string, patch: Partial<CompanionPackage>) {
     setSettings((current) => ({
       ...current,
-      packages: [{ ...current.packages[0], ...patch }, ...current.packages.slice(1)],
+      packages: current.packages.map((pkg) => (pkg.id === packageId ? { ...pkg, ...patch } : pkg)),
     }));
+  }
+
+  function addPackage() {
+    const index = settings.packages.length + 1;
+    const basePackage = primaryPackage ?? createDefaultPackageSettings(companion).packages[0];
+    setSettings((current) => ({
+      ...current,
+      packages: [
+        ...current.packages,
+        {
+          ...basePackage,
+          id: `package-custom-${Date.now()}`,
+          name: `自定义套餐 ${index}`,
+          durationMinutes: 120,
+          basePriceCents: 39900,
+          depositCents: 10000,
+          includedRetouchedCount: 4,
+          includedOriginals: 60,
+          description: '适合常规拍摄，可根据需求卡再微调报价。',
+        },
+      ],
+    }));
+  }
+
+  function removePackage(packageId: string) {
+    setSettings((current) => {
+      if (current.packages.length <= 1) return current;
+      return { ...current, packages: current.packages.filter((pkg) => pkg.id !== packageId) };
+    });
   }
 
   function save() {
@@ -49,28 +79,71 @@ export function CompanionPackageSettings() {
       </section>
 
       <section className="mt-5 space-y-4">
-        <Field label="套餐名称">
-          <input className="field" value={primaryPackage.name} onChange={(event) => updatePrimaryPackage({ name: event.target.value })} />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="时长（分钟）">
-            <input className="field" type="number" value={primaryPackage.durationMinutes} onChange={(event) => updatePrimaryPackage({ durationMinutes: Number(event.target.value) })} />
-          </Field>
-          <Field label="起拍价（元）">
-            <input className="field" type="number" value={Math.round(primaryPackage.basePriceCents / 100)} onChange={(event) => updatePrimaryPackage({ basePriceCents: Number(event.target.value) * 100 })} />
-          </Field>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-black">套餐列表</h2>
+            <p className="mt-1 text-xs font-semibold text-zinc-400">每个套餐可独立设置时长、价格、定金和交付内容。</p>
+          </div>
+          <button className="flex h-10 shrink-0 items-center gap-1 rounded-full bg-zinc-950 px-3 text-xs font-black text-white" type="button" onClick={addPackage}>
+            <Plus size={16} />
+            添加套餐
+          </button>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="定金（元）">
-            <input className="field" type="number" value={Math.round(primaryPackage.depositCents / 100)} onChange={(event) => updatePrimaryPackage({ depositCents: Number(event.target.value) * 100 })} />
-          </Field>
-          <Field label="免费修图张数">
-            <input className="field" type="number" value={primaryPackage.includedRetouchedCount} onChange={(event) => updatePrimaryPackage({ includedRetouchedCount: Number(event.target.value) })} />
-          </Field>
-        </div>
-        <Field label="套餐说明">
-          <textarea className="field min-h-24 resize-none rounded-[10px] py-3" value={primaryPackage.description} onChange={(event) => updatePrimaryPackage({ description: event.target.value })} />
-        </Field>
+
+        {settings.packages.map((pkg, index) => (
+          <section key={pkg.id} className="rounded-[12px] bg-white p-4 ring-1 ring-zinc-200">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black text-rose-500">套餐 {index + 1}</p>
+                <h3 className="mt-1 text-lg font-black">{pkg.name}</h3>
+              </div>
+              <button
+                className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-400 disabled:opacity-30"
+                type="button"
+                disabled={settings.packages.length <= 1}
+                onClick={() => removePackage(pkg.id)}
+                aria-label="删除套餐"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <Field label="套餐名称">
+                <input className="field" value={pkg.name} onChange={(event) => updatePackage(pkg.id, { name: event.target.value })} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="时长（分钟）">
+                  <input className="field" type="number" value={pkg.durationMinutes} onChange={(event) => updatePackage(pkg.id, { durationMinutes: Number(event.target.value) })} />
+                </Field>
+                <Field label="起拍价（元）">
+                  <input className="field" type="number" value={Math.round(pkg.basePriceCents / 100)} onChange={(event) => updatePackage(pkg.id, { basePriceCents: Number(event.target.value) * 100 })} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="定金（元）">
+                  <input className="field" type="number" value={Math.round(pkg.depositCents / 100)} onChange={(event) => updatePackage(pkg.id, { depositCents: Number(event.target.value) * 100 })} />
+                </Field>
+                <Field label="免费修图张数">
+                  <input className="field" type="number" value={pkg.includedRetouchedCount} onChange={(event) => updatePackage(pkg.id, { includedRetouchedCount: Number(event.target.value) })} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="包含原图数">
+                  <input className="field" type="number" value={pkg.includedOriginals} onChange={(event) => updatePackage(pkg.id, { includedOriginals: Number(event.target.value) })} />
+                </Field>
+                <Field label="尾款节点">
+                  <select className="field" value={pkg.balanceDueTiming} onChange={() => updatePackage(pkg.id, { balanceDueTiming: 'before_shoot' })}>
+                    <option value="before_shoot">拍摄前托管</option>
+                  </select>
+                </Field>
+              </div>
+              <Field label="套餐说明">
+                <textarea className="field min-h-24 resize-none rounded-[10px] py-3" value={pkg.description} onChange={(event) => updatePackage(pkg.id, { description: event.target.value })} />
+              </Field>
+            </div>
+          </section>
+        ))}
       </section>
 
       <section className="mt-5 space-y-3 rounded-[12px] bg-white p-4 ring-1 ring-zinc-200">
