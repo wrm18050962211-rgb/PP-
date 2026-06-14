@@ -1,4 +1,4 @@
-import { ArrowLeft, Bookmark, Heart, MapPin, MessageCircle, Share2, Star, X } from 'lucide-react';
+import { ArrowLeft, Bookmark, ChevronLeft, ChevronRight, Heart, MapPin, MessageCircle, Share2, Star, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -49,6 +49,10 @@ function PostDetailContent({ postId }: { postId?: string }) {
   }, [post]);
   const postTitle = getPostTitle(post);
   const photographer = post.companion;
+  const photographerWorks = useMemo(() => {
+    const works = collectionPosts.filter((item) => item.companion.id === photographer.id);
+    return works.some((item) => item.id === post.id) ? works : [post, ...works];
+  }, [collectionPosts, photographer.id, post]);
   const visibleCreator = getVisibleCreator(post);
   const cover = post.images[0];
   const images = post.images;
@@ -279,8 +283,9 @@ function PostDetailContent({ postId }: { postId?: string }) {
         side="right"
         title="摄影师"
         name={photographer.name}
-        avatar={photographer.photo || photographer.avatar}
-        hero={photographer.photo || cover?.url}
+        avatar={photographer.avatar || photographer.photo}
+        hero={cover?.url}
+        heroSlides={photographerWorks.map((work) => ({ id: work.id, image: work.images[0]?.url || photographer.photo || photographer.avatar }))}
         meta={`¥${Math.round((photographer.activities[0]?.priceCents || 0) / 100)}起 · ${photographer.ratingAvg.toFixed(1)}分`}
         tags={photographer.tags}
         onClose={() => setDrawer(null)}
@@ -461,6 +466,7 @@ function ProfileDrawer({
   name,
   avatar,
   hero,
+  heroSlides,
   meta,
   tags,
   onClose,
@@ -472,12 +478,33 @@ function ProfileDrawer({
   name: string;
   avatar: string;
   hero?: string;
+  heroSlides?: Array<{ id: string; image: string }>;
   meta: string;
   tags: readonly string[];
   onClose: () => void;
   children: ReactNode;
 }) {
+  const slides = heroSlides?.filter((slide) => slide.image) ?? [];
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setActiveSlide(0);
+      return;
+    }
+    if (slides.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % slides.length);
+    }, 2800);
+    return () => window.clearInterval(timer);
+  }, [open, slides.length]);
+
   if (!open) return null;
+
+  const activeHero = slides[activeSlide] ?? (hero ? { id: '', image: hero } : null);
+  const canSlide = slides.length > 1;
+  const showPrevious = () => setActiveSlide((current) => (current - 1 + slides.length) % slides.length);
+  const showNext = () => setActiveSlide((current) => (current + 1) % slides.length);
 
   return (
     <div className="pointer-events-none fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2">
@@ -488,8 +515,45 @@ function ProfileDrawer({
         }`}
       >
         <div className="relative h-56 overflow-hidden bg-[#eadfd8]">
-          {hero ? <img className="h-full w-full object-cover" src={hero} alt={name} /> : null}
+          {activeHero?.id ? (
+            <Link to={`/consumer/post/${activeHero.id}`} aria-label={`查看${name}的作品`}>
+              <img className="h-full w-full object-cover transition-opacity duration-500" src={activeHero.image} alt={`${name}作品封面`} />
+            </Link>
+          ) : activeHero ? (
+            <img className="h-full w-full object-cover" src={activeHero.image} alt={name} />
+          ) : null}
           <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-transparent to-black/52" />
+          {canSlide ? (
+            <>
+              <button
+                className="absolute left-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/36 text-white backdrop-blur"
+                onClick={showPrevious}
+                type="button"
+                aria-label="上一张作品"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/36 text-white backdrop-blur"
+                onClick={showNext}
+                type="button"
+                aria-label="下一张作品"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <div className="absolute left-3 top-3 flex gap-1.5">
+                {slides.slice(0, 6).map((slide, index) => (
+                  <button
+                    key={slide.id}
+                    className={`h-1.5 rounded-full transition-all ${index === activeSlide ? 'w-5 bg-white' : 'w-1.5 bg-white/42'}`}
+                    onClick={() => setActiveSlide(index)}
+                    type="button"
+                    aria-label={`查看第${index + 1}张作品`}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
           <button className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-white/88 text-[#3f302c] backdrop-blur" onClick={onClose} aria-label="关闭侧栏">
             <X size={18} />
           </button>
