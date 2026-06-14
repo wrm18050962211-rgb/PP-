@@ -145,19 +145,22 @@ export function CompanionBookingSettingsPage() {
         </section>
       ) : null}
 
-      <main className="px-4">
-        <section className="py-5 text-center">
-          <p className="text-lg font-black">{selectedDay ? formatFullDate(selectedDay.date) : formatWeekRange(weekStart)}</p>
-          <p className="mt-1 text-sm font-bold text-white/45">{draft.temporaryAccepting ? '正在接单' : '当前暂停接单'}</p>
+      <main className="px-3">
+        <section className="py-4">
+          <p className="text-center text-lg font-black">{formatWeekRange(weekStart)}</p>
+          <p className="mt-1 text-center text-xs font-bold text-white/45">默认显示七天总览，点击任意日期柱查看当天任务</p>
         </section>
 
+        <WeekTimeline
+          days={weekDays}
+          draft={draft}
+          orders={occupiedOrders}
+          selectedDateValue={selectedDateValue}
+          onSelect={setSelectedDateValue}
+        />
+
         {selectedDay ? (
-          <DayTimeline
-            day={selectedDay}
-            ranges={selectedRanges}
-            orders={selectedOrders}
-            onAdd={() => addRange(selectedDay.weekday)}
-          />
+          <ExpandedDayTimeline day={selectedDay} ranges={selectedRanges} orders={selectedOrders} onAdd={() => addRange(selectedDay.weekday)} />
         ) : null}
 
         {selectedDay ? (
@@ -183,22 +186,97 @@ export function CompanionBookingSettingsPage() {
   );
 }
 
-function DayTimeline({ day, ranges, orders, onAdd }: { day: WeekDay; ranges: BookingTimeRange[]; orders: AppOrder[]; onAdd: () => void }) {
+function WeekTimeline({
+  days,
+  draft,
+  orders,
+  selectedDateValue,
+  onSelect,
+}: {
+  days: WeekDay[];
+  draft: CompanionBookingSettings;
+  orders: AppOrder[];
+  selectedDateValue: string;
+  onSelect: (dateValue: string) => void;
+}) {
   return (
     <section className="rounded-[8px] border border-white/10 bg-black">
       <div className="flex items-center justify-between border-b border-white/10 px-3 py-3">
-        <div className="flex items-center gap-2 text-xs font-black text-white/55">
+        <div className="flex min-w-0 items-center gap-2 text-xs font-black text-white/55">
           <CalendarDays size={16} />
-          <span>蓝色可约 · 灰色占用 · 空白不可约</span>
+          <span className="truncate">蓝色可约 · 灰色占用 · 空白不可约</span>
         </div>
-        <button className="inline-flex h-9 items-center gap-1 rounded-full bg-white px-3 text-xs font-black text-black" type="button" onClick={onAdd}>
+      </div>
+      <div className="relative h-[640px] overflow-hidden">
+        <div className="absolute inset-y-0 left-0 w-[44px] bg-black" />
+        <div className="absolute inset-y-0 left-[44px] right-0">
+          {timelineHours.map((minute) => (
+            <div key={minute} className="absolute left-0 right-0 border-t border-white/10" style={{ top: `${((minute - dayStartMinutes) / dayTotalMinutes) * 100}%` }} />
+          ))}
+        </div>
+        <div className="absolute inset-y-0 left-0 w-[44px]">
+          {timelineHours.map((minute) => (
+            <span
+              key={minute}
+              className="absolute right-1 -translate-y-1/2 text-[10px] font-bold text-white/30"
+              style={{ top: `${((minute - dayStartMinutes) / dayTotalMinutes) * 100}%` }}
+            >
+              {formatCompactHourLabel(minute)}
+            </span>
+          ))}
+        </div>
+        <div className="absolute inset-y-0 left-[48px] right-0 grid grid-cols-7 gap-1 pr-1">
+          {days.map((day) => {
+            const ranges = getDayRanges(draft, day.weekday);
+            const dayOrders = getOrdersForDate(orders, day.dateValue);
+            const isSelected = selectedDateValue === day.dateValue;
+            return (
+              <button
+                key={day.dateValue}
+                type="button"
+                className={`relative h-full min-w-0 border-x text-left transition ${isSelected ? 'border-white/30 bg-white/[0.03]' : 'border-white/10'}`}
+                onClick={() => onSelect(day.dateValue)}
+                aria-label={`${day.label} ${day.month}/${day.day}`}
+              >
+                {ranges.map((range) => (
+                  <span
+                    key={range.id}
+                    className="absolute left-1 right-1 rounded-[4px] bg-blue-500/70 shadow-[inset_2px_0_0_rgba(191,219,254,0.95)]"
+                    style={getTimelineBlockStyle(range.startTime, range.endTime)}
+                  />
+                ))}
+                {dayOrders.map((order) => (
+                  <span
+                    key={order.id}
+                    className="absolute left-1 right-1 rounded-[4px] bg-zinc-500/80 shadow-[inset_2px_0_0_rgba(228,228,231,0.9)]"
+                    style={getTimelineBlockStyle(formatOrderTime(order), formatOrderEndTime(order))}
+                    title={`${order.orderNo} ${order.place}`}
+                  />
+                ))}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ExpandedDayTimeline({ day, ranges, orders, onAdd }: { day: WeekDay; ranges: BookingTimeRange[]; orders: AppOrder[]; onAdd: () => void }) {
+  return (
+    <section className="mt-4 rounded-[8px] border border-white/10 bg-zinc-950">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <div>
+          <p className="text-base font-black">{formatFullDate(day.date)} · {day.label}</p>
+          <p className="mt-1 text-xs font-bold text-white/45">当天放大时间表，灰色块展示订单地点和任务</p>
+        </div>
+        <button className="inline-flex h-10 items-center gap-1 rounded-full bg-white px-3 text-xs font-black text-black" type="button" onClick={onAdd}>
           <Plus size={15} />
           添加
         </button>
       </div>
-
-      <div className="relative min-h-[900px]">
-        <div className="absolute inset-y-0 left-0 w-[58px] bg-black" />
+      <div className="relative min-h-[860px]">
+        <div className="absolute inset-y-0 left-0 w-[58px] bg-zinc-950" />
         <div className="absolute inset-y-0 left-[58px] right-0">
           {timelineHours.map((minute) => (
             <div key={minute} className="absolute left-0 right-0 border-t border-white/10" style={{ top: `${((minute - dayStartMinutes) / dayTotalMinutes) * 100}%` }} />
@@ -229,7 +307,7 @@ function DayTimeline({ day, ranges, orders, onAdd }: { day: WeekDay; ranges: Boo
           {orders.map((order) => (
             <div
               key={order.id}
-              className="absolute left-0 right-2 rounded-[6px] border border-zinc-300/20 bg-zinc-500/70 px-3 py-2 text-white shadow-[inset_4px_0_0_rgba(212,212,216,0.9)]"
+              className="absolute left-0 right-2 rounded-[6px] border border-zinc-300/20 bg-zinc-500/75 px-3 py-2 text-white shadow-[inset_4px_0_0_rgba(228,228,231,0.9)]"
               style={getTimelineBlockStyle(formatOrderTime(order), formatOrderEndTime(order))}
             >
               <p className="truncate text-sm font-black">{order.title || order.orderNo}</p>
@@ -378,10 +456,6 @@ function getDayRanges(settings: CompanionBookingSettings, weekday: RepeatWeekday
   return [...(settings.weeklyTimeRanges?.[weekday] ?? [])].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
 }
 
-function countWeeklyRanges(settings: CompanionBookingSettings) {
-  return weekdayOptions.reduce((count, weekday) => count + getDayRanges(settings, weekday.value).length, 0);
-}
-
 function getScheduleOrders(orders: AppOrder[]) {
   return orders
     .filter((order) => ['confirmed', 'in_service', 'completed'].includes(order.status) && order.startAt && order.endAt)
@@ -419,7 +493,7 @@ function getTimelineBlockStyle(startTime: string, endTime: string) {
   const end = Math.max(start + sliderStepMinutes, Math.min(dayEndMinutes, timeToMinutes(endTime)));
   return {
     top: `${((start - dayStartMinutes) / dayTotalMinutes) * 100}%`,
-    height: `max(36px, ${((end - start) / dayTotalMinutes) * 100}%)`,
+    height: `max(26px, ${((end - start) / dayTotalMinutes) * 100}%)`,
   };
 }
 
@@ -479,6 +553,12 @@ function formatHourLabel(totalMinutes: number) {
   const hour = Math.floor(totalMinutes / 60);
   if (hour < 12) return `上午${hour}时`;
   return `下午${hour - 12}时`;
+}
+
+function formatCompactHourLabel(totalMinutes: number) {
+  if (totalMinutes === 12 * 60) return '12';
+  if (totalMinutes === 24 * 60) return '24';
+  return String(Math.floor(totalMinutes / 60));
 }
 
 function isSameLocalDate(left: string, right: string) {
