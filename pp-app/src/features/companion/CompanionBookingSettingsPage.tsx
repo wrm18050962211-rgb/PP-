@@ -20,6 +20,7 @@ const dayStartMinutes = 6 * 60;
 const dayEndMinutes = 24 * 60;
 const dayTotalMinutes = dayEndMinutes - dayStartMinutes;
 const sliderStepMinutes = 15;
+const defaultRangeMinutes = 2 * 60;
 const timelineHours = Array.from({ length: 19 }, (_, index) => dayStartMinutes + index * 60);
 
 export function CompanionBookingSettingsPage() {
@@ -30,7 +31,9 @@ export function CompanionBookingSettingsPage() {
   const [expandedDateValue, setExpandedDateValue] = useState('');
   const [savedNotice, setSavedNotice] = useState('');
 
-  const todayValue = toDateValue(new Date());
+  const today = new Date();
+  const todayValue = toDateValue(today);
+  const nowMinutes = getCurrentMinutes(today);
   const occupiedOrders = useMemo(() => getScheduleOrders(orders), [orders]);
   const routeWarnings = useMemo(() => getRouteWarnings(occupiedOrders), [occupiedOrders]);
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
@@ -40,6 +43,11 @@ export function CompanionBookingSettingsPage() {
   const selectedDay = expandedDay ?? weekDays.find((day) => day.dateValue === selectedDateValue) ?? weekDays[0];
   const selectedRanges = selectedDay ? getDayRanges(draft, selectedDay.weekday, weekKey) : [];
   const selectedOrders = selectedDay ? getOrdersForDate(occupiedOrders, selectedDay.dateValue) : [];
+
+  const showNotice = (message: string) => {
+    setSavedNotice(message);
+    window.setTimeout(() => setSavedNotice(''), 1800);
+  };
 
   const updateDraft = (partial: Partial<CompanionBookingSettings>) => {
     setDraft((current) => ensureBookingSettings({ ...current, ...partial }));
@@ -54,51 +62,81 @@ export function CompanionBookingSettingsPage() {
   };
 
   const updateDayRanges = (weekday: RepeatWeekday, ranges: BookingTimeRange[]) => {
+    const nextRanges = [...ranges].sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
     if (applyMode === 'single_week') {
       const currentWeek = draft.weekOverrides?.[weekKey] ?? {};
       updateDraft({
         weekOverrides: {
           ...(draft.weekOverrides ?? {}),
-          [weekKey]: { ...currentWeek, [weekday]: ranges },
+          [weekKey]: { ...currentWeek, [weekday]: nextRanges },
         },
         availableDates: buildAvailableDatesForWeek(weekStart, {
           ...currentWeek,
-          [weekday]: ranges,
+          [weekday]: nextRanges,
         }),
       });
       return;
     }
 
-    const nextWeeklyTimeRanges = { ...(draft.weeklyTimeRanges ?? {}), [weekday]: ranges };
+    const nextWeeklyTimeRanges = { ...(draft.weeklyTimeRanges ?? {}), [weekday]: nextRanges };
     updateDraft({
       weeklyTimeRanges: nextWeeklyTimeRanges,
       repeatEnabled: true,
-      repeatWeekdays: ranges.length
+      repeatWeekdays: nextRanges.length
         ? (Array.from(new Set([...draft.repeatWeekdays, weekday])).sort() as RepeatWeekday[])
         : draft.repeatWeekdays.filter((value) => value !== weekday),
     });
   };
 
+  const assertEditableDay = () => {
+    if (!selectedDay || selectedDay.dateValue < todayValue) {
+      showNotice('过去日期只能查看，不能编辑档期。');
+      return false;
+    }
+    return true;
+  };
+
   const addRange = (weekday: RepeatWeekday) => {
+    if (!assertEditableDay() || !selectedDay) return;
+
     const ranges = getDayRanges(draft, weekday, weekKey);
-    updateDayRanges(weekday, [...ranges, { id: `${applyMode}-${weekday}-${Date.now()}`, startTime: '10:00', endTime: '12:00' }]);
+    const nextRange = findAvailableRange(ranges, selectedDay.dateValue, todayValue, nowMinutes);
+    if (!nextRange) {
+      showNotice('当天没有可添加的空闲时间段。');
+      return;
+    }
+
+    updateDayRanges(weekday, [{ id: `${applyMode}-${weekday}-${Date.now()}`, ...nextRange }, ...ranges]);
   };
 
   const updateRange = (weekday: RepeatWeekday, rangeId: string, patch: Partial<BookingTimeRange>) => {
-    updateDayRanges(
-      weekday,
-      getDayRanges(draft, weekday, weekKey).map((range) => {
-        if (range.id !== rangeId) return range;
-        const nextRange = { ...range, ...patch };
-        const start = timeToMinutes(nextRange.startTime);
-        const end = timeToMinutes(nextRange.endTime);
-        if (end <= start) nextRange.endTime = minutesToTime(Math.min(dayEndMinutes, start + sliderStepMinutes));
-        return nextRange;
-      }),
-    );
+    if (!assertEditableDay() || !selectedDay) return;
+
+    const ranges = getDayRanges(draft, weekday, weekKey);
+    const currentRange = ranges.find((range) => range.id === rangeId);
+    if (currentRange && isPastRange(selectedDay.dateValue, currentRange, todayValue, nowMinutes)) {
+      showNotice('过去时间只能查看，不能编辑。');
+      return;
+    }
+
+    const nextRanges = ranges.map((range) => (range.id === rangeId ? normalizeRange({ ...range, ...patch }) : range));
+    if (hasOverlappingRanges(nextRanges)) {
+      showNotice('时间段不能重叠，请调整到空闲位置。');
+      return;
+    }
+
+    updateDayRanges(weekday, nextRanges);
   };
 
   const removeRange = (weekday: RepeatWeekday, rangeId: string) => {
+    if (!assertEditableDay() || !selectedDay) return;
+
+    const targetRange = getDayRanges(draft, weekday, weekKey).find((range) => range.id === rangeId);
+    if (targetRange && isPastRange(selectedDay.dateValue, targetRange, todayValue, nowMinutes)) {
+      showNotice('过去时间只能查看，不能编辑。');
+      return;
+    }
+
     updateDayRanges(weekday, getDayRanges(draft, weekday, weekKey).filter((range) => range.id !== rangeId));
   };
 
@@ -116,8 +154,7 @@ export function CompanionBookingSettingsPage() {
 
   const save = () => {
     saveBookingSettings(normalizeDraftForSave(draft, weekStart));
-    setSavedNotice(applyMode === 'weekly' ? '已保存为每周重复档期。' : '已保存为本周专用档期。');
-    window.setTimeout(() => setSavedNotice(''), 1800);
+    showNotice(applyMode === 'weekly' ? '已保存为每周重复档期。' : '已保存为本周专用档期。');
   };
 
   return (
@@ -169,7 +206,11 @@ export function CompanionBookingSettingsPage() {
                 onClick={() => toggleExpandedDay(day)}
               >
                 <span className={`text-[11px] font-black ${isExpanded || isSelected ? 'text-white' : 'text-white/55'}`}>{day.short}</span>
-                <span className={`grid h-10 w-10 place-items-center rounded-full text-lg font-black transition-all duration-300 ease-out ${isExpanded ? 'bg-blue-500 text-white' : isSelected ? 'bg-white text-black' : 'text-white/80'}`}>
+                <span
+                  className={`grid h-10 w-10 place-items-center rounded-full text-lg font-black transition-all duration-300 ease-out ${
+                    isExpanded ? 'bg-blue-500 text-white' : isSelected ? 'bg-white text-black' : 'text-white/80'
+                  }`}
+                >
                   {day.day}
                 </span>
               </button>
@@ -230,6 +271,8 @@ export function CompanionBookingSettingsPage() {
               ranges={selectedRanges}
               orders={selectedOrders}
               mode={applyMode}
+              todayValue={todayValue}
+              nowMinutes={nowMinutes}
               onAdd={() => addRange(expandedDay.weekday)}
               onChange={(rangeId, patch) => updateRange(expandedDay.weekday, rangeId, patch)}
               onRemove={(rangeId) => removeRange(expandedDay.weekday, rangeId)}
@@ -278,9 +321,7 @@ function WeekTimeline({
       <div className="flex items-center justify-between border-b border-white/10 px-3 py-3">
         <div className="flex min-w-0 items-center gap-2 text-xs font-black text-white/55">
           <CalendarDays size={16} />
-          <span className="truncate">
-            {expandedDay ? `${formatFullDate(expandedDay.date)} · 再点一次收起` : '蓝色可约 · 灰色占用 · 过去日期加深'}
-          </span>
+          <span className="truncate">{expandedDay ? `${formatFullDate(expandedDay.date)} · 再点一次收起` : '蓝色可约 · 灰色占用 · 过去日期加深'}</span>
         </div>
       </div>
       <div className={`relative overflow-hidden transition-[height] duration-300 ease-out ${expandedDay ? 'h-[860px]' : 'h-[640px]'}`}>
@@ -365,6 +406,8 @@ function DaySchedule({
   ranges,
   orders,
   mode,
+  todayValue,
+  nowMinutes,
   onAdd,
   onChange,
   onRemove,
@@ -373,10 +416,14 @@ function DaySchedule({
   ranges: BookingTimeRange[];
   orders: AppOrder[];
   mode: ScheduleApplyMode;
+  todayValue: string;
+  nowMinutes: number;
   onAdd: () => void;
   onChange: (rangeId: string, patch: Partial<BookingTimeRange>) => void;
   onRemove: (rangeId: string) => void;
 }) {
+  const isPastDay = day.dateValue < todayValue;
+
   return (
     <section className="mt-4 rounded-[8px] bg-white p-4 text-black">
       <div className="flex items-center justify-between gap-3">
@@ -384,21 +431,32 @@ function DaySchedule({
           <p className="text-base font-black">编辑 {day.label}</p>
           <p className="mt-0.5 text-xs font-bold text-zinc-400">{mode === 'weekly' ? '会同步到每一周' : `${day.month}月${day.day}日所在周专用`}</p>
         </div>
-        <button className="flex h-9 items-center gap-1 rounded-full bg-black px-3 text-xs font-black text-white" onClick={onAdd} type="button">
+        <button
+          className={`flex h-9 items-center gap-1 rounded-full px-3 text-xs font-black ${isPastDay ? 'bg-zinc-200 text-zinc-400' : 'bg-black text-white'}`}
+          onClick={onAdd}
+          type="button"
+          disabled={isPastDay}
+        >
           <Plus size={15} />
           添加
         </button>
       </div>
 
+      {isPastDay ? <p className="mt-3 rounded-[8px] bg-zinc-100 px-3 py-2 text-xs font-bold text-zinc-400">过去日期只能查看，不能编辑档期。</p> : null}
+
       <div className="mt-4 space-y-3">
-        {ranges.map((range) => (
-          <TimeRangeSlider
-            key={range.id}
-            range={range}
-            onChange={(patch) => onChange(range.id, patch)}
-            onRemove={() => onRemove(range.id)}
-          />
-        ))}
+        {ranges.map((range) => {
+          const disabled = isPastDay || isPastRange(day.dateValue, range, todayValue, nowMinutes);
+          return (
+            <TimeRangeSlider
+              key={range.id}
+              range={range}
+              disabled={disabled}
+              onChange={(patch) => onChange(range.id, patch)}
+              onRemove={() => onRemove(range.id)}
+            />
+          );
+        })}
         {orders.map((order) => (
           <div key={order.id} className="rounded-[8px] bg-zinc-100 px-3 py-2 text-xs font-bold leading-5 text-zinc-500">
             已占用 {formatOrderTime(order)}-{formatOrderEndTime(order)} · {order.orderNo} · {order.place}
@@ -410,15 +468,31 @@ function DaySchedule({
   );
 }
 
-function TimeRangeSlider({ range, onChange, onRemove }: { range: BookingTimeRange; onChange: (patch: Partial<BookingTimeRange>) => void; onRemove: () => void }) {
+function TimeRangeSlider({
+  range,
+  disabled = false,
+  onChange,
+  onRemove,
+}: {
+  range: BookingTimeRange;
+  disabled?: boolean;
+  onChange: (patch: Partial<BookingTimeRange>) => void;
+  onRemove: () => void;
+}) {
   const start = timeToMinutes(range.startTime);
   const end = timeToMinutes(range.endTime);
 
   return (
-    <div className="rounded-[8px] bg-zinc-50 p-3 ring-1 ring-zinc-100">
+    <div className={`rounded-[8px] bg-zinc-50 p-3 ring-1 ring-zinc-100 ${disabled ? 'opacity-60' : ''}`}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-black text-zinc-950">{range.startTime} - {range.endTime}</p>
-        <button className="grid h-8 w-8 place-items-center rounded-full bg-white text-zinc-500 ring-1 ring-zinc-100" onClick={onRemove} aria-label="删除时间段" type="button">
+        <button
+          className="grid h-8 w-8 place-items-center rounded-full bg-white text-zinc-500 ring-1 ring-zinc-100 disabled:text-zinc-300"
+          onClick={onRemove}
+          aria-label="删除时间段"
+          type="button"
+          disabled={disabled}
+        >
           <Trash2 size={15} />
         </button>
       </div>
@@ -431,6 +505,7 @@ function TimeRangeSlider({ range, onChange, onRemove }: { range: BookingTimeRang
             max={dayEndMinutes - sliderStepMinutes}
             step={sliderStepMinutes}
             value={start}
+            disabled={disabled}
             onChange={(event) => {
               const nextStart = Number(event.target.value);
               onChange({ startTime: minutesToTime(nextStart), endTime: minutesToTime(Math.max(end, nextStart + sliderStepMinutes)) });
@@ -446,6 +521,7 @@ function TimeRangeSlider({ range, onChange, onRemove }: { range: BookingTimeRang
             max={dayEndMinutes}
             step={sliderStepMinutes}
             value={end}
+            disabled={disabled}
             onChange={(event) => {
               const nextEnd = Number(event.target.value);
               onChange({ startTime: minutesToTime(Math.min(start, nextEnd - sliderStepMinutes)), endTime: minutesToTime(nextEnd) });
@@ -454,6 +530,7 @@ function TimeRangeSlider({ range, onChange, onRemove }: { range: BookingTimeRang
           <span className="text-right text-zinc-600">{range.endTime}</span>
         </label>
       </div>
+      {disabled ? <p className="mt-2 text-xs font-bold text-zinc-400">过去时间只能查看</p> : null}
     </div>
   );
 }
@@ -470,7 +547,8 @@ type WeekDay = {
 
 function ensureBookingSettings(settings: CompanionBookingSettings): CompanionBookingSettings {
   if (settings.weeklyTimeRanges && settings.scheduleApplyMode) return settings;
-  const weeklyTimeRanges = settings.weeklyTimeRanges ?? Object.fromEntries(settings.repeatWeekdays.map((weekday) => [weekday, settings.timeRanges])) as Partial<Record<RepeatWeekday, BookingTimeRange[]>>;
+  const weeklyTimeRanges = (settings.weeklyTimeRanges ??
+    Object.fromEntries(settings.repeatWeekdays.map((weekday) => [weekday, settings.timeRanges]))) as Partial<Record<RepeatWeekday, BookingTimeRange[]>>;
   return { ...settings, weeklyTimeRanges, scheduleApplyMode: settings.scheduleApplyMode ?? 'weekly', weekOverrides: settings.weekOverrides ?? {} };
 }
 
@@ -537,6 +615,58 @@ function getRouteWarnings(orders: AppOrder[]) {
   }
 
   return warnings;
+}
+
+function findAvailableRange(ranges: BookingTimeRange[], dateValue: string, todayValue: string, nowMinutes: number) {
+  let cursor = dateValue === todayValue ? roundUpToStep(Math.max(nowMinutes, dayStartMinutes), sliderStepMinutes) : 10 * 60;
+  cursor = Math.max(dayStartMinutes, Math.min(cursor, dayEndMinutes - sliderStepMinutes));
+  const sortedRanges = ranges.map(normalizeRange).sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
+
+  for (const range of sortedRanges) {
+    const rangeStart = timeToMinutes(range.startTime);
+    if (cursor + defaultRangeMinutes <= rangeStart) return createRange(cursor, cursor + defaultRangeMinutes);
+    cursor = Math.max(cursor, timeToMinutes(range.endTime));
+  }
+
+  if (cursor + defaultRangeMinutes <= dayEndMinutes) return createRange(cursor, cursor + defaultRangeMinutes);
+  if (cursor + sliderStepMinutes <= dayEndMinutes) return createRange(cursor, dayEndMinutes);
+  return null;
+}
+
+function hasOverlappingRanges(ranges: BookingTimeRange[]) {
+  const sortedRanges = ranges.map(normalizeRange).sort((left, right) => timeToMinutes(left.startTime) - timeToMinutes(right.startTime));
+  return sortedRanges.some((range, index) => {
+    const previous = sortedRanges[index - 1];
+    return previous ? timeToMinutes(range.startTime) < timeToMinutes(previous.endTime) : false;
+  });
+}
+
+function normalizeRange(range: BookingTimeRange): BookingTimeRange {
+  let start = Math.max(dayStartMinutes, Math.min(dayEndMinutes - sliderStepMinutes, timeToMinutes(range.startTime)));
+  let end = Math.max(dayStartMinutes + sliderStepMinutes, Math.min(dayEndMinutes, timeToMinutes(range.endTime)));
+  if (end <= start) {
+    end = Math.min(dayEndMinutes, start + sliderStepMinutes);
+    if (end <= start) start = Math.max(dayStartMinutes, end - sliderStepMinutes);
+  }
+  return { ...range, startTime: minutesToTime(start), endTime: minutesToTime(end) };
+}
+
+function isPastRange(dateValue: string, range: BookingTimeRange, todayValue: string, nowMinutes: number) {
+  if (dateValue < todayValue) return true;
+  if (dateValue > todayValue) return false;
+  return timeToMinutes(range.endTime) <= nowMinutes;
+}
+
+function createRange(start: number, end: number) {
+  return { startTime: minutesToTime(start), endTime: minutesToTime(end) };
+}
+
+function roundUpToStep(totalMinutes: number, step: number) {
+  return Math.ceil(totalMinutes / step) * step;
+}
+
+function getCurrentMinutes(date = new Date()) {
+  return date.getHours() * 60 + date.getMinutes();
 }
 
 function getTimelineBlockStyle(startTime: string, endTime: string) {
