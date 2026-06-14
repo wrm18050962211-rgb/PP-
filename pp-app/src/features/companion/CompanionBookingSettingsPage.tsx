@@ -25,12 +25,14 @@ export function CompanionBookingSettingsPage() {
   const [draft, setDraft] = useState<CompanionBookingSettings>(() => ensureWeeklyRanges(bookingSettings));
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedDateValue, setSelectedDateValue] = useState(() => toDateValue(new Date()));
+  const [expandedDateValue, setExpandedDateValue] = useState('');
   const [savedNotice, setSavedNotice] = useState('');
 
   const occupiedOrders = useMemo(() => getScheduleOrders(orders), [orders]);
   const routeWarnings = useMemo(() => getRouteWarnings(occupiedOrders), [occupiedOrders]);
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
-  const selectedDay = weekDays.find((day) => day.dateValue === selectedDateValue) ?? weekDays[0];
+  const expandedDay = weekDays.find((day) => day.dateValue === expandedDateValue) ?? null;
+  const selectedDay = expandedDay ?? weekDays.find((day) => day.dateValue === selectedDateValue) ?? weekDays[0];
   const selectedRanges = selectedDay ? getDayRanges(draft, selectedDay.weekday) : [];
   const selectedOrders = selectedDay ? getOrdersForDate(occupiedOrders, selectedDay.dateValue) : [];
 
@@ -75,6 +77,12 @@ export function CompanionBookingSettingsPage() {
     const nextStart = addDays(weekStart, days);
     setWeekStart(nextStart);
     setSelectedDateValue(toDateValue(nextStart));
+    setExpandedDateValue('');
+  };
+
+  const toggleExpandedDay = (day: WeekDay) => {
+    setSelectedDateValue(day.dateValue);
+    setExpandedDateValue((current) => (current === day.dateValue ? '' : day.dateValue));
   };
 
   const save = () => {
@@ -112,15 +120,16 @@ export function CompanionBookingSettingsPage() {
         <div className="mt-4 grid grid-cols-7 gap-1">
           {weekDays.map((day) => {
             const isSelected = selectedDateValue === day.dateValue;
+            const isExpanded = expandedDateValue === day.dateValue;
             return (
               <button
                 key={day.dateValue}
                 type="button"
                 className="grid justify-items-center gap-1 rounded-[8px] py-1 text-center"
-                onClick={() => setSelectedDateValue(day.dateValue)}
+                onClick={() => toggleExpandedDay(day)}
               >
-                <span className={`text-[11px] font-black ${isSelected ? 'text-white' : 'text-white/55'}`}>{day.short}</span>
-                <span className={`grid h-10 w-10 place-items-center rounded-full text-lg font-black ${isSelected ? 'bg-white text-black' : 'text-white/80'}`}>
+                <span className={`text-[11px] font-black ${isExpanded || isSelected ? 'text-white' : 'text-white/55'}`}>{day.short}</span>
+                <span className={`grid h-10 w-10 place-items-center rounded-full text-lg font-black ${isExpanded ? 'bg-blue-500 text-white' : isSelected ? 'bg-white text-black' : 'text-white/80'}`}>
                   {day.day}
                 </span>
               </button>
@@ -147,32 +156,39 @@ export function CompanionBookingSettingsPage() {
 
       <main className="px-3">
         <section className="py-4">
-          <p className="text-center text-lg font-black">{formatWeekRange(weekStart)}</p>
-          <p className="mt-1 text-center text-xs font-bold text-white/45">默认显示七天总览，点击任意日期柱查看当天任务</p>
+          <p className="text-center text-lg font-black">{expandedDay ? `${formatFullDate(expandedDay.date)} · ${expandedDay.label}` : formatWeekRange(weekStart)}</p>
+          <p className="mt-1 text-center text-xs font-bold text-white/45">
+            {expandedDay ? '点击当天时间表可收起回七天总览' : '点击某一天的竖向档期条，展开当天完整任务'}
+          </p>
         </section>
 
-        <WeekTimeline
-          days={weekDays}
-          draft={draft}
-          orders={occupiedOrders}
-          selectedDateValue={selectedDateValue}
-          onSelect={setSelectedDateValue}
-        />
-
-        {selectedDay ? (
-          <ExpandedDayTimeline day={selectedDay} ranges={selectedRanges} orders={selectedOrders} onAdd={() => addRange(selectedDay.weekday)} />
-        ) : null}
-
-        {selectedDay ? (
-          <DaySchedule
-            day={selectedDay}
-            ranges={selectedRanges}
-            orders={selectedOrders}
-            onAdd={() => addRange(selectedDay.weekday)}
-            onChange={(rangeId, patch) => updateRange(selectedDay.weekday, rangeId, patch)}
-            onRemove={(rangeId) => removeRange(selectedDay.weekday, rangeId)}
+        {expandedDay ? (
+          <>
+            <ExpandedDayTimeline
+              day={expandedDay}
+              ranges={selectedRanges}
+              orders={selectedOrders}
+              onAdd={() => addRange(expandedDay.weekday)}
+              onCollapse={() => setExpandedDateValue('')}
+            />
+            <DaySchedule
+              day={expandedDay}
+              ranges={selectedRanges}
+              orders={selectedOrders}
+              onAdd={() => addRange(expandedDay.weekday)}
+              onChange={(rangeId, patch) => updateRange(expandedDay.weekday, rangeId, patch)}
+              onRemove={(rangeId) => removeRange(expandedDay.weekday, rangeId)}
+            />
+          </>
+        ) : (
+          <WeekTimeline
+            days={weekDays}
+            draft={draft}
+            orders={occupiedOrders}
+            selectedDateValue={selectedDateValue}
+            onToggleDay={toggleExpandedDay}
           />
-        ) : null}
+        )}
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md border-t border-white/10 bg-black/90 p-4 backdrop-blur">
@@ -191,13 +207,13 @@ function WeekTimeline({
   draft,
   orders,
   selectedDateValue,
-  onSelect,
+  onToggleDay,
 }: {
   days: WeekDay[];
   draft: CompanionBookingSettings;
   orders: AppOrder[];
   selectedDateValue: string;
-  onSelect: (dateValue: string) => void;
+  onToggleDay: (day: WeekDay) => void;
 }) {
   return (
     <section className="rounded-[8px] border border-white/10 bg-black">
@@ -235,7 +251,7 @@ function WeekTimeline({
                 key={day.dateValue}
                 type="button"
                 className={`relative h-full min-w-0 border-x text-left transition ${isSelected ? 'border-white/30 bg-white/[0.03]' : 'border-white/10'}`}
-                onClick={() => onSelect(day.dateValue)}
+                onClick={() => onToggleDay(day)}
                 aria-label={`${day.label} ${day.month}/${day.day}`}
               >
                 {ranges.map((range) => (
@@ -262,20 +278,42 @@ function WeekTimeline({
   );
 }
 
-function ExpandedDayTimeline({ day, ranges, orders, onAdd }: { day: WeekDay; ranges: BookingTimeRange[]; orders: AppOrder[]; onAdd: () => void }) {
+function ExpandedDayTimeline({
+  day,
+  ranges,
+  orders,
+  onAdd,
+  onCollapse,
+}: {
+  day: WeekDay;
+  ranges: BookingTimeRange[];
+  orders: AppOrder[];
+  onAdd: () => void;
+  onCollapse: () => void;
+}) {
   return (
-    <section className="mt-4 rounded-[8px] border border-white/10 bg-zinc-950">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+    <section className="rounded-[8px] border border-white/10 bg-zinc-950">
+      <button className="flex w-full items-center justify-between border-b border-white/10 px-4 py-3 text-left" type="button" onClick={onCollapse}>
         <div>
           <p className="text-base font-black">{formatFullDate(day.date)} · {day.label}</p>
-          <p className="mt-1 text-xs font-bold text-white/45">当天放大时间表，灰色块展示订单地点和任务</p>
+          <p className="mt-1 text-xs font-bold text-white/45">再次点击收起，灰色块展示订单地点和任务</p>
         </div>
-        <button className="inline-flex h-10 items-center gap-1 rounded-full bg-white px-3 text-xs font-black text-black" type="button" onClick={onAdd}>
+        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/70">收起</span>
+      </button>
+      <div className="flex items-center justify-end border-b border-white/10 px-4 py-3">
+        <button
+          className="inline-flex h-10 items-center gap-1 rounded-full bg-white px-3 text-xs font-black text-black"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onAdd();
+          }}
+        >
           <Plus size={15} />
           添加
         </button>
       </div>
-      <div className="relative min-h-[860px]">
+      <button className="relative block min-h-[860px] w-full text-left" type="button" onClick={onCollapse}>
         <div className="absolute inset-y-0 left-0 w-[58px] bg-zinc-950" />
         <div className="absolute inset-y-0 left-[58px] right-0">
           {timelineHours.map((minute) => (
@@ -317,7 +355,7 @@ function ExpandedDayTimeline({ day, ranges, orders, onAdd }: { day: WeekDay; ran
             </div>
           ))}
         </div>
-      </div>
+      </button>
       {!ranges.length && !orders.length ? (
         <p className="border-t border-white/10 px-4 py-5 text-center text-xs font-bold text-white/35">
           {day.month}/{day.day} 暂无可预约档期，点击添加创建时间段。
