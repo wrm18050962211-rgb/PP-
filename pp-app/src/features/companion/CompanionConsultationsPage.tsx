@@ -22,6 +22,7 @@ export function CompanionConsultationsPage() {
   const { session } = useAppData();
   const [version, setVersion] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, DraftQuote>>({});
+  const [quoteFeedback, setQuoteFeedback] = useState<Record<string, string>>({});
   const posts = useMemo(() => listFeedPosts(), []);
   const companionById = useMemo(() => new Map(posts.map((post) => [post.companion.id, post.companion])), [posts]);
   const consultations = useMemo(() => listConsultations(session), [session, version]);
@@ -36,10 +37,27 @@ export function CompanionConsultationsPage() {
   const handleSendQuote = (consultation: ConsultationRecord) => {
     const companion = companionById.get(consultation.photographerId);
     const estimate = estimateQuote(consultation, companion);
-    const draft = drafts[consultation.id];
-    const totalCents = yuanToCents(draft?.totalYuan, consultation.quote?.totalCents ?? estimate.totalCents);
-    const depositCents = yuanToCents(draft?.depositYuan, consultation.quote?.depositCents ?? estimate.depositCents);
-    sendQuoteForConsultation(consultation.id, companion, { totalCents, depositCents });
+    const draft = drafts[consultation.id] ?? createDraftFromCents(consultation.quote?.totalCents ?? estimate.totalCents, consultation.quote?.depositCents ?? estimate.depositCents);
+    const totalCents = parseYuanToCents(draft.totalYuan);
+    const depositCents = parseYuanToCents(draft.depositYuan);
+
+    if (totalCents === null || totalCents <= 0) {
+      setQuoteFeedback((current) => ({ ...current, [consultation.id]: '请输入有效总价后再确认报价。' }));
+      return;
+    }
+    if (depositCents === null || depositCents < 0 || depositCents > totalCents) {
+      setQuoteFeedback((current) => ({ ...current, [consultation.id]: '定金不能大于总价，也不能小于 0。' }));
+      return;
+    }
+
+    const next = sendQuoteForConsultation(consultation.id, companion, { totalCents, depositCents });
+    if (!next?.quote) {
+      setQuoteFeedback((current) => ({ ...current, [consultation.id]: '报价保存失败，请稍后再试。' }));
+      return;
+    }
+    const savedQuote = next.quote;
+    setDrafts((current) => ({ ...current, [consultation.id]: createDraftFromCents(savedQuote.totalCents, savedQuote.depositCents) }));
+    setQuoteFeedback((current) => ({ ...current, [consultation.id]: '报价已发送给创作者，可在聊天页继续沟通。' }));
     setVersion((value) => value + 1);
   };
 
@@ -73,10 +91,12 @@ export function CompanionConsultationsPage() {
             const estimate = estimateQuote(consultation, companion);
             const totalCents = consultation.quote?.totalCents ?? estimate.totalCents;
             const depositCents = consultation.quote?.depositCents ?? estimate.depositCents;
-            const draft = drafts[consultation.id] ?? {
-              totalYuan: String(Math.round(totalCents / 100)),
-              depositYuan: String(Math.round(depositCents / 100)),
-            };
+            const draft = drafts[consultation.id] ?? createDraftFromCents(totalCents, depositCents);
+            const draftTotalCents = parseYuanToCents(draft.totalYuan) ?? totalCents;
+            const draftDepositCents = parseYuanToCents(draft.depositYuan) ?? depositCents;
+            const draftBalanceCents = Math.max(0, draftTotalCents - draftDepositCents);
+            const quoteInvalid = draftTotalCents <= 0 || draftDepositCents < 0 || draftDepositCents > draftTotalCents;
+            const feedback = quoteFeedback[consultation.id];
 
             return (
               <article key={consultation.id} className="rounded-[10px] border border-zinc-200 bg-white p-4 shadow-sm">
@@ -126,6 +146,8 @@ export function CompanionConsultationsPage() {
                     <input
                       className="mt-1 h-12 w-full rounded-[8px] bg-[#f7f7f5] px-3 text-base font-black outline-none ring-1 ring-transparent focus:ring-zinc-300"
                       inputMode="numeric"
+                      min={1}
+                      type="number"
                       value={draft.totalYuan}
                       onChange={(event) => updateDraft(consultation.id, { totalYuan: event.target.value })}
                     />
@@ -135,6 +157,8 @@ export function CompanionConsultationsPage() {
                     <input
                       className="mt-1 h-12 w-full rounded-[8px] bg-[#f7f7f5] px-3 text-base font-black outline-none ring-1 ring-transparent focus:ring-zinc-300"
                       inputMode="numeric"
+                      min={0}
+                      type="number"
                       value={draft.depositYuan}
                       onChange={(event) => updateDraft(consultation.id, { depositYuan: event.target.value })}
                     />
@@ -143,11 +167,13 @@ export function CompanionConsultationsPage() {
 
                 <div className="mt-4 rounded-[8px] border border-zinc-100 p-3 text-xs font-semibold text-zinc-500">
                   <p>
-                    当前报价：<span className="font-black text-zinc-950">{formatMoney(totalCents)}</span> · 定金{' '}
-                    <span className="font-black text-zinc-950">{formatMoney(depositCents)}</span> · 尾款{' '}
-                    <span className="font-black text-zinc-950">{formatMoney(Math.max(0, totalCents - depositCents))}</span>
+                    待发送报价：<span className="font-black text-zinc-950">{formatMoney(draftTotalCents)}</span> · 定金{' '}
+                    <span className="font-black text-zinc-950">{formatMoney(draftDepositCents)}</span> · 尾款{' '}
+                    <span className="font-black text-zinc-950">{formatMoney(draftBalanceCents)}</span>
                   </p>
                   {consultation.quote?.addOnLines.length ? <p className="mt-1">{consultation.quote.addOnLines.join(' / ')}</p> : null}
+                  {quoteInvalid ? <p className="mt-2 text-rose-500">请检查总价和定金，定金不能超过总价。</p> : null}
+                  {feedback ? <p className={`mt-2 ${feedback.includes('已发送') ? 'text-emerald-600' : 'text-rose-500'}`}>{feedback}</p> : null}
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
@@ -160,12 +186,12 @@ export function CompanionConsultationsPage() {
                   </Link>
                   <button
                     type="button"
-                    className="flex h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white"
+                    className="flex h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white disabled:bg-zinc-200 disabled:text-zinc-400"
                     onClick={() => handleSendQuote(consultation)}
-                    disabled={consultation.status === 'closed'}
+                    disabled={consultation.status === 'closed' || quoteInvalid}
                   >
                     <Send size={18} />
-                    确认报价
+                    {consultation.status === 'quoted' ? '更新报价' : '确认报价'}
                   </button>
                 </div>
               </article>
@@ -231,7 +257,15 @@ function estimateQuote(consultation: ConsultationRecord, companion?: Companion) 
   };
 }
 
-function yuanToCents(value: string | undefined, fallback: number) {
-  const parsed = Number.parseFloat(value || '');
-  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100)) : fallback;
+function createDraftFromCents(totalCents: number, depositCents: number): DraftQuote {
+  return {
+    totalYuan: String(Math.round(totalCents / 100)),
+    depositYuan: String(Math.round(depositCents / 100)),
+  };
+}
+
+function parseYuanToCents(value: string | undefined) {
+  if (value === undefined || value.trim() === '') return null;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100)) : null;
 }
