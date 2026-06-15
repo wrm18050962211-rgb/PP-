@@ -15,9 +15,10 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
+import { closeConsultation, consultationToOrderInput, listConsultations, type ConsultationRecord } from '../../services/consultationService';
 import { listFeedPosts } from '../../services/feedService';
 import {
   canEditOrderWork,
@@ -79,7 +80,8 @@ const workDurationOptions = [
 ];
 
 export function OrdersPage() {
-  const { orders, updateOrderFunding, updateOrderStatus } = useAppData();
+  const { orders, session, createOrder, updateOrderFunding, updateOrderStatus } = useAppData();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const workMode = searchParams.get('work') === '1';
   const backTo = searchParams.get('from') === 'companion' ? '/companion/mine' : '/consumer/mine';
@@ -87,12 +89,18 @@ export function OrdersPage() {
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
   const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
+  const [consultationVersion, setConsultationVersion] = useState(0);
   const posts = useMemo(() => listFeedPosts(), []);
 
   const filteredOrders = useMemo(
     () => orders.filter((order) => activeStatus === 'all' || getDisplayOrderStatus(order.status) === activeStatus),
     [activeStatus, orders],
   );
+  const activeConsultations = useMemo(
+    () => (session && !workMode ? listConsultations(session).filter((item) => item.status !== 'closed') : []),
+    [consultationVersion, session, workMode],
+  );
+  const showConsultations = !workMode && activeConsultations.length > 0 && (activeStatus === 'all' || activeStatus === 'paid_pending_confirm');
   const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
 
   useEffect(() => {
@@ -109,6 +117,16 @@ export function OrdersPage() {
   function submitWorkRecord(record: OrderWorkRecord) {
     setWorkRecords(saveOrderWorkRecord(record));
     setActiveAction(null);
+  }
+
+  function acceptConsultationQuote(consultation: ConsultationRecord) {
+    const input = consultationToOrderInput(consultation);
+    if (!input) return;
+    const order = createOrder(input);
+    closeConsultation(consultation.id);
+    setConsultationVersion((value) => value + 1);
+    setActiveStatus('paid_pending_confirm');
+    navigate(`/consumer/messages/${order.id}`);
   }
 
   return (
@@ -153,6 +171,11 @@ export function OrdersPage() {
       </div>
 
       <div className="mt-4 space-y-4">
+        {showConsultations
+          ? activeConsultations.map((consultation) => (
+              <ConsultationQuoteCard key={consultation.id} consultation={consultation} onAccept={() => acceptConsultationQuote(consultation)} />
+            ))
+          : null}
         {filteredOrders.map((order) => (
           <OrderCard
             key={order.id}
@@ -167,7 +190,7 @@ export function OrdersPage() {
         ))}
       </div>
 
-      {!filteredOrders.length && (
+      {!filteredOrders.length && !showConsultations && (
         <div className="mt-16 text-center">
           <ReceiptText className="mx-auto text-zinc-300" size={48} />
           <p className="mt-4 text-sm font-semibold text-[#8f8078]">当前没有这个状态的订单</p>
@@ -317,6 +340,63 @@ function OrderCard({
             已取消
           </span>
         )}
+      </div>
+    </article>
+  );
+}
+
+function ConsultationQuoteCard({ consultation, onAccept }: { consultation: ConsultationRecord; onAccept: () => void }) {
+  const quote = consultation.quote;
+  const statusText = quote ? '待确认报价' : '等待摄影师报价';
+  const statusTone = quote ? 'bg-[#fff1f3] text-[#e85d75] ring-[#ffdce4]' : 'bg-amber-50 text-amber-700 ring-amber-100';
+
+  return (
+    <article className="rounded-[22px] border border-[#eadfd8] bg-white p-4 shadow-[0_12px_30px_rgba(63,48,44,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-[#a99b94]">{consultation.id}</p>
+          <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{consultation.requestCard.packageName}</h2>
+          <p className="mt-1 truncate text-xs font-semibold text-[#8f8078]">{consultation.photographerName} · 咨询报价</p>
+        </div>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${statusTone}`}>{statusText}</span>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm">
+        <DetailLine icon={<Camera size={17} />} label="摄影师" value={consultation.photographerName} />
+        <DetailLine icon={<MapPin size={17} />} label="地点" value={consultation.requestCard.place} />
+        <DetailLine icon={<CalendarDays size={17} />} label="时间" value={`${consultation.requestCard.date} ${consultation.requestCard.timeRange}`} />
+        <DetailLine icon={<Users size={17} />} label="人数" value={`${consultation.requestCard.peopleCount} 人 · ${consultation.requestCard.sceneType === 'outdoor' ? '室外' : '室内'}`} />
+      </div>
+
+      <div className="mt-4 rounded-[18px] bg-[#fff5f1] p-3 text-sm font-semibold leading-6 text-[#6f625d]">
+        {quote ? (
+          <>
+            <PriceLine label="报价总价" value={formatMoney(quote.totalCents)} strong />
+            <PriceLine label="定金托管" value={formatMoney(quote.depositCents)} />
+            <PriceLine label="拍摄前尾款" value={formatMoney(quote.balanceCents)} />
+          </>
+        ) : (
+          <p>需求卡已送达摄影师，等待对方确认价格。你可以先进入沟通补充细节。</p>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Link
+          to={`/consumer/messages/${consultation.id}`}
+          className="flex h-10 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#6f625d]"
+        >
+          <MessageCircle size={17} />
+          进入沟通
+        </Link>
+        <button
+          className="flex h-10 items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white disabled:bg-zinc-200 disabled:text-zinc-400"
+          disabled={!quote}
+          onClick={onAccept}
+          type="button"
+        >
+          <CheckCircle2 size={17} />
+          接受并付定金
+        </button>
       </div>
     </article>
   );

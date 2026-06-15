@@ -116,7 +116,16 @@ export function MessagesPage() {
   }
 
   if (!orderId) {
-    return <MessageThreadList orders={orders} consultations={listConsultations(session)} prefs={threadPrefs} sessionRole={session?.role} basePath={messagesBasePath} onUpdatePrefs={updatePrefs} />;
+    return (
+      <MessageThreadList
+        orders={orders}
+        consultations={listConsultations(session).filter((item) => item.status !== 'closed')}
+        prefs={threadPrefs}
+        sessionRole={session?.role}
+        basePath={messagesBasePath}
+        onUpdatePrefs={updatePrefs}
+      />
+    );
   }
 
   if (!activeOrder && !activeConsultation) {
