@@ -20,6 +20,8 @@ type FeedFilters = {
   channel: FeedChannel;
   query: string;
   nearbyOnly: boolean;
+  venueType: string;
+  shootTime: string;
   scene: string;
   minDurationMinutes: number;
   maxDurationMinutes: number;
@@ -52,6 +54,8 @@ const initialFilters: FeedFilters = {
   channel: '发现',
   query: '',
   nearbyOnly: false,
+  venueType: '不限',
+  shootTime: '不限',
   scene: '不限',
   minDurationMinutes: 30,
   maxDurationMinutes: 480,
@@ -89,7 +93,9 @@ const locationOptions: Record<string, Record<string, string[]>> = {
 };
 const channels: FeedChannel[] = ['关注', '发现', '附近'];
 const idleFeedDragState: FeedDragState = { active: false, startX: 0, deltaX: 0, pointerId: null };
-const sceneOptions = ['不限', 'Citywalk', '探店', '街拍', '夜景', '旅行'];
+const venueTypeOptions = ['不限', '室外', '室内'];
+const shootTimeOptions = ['不限', '早上', '中午', '下午', '晚上'];
+const sceneOptions = ['不限', '景点游客照', '网红餐厅拍照', '城市街拍', '旅行跟拍', '节日纪念', '情侣/婚纱', '亲子/宠物', '商业形象'];
 const genderOptions: Array<{ label: string; value: GenderPreference }> = [
   { label: '不限', value: 'any' },
   { label: '男', value: 'male' },
@@ -245,7 +251,10 @@ export function HomeFeed() {
         maxDistanceMeters: filters.maxDistanceKm ? filters.maxDistanceKm * 1000 : undefined,
         genderPreference: filters.photographerGenderPreference,
         nearbyOnly: filters.nearbyOnly,
-      }).filter((post) => matchesCreatorGender(post, filters.creatorGenderPreference)),
+      })
+        .filter((post) => matchesVenueType(post, filters.venueType))
+        .filter((post) => matchesShootTime(post, filters.shootTime))
+        .filter((post) => matchesCreatorGender(post, filters.creatorGenderPreference)),
     [activeLocation?.lat, activeLocation?.lng, feedPosts, filters, locationKeyword, locationKeywords],
   );
   const channelPostGroups = useMemo(
@@ -999,7 +1008,9 @@ function FilterSheet({
       <section className="h-full w-[84%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <SheetHeader title="筛选" onClose={onClose} />
         <div className="mt-4 space-y-4">
-          <FilterGroup label="活动类型" options={sceneOptions} value={filters.scene} onChange={(scene) => onChange({ scene })} />
+          <FilterGroup label="拍摄环境" options={venueTypeOptions} value={filters.venueType} onChange={(venueType) => onChange({ venueType })} />
+          <FilterGroup label="拍摄时间" options={shootTimeOptions} value={filters.shootTime} onChange={(shootTime) => onChange({ shootTime })} />
+          <SelectFilter label="活动类型" options={sceneOptions} value={filters.scene} onChange={(scene) => onChange({ scene })} />
           <RangeSliderGroup
             label="时长范围"
             min={minDurationLimit}
@@ -1081,6 +1092,28 @@ function FilterGroup({ label, options, value, onChange }: { label: string; optio
   );
 }
 
+function SelectFilter({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-bold text-zinc-500">{label}</span>
+      <span className="relative mt-2 block">
+        <select
+          className="h-12 w-full appearance-none rounded-[16px] border border-zinc-200 bg-white px-4 pr-11 text-sm font-black text-zinc-950 outline-none shadow-[0_10px_30px_rgba(15,15,15,0.05)]"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+      </span>
+    </label>
+  );
+}
+
 function OptionGroup<T extends string | number | null>({
   label,
   options,
@@ -1136,14 +1169,15 @@ function RangeSliderGroup({
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="text-xs font-bold text-zinc-500">{label}</p>
-        <p className="text-xs font-black text-zinc-900">
+        <p className="rounded-full bg-zinc-950 px-2.5 py-1 text-[11px] font-black text-white">
           {formatValue(safeMinValue)} - {formatValue(safeMaxValue)}
         </p>
       </div>
-      <div className="rounded-[12px] bg-zinc-50 px-3 py-3 ring-1 ring-zinc-100">
-        <label className="grid grid-cols-[36px_1fr_52px] items-center gap-2 text-xs font-bold text-zinc-400">
+      <div className="space-y-2 rounded-[16px] border border-zinc-100 bg-white px-3 py-3 shadow-[0_10px_30px_rgba(15,15,15,0.05)]">
+        <label className="grid grid-cols-[42px_1fr_64px] items-center gap-2 text-xs font-bold text-zinc-400">
           下限
           <input
+            className="accent-black"
             type="range"
             min={min}
             max={max - step}
@@ -1154,11 +1188,12 @@ function RangeSliderGroup({
               onChange(nextMin, Math.max(safeMaxValue, nextMin + step));
             }}
           />
-          <span className="text-right text-zinc-700">{formatValue(safeMinValue)}</span>
+          <span className="rounded-full bg-zinc-100 px-2 py-1 text-right text-zinc-800">{formatValue(safeMinValue)}</span>
         </label>
-        <label className="mt-2 grid grid-cols-[36px_1fr_52px] items-center gap-2 text-xs font-bold text-zinc-400">
+        <label className="grid grid-cols-[42px_1fr_64px] items-center gap-2 text-xs font-bold text-zinc-400">
           上限
           <input
+            className="accent-black"
             type="range"
             min={min + step}
             max={max}
@@ -1169,7 +1204,7 @@ function RangeSliderGroup({
               onChange(Math.min(safeMinValue, nextMax - step), nextMax);
             }}
           />
-          <span className="text-right text-zinc-700">{formatValue(safeMaxValue)}</span>
+          <span className="rounded-full bg-zinc-100 px-2 py-1 text-right text-zinc-800">{formatValue(safeMaxValue)}</span>
         </label>
       </div>
     </div>
@@ -1293,8 +1328,33 @@ function getCreatorGender(post: FeedPost): GenderPreference | 'unknown' {
   return Math.abs(hashString(seed)) % 3 === 0 ? 'male' : 'female';
 }
 
+function matchesVenueType(post: FeedPost, venueType: string) {
+  if (venueType === '不限') return true;
+  if (post.venueType) return post.venueType === venueType;
+
+  const text = getPostSearchText(post);
+  if (venueType === '室内') return ['室内', '餐厅', '探店', '咖啡', '书店', '展览', '美术馆', '酒店', '影棚', '空间'].some((keyword) => text.includes(keyword.toLowerCase()));
+  return ['室外', '户外', '街拍', 'citywalk', '旅行', '景点', '公园', '外滩', '武康路', '夜景', '海边'].some((keyword) => text.includes(keyword.toLowerCase()));
+}
+
+function matchesShootTime(post: FeedPost, shootTime: string) {
+  if (shootTime === '不限') return true;
+  if (post.shootTime) return post.shootTime === shootTime;
+
+  const text = [post.timeLabel, post.caption, post.title, post.activity, ...post.styleTags].filter(Boolean).join(' ').toLowerCase();
+  const keywords: Record<string, string[]> = {
+    早上: ['早上', '上午', '晨', '清晨', '日出', 'morning'],
+    中午: ['中午', '午间', '正午', '午后', 'noon'],
+    下午: ['下午', '午后', '傍晚前', 'afternoon'],
+    晚上: ['晚上', '夜景', '夜间', '傍晚', '黄昏', '晚', 'night'],
+  };
+  return (keywords[shootTime] ?? []).some((keyword) => text.includes(keyword.toLowerCase()));
+}
+
 function getActiveFilterCount(filters: FeedFilters) {
   return [
+    filters.venueType !== initialFilters.venueType,
+    filters.shootTime !== initialFilters.shootTime,
     filters.scene !== initialFilters.scene,
     filters.minDurationMinutes !== initialFilters.minDurationMinutes || filters.maxDurationMinutes !== initialFilters.maxDurationMinutes,
     filters.minBudgetCents !== initialFilters.minBudgetCents,

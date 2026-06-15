@@ -35,6 +35,17 @@ type MatchCandidate = {
 
 const ANY = '不限';
 
+const activityAliasKeywords: Record<string, string[]> = {
+  景点游客照: ['景点', '游客照', '公园', '外滩', '西湖', '展览', '美术馆', '景区'],
+  网红餐厅拍照: ['探店', '餐厅', '咖啡', '书店', '网红', '生活照', '吃饭'],
+  城市街拍: ['街拍', 'citywalk', '城市', '武康路', '安福路', '外滩', '街区'],
+  旅行跟拍: ['旅行', '跟拍', '路线', '陪逛', '景区', 'citywalk'],
+  节日纪念: ['节日', '生日', '毕业', '纪念', '新年', '圣诞', '周年'],
+  '情侣/婚纱': ['情侣', '婚纱', '结婚', '婚礼', '订婚', '领证'],
+  '亲子/宠物': ['亲子', '宠物', '猫', '狗', '家庭'],
+  商业形象: ['形象照', '证件照', '职业', '商务', '品牌', '商业', '头像'],
+};
+
 const locationDistanceRank: Record<string, number> = {
   武康路: 1,
   安福路: 2,
@@ -147,15 +158,28 @@ function matchesTime(slot: AvailabilitySlot, time?: string) {
 function matchesActivityPrice(activity: ActivityPricing, activityType?: string) {
   if (!hasValue(activityType)) return true;
 
-  const target = normalizeFreeText(activityType ?? '');
-  return normalizeFreeText(activity.name).includes(target) || target.includes(normalizeFreeText(activity.name));
+  const keywords = getActivityKeywords(activityType);
+  const activityName = normalizeFreeText(activity.name);
+  return keywords.some((keyword) => activityName.includes(keyword) || keyword.includes(activityName));
 }
 
 function matchesPostActivity(post: FeedPost, activityType?: string) {
   if (!hasValue(activityType)) return true;
 
+  if (post.activityCategory === activityType) return true;
+
+  const keywords = getActivityKeywords(activityType);
+  return [post.activityCategory, post.activity, ...post.styleTags, post.title, post.caption].some((item) => {
+    const normalized = normalizeFreeText(item);
+    if (!normalized) return false;
+    return keywords.some((keyword) => normalized.includes(keyword) || keyword.includes(normalized));
+  });
+}
+
+function getActivityKeywords(activityType?: string) {
   const target = normalizeFreeText(activityType ?? '');
-  return [post.activity, ...post.styleTags].some((item) => normalizeFreeText(item).includes(target) || target.includes(normalizeFreeText(item)));
+  const aliases = activityAliasKeywords[activityType ?? ''] ?? [];
+  return Array.from(new Set([target, ...aliases.map(normalizeFreeText)])).filter(Boolean);
 }
 
 function matchesDuration(activity: ActivityPricing, input: Pick<MatchCompanionsInput, 'durationMinutes' | 'minDurationMinutes' | 'maxDurationMinutes'>) {

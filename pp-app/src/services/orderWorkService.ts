@@ -15,6 +15,11 @@ export type OrderWorkRecord = {
   previewMode?: WorkPreviewMode;
   deliveryStatus?: WorkDeliveryStatus;
   disputeReason?: string;
+  venueType: string;
+  shootTime: string;
+  activityCategory: string;
+  durationMinutes: number;
+  budgetCents: number;
   creatorConfirmed: boolean;
   photographerConfirmed: boolean;
   publishToCreator: boolean;
@@ -40,6 +45,7 @@ export function saveOrderWorkRecord(record: OrderWorkRecord) {
 
 export function createOrderWorkRecord(order: AppOrder, seedPost?: FeedPost): OrderWorkRecord {
   const seedUrls = seedPost?.images.slice(0, 4).map((image) => image.url) ?? [];
+  const activityCategory = seedPost?.activityCategory ?? normalizeActivityCategory(order.activityName ?? order.title);
 
   return {
     orderId: order.id,
@@ -51,6 +57,11 @@ export function createOrderWorkRecord(order: AppOrder, seedPost?: FeedPost): Ord
     watermarkText: createWatermarkText(order),
     previewMode: 'low_res_watermarked',
     deliveryStatus: seedUrls.length ? 'preview_ready' : 'draft',
+    venueType: seedPost?.venueType ?? inferVenueType(order, seedPost),
+    shootTime: seedPost?.shootTime ?? inferShootTime(order, seedPost),
+    activityCategory,
+    durationMinutes: order.durationMinutes ?? seedPost?.durationMinutes ?? 120,
+    budgetCents: order.amountCents ?? seedPost?.budgetCents ?? 0,
     creatorConfirmed: false,
     photographerConfirmed: false,
     publishToCreator: false,
@@ -104,12 +115,18 @@ export function normalizeOrderWorkRecord(record: OrderWorkRecord): OrderWorkReco
   const originalUrls = record.originalUrls?.length ? record.originalUrls : record.imageUrls;
   const previewUrls = record.previewUrls?.length ? record.previewUrls : originalUrls;
   const confirmed = isOrderWorkConfirmed(record);
+  const activityCategory = record.activityCategory || normalizeActivityCategory(`${record.title} ${record.caption}`);
 
   return {
     ...record,
     imageUrls: originalUrls,
     originalUrls,
     previewUrls,
+    venueType: record.venueType || inferVenueTypeFromText(`${record.title} ${record.caption}`),
+    shootTime: record.shootTime || inferShootTimeFromText(`${record.title} ${record.caption}`),
+    activityCategory,
+    durationMinutes: record.durationMinutes || 120,
+    budgetCents: record.budgetCents || 0,
     previewMode: confirmed ? 'original_released' : record.previewMode ?? 'low_res_watermarked',
     deliveryStatus: confirmed ? 'confirmed' : record.deliveryStatus ?? (previewUrls.length ? 'preview_ready' : 'draft'),
   };
@@ -133,13 +150,18 @@ export function orderWorkToFeedPost(record: OrderWorkRecord, order: AppOrder, se
   return {
     ...seedPost,
     id: `order-work-${record.orderId}`,
-    title: record.title,
+    title: normalized.title,
     location: order.place,
     locationName: order.place,
     timeLabel: order.dateLabel || order.time,
-    caption: record.caption,
-    activity: order.activityName ?? order.title,
-    styleTags: Array.from(new Set(['订单成片', '共同确认', ...seedPost.styleTags.slice(0, 2)])),
+    caption: normalized.caption,
+    activity: normalized.activityCategory || order.activityName || order.title,
+    venueType: normalized.venueType,
+    shootTime: normalized.shootTime,
+    activityCategory: normalized.activityCategory,
+    durationMinutes: normalized.durationMinutes,
+    budgetCents: normalized.budgetCents,
+    styleTags: Array.from(new Set(['订单成片', '共同确认', normalized.venueType, normalized.shootTime, normalized.activityCategory, ...seedPost.styleTags.slice(0, 2)].filter(Boolean))),
     images: images.length ? images : seedPost.images,
     creator: order.creatorId
       ? {
@@ -151,6 +173,49 @@ export function orderWorkToFeedPost(record: OrderWorkRecord, order: AppOrder, se
         }
       : undefined,
   };
+}
+
+function inferVenueType(order: AppOrder, seedPost?: FeedPost) {
+  return inferVenueTypeFromText(`${order.place} ${order.activityName ?? order.title} ${seedPost?.caption ?? ''}`);
+}
+
+function inferVenueTypeFromText(value: string) {
+  const text = value.toLowerCase();
+  if (['室内', '餐厅', '探店', '咖啡', '书店', '展览', '美术馆', '酒店', '影棚', '空间'].some((keyword) => text.includes(keyword.toLowerCase()))) return '室内';
+  if (['室外', '街拍', 'citywalk', '旅行', '景点', '公园', '外滩', '武康路', '安福路'].some((keyword) => text.includes(keyword.toLowerCase()))) return '室外';
+  return '不限';
+}
+
+function inferShootTime(order: AppOrder, seedPost?: FeedPost) {
+  return inferShootTimeFromText(`${order.timeLabel ?? order.time} ${seedPost?.timeLabel ?? ''}`);
+}
+
+function inferShootTimeFromText(value: string) {
+  const hour = Number(value.match(/\d{1,2}/)?.[0]);
+  if (Number.isFinite(hour)) {
+    if (hour >= 6 && hour < 11) return '早上';
+    if (hour >= 11 && hour < 14) return '中午';
+    if (hour >= 14 && hour < 18) return '下午';
+    return '晚上';
+  }
+  if (value.includes('早上') || value.includes('上午')) return '早上';
+  if (value.includes('中午') || value.includes('午间')) return '中午';
+  if (value.includes('下午')) return '下午';
+  if (value.includes('晚上') || value.includes('夜景')) return '晚上';
+  return '不限';
+}
+
+function normalizeActivityCategory(value: string) {
+  const text = value.toLowerCase();
+  if (['景点', '游客照', '景区', '公园', '外滩', '西湖'].some((keyword) => text.includes(keyword.toLowerCase()))) return '景点游客照';
+  if (['探店', '餐厅', '咖啡', '书店', '网红', '吃饭'].some((keyword) => text.includes(keyword.toLowerCase()))) return '网红餐厅拍照';
+  if (['街拍', 'citywalk', '城市', '武康路', '安福路'].some((keyword) => text.includes(keyword.toLowerCase()))) return '城市街拍';
+  if (['旅行', '跟拍', '路线', '陪逛'].some((keyword) => text.includes(keyword.toLowerCase()))) return '旅行跟拍';
+  if (['节日', '生日', '毕业', '纪念', '圣诞', '周年'].some((keyword) => text.includes(keyword.toLowerCase()))) return '节日纪念';
+  if (['情侣', '婚纱', '结婚', '婚礼', '订婚', '领证'].some((keyword) => text.includes(keyword.toLowerCase()))) return '情侣/婚纱';
+  if (['亲子', '宠物', '猫', '狗', '家庭'].some((keyword) => text.includes(keyword.toLowerCase()))) return '亲子/宠物';
+  if (['形象', '证件', '职业', '商务', '品牌', '商业', '头像'].some((keyword) => text.includes(keyword.toLowerCase()))) return '商业形象';
+  return '城市街拍';
 }
 
 function isVideoUrl(url: string) {

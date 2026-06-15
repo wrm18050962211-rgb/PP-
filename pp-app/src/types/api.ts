@@ -254,6 +254,11 @@ export type FeedPost = {
   locationName?: string;
   lat?: number;
   lng?: number;
+  venueType?: string;
+  shootTime?: string;
+  activityCategory?: string;
+  durationMinutes?: number;
+  budgetCents?: number;
   images: PostImage[];
   companion: Companion;
   creator?: {

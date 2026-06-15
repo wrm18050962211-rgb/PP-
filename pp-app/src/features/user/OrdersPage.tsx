@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   CalendarDays,
   Camera,
+  ChevronDown,
   CheckCircle2,
   Clock3,
   ImagePlus,
@@ -64,6 +65,18 @@ const statusMeta: Record<string, { label: string; tone: string }> = {
 };
 
 const reviewStorageKey = 'reviewed-orders-v1';
+const workVenueTypeOptions = ['不限', '室外', '室内'];
+const workShootTimeOptions = ['不限', '早上', '中午', '下午', '晚上'];
+const workActivityCategoryOptions = ['景点游客照', '网红餐厅拍照', '城市街拍', '旅行跟拍', '节日纪念', '情侣/婚纱', '亲子/宠物', '商业形象'];
+const workDurationOptions = [
+  { label: '30分钟', value: 30 },
+  { label: '1小时', value: 60 },
+  { label: '1.5小时', value: 90 },
+  { label: '2小时', value: 120 },
+  { label: '3小时', value: 180 },
+  { label: '4小时', value: 240 },
+  { label: '8小时', value: 480 },
+];
 
 export function OrdersPage() {
   const { orders, updateOrderFunding, updateOrderStatus } = useAppData();
@@ -565,6 +578,63 @@ function OrderWorkDialog({
           </label>
         </div>
 
+        <div className="space-y-3 rounded-[14px] bg-white p-3 ring-1 ring-zinc-100">
+          <div>
+            <p className="text-xs font-black text-zinc-400">筛选匹配信息</p>
+            <p className="mt-1 text-[11px] font-semibold leading-5 text-zinc-400">这些字段会写入作品信息，决定作品能否被发现页筛选命中。</p>
+          </div>
+          <WorkOptionGroup
+            label="拍摄环境"
+            options={workVenueTypeOptions}
+            value={draft.venueType}
+            disabled={!editable}
+            onChange={(venueType) => updateEditableDraft({ venueType })}
+          />
+          <WorkOptionGroup
+            label="拍摄时间"
+            options={workShootTimeOptions}
+            value={draft.shootTime}
+            disabled={!editable}
+            onChange={(shootTime) => updateEditableDraft({ shootTime })}
+          />
+          <WorkSelectField
+            label="活动类型"
+            options={workActivityCategoryOptions}
+            value={draft.activityCategory}
+            disabled={!editable}
+            onChange={(activityCategory) => updateEditableDraft({ activityCategory })}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="text-xs font-black text-zinc-400">拍摄时长</span>
+              <select
+                className="mt-1 h-11 w-full rounded-[10px] bg-zinc-100 px-3 text-sm font-bold outline-none disabled:text-zinc-400"
+                disabled={!editable}
+                value={draft.durationMinutes}
+                onChange={(event) => updateEditableDraft({ durationMinutes: Number(event.target.value) })}
+              >
+                {workDurationOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-black text-zinc-400">预算/成交价</span>
+              <input
+                className="mt-1 h-11 w-full rounded-[10px] bg-zinc-100 px-3 text-sm font-bold outline-none disabled:text-zinc-400"
+                disabled={!editable}
+                min={0}
+                step={10}
+                type="number"
+                value={Math.round(draft.budgetCents / 100)}
+                onChange={(event) => updateEditableDraft({ budgetCents: Math.max(0, Number(event.target.value) || 0) * 100 })}
+              />
+            </label>
+          </div>
+        </div>
+
         {modificationPending ? (
           <div className="rounded-[12px] bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-800">
             {draft.changeRequestBy === 'creator' ? '创作者' : '摄影师'}已发起修改，需另一方确认后才能重新编辑。
@@ -644,6 +714,76 @@ function OrderWorkDialog({
         </button>
       </div>
     </ActionSheet>
+  );
+}
+
+function WorkOptionGroup({
+  label,
+  options,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-black text-zinc-400">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            className={`h-9 rounded-full px-3 text-xs font-black ring-1 transition ${
+              value === option ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-zinc-50 text-zinc-500 ring-zinc-200'
+            } ${disabled ? 'opacity-50' : ''}`}
+            disabled={disabled}
+            onClick={() => onChange(option)}
+            type="button"
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WorkSelectField({
+  label,
+  options,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-black text-zinc-400">{label}</span>
+      <span className="relative mt-1 block">
+        <select
+          className="h-11 w-full appearance-none rounded-[10px] bg-zinc-100 px-3 pr-10 text-sm font-bold outline-none disabled:text-zinc-400"
+          disabled={disabled}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400" size={17} />
+      </span>
+    </label>
   );
 }
 
