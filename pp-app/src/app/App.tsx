@@ -20,6 +20,7 @@ import { CreatorOnboarding } from '../features/user/CreatorOnboarding';
 import { CreatorProfileEditPage } from '../features/user/CreatorProfileEditPage';
 import { CreatorProfilePage } from '../features/user/CreatorProfilePage';
 import { HomeFeed } from '../features/user/HomeFeed';
+import { InquiriesPage } from '../features/user/InquiriesPage';
 import { MessagesPage } from '../features/user/MessagesPage';
 import { MinePage } from '../features/user/MinePage';
 import { OrdersPage } from '../features/user/OrdersPage';
@@ -99,6 +100,14 @@ export default function App() {
           element={
             <RequireRole role="consumer" fallback="/companion/mine">
               <CreatorProfileEditPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="inquiries"
+          element={
+            <RequireRole role="consumer" fallback="/companion/mine">
+              <InquiriesPage />
             </RequireRole>
           }
         />

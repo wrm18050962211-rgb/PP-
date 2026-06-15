@@ -1,4 +1,4 @@
-import { ChevronRight, ImagePlus, ReceiptText, Settings, UserRound, UserRoundPen } from 'lucide-react';
+import { ChevronRight, FileQuestion, ImagePlus, ReceiptText, Settings, UserRound, UserRoundPen, type LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchAuthSession } from '../../services/authService';
@@ -9,10 +9,11 @@ import type { AuthSession, FeedPost, UserRole } from '../../types/api';
 import { getCollectionSummary } from './UserCollectionPage';
 
 type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
-type CreatorMenuItem = { icon: typeof UserRoundPen; label: string; desc: string; to: string; badge?: string };
+type CreatorMenuItem = { icon: LucideIcon; label: string; desc: string; to: string; badge?: string };
 
 const creatorMenuItems: CreatorMenuItem[] = [
   { icon: UserRoundPen, label: '编辑主页', desc: '头像、ID 名称、文字简介', to: '/consumer/profile' },
+  { icon: FileQuestion, label: '我的询价', desc: '已提交的咨询需求卡', to: '/consumer/inquiries' },
   { icon: ReceiptText, label: '我的订单', desc: '预约、支付、售后', to: '/consumer/orders' },
   { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1' },
   { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/settings' },
@@ -23,13 +24,22 @@ export function MinePage() {
   const posts = listFeedPosts();
   const ownProfile = buildOwnProfileSummary(session, posts[0]);
   const collectionSummary = getCollectionSummary(posts);
-  const activeConsultationCount = session ? listConsultations(session).filter((item) => item.status !== 'closed').length : 0;
+  const pendingInquiryCount = session ? listConsultations(session).filter((item) => item.status === 'consulting').length : 0;
+  const quotedConsultationCount = session ? listConsultations(session).filter((item) => item.status === 'quoted' && item.quote).length : 0;
   const visibleCreatorMenuItems = creatorMenuItems.map((item) => {
-    if (item.label !== '我的订单' || activeConsultationCount <= 0) return item;
+    if (item.label === '我的询价' && pendingInquiryCount > 0) {
+      return {
+        ...item,
+        desc: `${item.desc} · ${pendingInquiryCount} 个待报价`,
+        badge: `${pendingInquiryCount}`,
+      };
+    }
+    if (item.label !== '我的订单' || quotedConsultationCount <= 0) return item;
     return {
       ...item,
-      desc: `${item.desc} · ${activeConsultationCount} 个咨询`,
-      badge: `${activeConsultationCount}`,
+      to: '/consumer/orders?tab=paid_pending_confirm',
+      desc: `${item.desc} · ${quotedConsultationCount} 个报价待确认`,
+      badge: `${quotedConsultationCount}`,
     };
   });
 

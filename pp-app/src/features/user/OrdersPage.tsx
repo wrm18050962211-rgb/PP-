@@ -40,6 +40,7 @@ import type { AppOrder, OrderStatus } from '../../types/domain';
 import type { FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
 
+type QuotedConsultation = ConsultationRecord & { quote: NonNullable<ConsultationRecord['quote']> };
 type OrderAction =
   | { type: 'cancel'; order: AppOrder }
   | { type: 'review'; order: AppOrder }
@@ -85,7 +86,7 @@ export function OrdersPage() {
   const [searchParams] = useSearchParams();
   const workMode = searchParams.get('work') === '1';
   const backTo = searchParams.get('from') === 'companion' ? '/companion/mine' : '/consumer/mine';
-  const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>(() => (searchParams.get('tab') === 'completed' ? 'completed' : 'all'));
+  const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>(() => parseOrderStatusTab(searchParams.get('tab')));
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
   const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
@@ -96,15 +97,15 @@ export function OrdersPage() {
     () => orders.filter((order) => activeStatus === 'all' || getDisplayOrderStatus(order.status) === activeStatus),
     [activeStatus, orders],
   );
-  const activeConsultations = useMemo(
-    () => (session && !workMode ? listConsultations(session).filter((item) => item.status !== 'closed') : []),
+  const quotedConsultations = useMemo(
+    () => (session && !workMode ? listConsultations(session).filter(isQuotedConsultation) : []),
     [consultationVersion, session, workMode],
   );
-  const showConsultations = !workMode && activeConsultations.length > 0 && (activeStatus === 'all' || activeStatus === 'paid_pending_confirm');
+  const showQuotedConsultations = !workMode && quotedConsultations.length > 0 && (activeStatus === 'all' || activeStatus === 'paid_pending_confirm');
   const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
 
   useEffect(() => {
-    if (searchParams.get('tab') === 'completed') setActiveStatus('completed');
+    setActiveStatus(parseOrderStatusTab(searchParams.get('tab')));
   }, [searchParams]);
 
   function submitReview(orderId: string) {
@@ -171,8 +172,8 @@ export function OrdersPage() {
       </div>
 
       <div className="mt-4 space-y-4">
-        {showConsultations
-          ? activeConsultations.map((consultation) => (
+        {showQuotedConsultations
+          ? quotedConsultations.map((consultation) => (
               <ConsultationQuoteCard key={consultation.id} consultation={consultation} onAccept={() => acceptConsultationQuote(consultation)} />
             ))
           : null}
@@ -190,7 +191,7 @@ export function OrdersPage() {
         ))}
       </div>
 
-      {!filteredOrders.length && !showConsultations && (
+      {!filteredOrders.length && !showQuotedConsultations && (
         <div className="mt-16 text-center">
           <ReceiptText className="mx-auto text-zinc-300" size={48} />
           <p className="mt-4 text-sm font-semibold text-[#8f8078]">当前没有这个状态的订单</p>
@@ -345,10 +346,8 @@ function OrderCard({
   );
 }
 
-function ConsultationQuoteCard({ consultation, onAccept }: { consultation: ConsultationRecord; onAccept: () => void }) {
+function ConsultationQuoteCard({ consultation, onAccept }: { consultation: QuotedConsultation; onAccept: () => void }) {
   const quote = consultation.quote;
-  const statusText = quote ? '待确认报价' : '等待摄影师报价';
-  const statusTone = quote ? 'bg-[#fff1f3] text-[#e85d75] ring-[#ffdce4]' : 'bg-amber-50 text-amber-700 ring-amber-100';
 
   return (
     <article className="rounded-[22px] border border-[#eadfd8] bg-white p-4 shadow-[0_12px_30px_rgba(63,48,44,0.05)]">
@@ -358,7 +357,7 @@ function ConsultationQuoteCard({ consultation, onAccept }: { consultation: Consu
           <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{consultation.requestCard.packageName}</h2>
           <p className="mt-1 truncate text-xs font-semibold text-[#8f8078]">{consultation.photographerName} · 咨询报价</p>
         </div>
-        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${statusTone}`}>{statusText}</span>
+        <span className="shrink-0 rounded-full bg-[#fff1f3] px-3 py-1 text-xs font-bold text-[#e85d75] ring-1 ring-[#ffdce4]">摄影师已报价</span>
       </div>
 
       <div className="mt-4 grid gap-3 text-sm">
@@ -369,15 +368,9 @@ function ConsultationQuoteCard({ consultation, onAccept }: { consultation: Consu
       </div>
 
       <div className="mt-4 rounded-[18px] bg-[#fff5f1] p-3 text-sm font-semibold leading-6 text-[#6f625d]">
-        {quote ? (
-          <>
-            <PriceLine label="报价总价" value={formatMoney(quote.totalCents)} strong />
-            <PriceLine label="定金托管" value={formatMoney(quote.depositCents)} />
-            <PriceLine label="拍摄前尾款" value={formatMoney(quote.balanceCents)} />
-          </>
-        ) : (
-          <p>需求卡已送达摄影师，等待对方确认价格。你可以先进入沟通补充细节。</p>
-        )}
+        <PriceLine label="报价总价" value={formatMoney(quote.totalCents)} strong />
+        <PriceLine label="定金托管" value={formatMoney(quote.depositCents)} />
+        <PriceLine label="拍摄前尾款" value={formatMoney(quote.balanceCents)} />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
@@ -390,7 +383,6 @@ function ConsultationQuoteCard({ consultation, onAccept }: { consultation: Consu
         </Link>
         <button
           className="flex h-10 items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white disabled:bg-zinc-200 disabled:text-zinc-400"
-          disabled={!quote}
           onClick={onAccept}
           type="button"
         >
@@ -400,6 +392,15 @@ function ConsultationQuoteCard({ consultation, onAccept }: { consultation: Consu
       </div>
     </article>
   );
+}
+
+function isQuotedConsultation(consultation: ConsultationRecord): consultation is QuotedConsultation {
+  return consultation.status === 'quoted' && Boolean(consultation.quote);
+}
+
+function parseOrderStatusTab(tab: string | null): OrderStatus | 'all' {
+  if (!tab) return 'all';
+  return statusTabs.some((item) => item.key === tab) ? (tab as OrderStatus | 'all') : 'all';
 }
 
 function ProtectedCompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; onManage: () => void }) {
