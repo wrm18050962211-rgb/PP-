@@ -11,15 +11,17 @@ import {
   UserRound,
   XCircle,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { listFeedPosts } from '../../services/feedService';
 import {
+  completeOrderWork,
   isOrderWorkConfirmed,
   listOrderWorkRecords,
   markOrderWorkDisputed,
   saveOrderWorkRecord,
+  shouldAutoCompleteOrderWork,
   type OrderWorkRecord,
 } from '../../services/orderWorkService';
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
@@ -212,6 +214,19 @@ function CompanionWorkEditPage() {
   );
   const activeWorkRecord = activeWorkOrder ? workByOrderId.get(activeWorkOrder.id) : undefined;
 
+  useEffect(() => {
+    const autoCompletedRecords: OrderWorkRecord[] = [];
+    completedOrders.forEach((order) => {
+      const record = workByOrderId.get(order.id);
+      if (!record || !shouldAutoCompleteOrderWork(record) || order.settlementStatus === 'settled') return;
+      const completedRecord = completeOrderWork(record, 'auto');
+      saveOrderWorkRecord(completedRecord);
+      updateOrderFunding(order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
+      autoCompletedRecords.push(completedRecord);
+    });
+    if (autoCompletedRecords.length) setWorkRecords(listOrderWorkRecords());
+  }, [completedOrders, updateOrderFunding, workByOrderId]);
+
   function submitWorkRecord(record: OrderWorkRecord) {
     setWorkRecords(saveOrderWorkRecord(record));
     setActiveWorkOrder(null);
@@ -272,6 +287,7 @@ function CompanionWorkEditPage() {
 
       {activeWorkOrder ? (
         <OrderWorkDialog
+          actor="photographer"
           order={activeWorkOrder}
           post={posts.find((post) => post.id === activeWorkOrder.postId)}
           record={activeWorkRecord}

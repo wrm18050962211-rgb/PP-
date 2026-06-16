@@ -1,8 +1,16 @@
 import type { AppOrder, FeedPost, PostImage } from '../types/api';
 
 export type WorkActor = 'creator' | 'photographer';
+export type WorkCompletionActor = WorkActor | 'auto';
 export type WorkPreviewMode = 'low_res_watermarked' | 'original_released';
 export type WorkDeliveryStatus = 'draft' | 'preview_ready' | 'confirmed' | 'disputed' | 'released';
+export type OrderWorkActivity = {
+  id: string;
+  actor: WorkActor | 'system';
+  action: string;
+  summary: string;
+  at: string;
+};
 
 export type OrderWorkRecord = {
   orderId: string;
@@ -22,10 +30,20 @@ export type OrderWorkRecord = {
   budgetCents: number;
   creatorConfirmed: boolean;
   photographerConfirmed: boolean;
+  creatorConfirmedAt?: string;
+  photographerConfirmedAt?: string;
+  bothConfirmedAt?: string;
   publishToCreator: boolean;
   publishToPhotographer: boolean;
+  publishToCreatorAt?: string;
+  publishToPhotographerAt?: string;
   changeRequestBy?: WorkActor;
   changeAccepted: boolean;
+  collaborationEvents?: OrderWorkActivity[];
+  lastEditedBy?: WorkActor;
+  lastEditedAt?: string;
+  orderCompletedAt?: string;
+  orderCompletedBy?: WorkCompletionActor;
   updatedAt: string;
 };
 
@@ -46,6 +64,7 @@ export function saveOrderWorkRecord(record: OrderWorkRecord) {
 export function createOrderWorkRecord(order: AppOrder, seedPost?: FeedPost): OrderWorkRecord {
   const seedUrls = seedPost?.images.slice(0, 4).map((image) => image.url) ?? [];
   const activityCategory = seedPost?.activityCategory ?? normalizeActivityCategory(order.activityName ?? order.title);
+  const createdAt = new Date().toISOString();
 
   return {
     orderId: order.id,
@@ -67,7 +86,16 @@ export function createOrderWorkRecord(order: AppOrder, seedPost?: FeedPost): Ord
     publishToCreator: false,
     publishToPhotographer: false,
     changeAccepted: true,
-    updatedAt: new Date().toISOString(),
+    collaborationEvents: [
+      {
+        id: createActivityId(),
+        actor: 'system',
+        action: 'created',
+        summary: '创建成片协作空间，双方可共同编辑并查看修改记录。',
+        at: createdAt,
+      },
+    ],
+    updatedAt: createdAt,
   };
 }
 
@@ -76,11 +104,55 @@ export function isOrderWorkConfirmed(record: OrderWorkRecord) {
 }
 
 export function isOriginalReleased(record: OrderWorkRecord) {
-  return isOrderWorkConfirmed(record) || record.deliveryStatus === 'released' || record.previewMode === 'original_released';
+  return Boolean(record.orderCompletedAt) || record.deliveryStatus === 'released';
 }
 
 export function canEditOrderWork(record: OrderWorkRecord) {
   return !isOrderWorkConfirmed(record) || Boolean(record.changeRequestBy && record.changeAccepted);
+}
+
+export function appendOrderWorkActivity(record: OrderWorkRecord, actor: WorkActor | 'system', action: string, summary: string, at = new Date().toISOString()): OrderWorkRecord {
+  return {
+    ...record,
+    collaborationEvents: [
+      {
+        id: createActivityId(),
+        actor,
+        action,
+        summary,
+        at,
+      },
+      ...(record.collaborationEvents ?? []),
+    ].slice(0, 24),
+  };
+}
+
+export function completeOrderWork(record: OrderWorkRecord, actor: WorkCompletionActor): OrderWorkRecord {
+  const now = new Date().toISOString();
+  const summary = actor === 'auto' ? '双方确认超过 24 小时，平台自动确认完成并结算托管尾款。' : '创作者确认完成订单，平台结算托管尾款给摄影师。';
+  return normalizeOrderWorkRecord(
+    appendOrderWorkActivity(
+      {
+        ...record,
+        orderCompletedAt: now,
+        orderCompletedBy: actor,
+        previewMode: 'original_released',
+        deliveryStatus: 'released',
+        updatedAt: now,
+      },
+      actor === 'auto' ? 'system' : actor,
+      'completed',
+      summary,
+      now,
+    ),
+  );
+}
+
+export function shouldAutoCompleteOrderWork(record: OrderWorkRecord, now = Date.now()) {
+  if (!isOrderWorkConfirmed(record) || record.orderCompletedAt) return false;
+  const confirmedAt = record.bothConfirmedAt ? Date.parse(record.bothConfirmedAt) : Number.NaN;
+  if (!Number.isFinite(confirmedAt)) return false;
+  return now - confirmedAt >= 24 * 60 * 60 * 1000;
 }
 
 export function getOrderWorkOriginalUrls(record: OrderWorkRecord) {
@@ -115,7 +187,9 @@ export function normalizeOrderWorkRecord(record: OrderWorkRecord): OrderWorkReco
   const originalUrls = record.originalUrls?.length ? record.originalUrls : record.imageUrls;
   const previewUrls = record.previewUrls?.length ? record.previewUrls : originalUrls;
   const confirmed = isOrderWorkConfirmed(record);
+  const completed = Boolean(record.orderCompletedAt) || record.deliveryStatus === 'released';
   const activityCategory = record.activityCategory || normalizeActivityCategory(`${record.title} ${record.caption}`);
+  const bothConfirmedAt = confirmed ? record.bothConfirmedAt ?? record.updatedAt ?? new Date().toISOString() : undefined;
 
   return {
     ...record,
@@ -127,9 +201,15 @@ export function normalizeOrderWorkRecord(record: OrderWorkRecord): OrderWorkReco
     activityCategory,
     durationMinutes: record.durationMinutes || 120,
     budgetCents: record.budgetCents || 0,
-    previewMode: confirmed ? 'original_released' : record.previewMode ?? 'low_res_watermarked',
-    deliveryStatus: confirmed ? 'confirmed' : record.deliveryStatus ?? (previewUrls.length ? 'preview_ready' : 'draft'),
+    bothConfirmedAt,
+    collaborationEvents: record.collaborationEvents ?? [],
+    previewMode: completed ? 'original_released' : 'low_res_watermarked',
+    deliveryStatus: completed ? 'released' : confirmed ? 'confirmed' : record.deliveryStatus ?? (previewUrls.length ? 'preview_ready' : 'draft'),
   };
+}
+
+function createActivityId() {
+  return `work-event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function orderWorkToFeedPost(record: OrderWorkRecord, order: AppOrder, seedPost: FeedPost): FeedPost {
