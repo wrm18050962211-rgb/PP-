@@ -67,10 +67,11 @@ export function RegisterPage() {
     }
   }
 
-  function submit() {
+  async function submit() {
     try {
       registerWithPhone({ phone, code, role });
-      navigate('/auth/login', { replace: true });
+      await loginWithPhoneCode(phone, code, role);
+      navigate(getRoleOnboardingPath(role), { replace: true });
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     }
@@ -239,6 +240,10 @@ function MissingRoleRegisterDialog({
       </section>
     </div>
   );
+}
+
+function getRoleOnboardingPath(role: PublicRole) {
+  return role === 'companion' ? '/companion/onboarding' : '/consumer/onboarding';
 }
 
 export function AccountSettingsPage() {

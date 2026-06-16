@@ -90,7 +90,7 @@ export default function App() {
         <Route
           path="onboarding"
           element={
-            <RequireRole role="companion" fallback="/consumer/mine">
+            <RequireRole role="consumer" fallback="/companion/mine">
               <CreatorOnboarding />
             </RequireRole>
           }

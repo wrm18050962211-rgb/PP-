@@ -281,9 +281,31 @@ function localSession(role: UserRole): AuthSession {
 
 function findLoginAccount(phone: string): AuthAccount | null {
   const testIdentities = findTestAccountIdentitiesByPhone(phone);
-  if (testIdentities.length) return mapTestIdentities(testIdentities);
   const account = readAccount();
+  if (testIdentities.length) {
+    const testAccount = mapTestIdentities(testIdentities);
+    return account?.phone === phone ? mergeLoginAccounts(testAccount, account) : testAccount;
+  }
   return account?.phone === phone ? account : null;
+}
+
+function mergeLoginAccounts(testAccount: AuthAccount, localAccount: AuthAccount): AuthAccount {
+  return {
+    ...testAccount,
+    role: localAccount.role ?? testAccount.role,
+    roles: Array.from(new Set([...testAccount.roles, ...localAccount.roles, ...(localAccount.completedRoleRegistrations ?? [])])),
+    completedRoleRegistrations: Array.from(new Set([...(testAccount.completedRoleRegistrations ?? []), ...(localAccount.completedRoleRegistrations ?? [])])),
+    nickname: localAccount.nickname || testAccount.nickname,
+    creatorName: localAccount.creatorName ?? testAccount.creatorName,
+    photographerName: localAccount.photographerName ?? testAccount.photographerName,
+    creatorId: localAccount.creatorId ?? testAccount.creatorId,
+    companionId: localAccount.companionId ?? testAccount.companionId,
+    creatorAvatarUrl: localAccount.creatorAvatarUrl ?? testAccount.creatorAvatarUrl,
+    photographerAvatarUrl: localAccount.photographerAvatarUrl ?? testAccount.photographerAvatarUrl,
+    creatorPostId: localAccount.creatorPostId ?? testAccount.creatorPostId,
+    photographerPostId: localAccount.photographerPostId ?? testAccount.photographerPostId,
+    registeredAt: localAccount.registeredAt || testAccount.registeredAt,
+  };
 }
 
 function mapTestIdentities(identities: TestAccountIdentity[]): AuthAccount {
@@ -345,7 +367,7 @@ function canUseRole(account: AuthAccount | null, role: UserRole) {
 
 function getUsableRoles(account: AuthAccount): PublicRole[] {
   const testRoles = findTestAccountIdentitiesByPhone(account.phone).map((identity) => identity.role);
-  if (testRoles.length) return Array.from(new Set([...testRoles, ...(account.completedRoleRegistrations ?? [])]));
+  if (testRoles.length) return Array.from(new Set([...testRoles, ...account.roles, ...(account.completedRoleRegistrations ?? [])]));
   return account.roles;
 }
 
