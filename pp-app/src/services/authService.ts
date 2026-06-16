@@ -163,12 +163,13 @@ export function registerWithPhone(input: RegisterInput) {
 
 export async function loginWithPhoneCode(phone: string, code: string, role?: PublicRole) {
   const normalizedPhone = normalizePhone(phone);
+  if (!isValidPhone(normalizedPhone)) throw new Error('请输入 11 位手机号');
   const account = findLoginAccount(normalizedPhone);
   if (!account) throw new MissingRoleRegistrationError(role ?? 'consumer');
-  validatePhoneCode(normalizedPhone, code);
   const availableRoles = getUsableRoles(account);
   const loginRole = role ?? account.role;
   if (!availableRoles.includes(loginRole)) throw new MissingRoleRegistrationError(loginRole);
+  validatePhoneCode(normalizedPhone, code);
 
   const nextAccount = { ...account, role: loginRole };
   if (typeof localStorage !== 'undefined') {

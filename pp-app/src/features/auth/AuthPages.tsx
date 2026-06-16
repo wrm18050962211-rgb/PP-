@@ -122,6 +122,7 @@ export function LoginPage() {
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
+  const [missingRolePrompt, setMissingRolePrompt] = useState<{ role: PublicRole; phone: string } | null>(null);
 
   function sendCode() {
     try {
@@ -139,7 +140,8 @@ export function LoginPage() {
       navigate(getPostAuthHome(session.role), { replace: true });
     } catch (nextError) {
       if (nextError instanceof MissingRoleRegistrationError) {
-        navigate('/auth/register', { replace: true, state: { role: nextError.role, phone } });
+        setError('');
+        setMissingRolePrompt({ role: nextError.role, phone });
         return;
       }
       setError(getErrorMessage(nextError));
@@ -168,7 +170,10 @@ export function LoginPage() {
               className={`min-h-24 rounded-[10px] px-3 py-3 text-left ring-1 transition ${
                 active ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-white text-zinc-700 ring-zinc-200'
               }`}
-              onClick={() => setRole(item.role)}
+              onClick={() => {
+                setRole(item.role);
+                setMissingRolePrompt(null);
+              }}
             >
               <Icon size={19} />
               <span className="mt-2 block text-base font-black">{item.title}</span>
@@ -180,14 +185,59 @@ export function LoginPage() {
 
       <PhoneCodeForm phone={phone} code={code} onPhoneChange={setPhone} onCodeChange={setCode} onSendCode={sendCode} demoCode={demoCode} />
       {error ? <ErrorLine text={error} /> : null}
+      {missingRolePrompt ? (
+        <MissingRoleRegisterDialog
+          role={missingRolePrompt.role}
+          phone={missingRolePrompt.phone}
+          onClose={() => setMissingRolePrompt(null)}
+          onRegister={() => {
+            navigate('/auth/register', {
+              state: { role: missingRolePrompt.role, phone: missingRolePrompt.phone },
+            });
+          }}
+        />
+      ) : null}
 
       <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={() => void submit()}>
         登录
       </button>
-      <Link className="mt-4 block text-center text-sm font-bold text-zinc-500" to="/auth/register">
+      <Link className="mt-4 block text-center text-sm font-bold text-zinc-500" to="/auth/register" state={{ role, phone }}>
         注册
       </Link>
     </AuthFrame>
+  );
+}
+
+function MissingRoleRegisterDialog({
+  role,
+  phone,
+  onClose,
+  onRegister,
+}: {
+  role: PublicRole;
+  phone: string;
+  onClose: () => void;
+  onRegister: () => void;
+}) {
+  const roleLabel = role === 'companion' ? '摄影师' : '创作者';
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 px-5">
+      <section className="w-full max-w-sm rounded-[18px] bg-white p-5 text-zinc-950 shadow-2xl">
+        <p className="text-xs font-black text-[#e85d75]">该身份尚未注册</p>
+        <h2 className="mt-2 text-xl font-black">注册成为{roleLabel}？</h2>
+        <p className="mt-2 text-sm font-semibold leading-6 text-zinc-500">
+          手机号 {phone || '当前手机号'} 还没有{roleLabel}身份。你可以关闭并留在登录页，或进入{roleLabel}注册流程。
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button type="button" className="h-11 rounded-full bg-zinc-100 text-sm font-black text-zinc-600" onClick={onClose}>
+            关闭
+          </button>
+          <button type="button" className="h-11 rounded-full bg-zinc-950 text-sm font-black text-white" onClick={onRegister}>
+            注册
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
