@@ -1,5 +1,5 @@
 import { Camera, MapPin, Sparkles } from 'lucide-react';
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getPostTitle } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
@@ -31,6 +31,57 @@ type FeedSection = {
 
 export const PhotoFeed = memo(function PhotoFeed({ posts }: { posts: FeedPost[] }) {
   const sections = useMemo(() => createDiscoverySections(posts), [posts]);
+  const feedRef = useRef<HTMLDivElement>(null);
+  const [activeLivePostId, setActiveLivePostId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let frameId = 0;
+
+    function updateActiveLivePost() {
+      frameId = 0;
+      const feedElement = feedRef.current;
+      if (!feedElement) return;
+
+      const liveCards = Array.from(feedElement.querySelectorAll<HTMLElement>('[data-feed-live-card="1"]'));
+      const viewportCenterY = window.innerHeight / 2;
+      const viewportCenterX = window.innerWidth / 2;
+      let closest: { id: string; score: number } | null = null;
+
+      liveCards.forEach((card) => {
+        const rect = card.getBoundingClientRect();
+        const visibleHeight = Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0);
+        const visibleWidth = Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0);
+        if (visibleHeight <= 0 || visibleWidth <= 0) return;
+
+        const cardCenterY = rect.top + rect.height / 2;
+        const cardCenterX = rect.left + rect.width / 2;
+        const verticalDistance = Math.abs(cardCenterY - viewportCenterY);
+        const horizontalDistance = Math.abs(cardCenterX - viewportCenterX);
+        const visibilityPenalty = 1 - Math.min(1, visibleHeight / Math.max(rect.height, 1));
+        const score = verticalDistance + horizontalDistance * 0.22 + visibilityPenalty * 320;
+        const id = card.dataset.feedPostId;
+        if (!id) return;
+        if (!closest || score < closest.score) closest = { id, score };
+      });
+
+      setActiveLivePostId((current) => (current === closest?.id ? current : closest?.id ?? null));
+    }
+
+    function scheduleUpdate() {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(updateActiveLivePost);
+    }
+
+    scheduleUpdate();
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate);
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      window.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
+    };
+  }, [posts]);
 
   if (posts.length === 0) {
     return (
@@ -44,7 +95,7 @@ export const PhotoFeed = memo(function PhotoFeed({ posts }: { posts: FeedPost[] 
   }
 
   return (
-    <section className="bg-[#050505] px-[1px] pb-24 pt-[1px]">
+    <section ref={feedRef} className="bg-[#050505] px-[1px] pb-24 pt-[1px]">
       <div className="space-y-[1px]">
         {sections.map((section) => {
           const hasColumns = section.columns.some((column) => column.length > 0);
@@ -54,14 +105,14 @@ export const PhotoFeed = memo(function PhotoFeed({ posts }: { posts: FeedPost[] 
                 <div className="grid grid-cols-2 gap-[1px]">
                   {section.columns.map((column, columnIndex) => (
                     <div key={`${section.id}-${columnIndex}`} className="flex h-full flex-col gap-[1px]">
-                      {column.map((item) => renderColumnItem(item, item.type === 'post' && item.index < 4))}
+                      {column.map((item) => renderColumnItem(item, item.type === 'post' && item.index < 4, activeLivePostId))}
                     </div>
                   ))}
                 </div>
               ) : null}
 
               {section.heroes.map((hero) => (
-                <PhotoCard key={hero.post.id} post={hero.post} priority={hero.index < 4} variant="wide" className="w-full" />
+                <PhotoCard key={hero.post.id} post={hero.post} priority={hero.index < 4} variant="wide" className="w-full" playLive={activeLivePostId === hero.post.id} />
               ))}
             </div>
           );
@@ -71,7 +122,7 @@ export const PhotoFeed = memo(function PhotoFeed({ posts }: { posts: FeedPost[] 
   );
 });
 
-function renderColumnItem(item: FeedColumnItem, priority: boolean) {
+function renderColumnItem(item: FeedColumnItem, priority: boolean, activeLivePostId: string | null) {
   if (item.type === 'recommendation') {
     return <RecommendationCard key={item.tile.id} tile={item.tile} />;
   }
@@ -81,7 +132,7 @@ function renderColumnItem(item: FeedColumnItem, priority: boolean) {
   }
 
   const layout = getDiscoveryLayoutRule(item.post, item.index);
-  return <PhotoCard key={item.post.id} post={item.post} priority={priority} variant={layout.variant} className="w-full" />;
+  return <PhotoCard key={item.post.id} post={item.post} priority={priority} variant={layout.variant} className="w-full" playLive={activeLivePostId === item.post.id} />;
 }
 
 function createDiscoverySections(posts: FeedPost[]): FeedSection[] {

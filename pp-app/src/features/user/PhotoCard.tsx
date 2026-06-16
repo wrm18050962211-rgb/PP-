@@ -1,6 +1,6 @@
 import { Heart, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { LivePhotoMedia } from '../../components/LivePhotoMedia';
+import { isLiveMedia, LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { listFeedPosts } from '../../services/feedService';
 import { getPostLikeCount } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
@@ -27,26 +27,30 @@ export function PhotoCard({
   variant = 'portrait',
   className = '',
   postHref,
+  playLive = false,
 }: {
   post: FeedPost;
   priority?: boolean;
   variant?: PhotoCardVariant;
   className?: string;
   postHref?: string;
+  playLive?: boolean;
 }) {
   const likeCount = getPostLikeCount(post.id, listFeedPosts());
   const href = postHref ?? `/consumer/post/${post.id}`;
+  const cover = post.images[0];
+  const liveCover = isLiveMedia(cover);
 
   return (
-    <article className={`overflow-hidden bg-[#050505] ${className}`}>
+    <article className={`overflow-hidden bg-[#050505] ${className}`} data-feed-live-card={liveCover ? '1' : undefined} data-feed-post-id={post.id}>
       <Link to={href} className="block" aria-label={`查看${post.location}作品详情`}>
         <div className={`relative overflow-hidden bg-zinc-950 ${aspectByVariant[variant]}`}>
           <LivePhotoMedia
-            media={post.images[0]}
+            media={cover}
             alt={post.location}
             loading={priority ? 'eager' : 'lazy'}
             fallbackSrc={getFallbackImage(post.id, variant)}
-            playLive={false}
+            playLive={playLive && liveCover}
             mediaClassName="brightness-[0.94] contrast-[1.14] saturate-[0.98] transition duration-500 active:scale-[1.03]"
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-1 bg-gradient-to-t from-black/72 via-black/18 to-transparent px-1.5 pb-1.5 pt-7">
