@@ -1,11 +1,13 @@
 import { CalendarDays, Clock3, ImagePlus, LocateFixed, MapPin, Send, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { AuthSession, AvailabilitySlot, FeedPost } from '../../types/api';
-import { applyBookingSettingsToCompanion } from '../../data/bookingSettings';
+import { applyBookingSettingsToCompanion, defaultBookingSettings } from '../../data/bookingSettings';
 import { createConsultation, isSelfConsultation, type ConsultationRequestCard } from '../../services/consultationService';
 import { readCompanionBookingSettings } from '../../services/companionBookingSettingsService';
 import { createDefaultPackageSettings, formatCents, type CompanionPackageSettings } from '../../services/companionPackageService';
 import { requestConsumerLocation } from '../../services/locationService';
+import { listLedgerOrdersForCompanion } from '../../services/virtualOrderLedger';
+import type { AppOrder } from '../../types/api';
 
 export function ConsultationRequestModal({
   post,
@@ -24,9 +26,17 @@ export function ConsultationRequestModal({
 }) {
   const settings = packageSettings ?? createDefaultPackageSettings(post.companion);
   const initialPackage = settings.packages.find((pkg) => pkg.id === initialPackageId) ?? settings.packages[0];
-  const bookingSettings = useMemo(() => readCompanionBookingSettings(post.companion.id), [post.companion.id]);
-  const bookableCompanion = useMemo(() => applyBookingSettingsToCompanion(post.companion, bookingSettings ?? undefined), [bookingSettings, post.companion]);
-  const initialSlot = useMemo(() => getFirstAvailableConsultationSlot(bookableCompanion.slots), [bookableCompanion.slots]);
+  const bookingSettings = useMemo(
+    () => readCompanionBookingSettings(post.companion.id) ?? { ...defaultBookingSettings, companionId: post.companion.id },
+    [post.companion.id],
+  );
+  const bookableCompanion = useMemo(() => applyBookingSettingsToCompanion(post.companion, bookingSettings), [bookingSettings, post.companion]);
+  const companionOrders = useMemo(() => listLedgerOrdersForCompanion(post.companion.id), [post.companion.id]);
+  const consultationSlots = useMemo(
+    () => markOccupiedSlots(getFutureConsultationSlots(bookableCompanion.slots), companionOrders),
+    [bookableCompanion.slots, companionOrders],
+  );
+  const initialSlot = useMemo(() => getFirstAvailableConsultationSlot(consultationSlots), [consultationSlots]);
   const initialSlotSelection = getSlotSelection(initialSlot);
   const placeOptions = useMemo(() => buildPlaceOptions(post), [post]);
   const [card, setCard] = useState<ConsultationRequestCard>({
@@ -65,7 +75,7 @@ export function ConsultationRequestModal({
   const [locationStatus, setLocationStatus] = useState('');
   const selfConsultation = isSelfConsultation(post, session);
   const [submitError, setSubmitError] = useState('');
-  const selectedSlot = bookableCompanion.slots.find((slot) => slot.id === selectedSlotId);
+  const selectedSlot = consultationSlots.find((slot) => slot.id === selectedSlotId);
   const canSubmit = Boolean(card.date.trim() && card.timeRange.trim() && card.place.trim() && selectedSlot?.status === 'available' && !selfConsultation);
   const selectedPackage = settings.packages.find((item) => item.id === card.packageId) ?? settings.packages[0];
   const selectedBalanceCents = Math.max(0, selectedPackage.basePriceCents - selectedPackage.depositCents);
@@ -124,8 +134,8 @@ export function ConsultationRequestModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/62 px-0 sm:px-3" role="dialog" aria-modal="true">
-      <section className="max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-t-[22px] border border-zinc-200 bg-[#f7f7f5] px-3 pb-6 pt-3 text-zinc-950 shadow-[0_-22px_70px_rgba(0,0,0,0.28)] sm:rounded-[22px]">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-black/62 px-0 sm:px-3" role="dialog" aria-modal="true">
+      <section className="max-h-[94dvh] w-full max-w-md overflow-x-hidden overflow-y-auto rounded-t-[22px] border border-zinc-200 bg-[#f7f7f5] px-3 pb-6 pt-3 text-zinc-950 shadow-[0_-22px_70px_rgba(0,0,0,0.28)] sm:rounded-[22px]">
         <div className="sticky top-0 z-10 -mx-3 flex items-center justify-between bg-[#f7f7f5]/95 px-3 pb-3 pt-1 backdrop-blur-xl">
           <div className="min-w-0">
             <p className="text-xs font-black text-rose-500">咨询档期/报价</p>
@@ -138,7 +148,7 @@ export function ConsultationRequestModal({
 
         <div className="grid gap-3 pt-3">
           <ConsultationAvailabilityPicker
-            slots={bookableCompanion.slots}
+            slots={consultationSlots}
             visibleDate={visibleDate}
             selectedSlotId={selectedSlotId}
             onDateSelect={setVisibleDate}
@@ -149,14 +159,14 @@ export function ConsultationRequestModal({
               {placeOptions.map((place) => <option key={place.label} value={place.label}>{place.label}</option>)}
             </select>
           </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <button className="flex h-10 items-center justify-center gap-2 rounded-full bg-white text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => void useCurrentLocation()} type="button">
+          <div className="grid min-w-0 grid-cols-2 gap-2">
+            <button className="flex h-10 min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full bg-white px-2 text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => void useCurrentLocation()} type="button">
               <LocateFixed size={15} />
-              使用当前位置
+              <span className="min-w-0 truncate">使用当前位置</span>
             </button>
-            <button className="flex h-10 items-center justify-center gap-2 rounded-full bg-white text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => setMapOpen((value) => !value)} type="button">
+            <button className="flex h-10 min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full bg-white px-2 text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => setMapOpen((value) => !value)} type="button">
               <MapPin size={15} />
-              地图选择
+              <span className="min-w-0 truncate">地图选择</span>
             </button>
           </div>
           {locationStatus ? <p className="rounded-[8px] bg-white px-3 py-2 text-xs font-bold leading-5 text-zinc-400 ring-1 ring-zinc-100">{locationStatus}</p> : null}
@@ -271,14 +281,14 @@ function ConsultationAvailabilityPicker({
 
       {dateOptions.length ? (
         <>
-          <div className="scrollbar-none -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
+          <div className="mt-3 grid min-w-0 grid-cols-3 gap-2">
             {dateOptions.map((date) => {
               const active = date.value === fallbackDate;
               const disabled = date.availableCount === 0;
               return (
                 <button
                   key={date.value}
-                  className={`grid min-h-16 min-w-[72px] place-items-center rounded-[14px] px-3 py-2 text-center ring-1 transition ${
+                  className={`grid min-h-16 min-w-0 place-items-center rounded-[14px] px-2 py-2 text-center ring-1 transition ${
                     active
                       ? 'bg-zinc-950 text-white ring-zinc-950'
                       : disabled
@@ -505,6 +515,35 @@ type PlaceOption = {
 
 function getFirstAvailableConsultationSlot(slots: AvailabilitySlot[]) {
   return slots.find((slot) => slot.status === 'available') ?? slots[0] ?? null;
+}
+
+function getFutureConsultationSlots(slots: AvailabilitySlot[]) {
+  const now = Date.now();
+  return slots
+    .filter((slot) => {
+      const end = new Date(slot.endAt).getTime();
+      return Number.isFinite(end) && end > now;
+    })
+    .sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime());
+}
+
+function markOccupiedSlots(slots: AvailabilitySlot[], orders: AppOrder[]) {
+  const occupiedOrders = orders.filter((order) => ['confirmed', 'in_service'].includes(order.status) && order.startAt && order.endAt);
+  if (!occupiedOrders.length) return slots;
+
+  return slots.map((slot) => {
+    const occupied = occupiedOrders.some((order) => isTimeOverlapped(slot.startAt, slot.endAt, order.startAt ?? '', order.endAt ?? ''));
+    return occupied ? { ...slot, status: 'booked' as const } : slot;
+  });
+}
+
+function isTimeOverlapped(leftStart: string, leftEnd: string, rightStart: string, rightEnd: string) {
+  const leftStartTime = new Date(leftStart).getTime();
+  const leftEndTime = new Date(leftEnd).getTime();
+  const rightStartTime = new Date(rightStart).getTime();
+  const rightEndTime = new Date(rightEnd).getTime();
+  if (![leftStartTime, leftEndTime, rightStartTime, rightEndTime].every(Number.isFinite)) return false;
+  return leftStartTime < rightEndTime && leftEndTime > rightStartTime;
 }
 
 function getSlotSelection(slot: AvailabilitySlot | null) {

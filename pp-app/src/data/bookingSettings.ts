@@ -82,13 +82,18 @@ export function applyBookingSettingsToCompanion(companion: Companion, settings?:
 export function buildAvailabilitySlots(settings: CompanionBookingSettings): AvailabilitySlot[] {
   if (!settings.temporaryAccepting) return [];
 
-  const dateSet = new Set(settings.availableDates);
+  const today = new Date();
+  const todayValue = toDateInputValue(today);
+  const dateSet = new Set<string>();
   const weekOverrides = settings.weekOverrides ?? {};
+  const applyMode = settings.scheduleApplyMode ?? (settings.repeatEnabled ? 'weekly' : 'single_week');
 
-  if (settings.repeatEnabled) {
+  if (settings.repeatEnabled || applyMode === 'weekly') {
     getNextDates(14)
       .filter((date) => settings.repeatWeekdays.includes(date.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6))
       .forEach((date) => dateSet.add(toDateInputValue(date)));
+  } else {
+    settings.availableDates.filter((date) => date >= todayValue).forEach((date) => dateSet.add(date));
   }
 
   Object.keys(weekOverrides).forEach((weekStart) => {
@@ -99,22 +104,25 @@ export function buildAvailabilitySlots(settings: CompanionBookingSettings): Avai
       const dayOffset = Number(weekday) === 0 ? 6 : Number(weekday) - 1;
       const date = new Date(weekStartDate);
       date.setDate(weekStartDate.getDate() + dayOffset);
-      dateSet.add(toDateInputValue(date));
+      const dateValue = toDateInputValue(date);
+      if (dateValue >= todayValue) dateSet.add(dateValue);
     });
   });
 
   return Array.from(dateSet)
     .sort()
+    .filter((date) => date >= todayValue)
     .flatMap((date) => {
       const weekday = new Date(`${date}T00:00:00+08:00`).getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6;
       const weekStart = toDateInputValue(getWeekStart(new Date(`${date}T00:00:00+08:00`)));
       const dateOverrideRanges = weekOverrides[weekStart]?.[weekday];
       const ranges = dateOverrideRanges ?? settings.weeklyTimeRanges?.[weekday] ?? (settings.repeatWeekdays.includes(weekday) ? settings.timeRanges : []);
-      return ranges.map((range) => {
+      return ranges.flatMap((range) => {
         const startAt = new Date(`${date}T${range.startTime}:00+08:00`).toISOString();
         const endAt = new Date(`${date}T${range.endTime}:00+08:00`).toISOString();
+        if (new Date(endAt).getTime() <= today.getTime()) return [];
         const dateLabel = formatDateLabel(date);
-        return {
+        return [{
           id: `settings-${date}-${range.id}`,
           label: `${dateLabel} ${range.startTime}`,
           dateLabel,
@@ -122,7 +130,7 @@ export function buildAvailabilitySlots(settings: CompanionBookingSettings): Avai
           startAt,
           endAt,
           status: 'available' as const,
-        };
+        }];
       });
     });
 }

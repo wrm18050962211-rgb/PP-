@@ -31,6 +31,11 @@ export function listLedgerOrdersForSession(session: AuthSession | null): AppOrde
   return orders.filter((order) => order.creatorId === session.user.id || order.creatorPhone === session.user.phone);
 }
 
+export function listLedgerOrdersForCompanion(companionId?: string | null): AppOrder[] {
+  if (!companionId) return [];
+  return readLedgerOrders().filter((order) => order.companionId === companionId);
+}
+
 export function findLedgerOrder(orderId?: string) {
   if (!orderId) return null;
   return readLedgerOrders().find((order) => order.id === orderId) ?? null;
