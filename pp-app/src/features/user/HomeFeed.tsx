@@ -679,18 +679,22 @@ function SearchOverlay({
             <h2 className="text-base font-black text-white/86">猜你想搜</h2>
             <span className="text-xs font-bold text-white/26">按风格找作品</span>
           </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {suggestionTiles.map(({ label, post }) => (
-              <button key={label} className="relative h-20 w-36 shrink-0 overflow-hidden rounded-[3px] bg-white/[0.06] text-left" onClick={() => onPick(label)}>
-                {post ? <LivePhotoMedia className="absolute inset-0" media={post.images[0]} alt={label} playLive={false} mediaClassName="opacity-75" /> : null}
-                <span className="absolute inset-0 bg-gradient-to-t from-black/76 via-black/24 to-black/8" />
-                <span className="absolute bottom-2 left-2 right-2 truncate text-sm font-black text-white/78">{label}</span>
+          <div className="grid grid-cols-4 gap-2">
+            {suggestionTiles.slice(0, 8).map(({ label, post }) => (
+              <button
+                key={label}
+                className="relative h-14 min-w-0 overflow-hidden rounded-[10px] bg-white/[0.08] px-1.5 text-center ring-1 ring-white/8"
+                onClick={() => onPick(label)}
+              >
+                {post ? <LivePhotoMedia className="absolute inset-0" media={post.images[0]} alt={label} playLive={false} mediaClassName="opacity-35" /> : null}
+                <span className="absolute inset-0 bg-black/42" />
+                <span className="relative flex h-full items-center justify-center text-[11px] font-black leading-tight text-white/86">{label}</span>
               </button>
             ))}
           </div>
         </section>
 
-        <section className="mt-3 grid grid-cols-3 gap-px">
+        <section className="mt-9 grid grid-cols-3 gap-px">
           {previewPosts.map((post, index) => (
             <Link key={post.id} to={`/consumer/post/${post.id}`} className="group relative aspect-square overflow-hidden bg-white/[0.04]" aria-label={`查看${getPostTitle(post)}`}>
               <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading={index < 9 ? 'eager' : 'lazy'} playLive={false} mediaClassName="transition duration-300 group-active:scale-[0.98]" />
