@@ -4,6 +4,7 @@ export type WorkActor = 'creator' | 'photographer';
 export type WorkCompletionActor = WorkActor | 'auto';
 export type WorkPreviewMode = 'low_res_watermarked' | 'original_released';
 export type WorkDeliveryStatus = 'draft' | 'preview_ready' | 'confirmed' | 'disputed' | 'released';
+export type WorkCollaborationStage = 'photographer_delivery' | 'creator_review' | 'photographer_review' | 'locked';
 export type OrderWorkActivity = {
   id: string;
   actor: WorkActor | 'system';
@@ -39,6 +40,7 @@ export type OrderWorkRecord = {
   publishToPhotographerAt?: string;
   changeRequestBy?: WorkActor;
   changeAccepted: boolean;
+  collaborationStage?: WorkCollaborationStage;
   collaborationEvents?: OrderWorkActivity[];
   lastEditedBy?: WorkActor;
   lastEditedAt?: string;
@@ -62,7 +64,7 @@ export function saveOrderWorkRecord(record: OrderWorkRecord) {
 }
 
 export function createOrderWorkRecord(order: AppOrder, seedPost?: FeedPost): OrderWorkRecord {
-  const seedUrls = seedPost?.images.slice(0, 4).map((image) => image.url) ?? [];
+  const seedUrls: string[] = [];
   const activityCategory = seedPost?.activityCategory ?? normalizeActivityCategory(order.activityName ?? order.title);
   const createdAt = new Date().toISOString();
 
@@ -86,6 +88,7 @@ export function createOrderWorkRecord(order: AppOrder, seedPost?: FeedPost): Ord
     publishToCreator: false,
     publishToPhotographer: false,
     changeAccepted: true,
+    collaborationStage: 'photographer_delivery',
     collaborationEvents: [
       {
         id: createActivityId(),
@@ -108,7 +111,39 @@ export function isOriginalReleased(record: OrderWorkRecord) {
 }
 
 export function canEditOrderWork(record: OrderWorkRecord) {
-  return !isOrderWorkConfirmed(record) || Boolean(record.changeRequestBy && record.changeAccepted);
+  return getOrderWorkStage(record) !== 'locked' && !record.orderCompletedAt;
+}
+
+export function canActorEditOrderWork(record: OrderWorkRecord, actor: WorkActor) {
+  if (!canEditOrderWork(record)) return false;
+  if (actor === 'photographer') return true;
+  const stage = getOrderWorkStage(record);
+  return stage === 'creator_review' || stage === 'photographer_review' || record.lastEditedBy === 'creator';
+}
+
+export function canActorConfirmOrderWork(record: OrderWorkRecord, actor: WorkActor, requiredImageCount?: number | null) {
+  if (record.orderCompletedAt || record.deliveryStatus === 'disputed' || getOrderWorkStage(record) === 'locked') return false;
+  if (!hasDeliveredRequiredWork(record, requiredImageCount)) return false;
+  if (actor === 'photographer') {
+    if (record.photographerConfirmed) return false;
+    return record.lastEditedBy === 'creator' ? record.creatorConfirmed : true;
+  }
+  if (record.creatorConfirmed) return false;
+  return record.lastEditedBy === 'creator' ? true : record.photographerConfirmed;
+}
+
+export function hasDeliveredRequiredWork(record: OrderWorkRecord, requiredImageCount?: number | null) {
+  const count = getOrderWorkOriginalUrls(record).length;
+  return requiredImageCount == null ? count > 0 : count >= requiredImageCount;
+}
+
+export function getOrderWorkStage(record: OrderWorkRecord): WorkCollaborationStage {
+  if (isOrderWorkConfirmed(record)) return 'locked';
+  if (record.lastEditedBy === 'creator') return record.creatorConfirmed ? 'photographer_review' : 'creator_review';
+  if (record.lastEditedBy === 'photographer') return record.photographerConfirmed ? 'creator_review' : 'photographer_delivery';
+  if (record.photographerConfirmed && !record.creatorConfirmed) return 'creator_review';
+  if (record.creatorConfirmed && !record.photographerConfirmed) return 'photographer_review';
+  return record.collaborationStage && record.collaborationStage !== 'locked' ? record.collaborationStage : 'photographer_delivery';
 }
 
 export function appendOrderWorkActivity(record: OrderWorkRecord, actor: WorkActor | 'system', action: string, summary: string, at = new Date().toISOString()): OrderWorkRecord {
@@ -138,6 +173,7 @@ export function completeOrderWork(record: OrderWorkRecord, actor: WorkCompletion
         orderCompletedBy: actor,
         previewMode: 'original_released',
         deliveryStatus: 'released',
+        collaborationStage: 'locked',
         updatedAt: now,
       },
       actor === 'auto' ? 'system' : actor,
@@ -202,6 +238,7 @@ export function normalizeOrderWorkRecord(record: OrderWorkRecord): OrderWorkReco
     durationMinutes: record.durationMinutes || 120,
     budgetCents: record.budgetCents || 0,
     bothConfirmedAt,
+    collaborationStage: confirmed ? 'locked' : getOrderWorkStage(record),
     collaborationEvents: record.collaborationEvents ?? [],
     previewMode: completed ? 'original_released' : 'low_res_watermarked',
     deliveryStatus: completed ? 'released' : confirmed ? 'confirmed' : record.deliveryStatus ?? (previewUrls.length ? 'preview_ready' : 'draft'),

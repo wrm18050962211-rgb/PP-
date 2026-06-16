@@ -29,12 +29,15 @@ import {
 import { listFeedPosts } from '../../services/feedService';
 import {
   appendOrderWorkActivity,
-  canEditOrderWork,
+  canActorConfirmOrderWork,
+  canActorEditOrderWork,
   completeOrderWork,
   createWatermarkText,
   createOrderWorkRecord,
   getOrderWorkDisplayUrls,
   getOrderWorkPreviewUrls,
+  getOrderWorkStage,
+  hasDeliveredRequiredWork,
   isOrderWorkConfirmed,
   isOriginalReleased,
   listOrderWorkRecords,
@@ -674,18 +677,20 @@ export function OrderWorkDialog({
   const [draft, setDraft] = useState<OrderWorkRecord>(() => record ?? createOrderWorkRecord(order, post));
   const [disputeReason, setDisputeReason] = useState('');
   const confirmed = isOrderWorkConfirmed(draft);
-  const editable = canEditOrderWork(draft);
-  const modificationPending = Boolean(draft.changeRequestBy && !draft.changeAccepted);
+  const stage = getOrderWorkStage(draft);
+  const editable = canActorEditOrderWork(draft, actor);
   const originalReleased = isOriginalReleased(draft);
   const previewUrls = getOrderWorkPreviewUrls(draft);
   const imageLimit = getOrderImageLimit(order);
+  const requiredImageCount = imageLimit.limit;
   const imageLimitText = imageLimit.limit === null ? '不限' : String(imageLimit.limit);
+  const deliveryReady = hasDeliveredRequiredWork(draft, requiredImageCount);
+  const canUploadOriginals = actor === 'photographer' && editable;
 
   const actorLabel = actor === 'creator' ? '创作者' : '摄影师';
   const canCompleteOrder = actor === 'creator' && confirmed && !draft.orderCompletedAt && order.settlementStatus !== 'settled';
-  const canConfirmAsCreator = actor === 'creator' && !modificationPending && !draft.orderCompletedAt && !(confirmed && draft.creatorConfirmed);
-  const canConfirmAsPhotographer = actor === 'photographer' && !modificationPending && !draft.orderCompletedAt && !(confirmed && draft.photographerConfirmed);
-  const canAcceptChange = Boolean(draft.changeRequestBy && draft.changeRequestBy !== actor && !draft.orderCompletedAt);
+  const canConfirmAsCreator = actor === 'creator' && canActorConfirmOrderWork(draft, 'creator', requiredImageCount);
+  const canConfirmAsPhotographer = actor === 'photographer' && canActorConfirmOrderWork(draft, 'photographer', requiredImageCount);
 
   function updateEditableDraft(patch: Partial<OrderWorkRecord>, summary = `${actorLabel}更新了成片信息`) {
     const now = new Date().toISOString();
@@ -705,6 +710,7 @@ export function OrderWorkDialog({
           publishToPhotographerAt: undefined,
           changeRequestBy: undefined,
           changeAccepted: true,
+          collaborationStage: actor === 'creator' ? 'creator_review' : 'photographer_delivery',
           lastEditedBy: actor,
           lastEditedAt: now,
           updatedAt: now,
@@ -718,7 +724,7 @@ export function OrderWorkDialog({
   }
 
   async function handleFiles(files: FileList | null) {
-    if (!files?.length) return;
+    if (!files?.length || !canUploadOriginals) return;
     const selectedFiles = Array.from(files).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'));
     const limitedFiles = imageLimit.limit === null ? selectedFiles : selectedFiles.slice(0, imageLimit.limit);
     const imageUrls = await readFilesAsDataUrls(limitedFiles);
@@ -737,11 +743,12 @@ export function OrderWorkDialog({
   }
 
   function confirm(targetActor: WorkActor) {
-    if (targetActor !== actor || modificationPending || draft.orderCompletedAt) return;
+    if (targetActor !== actor || !canActorConfirmOrderWork(draft, targetActor, requiredImageCount)) return;
     const now = new Date().toISOString();
     setDraft((current) => {
       const creatorConfirmed = targetActor === 'creator' ? true : current.creatorConfirmed;
       const photographerConfirmed = targetActor === 'photographer' ? true : current.photographerConfirmed;
+      const nextConfirmed = creatorConfirmed && photographerConfirmed;
       return appendOrderWorkActivity(
         {
           ...current,
@@ -749,7 +756,8 @@ export function OrderWorkDialog({
           photographerConfirmed,
           creatorConfirmedAt: targetActor === 'creator' ? now : current.creatorConfirmedAt,
           photographerConfirmedAt: targetActor === 'photographer' ? now : current.photographerConfirmedAt,
-          bothConfirmedAt: creatorConfirmed && photographerConfirmed ? current.bothConfirmedAt ?? now : undefined,
+          bothConfirmedAt: nextConfirmed ? current.bothConfirmedAt ?? now : undefined,
+          collaborationStage: nextConfirmed ? 'locked' : targetActor === 'photographer' ? 'creator_review' : 'photographer_review',
           changeRequestBy: undefined,
           changeAccepted: true,
           updatedAt: now,
@@ -760,52 +768,6 @@ export function OrderWorkDialog({
         now,
       );
     });
-  }
-
-  function requestChange(targetActor: WorkActor) {
-    if (targetActor !== actor || draft.orderCompletedAt) return;
-    const now = new Date().toISOString();
-    setDraft((current) =>
-      appendOrderWorkActivity(
-        {
-          ...current,
-          changeRequestBy: targetActor,
-          changeAccepted: false,
-          updatedAt: now,
-        },
-        targetActor,
-        'change_requested',
-        `${targetActor === 'creator' ? '创作者' : '摄影师'}请求重新修改已确认成片`,
-        now,
-      ),
-    );
-  }
-
-  function acceptChange() {
-    if (!canAcceptChange) return;
-    const now = new Date().toISOString();
-    setDraft((current) =>
-      appendOrderWorkActivity(
-        {
-          ...current,
-          creatorConfirmed: false,
-          photographerConfirmed: false,
-          creatorConfirmedAt: undefined,
-          photographerConfirmedAt: undefined,
-          bothConfirmedAt: undefined,
-          publishToCreator: false,
-          publishToPhotographer: false,
-          publishToCreatorAt: undefined,
-          publishToPhotographerAt: undefined,
-          changeAccepted: true,
-          updatedAt: now,
-        },
-        actor,
-        'change_accepted',
-        `${actorLabel}同意重新打开编辑`,
-        now,
-      ),
-    );
   }
 
   function buildSubmitRecord(recordToSave = draft) {
@@ -824,6 +786,7 @@ export function OrderWorkDialog({
       publishToCreator: nextConfirmed ? recordToSave.publishToCreator : false,
       publishToPhotographer: nextConfirmed ? recordToSave.publishToPhotographer : false,
       bothConfirmedAt: nextConfirmed ? recordToSave.bothConfirmedAt ?? new Date().toISOString() : undefined,
+      collaborationStage: nextConfirmed ? 'locked' : getOrderWorkStage(recordToSave),
       updatedAt: new Date().toISOString(),
     };
   }
@@ -884,6 +847,9 @@ export function OrderWorkDialog({
             <WorkStatusPill label="创作者确认" active={draft.creatorConfirmed} time={draft.creatorConfirmedAt} />
             <WorkStatusPill label="摄影师确认" active={draft.photographerConfirmed} time={draft.photographerConfirmedAt} />
           </div>
+          <p className="rounded-[10px] bg-zinc-50 px-3 py-2 text-[11px] font-semibold leading-5 text-zinc-500">
+            {getWorkStageDescription(stage, draft.lastEditedBy)}
+          </p>
           {confirmed ? (
             <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-[11px] font-semibold leading-5 text-emerald-700">
               双方已确认。创作者可以点击下方完成订单并结算尾款；若 24 小时未操作，平台会自动确认完成。
@@ -902,6 +868,13 @@ export function OrderWorkDialog({
             </div>
             <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-black text-zinc-400">{draft.imageUrls.length}/{imageLimitText}</span>
           </div>
+          {!deliveryReady ? (
+            <p className="rounded-[10px] bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-5 text-amber-800">
+              {imageLimit.limit === null
+                ? '摄影师需要先至少交付 1 张底片，之后才可确认当前版本。'
+                : `摄影师需要先交付约定 ${imageLimit.limit} 张底片，当前 ${draft.imageUrls.length} 张。`}
+            </p>
+          ) : null}
 
           <div className="grid grid-cols-3 gap-1">
             {previewUrls.map((url, index) => (
@@ -924,10 +897,10 @@ export function OrderWorkDialog({
             ) : null}
           </div>
 
-          <label className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-black ${editable ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
+          <label className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-black ${canUploadOriginals ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
             <UploadCloud size={17} />
-            选择上传照片/Live
-            <input className="hidden" type="file" accept="image/*,video/*" multiple disabled={!editable} onChange={(event) => void handleFiles(event.target.files)} />
+            {actor === 'photographer' ? '选择上传照片/Live' : '等待摄影师交付底片'}
+            <input className="hidden" type="file" accept="image/*,video/*" multiple disabled={!canUploadOriginals} onChange={(event) => void handleFiles(event.target.files)} />
           </label>
         </div>
 
@@ -1013,28 +986,6 @@ export function OrderWorkDialog({
           </div>
         </div>
 
-        {modificationPending ? (
-          <div className="rounded-[12px] bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-800">
-            {draft.changeRequestBy === 'creator' ? '创作者' : '摄影师'}已发起修改，需另一方确认后才能重新编辑。
-            <button
-              className={`mt-3 h-10 w-full rounded-full text-sm font-black ${
-                canAcceptChange ? 'bg-amber-900 text-white' : 'bg-white/70 text-amber-800 ring-1 ring-amber-200'
-              }`}
-              disabled={!canAcceptChange}
-              onClick={acceptChange}
-              type="button"
-            >
-              {canAcceptChange ? '确认开放修改' : '等待对方确认修改'}
-            </button>
-          </div>
-        ) : null}
-
-        {!editable && confirmed && !draft.orderCompletedAt ? (
-          <button className="h-10 w-full rounded-full bg-zinc-100 text-xs font-black text-zinc-700" onClick={() => requestChange(actor)} type="button">
-            {actorLabel}发起修改
-          </button>
-        ) : null}
-
         <div className="grid grid-cols-2 gap-2">
           <button
             className={`h-11 rounded-full text-sm font-black ${
@@ -1044,7 +995,7 @@ export function OrderWorkDialog({
             type="button"
             disabled={!canConfirmAsCreator}
           >
-            创作者确认
+            创作者确认当前版本
           </button>
           <button
             className={`h-11 rounded-full text-sm font-black ${
@@ -1054,7 +1005,7 @@ export function OrderWorkDialog({
             type="button"
             disabled={!canConfirmAsPhotographer}
           >
-            摄影师确认
+            {stage === 'photographer_delivery' ? '摄影师交付确认' : '摄影师确认当前版本'}
           </button>
         </div>
 
@@ -1159,6 +1110,17 @@ function OrderWorkActivityList({ events }: { events: OrderWorkRecord['collaborat
       </div>
     </div>
   );
+}
+
+function getWorkStageDescription(stage: ReturnType<typeof getOrderWorkStage>, lastEditedBy?: WorkActor) {
+  if (stage === 'locked') return '当前版本已由双方确认并锁定，作品内容不可再改，双方可分别选择是否同步到自己的主页。';
+  if (stage === 'photographer_delivery') return '流程第一步：摄影师先交付约定数量底片，并编辑作品标题、文案和筛选信息后确认。';
+  if (stage === 'creator_review') {
+    return lastEditedBy === 'creator'
+      ? '创作者正在调整当前版本。创作者确认后，摄影师不再修改并确认即可锁定作品。'
+      : '摄影师已确认交付，创作者可以检查低清/水印预览并调整文案，确认后锁定或等待摄影师复核。';
+  }
+  return '创作者已确认自己的调整，等待摄影师不再修改并确认；摄影师若继续修改，会生成新版本并重置双方确认。';
 }
 
 function getWorkActorLabel(actor: WorkActor) {
