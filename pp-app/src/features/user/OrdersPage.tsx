@@ -634,32 +634,42 @@ function OrderWorkDialog({
           <p className="mt-1 text-xs font-semibold text-white/54">{order.companion} · {order.place}</p>
         </div>
 
-        <div className="grid grid-cols-3 gap-1">
-          {previewUrls.map((url, index) => (
-            <div key={`${url}-${index}`} className="relative aspect-square w-full overflow-hidden rounded-[8px]">
-              <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
-              {!originalReleased ? (
-                <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/10 px-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
-                  {draft.watermarkText ?? 'PP preview'}
-                </span>
-              ) : null}
+        <div className="space-y-3 rounded-[14px] bg-white p-3 ring-1 ring-zinc-100">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-black text-zinc-400">上传照片/Live</p>
+              <p className="mt-1 text-[11px] font-semibold leading-5 text-zinc-400">最多 9 张，上传后生成低清/水印预览。</p>
             </div>
-          ))}
-          {!previewUrls.length ? (
-            <div className="col-span-3 grid min-h-28 place-items-center rounded-[10px] bg-zinc-100 text-center text-sm font-bold text-zinc-400">
-              <span className="grid place-items-center gap-2">
-                <ImagePlus size={24} />
-                暂无照片
-              </span>
-            </div>
-          ) : null}
-        </div>
+            <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-black text-zinc-400">{draft.imageUrls.length}/9</span>
+          </div>
 
-        <label className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-black ${editable ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
-          <UploadCloud size={17} />
-          选择上传照片/Live
-          <input className="hidden" type="file" accept="image/*,video/*" multiple disabled={!editable} onChange={(event) => void handleFiles(event.target.files)} />
-        </label>
+          <div className="grid grid-cols-3 gap-1">
+            {previewUrls.map((url, index) => (
+              <div key={`${url}-${index}`} className="relative aspect-square w-full overflow-hidden rounded-[8px]">
+                <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
+                {!originalReleased ? (
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/10 px-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
+                    {draft.watermarkText ?? 'PP preview'}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+            {!previewUrls.length ? (
+              <div className="col-span-3 grid min-h-28 place-items-center rounded-[10px] bg-zinc-100 px-4 text-center text-sm font-bold text-zinc-400">
+                <span className="grid place-items-center gap-2">
+                  <ImagePlus size={24} />
+                  暂无照片，先上传照片/Live 后双方再确认发布
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          <label className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-black ${editable ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
+            <UploadCloud size={17} />
+            选择上传照片/Live
+            <input className="hidden" type="file" accept="image/*,video/*" multiple disabled={!editable} onChange={(event) => void handleFiles(event.target.files)} />
+          </label>
+        </div>
 
         <div className="rounded-[12px] bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800">
           摄影师上传原图后，平台先给创作者展示低清/动态水印预览。原图/无水印图只在双方确认完成或管理员裁定后开放；发起争议会冻结托管款。
@@ -962,15 +972,15 @@ function ReviewDialog({ order, onClose, onSubmit }: { order: AppOrder; onClose: 
 
 function ActionSheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#3f302c]/30 px-4 pb-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-[22px] bg-[#fffaf6] p-4 shadow-xl">
-        <div className="flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#3f302c]/30 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 sm:pb-4" role="dialog" aria-modal="true">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-[22px] bg-[#fffaf6] shadow-xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#eadfd8] bg-[#fffaf6]/95 px-4 py-3 backdrop-blur">
           <h2 className="text-lg font-bold text-[#3f302c]">{title}</h2>
           <button className="grid h-9 w-9 place-items-center rounded-full bg-[#f2e8e1] text-[#7a6b64]" onClick={onClose} type="button" aria-label="关闭">
             <XCircle size={18} />
           </button>
         </div>
-        <div className="mt-4">{children}</div>
+        <div className="overflow-y-auto px-4 pb-4 pt-4">{children}</div>
       </div>
     </div>
   );
