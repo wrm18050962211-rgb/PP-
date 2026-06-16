@@ -11,6 +11,7 @@ import { isApiEnabled } from '../services/apiClient';
 import { readDomainJson, writeDomainJson } from '../services/scopedStorage';
 import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderFunding, updateLedgerOrderStatus } from '../services/virtualOrderLedger';
 import { defaultBookingSettings } from '../data/bookingSettings';
+import { saveCompanionBookingSettings } from '../services/companionBookingSettingsService';
 import type { AppOrder, CompanionApplication, CompanionBookingSettings, PublishedWorkDraft } from '../types/domain';
 import type { AuthSession, UserRole } from '../types/api';
 import { getOrderSteps, orderStatusText } from '../utils/status';
@@ -153,9 +154,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         persist({ application: nextApplication });
       },
       saveBookingSettings: (settings) => {
-        const nextSettings = { ...settings, updatedAt: new Date().toISOString() };
+        const companionId = session?.role === 'companion' ? session.companionId ?? settings.companionId : settings.companionId;
+        const nextSettings = { ...settings, companionId, updatedAt: new Date().toISOString() };
         setBookingSettings(nextSettings);
         persist({ bookingSettings: nextSettings });
+        if (session?.role === 'companion') saveCompanionBookingSettings(nextSettings, companionId);
       },
       saveWorkDraft: (partial) => {
         const nextDraft = { ...workDraft, ...partial, submitted: false, reviewStatus: '草稿' as const, updatedAt: new Date().toISOString() };

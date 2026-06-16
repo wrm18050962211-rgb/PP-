@@ -1,7 +1,9 @@
-import { ImagePlus, LocateFixed, MapPin, Send, XCircle } from 'lucide-react';
+import { CalendarDays, Clock3, ImagePlus, LocateFixed, MapPin, Send, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { AuthSession, FeedPost } from '../../types/api';
+import type { AuthSession, AvailabilitySlot, FeedPost } from '../../types/api';
+import { applyBookingSettingsToCompanion } from '../../data/bookingSettings';
 import { createConsultation, isSelfConsultation, type ConsultationRequestCard } from '../../services/consultationService';
+import { readCompanionBookingSettings } from '../../services/companionBookingSettingsService';
 import { createDefaultPackageSettings, formatCents, type CompanionPackageSettings } from '../../services/companionPackageService';
 import { requestConsumerLocation } from '../../services/locationService';
 
@@ -22,12 +24,17 @@ export function ConsultationRequestModal({
 }) {
   const settings = packageSettings ?? createDefaultPackageSettings(post.companion);
   const initialPackage = settings.packages.find((pkg) => pkg.id === initialPackageId) ?? settings.packages[0];
-  const dateOptions = useMemo(() => buildDateOptions(45), []);
-  const timeOptions = useMemo(() => buildTimeOptions(), []);
+  const bookingSettings = useMemo(() => readCompanionBookingSettings(post.companion.id), [post.companion.id]);
+  const bookableCompanion = useMemo(() => applyBookingSettingsToCompanion(post.companion, bookingSettings ?? undefined), [bookingSettings, post.companion]);
+  const initialSlot = useMemo(() => getFirstAvailableConsultationSlot(bookableCompanion.slots), [bookableCompanion.slots]);
+  const initialSlotSelection = getSlotSelection(initialSlot);
   const placeOptions = useMemo(() => buildPlaceOptions(post), [post]);
   const [card, setCard] = useState<ConsultationRequestCard>({
-    date: dateOptions[0]?.value ?? '',
-    timeRange: '14:00-18:00',
+    date: initialSlotSelection.date,
+    timeRange: initialSlotSelection.timeRange,
+    slotId: initialSlot?.id,
+    startAt: initialSlot?.startAt,
+    endAt: initialSlot?.endAt,
     place: post.locationName || post.location,
     placeLat: post.lat,
     placeLng: post.lng,
@@ -50,21 +57,30 @@ export function ConsultationRequestModal({
     note: '',
     referenceImages: [],
   });
-  const [startTime, setStartTime] = useState('14:00');
-  const [endTime, setEndTime] = useState('18:00');
+  const [visibleDate, setVisibleDate] = useState(initialSlotSelection.date);
+  const [selectedSlotId, setSelectedSlotId] = useState(initialSlot?.id ?? '');
   const [mapOpen, setMapOpen] = useState(false);
   const [locationStatus, setLocationStatus] = useState('');
   const selfConsultation = isSelfConsultation(post, session);
   const [submitError, setSubmitError] = useState('');
-  const canSubmit = card.date.trim() && card.timeRange.trim() && card.place.trim() && !selfConsultation;
+  const selectedSlot = bookableCompanion.slots.find((slot) => slot.id === selectedSlotId);
+  const canSubmit = Boolean(card.date.trim() && card.timeRange.trim() && card.place.trim() && selectedSlot?.status === 'available' && !selfConsultation);
   const selectedPackage = settings.packages.find((item) => item.id === card.packageId) ?? settings.packages[0];
   const selectedBalanceCents = Math.max(0, selectedPackage.basePriceCents - selectedPackage.depositCents);
 
-  function updateTimeRange(nextStart: string, nextEnd: string) {
-    const safeEnd = timeToMinutes(nextEnd) > timeToMinutes(nextStart) ? nextEnd : getNextTimeOption(nextStart, timeOptions);
-    setStartTime(nextStart);
-    setEndTime(safeEnd);
-    setCard((current) => ({ ...current, timeRange: `${nextStart}-${safeEnd}` }));
+  function selectSlot(slot: AvailabilitySlot) {
+    if (slot.status !== 'available') return;
+    const selection = getSlotSelection(slot);
+    setVisibleDate(selection.date);
+    setSelectedSlotId(slot.id);
+    setCard((current) => ({
+      ...current,
+      date: selection.date,
+      timeRange: selection.timeRange,
+      slotId: slot.id,
+      startAt: slot.startAt,
+      endAt: slot.endAt,
+    }));
   }
 
   async function useCurrentLocation() {
@@ -119,23 +135,13 @@ export function ConsultationRequestModal({
         </div>
 
         <div className="grid gap-3 pt-3">
-          <Field label="日期">
-            <select className="field" value={card.date} onChange={(event) => setCard((current) => ({ ...current, date: event.target.value }))}>
-              {dateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="开始时间">
-              <select className="field" value={startTime} onChange={(event) => updateTimeRange(event.target.value, endTime)}>
-                {timeOptions.slice(0, -1).map((time) => <option key={time} value={time}>{time}</option>)}
-              </select>
-            </Field>
-            <Field label="结束时间">
-              <select className="field" value={endTime} onChange={(event) => updateTimeRange(startTime, event.target.value)}>
-                {timeOptions.filter((time) => timeToMinutes(time) > timeToMinutes(startTime)).map((time) => <option key={time} value={time}>{time}</option>)}
-              </select>
-            </Field>
-          </div>
+          <ConsultationAvailabilityPicker
+            slots={bookableCompanion.slots}
+            visibleDate={visibleDate}
+            selectedSlotId={selectedSlotId}
+            onDateSelect={setVisibleDate}
+            onSlotSelect={selectSlot}
+          />
           <Field label="地点">
             <select className="field" value={card.place} onChange={(event) => selectPlace(placeOptions.find((place) => place.label === event.target.value) ?? { label: event.target.value })}>
               {placeOptions.map((place) => <option key={place.label} value={place.label}>{place.label}</option>)}
@@ -226,6 +232,106 @@ export function ConsultationRequestModal({
         </button>
       </section>
     </div>
+  );
+}
+
+function ConsultationAvailabilityPicker({
+  slots,
+  visibleDate,
+  selectedSlotId,
+  onDateSelect,
+  onSlotSelect,
+}: {
+  slots: AvailabilitySlot[];
+  visibleDate: string;
+  selectedSlotId: string;
+  onDateSelect: (date: string) => void;
+  onSlotSelect: (slot: AvailabilitySlot) => void;
+}) {
+  const dateOptions = buildSlotDateOptions(slots);
+  const fallbackDate = visibleDate || dateOptions[0]?.value || '';
+  const slotsForDate = slots.filter((slot) => getSlotDateValue(slot) === fallbackDate);
+  const availableCount = slotsForDate.filter((slot) => slot.status === 'available').length;
+
+  return (
+    <section className="rounded-[16px] bg-white p-3 ring-1 ring-zinc-200">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-black text-zinc-950">
+            <CalendarDays size={16} />
+            摄影师可约档期
+          </p>
+          <p className="mt-1 text-[11px] font-bold text-zinc-400">只能选择蓝色可约时间，灰色为已占用或不可约。</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-600">{availableCount} 个可约</span>
+      </div>
+
+      {dateOptions.length ? (
+        <>
+          <div className="scrollbar-none -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
+            {dateOptions.map((date) => {
+              const active = date.value === fallbackDate;
+              const disabled = date.availableCount === 0;
+              return (
+                <button
+                  key={date.value}
+                  className={`grid min-h-16 min-w-[72px] place-items-center rounded-[14px] px-3 py-2 text-center ring-1 transition ${
+                    active
+                      ? 'bg-zinc-950 text-white ring-zinc-950'
+                      : disabled
+                        ? 'bg-zinc-50 text-zinc-300 ring-zinc-100'
+                        : 'bg-[#f7f7f5] text-zinc-950 ring-zinc-100'
+                  }`}
+                  onClick={() => onDateSelect(date.value)}
+                  type="button"
+                >
+                  <span className="text-xs font-black">{date.weekday}</span>
+                  <span className="text-base font-black">{date.short}</span>
+                  <span className="text-[10px] font-bold opacity-70">{date.availableCount ? `${date.availableCount} 可约` : '无空档'}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 rounded-[14px] bg-[#f7f7f5] p-2">
+            <p className="mb-2 flex items-center gap-1.5 px-1 text-xs font-black text-zinc-400">
+              <Clock3 size={14} />
+              选择时间段
+            </p>
+            <div className="grid gap-2">
+              {slotsForDate.map((slot) => {
+                const available = slot.status === 'available';
+                const active = slot.id === selectedSlotId;
+                return (
+                  <button
+                    key={slot.id}
+                    className={`flex min-h-12 items-center justify-between rounded-[12px] px-3 text-left ring-1 transition ${
+                      active
+                        ? 'bg-blue-600 text-white ring-blue-600'
+                        : available
+                          ? 'bg-white text-zinc-950 ring-blue-100'
+                          : 'bg-zinc-100 text-zinc-400 ring-zinc-100'
+                    }`}
+                    disabled={!available}
+                    onClick={() => onSlotSelect(slot)}
+                    type="button"
+                  >
+                    <span className="text-sm font-black">{slot.timeLabel}</span>
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-black ${active ? 'bg-white/18 text-white' : available ? 'bg-blue-50 text-blue-600' : 'bg-white text-zinc-400'}`}>
+                      {available ? '可约' : getSlotStatusLabel(slot.status)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="mt-3 rounded-[14px] bg-zinc-100 px-3 py-5 text-center text-sm font-black text-zinc-400">
+          摄影师暂未开放可咨询档期
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -331,37 +437,65 @@ type PlaceOption = {
   lng?: number;
 };
 
-function buildDateOptions(days: number) {
-  const formatter = new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', weekday: 'short' });
-  return Array.from({ length: days }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() + index);
-    const value = date.toISOString().slice(0, 10);
-    const prefix = index === 0 ? '今天' : index === 1 ? '明天' : index === 2 ? '后天' : '';
-    return {
+function getFirstAvailableConsultationSlot(slots: AvailabilitySlot[]) {
+  return slots.find((slot) => slot.status === 'available') ?? slots[0] ?? null;
+}
+
+function getSlotSelection(slot: AvailabilitySlot | null) {
+  return {
+    date: slot ? getSlotDateValue(slot) : '',
+    timeRange: slot?.timeLabel ?? '',
+  };
+}
+
+function buildSlotDateOptions(slots: AvailabilitySlot[]) {
+  const dates = new Map<string, { value: string; weekday: string; short: string; availableCount: number }>();
+
+  slots.forEach((slot) => {
+    const value = getSlotDateValue(slot);
+    if (!value) return;
+    const current = dates.get(value) ?? {
       value,
-      label: [prefix, formatter.format(date)].filter(Boolean).join(' · '),
+      weekday: formatWeekday(value),
+      short: formatShortDate(value),
+      availableCount: 0,
     };
+    dates.set(value, {
+      ...current,
+      availableCount: current.availableCount + (slot.status === 'available' ? 1 : 0),
+    });
   });
+
+  return Array.from(dates.values()).sort((left, right) => left.value.localeCompare(right.value));
 }
 
-function buildTimeOptions() {
-  const options: string[] = [];
-  for (let minutes = 6 * 60; minutes <= 24 * 60; minutes += 15) {
-    const hour = Math.floor(minutes / 60);
-    const minute = minutes % 60;
-    options.push(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
-  }
-  return options;
+function getSlotDateValue(slot: AvailabilitySlot) {
+  return toDateValue(new Date(slot.startAt));
 }
 
-function timeToMinutes(value: string) {
-  const [hour, minute] = value.split(':').map(Number);
-  return hour * 60 + minute;
+function toDateValue(date: Date) {
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function getNextTimeOption(startTime: string, options: string[]) {
-  return options.find((time) => timeToMinutes(time) > timeToMinutes(startTime)) ?? options.at(-1) ?? startTime;
+function formatShortDate(value: string) {
+  const date = new Date(`${value}T00:00:00+08:00`);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function formatWeekday(value: string) {
+  const date = new Date(`${value}T00:00:00+08:00`);
+  return ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()];
+}
+
+function getSlotStatusLabel(status: AvailabilitySlot['status']) {
+  if (status === 'booked') return '已约';
+  if (status === 'locked') return '锁定';
+  if (status === 'unavailable') return '不可约';
+  return '可约';
 }
 
 function buildPlaceOptions(post: FeedPost): PlaceOption[] {

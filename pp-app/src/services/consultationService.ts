@@ -6,6 +6,9 @@ import { readCompanionPackageSettings } from './companionPackageService';
 export type ConsultationRequestCard = {
   date: string;
   timeRange: string;
+  slotId?: string;
+  startAt?: string;
+  endAt?: string;
   place: string;
   placeLat?: number;
   placeLng?: number;
@@ -220,6 +223,8 @@ export function closeConsultation(id: string) {
 export function consultationToOrderInput(record: ConsultationRecord): CreateOrderInput | null {
   if (!record.quote) return null;
   const [dateLabel, timeLabel = record.requestCard.timeRange] = record.quote.time.split(' ');
+  const startAt = record.requestCard.startAt ?? new Date().toISOString();
+  const endAt = record.requestCard.endAt ?? new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
   return {
     title: `${record.quote.packageName} 咨询报价`,
     time: record.quote.time,
@@ -230,13 +235,13 @@ export function consultationToOrderInput(record: ConsultationRecord): CreateOrde
     postId: record.postId,
     activityId: record.quote.packageId,
     activityName: record.quote.packageName,
-    slotId: `consultation-slot-${record.id}`,
-    startAt: new Date().toISOString(),
-    endAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+    slotId: record.requestCard.slotId ?? `consultation-slot-${record.id}`,
+    startAt,
+    endAt,
     dateLabel,
     timeLabel,
-    durationMinutes: 120,
-    durationLabel: '按报价沟通',
+    durationMinutes: getConsultationDurationMinutes(startAt, endAt),
+    durationLabel: record.requestCard.timeRange,
     addOns: [],
     consultationId: record.id,
     quoteId: record.quote.id,
@@ -293,6 +298,13 @@ function setNewestConsultation(records: Map<string, ConsultationRecord>, record:
   if (!current || new Date(record.updatedAt).getTime() >= new Date(current.updatedAt).getTime()) {
     records.set(record.id, record);
   }
+}
+
+function getConsultationDurationMinutes(startAt: string, endAt: string) {
+  const start = new Date(startAt).getTime();
+  const end = new Date(endAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 120;
+  return Math.round((end - start) / 60000);
 }
 
 function formatEstimateMoney(amountCents: number) {
