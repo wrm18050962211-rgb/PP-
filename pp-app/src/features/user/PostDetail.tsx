@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { formatCents, readCompanionPackageSettings } from '../../services/companionPackageService';
+import { applyCreatorProfile, getCreatorBio, getCreatorIdentity, readCreatorProfile, type CreatorProfileDraft } from '../../services/creatorProfileService';
 import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle, listFeedPosts } from '../../services/feedService';
 import { getPostLikeCount, isPostFavorited, isPostLiked, toggleFavoritePost, toggleLikedPost } from '../../services/userCollectionService';
 import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
@@ -56,7 +57,13 @@ function PostDetailContent({ postId }: { postId?: string }) {
     const works = collectionPosts.filter((item) => item.companion.id === photographer.id);
     return works.some((item) => item.id === post.id) ? works : [post, ...works];
   }, [collectionPosts, photographer.id, post]);
-  const visibleCreator = getVisibleCreator(post);
+  const creatorProfile = readCreatorProfile('consumer');
+  const visibleCreator = getVisibleCreator(post, creatorProfile);
+  const creatorWorks = useMemo(() => {
+    if (!visibleCreator) return [];
+    const works = collectionPosts.filter((item) => getCreatorIdentity(item).id === visibleCreator.id);
+    return works.some((item) => item.id === post.id) ? works : [post, ...works];
+  }, [collectionPosts, post, visibleCreator?.id]);
   const cover = post.images[0];
   const images = post.images;
   const activeMedia = images[activeImage] ?? cover;
@@ -270,10 +277,12 @@ function PostDetailContent({ postId }: { postId?: string }) {
         title="创作者"
         name={visibleCreator.name}
         avatar={visibleCreator.avatar}
-        hero={visibleCreator.avatar}
-        meta={visibleCreator.meta}
-        tags={post.styleTags}
+        hero={cover?.url}
+        heroSlides={creatorWorks.flatMap((work) => work.images[0]?.url ? [{ id: work.id, image: work.images[0].url }] : [])}
+        meta={visibleCreator.bio}
+        tags={visibleCreator.tags}
         basePath={appHomePath}
+        pinActions
         onClose={() => setDrawer(null)}
       >
         <Link className="flex h-12 items-center justify-center rounded-full bg-[#3f302c] text-sm font-black text-white" to={`${appHomePath}/creator/${visibleCreator.id}`}>
@@ -487,6 +496,7 @@ function ProfileDrawer({
   meta,
   tags,
   basePath,
+  pinActions = false,
   onClose,
   children,
 }: {
@@ -500,6 +510,7 @@ function ProfileDrawer({
   meta: string;
   tags: readonly string[];
   basePath: string;
+  pinActions?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -529,7 +540,7 @@ function ProfileDrawer({
     <div className="pointer-events-none fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2">
       <button className="pointer-events-auto absolute inset-0 bg-black/42" onClick={onClose} aria-label="关闭侧栏" />
       <aside
-        className={`pointer-events-auto absolute inset-y-0 w-[82%] max-w-[330px] overflow-y-auto bg-[#fbf7f2] text-[#3f302c] shadow-2xl ${
+        className={`pointer-events-auto absolute inset-y-0 flex w-[82%] max-w-[330px] flex-col overflow-hidden bg-[#fbf7f2] text-[#3f302c] shadow-2xl ${
           side === 'left' ? 'left-0 rounded-r-[24px]' : 'right-0 rounded-l-[24px]'
         }`}
       >
@@ -585,7 +596,7 @@ function ProfileDrawer({
           </div>
         </div>
 
-        <div className="space-y-5 p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
           <p className="text-sm font-bold leading-6 text-[#7a6b64]">{meta}</p>
           <div className="flex flex-wrap gap-2">
             {tags.slice(0, 6).map((tag) => (
@@ -594,34 +605,34 @@ function ProfileDrawer({
               </span>
             ))}
           </div>
-          <div className="grid gap-2">{children}</div>
+          <div className={`grid gap-2 ${pinActions ? 'mt-auto pt-6' : ''}`}>{children}</div>
         </div>
       </aside>
     </div>
   );
 }
 
-export function buildCreator(post: FeedPost) {
+export function buildCreator(post: FeedPost, profile?: CreatorProfileDraft | null) {
+  const baseCreator = getCreatorIdentity(post);
+  const appliedCreator = applyCreatorProfile(baseCreator, profile ?? null);
+  const bio = getCreatorBio(post, profile?.creatorId === baseCreator.id ? profile : null);
+
   return {
-    id: `creator-${post.id}`,
-    name: post.companion.isVirtual ? `${post.companion.name} Creator` : '作品创作者',
-    avatar: post.images[1]?.url || post.images[0]?.url || post.companion.avatar,
-    meta: `${post.city || '同城'} · ${post.styleTags.slice(0, 2).join(' / ') || '风格作品'}`,
+    ...appliedCreator,
+    meta: bio,
+    bio,
+    tags: buildCreatorPublicTags(post),
   };
 }
 
-function getVisibleCreator(post: FeedPost): ReturnType<typeof buildCreator> | null {
-  if (post.creator) {
-    return {
-      id: post.creator.id,
-      name: post.creator.name,
-      avatar: post.creator.avatar || post.images[1]?.url || post.images[0]?.url || post.companion.avatar,
-      meta: `${post.city || '同城'} · ${post.creator.phone ? `手机号 ${post.creator.phone}` : '订单共同成片'}`,
-    };
-  }
+function getVisibleCreator(post: FeedPost, profile?: CreatorProfileDraft | null): ReturnType<typeof buildCreator> | null {
+  if (!post.creator && post.companion.isVirtual) return null;
+  return buildCreator(post, profile);
+}
 
-  if (post.companion.isVirtual) return null;
-  return buildCreator(post);
+function buildCreatorPublicTags(post: FeedPost) {
+  const sourceTags = post.creator ? ['订单成片', ...post.styleTags, '共同确认'] : post.styleTags;
+  return [...new Set(sourceTags.filter(Boolean))];
 }
 
 function buildComments(post: FeedPost, creator: ReturnType<typeof buildCreator> | null): Comment[] {
