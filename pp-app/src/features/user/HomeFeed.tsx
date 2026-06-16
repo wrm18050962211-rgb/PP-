@@ -679,30 +679,38 @@ function SearchOverlay({
             <h2 className="text-base font-black text-white/86">猜你想搜</h2>
             <span className="text-xs font-bold text-white/26">按风格找作品</span>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-x-2 gap-y-3">
             {suggestionTiles.slice(0, 8).map(({ label, description, post }) => (
               <button
                 key={label}
-                className="relative h-16 min-w-0 overflow-hidden rounded-[10px] bg-white/[0.08] px-1.5 text-center ring-1 ring-white/8"
+                className="group min-w-0 text-center"
                 onClick={() => onPick(label)}
               >
-                {post ? <LivePhotoMedia className="absolute inset-0" media={post.images[0]} alt={label} playLive={false} mediaClassName="opacity-35" /> : null}
-                <span className="absolute inset-0 bg-black/42" />
-                <span className="relative flex h-full min-w-0 flex-col items-center justify-center gap-0.5">
-                  <span className="max-w-full truncate text-[11px] font-black leading-tight text-white/90">{label}</span>
-                  <span className="max-w-full truncate text-[9px] font-bold leading-tight text-white/52">{description}</span>
+                <span className="relative block aspect-[1.35/1] overflow-hidden rounded-[12px] bg-white/[0.06] ring-1 ring-white/8 transition group-active:scale-[0.98]">
+                  {post ? <LivePhotoMedia className="absolute inset-0" media={post.images[0]} alt={label} playLive={false} mediaClassName="opacity-62" /> : null}
+                  <span className="absolute inset-0 bg-gradient-to-t from-black/44 via-black/12 to-transparent" />
+                </span>
+                <span className="mt-1.5 block min-w-0 px-0.5">
+                  <span className="block truncate text-[11px] font-black leading-tight text-white/92">{label}</span>
+                  <span className="mt-0.5 block truncate text-[9px] font-bold leading-tight text-white/46">{description}</span>
                 </span>
               </button>
             ))}
           </div>
         </section>
 
-        <section className="grid grid-cols-3 gap-px" style={{ marginTop: 'calc(2.25rem + ((min(100vw, 28rem) - 2rem) / 3))' }}>
-          {previewPosts.map((post, index) => (
-            <Link key={post.id} to={`/consumer/post/${post.id}`} className="group relative aspect-square overflow-hidden bg-white/[0.04]" aria-label={`查看${getPostTitle(post)}`}>
-              <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading={index < 9 ? 'eager' : 'lazy'} playLive={false} mediaClassName="transition duration-300 group-active:scale-[0.98]" />
-            </Link>
-          ))}
+        <section style={{ marginTop: 'calc(1.5rem + ((min(100vw, 28rem) - 2rem) / 3))' }}>
+          <div className="mb-3 flex items-end justify-between">
+            <h2 className="text-base font-black text-white/86">推荐作品</h2>
+            <span className="text-xs font-bold text-white/24">按灵感继续看</span>
+          </div>
+          <div className="grid grid-cols-3 gap-px">
+            {previewPosts.map((post, index) => (
+              <Link key={post.id} to={`/consumer/post/${post.id}`} className="group relative aspect-square overflow-hidden bg-white/[0.04]" aria-label={`查看${getPostTitle(post)}`}>
+                <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading={index < 9 ? 'eager' : 'lazy'} playLive={false} mediaClassName="transition duration-300 group-active:scale-[0.98]" />
+              </Link>
+            ))}
+          </div>
         </section>
       </div>
     </div>
