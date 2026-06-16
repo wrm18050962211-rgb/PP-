@@ -2,6 +2,8 @@ import { ArrowLeft, Camera, CheckCircle2, LogOut, MessageSquareText, ShieldCheck
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
+  accountHasRole,
+  getAvailableLoginRoles,
   getPostAuthHome,
   getRegisteredAccount,
   hasRegisteredAccount,
@@ -9,6 +11,7 @@ import {
   loginWithPhoneCode,
   logoutAccount,
   MissingRoleRegistrationError,
+  PendingRoleReviewError,
   registerWithPhone,
   requestPhoneCode,
   type RegisterInput,
@@ -36,9 +39,18 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export function RequireRole({ role, fallback, children }: { role: PublicRole; fallback: string; children: React.ReactNode }) {
   const location = useLocation();
+  const account = getRegisteredAccount();
   if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace state={{ from: location.pathname }} />;
   if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
-  if (getRegisteredAccount()?.role !== role) return <Navigate to={fallback} replace />;
+  if (account?.role !== role || !accountHasRole(role)) return <Navigate to={fallback} replace />;
+  return children;
+}
+
+export function RequireRegistrationDraft({ role, children }: { role: PublicRole; children: React.ReactNode }) {
+  const account = getRegisteredAccount();
+  if (!account) return <Navigate to="/auth/register" replace state={{ role }} />;
+  if (account.role !== role) return <Navigate to="/auth/register" replace state={{ role }} />;
+  if (accountHasRole(role)) return <Navigate to={getPostAuthHome(role)} replace />;
   return children;
 }
 
@@ -70,7 +82,6 @@ export function RegisterPage() {
   async function submit() {
     try {
       registerWithPhone({ phone, code, role });
-      await loginWithPhoneCode(phone, code, role);
       navigate(getRoleOnboardingPath(role), { replace: true });
     } catch (nextError) {
       setError(getErrorMessage(nextError));
@@ -124,6 +135,7 @@ export function LoginPage() {
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
   const [missingRolePrompt, setMissingRolePrompt] = useState<{ role: PublicRole; phone: string } | null>(null);
+  const registeredRoles = getAvailableLoginRoles(phone || account?.phone);
 
   function sendCode() {
     try {
@@ -140,6 +152,11 @@ export function LoginPage() {
       const session = await loginWithPhoneCode(phone, code, role);
       navigate(getPostAuthHome(session.role), { replace: true });
     } catch (nextError) {
+      if (nextError instanceof PendingRoleReviewError) {
+        setMissingRolePrompt(null);
+        setError(nextError.message);
+        return;
+      }
       if (nextError instanceof MissingRoleRegistrationError) {
         setError('');
         setMissingRolePrompt({ role: nextError.role, phone });
@@ -151,11 +168,11 @@ export function LoginPage() {
 
   return (
     <AuthFrame eyebrow="欢迎回来" title="手机号验证码登录">
-      {account ? (
+      {registeredRoles.length ? (
         <div className="mb-4 flex items-center gap-3 rounded-[10px] bg-zinc-950 p-3 text-white">
           <CheckCircle2 size={18} className="text-emerald-300" />
           <span className="min-w-0 flex-1 text-sm font-bold">
-            已注册 {account.roles.map((item) => (item === 'companion' ? '摄影师' : '创作者')).join(' / ')}
+            已注册 {registeredRoles.map((item) => (item === 'companion' ? '摄影师' : '创作者')).join(' / ')}
           </span>
         </div>
       ) : null}

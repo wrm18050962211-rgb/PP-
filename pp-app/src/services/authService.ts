@@ -13,6 +13,8 @@ type AuthAccount = {
   role: PublicRole;
   roles: PublicRole[];
   completedRoleRegistrations?: PublicRole[];
+  pendingRoleRegistrations?: PublicRole[];
+  roleReviewStatus?: Partial<Record<PublicRole, 'draft' | 'pending' | 'approved' | 'rejected'>>;
   nickname: string;
   creatorName?: string;
   photographerName?: string;
@@ -41,6 +43,13 @@ export class MissingRoleRegistrationError extends Error {
   constructor(public readonly role: PublicRole) {
     super(`该手机号尚未注册${role === 'companion' ? '摄影师' : '创作者'}身份`);
     this.name = 'MissingRoleRegistrationError';
+  }
+}
+
+export class PendingRoleReviewError extends Error {
+  constructor(public readonly role: PublicRole) {
+    super(`${role === 'companion' ? '摄影师' : '创作者'}身份正在审核中，审核通过后才能登录该身份`);
+    this.name = 'PendingRoleReviewError';
   }
 }
 
@@ -117,6 +126,10 @@ export function getAvailableLoginRoles(phone?: string): PublicRole[] {
 }
 
 export function getPostAuthHome(role = readStoredRole()) {
+  const account = readAccount();
+  if (account && role !== 'admin' && account.role === role && !getUsableRoles(account).includes(role)) {
+    return role === 'companion' ? '/companion/onboarding' : '/consumer/onboarding';
+  }
   return role === 'companion' ? '/companion/mine' : '/consumer';
 }
 
@@ -140,12 +153,18 @@ export function registerWithPhone(input: RegisterInput) {
   const phone = normalizePhone(input.phone);
   validatePhoneCode(phone, input.code);
   const existing = readAccount()?.phone === phone ? readAccount() : null;
+  const roles = existing?.roles ?? [];
+  const alreadyApproved = roles.includes(input.role);
+  const pendingRoleRegistrations = alreadyApproved ? (existing?.pendingRoleRegistrations ?? []) : Array.from(new Set([...(existing?.pendingRoleRegistrations ?? []), input.role]));
+  const roleReviewStatus = { ...(existing?.roleReviewStatus ?? {}), [input.role]: alreadyApproved ? 'approved' as const : 'draft' as const };
 
   const account: AuthAccount = {
     ...existing,
     phone,
     role: input.role,
-    roles: Array.from(new Set([...(existing?.roles ?? []), input.role])),
+    roles,
+    pendingRoleRegistrations,
+    roleReviewStatus,
     nickname: input.role === 'companion' ? 'Demo Photographer' : 'Demo Creator',
     creatorName: input.role === 'consumer' ? existing?.creatorName || 'Demo Creator' : existing?.creatorName,
     photographerName: input.role === 'companion' ? existing?.photographerName || 'Demo Photographer' : existing?.photographerName,
@@ -168,7 +187,10 @@ export async function loginWithPhoneCode(phone: string, code: string, role?: Pub
   if (!account) throw new MissingRoleRegistrationError(role ?? 'consumer');
   const availableRoles = getUsableRoles(account);
   const loginRole = role ?? account.role;
-  if (!availableRoles.includes(loginRole)) throw new MissingRoleRegistrationError(loginRole);
+  if (!availableRoles.includes(loginRole)) {
+    if (account.roleReviewStatus?.[loginRole] === 'pending') throw new PendingRoleReviewError(loginRole);
+    throw new MissingRoleRegistrationError(loginRole);
+  }
   validatePhoneCode(normalizedPhone, code);
 
   const nextAccount = { ...account, role: loginRole };
@@ -197,16 +219,31 @@ export function addRoleToCurrentAccount(role: PublicRole) {
   return completeRoleRegistration(role);
 }
 
+export function markRoleRegistrationPending(role: PublicRole) {
+  const account = readAccount();
+  if (!account || typeof localStorage === 'undefined') return null;
+  const nextAccount: AuthAccount = {
+    ...account,
+    pendingRoleRegistrations: Array.from(new Set([...(account.pendingRoleRegistrations ?? []), role])),
+    roleReviewStatus: { ...(account.roleReviewStatus ?? {}), [role]: 'pending' },
+  };
+  localStorage.setItem(accountStorageKey, JSON.stringify(nextAccount));
+  return nextAccount;
+}
+
 export function completeRoleRegistration(role: PublicRole, profile: Partial<Pick<AuthAccount, 'creatorName' | 'photographerName' | 'creatorAvatarUrl' | 'photographerAvatarUrl'>> = {}) {
   const account = readAccount();
   if (!account || typeof localStorage === 'undefined') return null;
   const completedRoleRegistrations = Array.from(new Set([...(account.completedRoleRegistrations ?? []), role]));
+  const pendingRoleRegistrations = (account.pendingRoleRegistrations ?? []).filter((item) => item !== role);
   const nextAccount: AuthAccount = {
     ...account,
     ...profile,
     role: account.role,
     roles: Array.from(new Set([...getUsableRoles(account), role])),
     completedRoleRegistrations,
+    pendingRoleRegistrations,
+    roleReviewStatus: { ...(account.roleReviewStatus ?? {}), [role]: 'approved' },
     creatorId: role === 'consumer' ? account.creatorId || `creator-local-${account.phone}` : account.creatorId,
     companionId: role === 'companion' ? account.companionId || `companion-local-${account.phone}` : account.companionId,
     creatorName: profile.creatorName ?? (role === 'consumer' ? account.creatorName || 'Demo Creator' : account.creatorName),
@@ -295,6 +332,8 @@ function mergeLoginAccounts(testAccount: AuthAccount, localAccount: AuthAccount)
     role: localAccount.role ?? testAccount.role,
     roles: Array.from(new Set([...testAccount.roles, ...localAccount.roles, ...(localAccount.completedRoleRegistrations ?? [])])),
     completedRoleRegistrations: Array.from(new Set([...(testAccount.completedRoleRegistrations ?? []), ...(localAccount.completedRoleRegistrations ?? [])])),
+    pendingRoleRegistrations: Array.from(new Set([...(testAccount.pendingRoleRegistrations ?? []), ...(localAccount.pendingRoleRegistrations ?? [])])),
+    roleReviewStatus: { ...(testAccount.roleReviewStatus ?? {}), ...(localAccount.roleReviewStatus ?? {}) },
     nickname: localAccount.nickname || testAccount.nickname,
     creatorName: localAccount.creatorName ?? testAccount.creatorName,
     photographerName: localAccount.photographerName ?? testAccount.photographerName,
@@ -317,6 +356,8 @@ function mapTestIdentities(identities: TestAccountIdentity[]): AuthAccount {
     role: defaultRole,
     roles: identities.map((account) => account.role),
     completedRoleRegistrations: [],
+    pendingRoleRegistrations: [],
+    roleReviewStatus: Object.fromEntries(identities.map((account) => [account.role, 'approved'])),
     nickname: (defaultRole === 'consumer' ? creator?.name : photographer?.name) || identities[0].name,
     creatorName: creator?.name,
     photographerName: photographer?.name,
@@ -337,12 +378,15 @@ function readAccount(): AuthAccount | null {
     if (!raw) return null;
     const account = JSON.parse(raw) as Partial<AuthAccount>;
     if (!account.phone || (account.role !== 'consumer' && account.role !== 'companion')) return null;
-    const roles = normalizeRoles(account.roles, account.role);
-    return {
+    const roleReviewStatus = normalizeRoleReviewStatus(account.roleReviewStatus);
+    const roles = normalizeRoles(account.roles, account.role).filter((role) => roleReviewStatus[role] !== 'draft' && roleReviewStatus[role] !== 'pending');
+    const sanitized = sanitizeLegacyAccount({
       phone: account.phone,
       role: account.role,
       roles,
       completedRoleRegistrations: normalizeOptionalRoles(account.completedRoleRegistrations),
+      pendingRoleRegistrations: normalizeOptionalRoles(account.pendingRoleRegistrations),
+      roleReviewStatus,
       nickname: account.nickname || (account.role === 'companion' ? 'Demo Photographer' : 'Demo Creator'),
       creatorName: account.creatorName,
       photographerName: account.photographerName,
@@ -353,7 +397,9 @@ function readAccount(): AuthAccount | null {
       creatorPostId: account.creatorPostId,
       photographerPostId: account.photographerPostId,
       registeredAt: account.registeredAt || new Date().toISOString(),
-    };
+    });
+    if (raw !== JSON.stringify(sanitized)) localStorage.setItem(accountStorageKey, JSON.stringify(sanitized));
+    return sanitized;
   } catch {
     return null;
   }
@@ -380,12 +426,45 @@ function resolveUsableRole(account: AuthAccount | null, role: UserRole): UserRol
 function normalizeRoles(roles: unknown, fallbackRole: PublicRole): PublicRole[] {
   if (!Array.isArray(roles)) return [fallbackRole];
   const nextRoles = roles.filter((role): role is PublicRole => role === 'consumer' || role === 'companion');
-  return nextRoles.length ? Array.from(new Set(nextRoles)) : [fallbackRole];
+  return Array.from(new Set(nextRoles));
 }
 
 function normalizeOptionalRoles(roles: unknown): PublicRole[] {
   if (!Array.isArray(roles)) return [];
   return Array.from(new Set(roles.filter((role): role is PublicRole => role === 'consumer' || role === 'companion')));
+}
+
+function normalizeRoleReviewStatus(status: unknown): Partial<Record<PublicRole, 'draft' | 'pending' | 'approved' | 'rejected'>> {
+  if (!status || typeof status !== 'object') return {};
+  const record = status as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(record).filter(
+      (entry): entry is [PublicRole, 'draft' | 'pending' | 'approved' | 'rejected'] =>
+        (entry[0] === 'consumer' || entry[0] === 'companion') &&
+        (entry[1] === 'draft' || entry[1] === 'pending' || entry[1] === 'approved' || entry[1] === 'rejected'),
+    ),
+  );
+}
+
+function sanitizeLegacyAccount(account: AuthAccount): AuthAccount {
+  if (!['13910010001', '13910010002'].includes(account.phone) || account.roleReviewStatus?.companion === 'approved') return account;
+  const roles = account.roles.filter((role) => role !== 'companion');
+  const completedRoleRegistrations = (account.completedRoleRegistrations ?? []).filter((role) => role !== 'companion');
+  const pendingRoleRegistrations = (account.pendingRoleRegistrations ?? []).filter((role) => role !== 'companion');
+  const roleReviewStatus = { ...(account.roleReviewStatus ?? {}) };
+  delete roleReviewStatus.companion;
+  return {
+    ...account,
+    role: account.role === 'companion' ? roles[0] ?? 'consumer' : account.role,
+    roles,
+    completedRoleRegistrations,
+    pendingRoleRegistrations,
+    roleReviewStatus,
+    photographerName: undefined,
+    companionId: undefined,
+    photographerAvatarUrl: undefined,
+    photographerPostId: undefined,
+  };
 }
 
 function validatePhoneCode(phone: string, code: string) {

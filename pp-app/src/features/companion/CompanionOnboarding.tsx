@@ -16,7 +16,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
-import { completeRoleRegistration, logoutAccount } from '../../services/authService';
+import { logoutAccount, markRoleRegistrationPending } from '../../services/authService';
 import type { CompanionApplication } from '../../types/domain';
 
 const cityOptions = ['上海', '北京', '广州', '深圳', '杭州', '成都', '南京', '苏州'];
@@ -60,10 +60,7 @@ export function CompanionOnboarding() {
 
   async function completePhotographerRegistration() {
     submitApplication();
-    completeRoleRegistration('companion', {
-      photographerName: application.nickname || 'Demo Photographer',
-      photographerAvatarUrl: application.avatarImage,
-    });
+    markRoleRegistrationPending('companion');
     await logoutAccount();
     navigate('/auth/login', { replace: true, state: { role: 'companion', phone: session?.user.phone || application.phone } });
   }

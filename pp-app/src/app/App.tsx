@@ -2,7 +2,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { ConsumerShell } from '../layouts/ConsumerShell';
 import { RoleShell } from '../layouts/RoleShell';
 import { AdminDashboard } from '../features/admin/AdminDashboard';
-import { AccountSettingsPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAuth, RequireRole } from '../features/auth/AuthPages';
+import { AccountSettingsPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAuth, RequireRegistrationDraft, RequireRole } from '../features/auth/AuthPages';
 import { CompanionOnboarding } from '../features/companion/CompanionOnboarding';
 import { CompanionBookingSettingsPage } from '../features/companion/CompanionBookingSettingsPage';
 import { CompanionIncomePage } from '../features/companion/CompanionIncomePage';
@@ -52,6 +52,23 @@ export default function App() {
       />
 
       <Route
+        path="/consumer/onboarding"
+        element={
+          <RequireRegistrationDraft role="consumer">
+            <CreatorOnboarding />
+          </RequireRegistrationDraft>
+        }
+      />
+      <Route
+        path="/companion/onboarding"
+        element={
+          <RequireRegistrationDraft role="companion">
+            <CompanionOnboarding />
+          </RequireRegistrationDraft>
+        }
+      />
+
+      <Route
         path="/consumer"
         element={
           <RequireAuth>
@@ -84,14 +101,6 @@ export default function App() {
           element={
             <RequireRole role="consumer" fallback="/companion">
               <CheckoutPage />
-            </RequireRole>
-          }
-        />
-        <Route
-          path="onboarding"
-          element={
-            <RequireRole role="consumer" fallback="/companion/mine">
-              <CreatorOnboarding />
             </RequireRole>
           }
         />
@@ -191,7 +200,6 @@ export default function App() {
         <Route path="messages" element={<MessagesPage />} />
         <Route path="messages/:orderId" element={<MessagesPage />} />
         <Route path="mine" element={<CompanionStudio />} />
-        <Route path="onboarding" element={<CompanionOnboarding />} />
         <Route path="booking-settings" element={<CompanionBookingSettingsPage />} />
         <Route path="profile" element={<CompanionProfileEdit />} />
         <Route path="packages" element={<CompanionPackageSettings />} />

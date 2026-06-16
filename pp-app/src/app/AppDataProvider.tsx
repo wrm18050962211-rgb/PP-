@@ -6,7 +6,7 @@ import {
   saveCompanionApplicationDraft,
   submitCompanionApplicationReview,
 } from '../services/companionService';
-import { fetchAuthSession } from '../services/authService';
+import { completeRoleRegistration, fetchAuthSession } from '../services/authService';
 import { isApiEnabled } from '../services/apiClient';
 import { readDomainJson, writeDomainJson } from '../services/scopedStorage';
 import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderFunding, updateLedgerOrderStatus } from '../services/virtualOrderLedger';
@@ -152,6 +152,12 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         const nextApplication = { ...application, submitted: true, reviewStatus: status, updatedAt: new Date().toISOString() };
         setApplication(nextApplication);
         persist({ application: nextApplication });
+        if (status === '已通过') {
+          completeRoleRegistration('companion', {
+            photographerName: nextApplication.nickname || 'Demo Photographer',
+            photographerAvatarUrl: nextApplication.avatarImage,
+          });
+        }
       },
       saveBookingSettings: (settings) => {
         const companionId = session?.role === 'companion' ? session.companionId ?? settings.companionId : settings.companionId;
