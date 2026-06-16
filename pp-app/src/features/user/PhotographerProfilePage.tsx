@@ -16,6 +16,7 @@ export function PhotographerProfilePage() {
   const navigate = useNavigate();
   const { orders, session } = useAppData();
   const isCompanionMode = session?.role === 'companion';
+  const profileBasePath = isCompanionMode ? '/companion' : '/consumer';
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
   const [consultOpen, setConsultOpen] = useState(false);
@@ -82,7 +83,7 @@ export function PhotographerProfilePage() {
         </div>
 
         <div className={`mt-4 grid gap-2 ${isCompanionMode ? 'grid-cols-1' : 'grid-cols-[1fr_1fr]'}`}>
-          <Link className="flex h-10 items-center justify-center rounded-[6px] bg-[#4d5dff] text-sm font-black text-white" to={`/consumer/post/${profilePost.id}`}>
+          <Link className="flex h-10 items-center justify-center rounded-[6px] bg-[#4d5dff] text-sm font-black text-white" to={`${profileBasePath}/post/${profilePost.id}`}>
             看作品
           </Link>
           {isCompanionMode ? null : (
@@ -123,7 +124,7 @@ export function PhotographerProfilePage() {
         </p>
       </section>
 
-      <WorkGrid works={works} />
+      <WorkGrid works={works} basePath={profileBasePath} />
       {reviewsOpen ? (
         <PhotographerReviewsSheet
           ratingAvg={photographer.ratingAvg}
@@ -252,11 +253,11 @@ function ProfileStat({ value, label, onClick }: { value: number | string; label:
   );
 }
 
-function WorkGrid({ works }: { works: FeedPost[] }) {
+function WorkGrid({ works, basePath }: { works: FeedPost[]; basePath: string }) {
   return (
     <section className="grid grid-cols-3 gap-[1px] bg-black">
       {works.map((post) => (
-        <Link key={post.id} to={`/consumer/post/${post.id}`} className="relative aspect-[0.76] overflow-hidden bg-[#111]" aria-label={`查看作品 ${getPostTitle(post)}`}>
+        <Link key={post.id} to={`${basePath}/post/${post.id}`} className="relative aspect-[0.76] overflow-hidden bg-[#111]" aria-label={`查看作品 ${getPostTitle(post)}`}>
           <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading="lazy" playLive={false} />
           {post.images.length > 1 ? <span className="absolute right-1.5 top-1.5 h-4 w-4 rounded-[4px] border border-white/80 bg-black/12" /> : null}
         </Link>

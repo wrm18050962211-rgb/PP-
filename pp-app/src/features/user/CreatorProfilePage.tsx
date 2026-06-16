@@ -14,6 +14,7 @@ export function CreatorProfilePage() {
   const navigate = useNavigate();
   const { orders, session } = useAppData();
   const isCompanionMode = session?.role === 'companion';
+  const profileBasePath = isCompanionMode ? '/companion' : '/consumer';
   const [photographersOpen, setPhotographersOpen] = useState(false);
   const posts = listFeedPosts();
   const ownedPosts = posts.filter((post) => getCreatorIdentity(post).id === creatorId);
@@ -64,7 +65,7 @@ export function CreatorProfilePage() {
           </button>
           <Link
             className="grid h-10 place-items-center rounded-[6px] bg-white/12 text-white"
-            to={isCompanionMode ? `/consumer/post/${profilePost.id}` : `/consumer/companions?sameStyle=${profilePost.id}`}
+            to={isCompanionMode ? `${profileBasePath}/post/${profilePost.id}` : `/consumer/companions?sameStyle=${profilePost.id}`}
             aria-label={isCompanionMode ? '查看同款作品' : '拍同款'}
             title={isCompanionMode ? '查看同款作品' : '拍同款'}
           >
@@ -73,8 +74,8 @@ export function CreatorProfilePage() {
         </div>
       </section>
 
-      <WorkGrid works={works} />
-      {photographersOpen ? <CollaboratedPhotographersSheet photographers={photographers} onClose={() => setPhotographersOpen(false)} /> : null}
+      <WorkGrid works={works} basePath={profileBasePath} />
+      {photographersOpen ? <CollaboratedPhotographersSheet photographers={photographers} basePath={profileBasePath} onClose={() => setPhotographersOpen(false)} /> : null}
     </div>
   );
 }
@@ -102,11 +103,11 @@ function ProfileStat({ value, label, onClick }: { value: number | string; label:
   );
 }
 
-function WorkGrid({ works }: { works: FeedPost[] }) {
+function WorkGrid({ works, basePath }: { works: FeedPost[]; basePath: string }) {
   return (
     <section className="grid grid-cols-3 gap-[1px] bg-black">
       {works.map((post) => (
-        <Link key={post.id} to={`/consumer/post/${post.id}`} className="relative aspect-[0.76] overflow-hidden bg-[#111]" aria-label={`查看作品 ${getPostTitle(post)}`}>
+        <Link key={post.id} to={`${basePath}/post/${post.id}`} className="relative aspect-[0.76] overflow-hidden bg-[#111]" aria-label={`查看作品 ${getPostTitle(post)}`}>
           <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading="lazy" playLive={false} />
           {post.images.length > 1 ? <span className="absolute right-1.5 top-1.5 h-4 w-4 rounded-[4px] border border-white/80 bg-black/12" /> : null}
         </Link>
@@ -121,7 +122,7 @@ function buildCreatorBio(post: FeedPost) {
   return `${location} · ${tags || '创作样板'}。喜欢用作品记录路线、场景和可复拍的风格。`;
 }
 
-function CollaboratedPhotographersSheet({ photographers, onClose }: { photographers: FeedPost['companion'][]; onClose: () => void }) {
+function CollaboratedPhotographersSheet({ photographers, basePath, onClose }: { photographers: FeedPost['companion'][]; basePath: string; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end bg-black/58" onClick={onClose}>
       <section className="max-h-[72dvh] w-full overflow-y-auto rounded-t-[18px] bg-[#111] px-4 pb-6 pt-4 text-white" onClick={(event) => event.stopPropagation()}>
@@ -137,7 +138,7 @@ function CollaboratedPhotographersSheet({ photographers, onClose }: { photograph
 
         <div className="space-y-2">
           {photographers.map((photographer) => (
-            <Link key={photographer.id} to={`/consumer/photographer/${photographer.id}`} className="flex items-center gap-3 rounded-[10px] bg-white/[0.06] p-3" onClick={onClose}>
+            <Link key={photographer.id} to={`${basePath}/photographer/${photographer.id}`} className="flex items-center gap-3 rounded-[10px] bg-white/[0.06] p-3" onClick={onClose}>
               <img className="h-12 w-12 shrink-0 rounded-full object-cover" src={photographer.avatar || photographer.photo} alt={photographer.name} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-black">{photographer.name}</p>

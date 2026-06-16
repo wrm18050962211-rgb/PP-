@@ -39,7 +39,7 @@ export function CompanionStudio() {
   const { session } = useAppData();
   const posts = listFeedPosts();
   const ownProfile = buildPhotographerProfileSummary(posts.find((post) => post.companion.id === session?.companionId), session, posts[0]);
-  const collectionSummary = getCollectionSummary(posts);
+  const collectionSummary = getCollectionSummary(posts, '/companion');
   const newConsultationCount = session ? listConsultations(session).filter((item) => item.status === 'consulting').length : 0;
   const visiblePhotographerMenuItems = photographerMenuItems.map((item) => {
     if (item.label !== '咨询报价' || newConsultationCount <= 0) return item;
@@ -119,7 +119,7 @@ function buildPhotographerProfileSummary(post: FeedPost | undefined, session: Re
 
   if (!post && session?.companionId) {
     return {
-      to: `/consumer/photographer/${session.companionId}`,
+      to: `/companion/photographer/${session.companionId}`,
       name: session.user.nickname || '本地摄影师',
       handle: phoneHandle || `@${session.companionId.replace(/^companion-/, '').replace(/-/g, '')}`,
       avatar: session.user.avatarUrl || fallbackPost.companion.avatar || fallbackPost.images[0]?.url,
@@ -130,7 +130,7 @@ function buildPhotographerProfileSummary(post: FeedPost | undefined, session: Re
   const profilePost = post ?? fallbackPost;
   const photographer = profilePost.companion;
   return {
-    to: `/consumer/photographer/${photographer.id}`,
+    to: `/companion/photographer/${photographer.id}`,
     name: photographer.name,
     handle: phoneHandle || `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`,
     avatar: photographer.avatar || photographer.photo || profilePost.images[0]?.url,

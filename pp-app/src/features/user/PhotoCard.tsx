@@ -26,17 +26,20 @@ export function PhotoCard({
   priority = false,
   variant = 'portrait',
   className = '',
+  postHref,
 }: {
   post: FeedPost;
   priority?: boolean;
   variant?: PhotoCardVariant;
   className?: string;
+  postHref?: string;
 }) {
   const likeCount = getPostLikeCount(post.id, listFeedPosts());
+  const href = postHref ?? `/consumer/post/${post.id}`;
 
   return (
     <article className={`overflow-hidden bg-[#050505] ${className}`}>
-      <Link to={`/consumer/post/${post.id}`} className="block" aria-label={`查看${post.location}作品详情`}>
+      <Link to={href} className="block" aria-label={`查看${post.location}作品详情`}>
         <div className={`relative overflow-hidden bg-zinc-950 ${aspectByVariant[variant]}`}>
           <LivePhotoMedia
             media={post.images[0]}

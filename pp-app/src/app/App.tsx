@@ -181,6 +181,12 @@ export default function App() {
       >
         <Route index element={<HomeFeed />} />
         <Route path="creators" element={<CompanionComingSoonPage />} />
+        <Route path="post/:postId" element={<PostDetail />} />
+        <Route path="creator/:creatorId" element={<CreatorProfilePage />} />
+        <Route path="photographer/:photographerId" element={<PhotographerProfilePage />} />
+        <Route path="likes" element={<UserCollectionPage mode="likes" basePath="/companion" />} />
+        <Route path="favorites" element={<UserCollectionPage mode="favorites" basePath="/companion" />} />
+        <Route path="following" element={<UserCollectionPage mode="following" basePath="/companion" />} />
         <Route path="consultations" element={<CompanionConsultationsPage />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="messages/:orderId" element={<MessagesPage />} />

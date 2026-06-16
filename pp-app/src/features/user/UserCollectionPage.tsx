@@ -10,6 +10,7 @@ import type { FeedPost } from '../../types/api';
 import { PhotoCard } from './PhotoCard';
 
 export type UserCollectionMode = 'likes' | 'favorites' | 'following';
+export type UserCollectionBasePath = '/consumer' | '/companion';
 
 const collectionMeta: Record<UserCollectionMode, { title: string; subtitle: string }> = {
   likes: { title: '我的喜欢', subtitle: '你点过喜欢的作品' },
@@ -17,7 +18,7 @@ const collectionMeta: Record<UserCollectionMode, { title: string; subtitle: stri
   following: { title: '我的关注', subtitle: '你正在关注的创作者和摄影师' },
 };
 
-export function UserCollectionPage({ mode }: { mode: UserCollectionMode }) {
+export function UserCollectionPage({ mode, basePath = '/consumer' }: { mode: UserCollectionMode; basePath?: UserCollectionBasePath }) {
   const navigate = useNavigate();
   const posts = listFeedPosts();
   const meta = collectionMeta[mode];
@@ -40,7 +41,7 @@ export function UserCollectionPage({ mode }: { mode: UserCollectionMode }) {
       {mode === 'following' ? (
         <section className="space-y-1 px-3 pt-3">
           {following.map((person) => (
-            <Link key={person.id} to={person.to} className="flex items-center gap-3 rounded-[8px] bg-white/[0.06] p-3 ring-1 ring-white/8">
+            <Link key={person.id} to={withCollectionBasePath(person.to, basePath)} className="flex items-center gap-3 rounded-[8px] bg-white/[0.06] p-3 ring-1 ring-white/8">
               <img className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-white/12" src={person.avatar} alt={person.name} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
@@ -56,7 +57,7 @@ export function UserCollectionPage({ mode }: { mode: UserCollectionMode }) {
       ) : (
         <section className="grid grid-cols-2 gap-[1px] bg-black px-[1px] pt-[1px]">
           {works.map((post, index) => (
-            <PhotoCard key={post.id} post={post} priority={index < 4} variant={index % 3 === 0 ? 'tall' : 'portrait'} />
+            <PhotoCard key={post.id} post={post} priority={index < 4} variant={index % 3 === 0 ? 'tall' : 'portrait'} postHref={`${basePath}/post/${post.id}`} />
           ))}
         </section>
       )}
@@ -64,10 +65,14 @@ export function UserCollectionPage({ mode }: { mode: UserCollectionMode }) {
   );
 }
 
-export function getCollectionSummary(posts: FeedPost[]) {
+export function getCollectionSummary(posts: FeedPost[], basePath: UserCollectionBasePath = '/consumer') {
   return [
-    { icon: Heart, label: '我的喜欢', value: getLikedPosts(posts).length, to: '/consumer/likes' },
-    { icon: Bookmark, label: '我的收藏', value: getFavoritePosts(posts).length, to: '/consumer/favorites' },
-    { icon: UserRound, label: '我的关注', value: getFollowingPeople(posts).length, to: '/consumer/following' },
+    { icon: Heart, label: '我的喜欢', value: getLikedPosts(posts).length, to: `${basePath}/likes` },
+    { icon: Bookmark, label: '我的收藏', value: getFavoritePosts(posts).length, to: `${basePath}/favorites` },
+    { icon: UserRound, label: '我的关注', value: getFollowingPeople(posts).length, to: `${basePath}/following` },
   ];
+}
+
+function withCollectionBasePath(to: string, basePath: UserCollectionBasePath) {
+  return basePath === '/consumer' ? to : to.replace(/^\/consumer/, basePath);
 }

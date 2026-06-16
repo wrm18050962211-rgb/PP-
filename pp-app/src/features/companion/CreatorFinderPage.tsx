@@ -88,7 +88,7 @@ function CreatorCard({ creator, index }: { creator: ApprovedCreator; index: numb
 
   return (
     <article className="overflow-hidden rounded-[2px] bg-[#131313] ring-1 ring-white/8">
-      <Link to={`/consumer/creator/${creator.id}`} className="block" aria-label={`查看${creator.name}主页`}>
+      <Link to={`/companion/creator/${creator.id}`} className="block" aria-label={`查看${creator.name}主页`}>
         <div className={`relative ${aspectClass} bg-zinc-950`}>
           <LivePhotoMedia
             media={creator.post.images[0]}

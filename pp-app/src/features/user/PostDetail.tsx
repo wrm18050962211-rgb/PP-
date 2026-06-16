@@ -273,14 +273,15 @@ function PostDetailContent({ postId }: { postId?: string }) {
         hero={visibleCreator.avatar}
         meta={visibleCreator.meta}
         tags={post.styleTags}
+        basePath={appHomePath}
         onClose={() => setDrawer(null)}
       >
-        <Link className="flex h-12 items-center justify-center rounded-full bg-[#3f302c] text-sm font-black text-white" to={`/consumer/creator/${visibleCreator.id}`}>
+        <Link className="flex h-12 items-center justify-center rounded-full bg-[#3f302c] text-sm font-black text-white" to={`${appHomePath}/creator/${visibleCreator.id}`}>
           查看创作者主页
         </Link>
         <Link
           className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]"
-          to={isCompanionMode ? `/consumer/creator/${visibleCreator.id}` : `/consumer/companions?sameStyle=${post.id}`}
+          to={isCompanionMode ? `${appHomePath}/creator/${visibleCreator.id}` : `/consumer/companions?sameStyle=${post.id}`}
         >
           {isCompanionMode ? '查看同款作品' : '拍同款'}
         </Link>
@@ -297,10 +298,11 @@ function PostDetailContent({ postId }: { postId?: string }) {
         heroSlides={photographerWorks.flatMap((work) => work.images[0]?.url ? [{ id: work.id, image: work.images[0].url }] : [])}
         meta={`${formatCents(firstPackage.basePriceCents)}起 · ${photographer.ratingAvg.toFixed(1)}分`}
         tags={photographer.tags}
+        basePath={appHomePath}
         onClose={() => setDrawer(null)}
       >
         <PhotographerDrawerSummary post={post} packageSettings={packageSettings} />
-        <Link className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]" to={`/consumer/photographer/${photographer.id}`}>
+        <Link className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]" to={`${appHomePath}/photographer/${photographer.id}`}>
           查看摄影师主页
         </Link>
         {isCompanionMode ? null : (
@@ -480,6 +482,7 @@ function ProfileDrawer({
   heroSlides,
   meta,
   tags,
+  basePath,
   onClose,
   children,
 }: {
@@ -492,6 +495,7 @@ function ProfileDrawer({
   heroSlides?: Array<{ id: string; image: string }>;
   meta: string;
   tags: readonly string[];
+  basePath: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -527,7 +531,7 @@ function ProfileDrawer({
       >
         <div className="relative h-56 overflow-hidden bg-[#eadfd8]">
           {activeHero?.id ? (
-            <Link to={`/consumer/post/${activeHero.id}`} aria-label={`查看${name}的作品`}>
+            <Link to={`${basePath}/post/${activeHero.id}`} aria-label={`查看${name}的作品`}>
               <img className="h-full w-full object-cover transition-opacity duration-500" src={activeHero.image} alt={`${name}作品封面`} />
             </Link>
           ) : activeHero ? (
