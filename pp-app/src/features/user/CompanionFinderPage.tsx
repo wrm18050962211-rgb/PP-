@@ -2,13 +2,27 @@ import { MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucid
 import { useMemo, useRef, useState } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
+import { applyBookingSettingsToCompanion, defaultBookingSettings } from '../../data/bookingSettings';
+import { readCompanionBookingSettings } from '../../services/companionBookingSettingsService';
+import { applyCompanionProfile, readCompanionProfile } from '../../services/companionProfileService';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
 
-type FilterKey = 'area' | 'time' | 'style' | 'budget';
-type FinderFilters = Record<FilterKey, string>;
+type FilterKey = 'area' | 'date' | 'time' | 'personality' | 'style' | 'interaction' | 'equipment' | 'budget';
+type CategoricalFilterKey = Exclude<FilterKey, 'budget'>;
+type FinderFilters = Record<CategoricalFilterKey, string> & {
+  budgetMin: number;
+  budgetMax: number;
+};
+type PublicCompanion = FeedPost['companion'] &
+  Partial<{
+    profilePersonalityTags: string[];
+    profileStyleTags: string[];
+    profileInteractionTags: string[];
+    profileEquipment: string[];
+  }>;
 type PhotographerResult = {
-  companion: FeedPost['companion'];
+  companion: PublicCompanion;
   posts: FeedPost[];
   post: FeedPost;
 };
@@ -16,25 +30,50 @@ type ShellContext = {
   homeChromeCompact?: boolean;
 };
 
-const filterOptions: Record<FilterKey, string[]> = {
-  area: ['地点不限', '武康路', '安福路', '外滩', '静安寺', '徐家汇', '新天地'],
-  time: ['时间不限', '现在可拍', '1小时内', '今天', '周末', '晚上'],
-  style: ['风格不限', 'Citywalk', '探店', '街拍', '夜景', '会指导动作'],
-  budget: ['预算不限', '预算300内', '预算400内', '预算700内'],
+const AREA_ANY = '地点不限';
+const DATE_ANY = '日期不限';
+const TIME_ANY = '时间不限';
+const NOW_AVAILABLE = '现在可拍';
+const PERSONALITY_ANY = '性格不限';
+const STYLE_ANY = '风格不限';
+const INTERACTION_ANY = '互动不限';
+const EQUIPMENT_ANY = '设备不限';
+const BUDGET_MIN = 0;
+const BUDGET_MAX = 2000;
+const BUDGET_STEP = 50;
+
+const staticFilterOptions: Record<Exclude<CategoricalFilterKey, 'date'>, string[]> = {
+  area: [AREA_ANY, '武康路', '安福路', '外滩', '静安寺', '徐汇滨江', '新天地'],
+  time: [TIME_ANY, NOW_AVAILABLE, '早上', '中午', '下午', '晚上'],
+  personality: [PERSONALITY_ANY, '轻松聊天', '温柔耐心', '不尴尬', '情绪稳定', '高效直接'],
+  style: [STYLE_ANY, 'Citywalk', '探店', '街拍', '夜景', '旅行跟拍', '胶片感', '人像快拍'],
+  interaction: [INTERACTION_ANY, '会指导动作', '会找角度', '会规划路线', '安静记录', '会带动情绪'],
+  equipment: [EQUIPMENT_ANY, '全画幅', '半画幅', '手机', 'CCD'],
 };
 
 const filterLabels: Record<FilterKey, string> = {
   area: '地点',
+  date: '日期',
   time: '时间',
-  style: '风格',
-  budget: '预算',
+  personality: '性格标签',
+  style: '擅长风格',
+  interaction: '互动方式',
+  equipment: '摄影设备',
+  budget: '预算范围',
 };
 
+const filterGroupOrder: FilterKey[] = ['area', 'date', 'time', 'personality', 'style', 'interaction', 'equipment', 'budget'];
+
 const initialFinderFilters: FinderFilters = {
-  area: filterOptions.area[0],
-  time: filterOptions.time[0],
-  style: filterOptions.style[0],
-  budget: filterOptions.budget[0],
+  area: AREA_ANY,
+  date: DATE_ANY,
+  time: TIME_ANY,
+  personality: PERSONALITY_ANY,
+  style: STYLE_ANY,
+  interaction: INTERACTION_ANY,
+  equipment: EQUIPMENT_ANY,
+  budgetMin: BUDGET_MIN,
+  budgetMax: BUDGET_MAX,
 };
 
 export function CompanionFinderPage() {
@@ -50,31 +89,23 @@ export function CompanionFinderPage() {
   const topChromeHidden = homeChromeCompact && !filterOpen;
 
   const companions = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
+    const keyword = normalizeText(query);
     const grouped = new Map<string, PhotographerResult>();
+
     posts.forEach((post) => {
-      const current = grouped.get(post.companion.id);
+      const companion = buildPublicCompanion(post.companion);
+      const current = grouped.get(companion.id);
       if (current) {
         current.posts.push(post);
         return;
       }
-      grouped.set(post.companion.id, { companion: post.companion, posts: [post], post });
+      grouped.set(companion.id, { companion, posts: [post], post });
     });
 
     return Array.from(grouped.values()).filter(({ companion, posts: portfolioPosts }) => {
-      const searchable = [
-        ...portfolioPosts.flatMap((post) => [post.title, getPostTitle(post), post.location, post.locationName, post.activity, post.caption, ...post.styleTags]),
-        companion.name,
-        companion.gender,
-        ...companion.tags,
-        ...companion.areas,
-        ...companion.slots.map((slot) => slot.label),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
+      const searchable = buildSearchableText(companion, portfolioPosts);
       const matchesKeyword = !keyword || searchable.includes(keyword);
-      return matchesKeyword && matchesFinderFilters(filters, searchable, companion.activities[0]?.priceCents || 0);
+      return matchesKeyword && matchesFinderFilters(filters, companion, portfolioPosts, searchable);
     });
   }, [filters, posts, query]);
 
@@ -92,7 +123,8 @@ export function CompanionFinderPage() {
               className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-zinc-500"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              aria-label="搜索地点、风格或特殊要求"
+              placeholder="搜索地点、风格、摄影师"
+              aria-label="搜索地点、风格或摄影师"
             />
           </label>
           <button
@@ -132,11 +164,19 @@ export function CompanionFinderPage() {
         ))}
       </section>
 
+      {companions.length ? null : (
+        <section className="px-5 py-16 text-center">
+          <p className="text-lg font-black text-white">没有匹配的摄影师</p>
+          <p className="mt-2 text-sm font-semibold text-white/45">可以放宽预算、日期或标签条件再试一次。</p>
+        </section>
+      )}
+
       {filterOpen ? (
         <CompanionFilterSheet
           filters={filters}
           mode={filterOpen}
           onSelect={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
+          onBudgetChange={(patch) => setFilters((current) => normalizeBudgetRange({ ...current, ...patch }))}
           onReset={() => setFilters(initialFinderFilters)}
           onClose={() => setFilterOpen(null)}
         />
@@ -150,7 +190,7 @@ function PhotographerResultCard({ result, index }: { result: PhotographerResult;
   const trackRef = useRef<HTMLDivElement>(null);
   const [activeWork, setActiveWork] = useState(0);
   const activity = companion.activities[0];
-  const slot = companion.slots.find((item) => item.status === 'available') || companion.slots[0];
+  const slot = companion.slots.find(isCurrentAvailableSlot) || companion.slots.find((item) => item.status === 'available') || companion.slots[0];
   const aspectClass = getPortfolioAspectClass(index, portfolioPosts[0]);
 
   const handlePortfolioScroll = () => {
@@ -224,7 +264,7 @@ function PhotographerResultCard({ result, index }: { result: PhotographerResult;
 
         <div className="flex min-w-0 items-center justify-between gap-2 text-[10px] font-semibold text-white/52">
           <span className="truncate">{activity?.name || post.activity}</span>
-          <span className="shrink-0 truncate">{slot?.label || '待开放'}</span>
+          <span className="shrink-0 truncate">{slot ? formatSlotSummary(slot) : '暂无可约档期'}</span>
         </div>
 
         <p className="flex min-w-0 items-center gap-1 text-[10px] font-semibold text-white/48">
@@ -234,7 +274,7 @@ function PhotographerResultCard({ result, index }: { result: PhotographerResult;
 
         <div className="grid grid-cols-[1fr_28px] gap-1.5 pt-0.5">
           <Link className="flex h-8 items-center justify-center rounded-[2px] bg-white text-[11px] font-black text-black" to={`/consumer/photographer/${companion.id}`}>
-            作品预约
+            查看主页
           </Link>
           <Link className="grid h-8 place-items-center rounded-[2px] bg-white/10 text-white" to="/consumer/messages" aria-label="咨询摄影师">
             <MessageCircle size={14} />
@@ -249,45 +289,38 @@ function CompanionFilterSheet({
   filters,
   mode,
   onSelect,
+  onBudgetChange,
   onReset,
   onClose,
 }: {
   filters: FinderFilters;
   mode: FilterKey | 'all';
-  onSelect: (key: FilterKey, value: string) => void;
+  onSelect: (key: CategoricalFilterKey, value: string) => void;
+  onBudgetChange: (patch: Partial<Pick<FinderFilters, 'budgetMin' | 'budgetMax'>>) => void;
   onReset: () => void;
   onClose: () => void;
 }) {
-  const groups = mode === 'all' ? (Object.keys(filterLabels) as FilterKey[]) : [mode];
+  const groups = mode === 'all' ? filterGroupOrder : [mode];
 
   return (
     <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-end bg-black/70" onClick={onClose}>
-      <section className="h-full w-[84%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <section className="h-full w-[86%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-black">选择拍摄条件</h2>
+          <h2 className="text-base font-black">筛选</h2>
           <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" onClick={onClose} aria-label="关闭">
             <X size={18} />
           </button>
         </div>
-        <div className="mt-4 space-y-4">
-          {groups.map((key) => (
-            <div key={key}>
-              <p className="mb-2 text-xs font-black text-zinc-400">{filterLabels[key]}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {filterOptions[key].map((option) => (
-                  <button
-                    key={option}
-                    className={`h-11 rounded-full text-sm font-black ${filters[key] === option ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'}`}
-                    onClick={() => onSelect(key, option)}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="mt-4 space-y-5">
+          {groups.map((key) =>
+            key === 'budget' ? (
+              <BudgetRangeEditor key={key} filters={filters} onChange={onBudgetChange} />
+            ) : (
+              <FilterOptionGroup key={key} filterKey={key} value={filters[key]} onSelect={(value) => onSelect(key, value)} />
+            ),
+          )}
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-2">
+        <div className="mt-6 grid grid-cols-2 gap-2">
           <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onReset}>
             清空
           </button>
@@ -300,13 +333,261 @@ function CompanionFilterSheet({
   );
 }
 
-function matchesFinderFilters(filters: FinderFilters, searchable: string, priceCents: number) {
+function FilterOptionGroup({ filterKey, value, onSelect }: { filterKey: CategoricalFilterKey; value: string; onSelect: (value: string) => void }) {
+  const options = getFilterOptions(filterKey);
+
   return (
-    matchesTextOption(filters.area, filterOptions.area[0], searchable) &&
-    matchesTimeOption(filters.time, searchable) &&
-    matchesTextOption(filters.style, filterOptions.style[0], searchable) &&
-    matchesBudgetOption(filters.budget, priceCents)
+    <div>
+      <p className="mb-2 text-xs font-black text-zinc-400">{filterLabels[filterKey]}</p>
+      <div className={`grid gap-2 ${filterKey === 'date' ? 'grid-cols-2' : 'grid-cols-2'}`}>
+        {options.map((option) => (
+          <button
+            key={option}
+            className={`min-h-11 rounded-full px-3 text-sm font-black ${
+              value === option ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'
+            }`}
+            onClick={() => onSelect(option)}
+            type="button"
+          >
+            {getFilterOptionLabel(filterKey, option)}
+          </button>
+        ))}
+      </div>
+    </div>
   );
+}
+
+function BudgetRangeEditor({
+  filters,
+  onChange,
+}: {
+  filters: FinderFilters;
+  onChange: (patch: Partial<Pick<FinderFilters, 'budgetMin' | 'budgetMax'>>) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-black text-zinc-400">{filterLabels.budget}</p>
+        <span className="rounded-full bg-black px-3 py-1 text-xs font-black text-white">{formatBudgetRange(filters.budgetMin, filters.budgetMax)}</span>
+      </div>
+      <div className="space-y-4 rounded-[14px] border border-zinc-200 bg-zinc-50 p-4">
+        <RangeRow label="下限" value={filters.budgetMin} onChange={(value) => onChange({ budgetMin: value })} min={BUDGET_MIN} max={filters.budgetMax} />
+        <RangeRow label="上限" value={filters.budgetMax} onChange={(value) => onChange({ budgetMax: value })} min={filters.budgetMin} max={BUDGET_MAX} unlimited />
+      </div>
+    </div>
+  );
+}
+
+function RangeRow({
+  label,
+  value,
+  min,
+  max,
+  unlimited = false,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  unlimited?: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="grid grid-cols-[44px_1fr_58px] items-center gap-3 text-sm font-black text-zinc-500">
+      <span>{label}</span>
+      <input
+        className="h-2 w-full cursor-pointer accent-black"
+        type="range"
+        min={min}
+        max={max}
+        step={BUDGET_STEP}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+      <span className="rounded-full bg-white px-2 py-1 text-center text-xs text-zinc-800 ring-1 ring-zinc-100">{unlimited && value >= BUDGET_MAX ? '不限' : `¥${value}`}</span>
+    </label>
+  );
+}
+
+function buildPublicCompanion(companion: FeedPost['companion']): PublicCompanion {
+  const profiled = applyCompanionProfile(companion, readCompanionProfile(companion.id));
+  const settings = readCompanionBookingSettings(companion.id) ?? (companion.isVirtual ? { ...defaultBookingSettings, companionId: companion.id } : null);
+  return applyBookingSettingsToCompanion(profiled, settings ?? undefined) as PublicCompanion;
+}
+
+function matchesFinderFilters(filters: FinderFilters, companion: PublicCompanion, posts: FeedPost[], searchable: string) {
+  return (
+    matchesTextOption(filters.area, AREA_ANY, searchable) &&
+    matchesScheduleFilters(filters, companion) &&
+    matchesProfileOption(filters.personality, PERSONALITY_ANY, getProfileTags(companion, 'personality'), searchable) &&
+    matchesProfileOption(filters.style, STYLE_ANY, getProfileTags(companion, 'style'), searchable) &&
+    matchesProfileOption(filters.interaction, INTERACTION_ANY, getProfileTags(companion, 'interaction'), searchable) &&
+    matchesProfileOption(filters.equipment, EQUIPMENT_ANY, getProfileTags(companion, 'equipment'), searchable) &&
+    matchesBudgetRange(filters, getLowestPriceCents(companion, posts))
+  );
+}
+
+function buildSearchableText(companion: PublicCompanion, portfolioPosts: FeedPost[]) {
+  return normalizeText(
+    [
+      ...portfolioPosts.flatMap((post) => [
+        post.title,
+        getPostTitle(post),
+        post.location,
+        post.locationName,
+        post.activity,
+        post.caption,
+        post.venueType,
+        post.shootTime,
+        post.activityCategory,
+        ...post.styleTags,
+      ]),
+      companion.name,
+      companion.gender,
+      companion.bio,
+      ...companion.tags,
+      ...companion.areas,
+      ...companion.activities.map((activity) => activity.name),
+      ...companion.slots.map((slot) => `${slot.label} ${slot.dateLabel} ${slot.timeLabel}`),
+      ...getProfileTags(companion, 'personality'),
+      ...getProfileTags(companion, 'style'),
+      ...getProfileTags(companion, 'interaction'),
+      ...getProfileTags(companion, 'equipment'),
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
+}
+
+function matchesTextOption(option: string, emptyValue: string, searchable: string) {
+  return option === emptyValue || searchable.includes(normalizeText(option));
+}
+
+function matchesProfileOption(option: string, emptyValue: string, tags: string[], searchable: string) {
+  if (option === emptyValue) return true;
+  const normalized = normalizeText(option);
+  return tags.some((tag) => normalizeText(tag).includes(normalized) || normalized.includes(normalizeText(tag))) || searchable.includes(normalized);
+}
+
+function matchesBudgetRange(filters: FinderFilters, priceCents: number) {
+  const priceYuan = Math.round(priceCents / 100);
+  return priceYuan >= filters.budgetMin && (filters.budgetMax >= BUDGET_MAX || priceYuan <= filters.budgetMax);
+}
+
+function matchesScheduleFilters(filters: FinderFilters, companion: PublicCompanion) {
+  if (filters.time === NOW_AVAILABLE) return isAvailableNow(companion);
+  if (filters.date === DATE_ANY && filters.time === TIME_ANY) return true;
+
+  return companion.slots.some((slot) => {
+    if (slot.status !== 'available') return false;
+    if (filters.date !== DATE_ANY && getSlotDateValue(slot) !== filters.date) return false;
+    if (filters.time !== TIME_ANY && !matchesTimeBucket(slot, filters.time)) return false;
+    return true;
+  });
+}
+
+function isAvailableNow(companion: PublicCompanion) {
+  return companion.serviceEnabled !== false && companion.slots.some(isCurrentAvailableSlot);
+}
+
+function isCurrentAvailableSlot(slot: FeedPost['companion']['slots'][number]) {
+  if (slot.status !== 'available') return false;
+  const now = Date.now();
+  const start = new Date(slot.startAt).getTime();
+  const end = new Date(slot.endAt).getTime();
+  return Number.isFinite(start) && Number.isFinite(end) && start <= now && now < end;
+}
+
+function matchesTimeBucket(slot: FeedPost['companion']['slots'][number], option: string) {
+  const ranges: Record<string, [number, number]> = {
+    早上: [6 * 60, 12 * 60],
+    中午: [11 * 60, 14 * 60],
+    下午: [14 * 60, 18 * 60],
+    晚上: [18 * 60, 24 * 60],
+  };
+  const bucket = ranges[option];
+  if (!bucket) return true;
+  const start = new Date(slot.startAt);
+  const end = new Date(slot.endAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+  const startMinutes = start.getHours() * 60 + start.getMinutes();
+  const endMinutes = end.getHours() * 60 + end.getMinutes();
+  return startMinutes < bucket[1] && endMinutes > bucket[0];
+}
+
+function getLowestPriceCents(companion: PublicCompanion, posts: FeedPost[]) {
+  const prices = [
+    ...companion.activities.map((activity) => activity.priceCents),
+    ...posts.map((post) => post.budgetCents ?? 0),
+  ].filter((price) => price > 0);
+  return prices.length ? Math.min(...prices) : 0;
+}
+
+function getProfileTags(companion: PublicCompanion, kind: 'personality' | 'style' | 'interaction' | 'equipment') {
+  if (kind === 'personality') return companion.profilePersonalityTags?.length ? companion.profilePersonalityTags : companion.tags.filter((tag) => /沟通|耐心|温柔|轻松|不尴尬|情绪|高效/.test(tag));
+  if (kind === 'style') return companion.profileStyleTags?.length ? companion.profileStyleTags : companion.tags.filter((tag) => !/沟通|耐心|温柔|轻松|不尴尬|情绪|指导|路线|角度|设备/.test(tag));
+  if (kind === 'interaction') return companion.profileInteractionTags?.length ? companion.profileInteractionTags : companion.tags.filter((tag) => /指导|路线|角度|穿搭|光线|情绪|记录/.test(tag));
+  return companion.profileEquipment?.length ? companion.profileEquipment : ['全画幅相机'];
+}
+
+function getFilterOptions(key: CategoricalFilterKey) {
+  if (key === 'date') return [DATE_ANY, ...buildUpcomingDateValues(14)];
+  return staticFilterOptions[key];
+}
+
+function getFilterOptionLabel(key: CategoricalFilterKey, value: string) {
+  if (key === 'date' && value !== DATE_ANY) return formatDatePill(value);
+  return value;
+}
+
+function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: ReturnType<typeof listFeedPosts>[number]): FinderFilters {
+  return normalizeBudgetRange({
+    area: matchFilterOption('area', params.get('area') ?? sameStylePost?.locationName ?? sameStylePost?.companion.areas[0]),
+    date: matchFilterOption('date', params.get('date')),
+    time: matchFilterOption('time', params.get('time')),
+    personality: matchFilterOption('personality', params.get('personality')),
+    style: matchFilterOption('style', params.get('style') ?? sameStylePost?.activity ?? sameStylePost?.styleTags[0]),
+    interaction: matchFilterOption('interaction', params.get('interaction')),
+    equipment: matchFilterOption('equipment', params.get('equipment')),
+    budgetMin: parseBudgetParam(params.get('budgetMin'), BUDGET_MIN),
+    budgetMax: parseBudgetParam(params.get('budgetMax'), BUDGET_MAX),
+  });
+}
+
+function matchFilterOption(key: CategoricalFilterKey, value?: string | null) {
+  if (!value) return initialFinderFilters[key];
+  if (key === 'date') {
+    const normalizedDate = normalizeDateValue(value);
+    return normalizedDate && getFilterOptions('date').includes(normalizedDate) ? normalizedDate : DATE_ANY;
+  }
+
+  const normalized = normalizeText(value);
+  const options = getFilterOptions(key);
+  return (
+    options.find((option) => normalizeText(option) === normalized) ??
+    options.find((option) => option !== initialFinderFilters[key] && (normalizeText(option).includes(normalized) || normalized.includes(normalizeText(option)))) ??
+    initialFinderFilters[key]
+  );
+}
+
+function normalizeBudgetRange(filters: FinderFilters): FinderFilters {
+  const budgetMin = clampToBudget(filters.budgetMin);
+  const budgetMax = clampToBudget(filters.budgetMax);
+  return {
+    ...filters,
+    budgetMin: Math.min(budgetMin, budgetMax),
+    budgetMax: Math.max(budgetMin, budgetMax),
+  };
+}
+
+function getActiveFilterCount(filters: FinderFilters) {
+  const categoricalCount = (Object.keys(initialFinderFilters) as Array<keyof FinderFilters>).filter((key) => {
+    if (key === 'budgetMin' || key === 'budgetMax') return false;
+    return filters[key] !== initialFinderFilters[key];
+  }).length;
+  const budgetChanged = filters.budgetMin !== BUDGET_MIN || filters.budgetMax !== BUDGET_MAX;
+  return categoricalCount + (budgetChanged ? 1 : 0);
 }
 
 function getPortfolioAspectClass(index: number, post?: FeedPost) {
@@ -318,42 +599,62 @@ function getPortfolioAspectClass(index: number, post?: FeedPost) {
   return cycle[index % cycle.length];
 }
 
-function matchesTextOption(option: string, emptyValue: string, searchable: string) {
-  return option === emptyValue || searchable.includes(option.toLowerCase());
+function buildUpcomingDateValues(days: number) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + index);
+    return toDateValue(date);
+  });
 }
 
-function matchesTimeOption(option: string, searchable: string) {
-  if (option === filterOptions.time[0]) return true;
-  if (option === '现在可拍') return searchable.includes('今天') || searchable.includes('现在');
-  if (option === '1小时内') return searchable.includes('1小时') || searchable.includes('快拍');
-  return searchable.includes(option.toLowerCase());
+function formatDatePill(value: string) {
+  const date = new Date(`${value}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((date.getTime() - today.getTime()) / 86400000);
+  const prefix = diffDays === 0 ? '今天' : diffDays === 1 ? '明天' : ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()];
+  return `${prefix} ${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-function matchesBudgetOption(option: string, priceCents: number) {
-  if (option === filterOptions.budget[0]) return true;
-  const budgetYuan = Number(option.match(/\d+/)?.[0]);
-  return Number.isFinite(budgetYuan) ? priceCents <= budgetYuan * 100 : true;
+function getSlotDateValue(slot: FeedPost['companion']['slots'][number]) {
+  return toDateValue(new Date(slot.startAt));
 }
 
-function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: ReturnType<typeof listFeedPosts>[number]) {
-  return {
-    area: matchFilterOption('area', params.get('area') ?? sameStylePost?.locationName ?? sameStylePost?.companion.areas[0]),
-    time: matchFilterOption('time', params.get('time')),
-    style: matchFilterOption('style', params.get('style') ?? sameStylePost?.activity ?? sameStylePost?.styleTags[0]),
-    budget: matchFilterOption('budget', params.get('budget')),
-  };
+function toDateValue(date: Date) {
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function matchFilterOption(key: FilterKey, value?: string | null) {
-  if (!value) return initialFinderFilters[key];
-  const normalized = value.trim().toLowerCase();
-  return (
-    filterOptions[key].find((option) => option.toLowerCase() === normalized) ??
-    filterOptions[key].find((option) => option !== initialFinderFilters[key] && (option.toLowerCase().includes(normalized) || normalized.includes(option.toLowerCase()))) ??
-    initialFinderFilters[key]
-  );
+function normalizeDateValue(value: string) {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  return '';
 }
 
-function getActiveFilterCount(filters: FinderFilters) {
-  return (Object.keys(filters) as FilterKey[]).filter((key) => filters[key] !== initialFinderFilters[key]).length;
+function formatSlotSummary(slot: FeedPost['companion']['slots'][number]) {
+  if (isCurrentAvailableSlot(slot)) return '现在可拍';
+  return `${slot.dateLabel} ${slot.timeLabel || ''}`.trim();
+}
+
+function formatBudgetRange(min: number, max: number) {
+  return `¥${min} - ${max >= BUDGET_MAX ? '不限' : `¥${max}`}`;
+}
+
+function parseBudgetParam(value: string | null, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? clampToBudget(parsed) : fallback;
+}
+
+function clampToBudget(value: number) {
+  return Math.min(BUDGET_MAX, Math.max(BUDGET_MIN, Math.round(value / BUDGET_STEP) * BUDGET_STEP));
+}
+
+function normalizeText(value?: string | null) {
+  return String(value ?? '').trim().toLowerCase();
 }
