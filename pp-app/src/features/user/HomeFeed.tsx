@@ -680,21 +680,24 @@ function SearchOverlay({
             <span className="text-xs font-bold text-white/26">按风格找作品</span>
           </div>
           <div className="grid grid-cols-4 gap-2">
-            {suggestionTiles.slice(0, 8).map(({ label, post }) => (
+            {suggestionTiles.slice(0, 8).map(({ label, description, post }) => (
               <button
                 key={label}
-                className="relative h-14 min-w-0 overflow-hidden rounded-[10px] bg-white/[0.08] px-1.5 text-center ring-1 ring-white/8"
+                className="relative h-16 min-w-0 overflow-hidden rounded-[10px] bg-white/[0.08] px-1.5 text-center ring-1 ring-white/8"
                 onClick={() => onPick(label)}
               >
                 {post ? <LivePhotoMedia className="absolute inset-0" media={post.images[0]} alt={label} playLive={false} mediaClassName="opacity-35" /> : null}
                 <span className="absolute inset-0 bg-black/42" />
-                <span className="relative flex h-full items-center justify-center text-[11px] font-black leading-tight text-white/86">{label}</span>
+                <span className="relative flex h-full min-w-0 flex-col items-center justify-center gap-0.5">
+                  <span className="max-w-full truncate text-[11px] font-black leading-tight text-white/90">{label}</span>
+                  <span className="max-w-full truncate text-[9px] font-bold leading-tight text-white/52">{description}</span>
+                </span>
               </button>
             ))}
           </div>
         </section>
 
-        <section className="mt-9 grid grid-cols-3 gap-px">
+        <section className="grid grid-cols-3 gap-px" style={{ marginTop: 'calc(2.25rem + ((min(100vw, 28rem) - 2rem) / 3))' }}>
           {previewPosts.map((post, index) => (
             <Link key={post.id} to={`/consumer/post/${post.id}`} className="group relative aspect-square overflow-hidden bg-white/[0.04]" aria-label={`查看${getPostTitle(post)}`}>
               <LivePhotoMedia media={post.images[0]} alt={getPostTitle(post)} loading={index < 9 ? 'eager' : 'lazy'} playLive={false} mediaClassName="transition duration-300 group-active:scale-[0.98]" />
@@ -720,8 +723,23 @@ function getSearchSuggestionTiles(suggestions: string[], posts: FeedPost[]) {
   return suggestions.map((label, index) => {
     const keyword = label.toLowerCase();
     const post = source.find((item) => getPostSearchText(item).includes(keyword)) ?? source[index % Math.max(source.length, 1)];
-    return { label, post };
+    return { label, description: getSearchSuggestionDescription(label), post };
   });
+}
+
+function getSearchSuggestionDescription(label: string) {
+  const descriptions: Record<string, string> = {
+    黑白大片: '高级影调',
+    Citywalk: '街区散步',
+    探店: '餐厅咖啡',
+    夜景: '蓝调霓虹',
+    武康路: '上海街拍',
+    安福路: '文艺街区',
+    预算300内: '轻量快拍',
+    女生摄影师: '更放松',
+  };
+
+  return descriptions[label] ?? '相似灵感';
 }
 
 function loadInitialFeedPage(): FeedPostPage {
