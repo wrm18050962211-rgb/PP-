@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Clock3,
   FileText,
+  ImagePlus,
   MapPin,
   MessageCircle,
   ReceiptText,
@@ -11,13 +12,23 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { listFeedPosts } from '../../services/feedService';
+import {
+  isOrderWorkConfirmed,
+  listOrderWorkRecords,
+  markOrderWorkDisputed,
+  saveOrderWorkRecord,
+  type OrderWorkRecord,
+} from '../../services/orderWorkService';
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import type { AppOrder, OrderStatus } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
+import { OrderWorkDialog } from '../user/OrdersPage';
 
 type CompanionOrderTab = OrderStatus;
+type WorkEditTab = 'not_started' | 'editing' | 'done';
 type ActiveDialog =
   | { type: 'detail'; order: AppOrder }
   | { type: 'confirm'; order: AppOrder }
@@ -25,11 +36,23 @@ type ActiveDialog =
   | { type: 'cancel'; order: AppOrder }
   | null;
 
+type WorkEditStatus = {
+  key: WorkEditTab;
+  label: string;
+  desc: string;
+};
+
 const tabs: Array<{ key: CompanionOrderTab; label: string }> = [
   { key: 'paid_pending_confirm', label: '待确认' },
   { key: 'confirmed', label: '已确认' },
   { key: 'completed', label: '已完成' },
   { key: 'cancelled', label: '已取消' },
+];
+
+const workTabs: WorkEditStatus[] = [
+  { key: 'not_started', label: '未编辑', desc: '已完成订单，还没有上传或填写成片信息' },
+  { key: 'editing', label: '正在编辑', desc: '已进入成片协作，等待补充内容或双方确认' },
+  { key: 'done', label: '已编辑完成', desc: '创作者和摄影师已确认，可选择同步主页' },
 ];
 
 const statusMeta: Record<string, { label: string; tone: string }> = {
@@ -45,6 +68,8 @@ const statusMeta: Record<string, { label: string; tone: string }> = {
 
 export function CompanionOrdersPage() {
   const { orders, updateOrderFunding, updateOrderStatus } = useAppData();
+  const [searchParams] = useSearchParams();
+  const workMode = searchParams.get('work') === '1';
   const [activeTab, setActiveTab] = useState<CompanionOrderTab>('paid_pending_confirm');
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
 
@@ -58,6 +83,10 @@ export function CompanionOrdersPage() {
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => getDisplayOrderStatus(order.status) === activeTab);
   }, [activeTab, orders]);
+
+  if (workMode) {
+    return <CompanionWorkEditPage />;
+  }
 
   return (
     <div className="min-h-dvh bg-zinc-50 px-4 py-5">
@@ -159,6 +188,147 @@ export function CompanionOrdersPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function CompanionWorkEditPage() {
+  const { orders, updateOrderFunding } = useAppData();
+  const [activeTab, setActiveTab] = useState<WorkEditTab>('not_started');
+  const [activeWorkOrder, setActiveWorkOrder] = useState<AppOrder | null>(null);
+  const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
+  const posts = useMemo(() => listFeedPosts(), []);
+  const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
+  const completedOrders = useMemo(() => orders.filter((order) => getDisplayOrderStatus(order.status) === 'completed'), [orders]);
+  const counts = useMemo(() => {
+    return workTabs.reduce<Record<WorkEditTab, number>>((next, tab) => {
+      next[tab.key] = completedOrders.filter((order) => getWorkEditStatus(workByOrderId.get(order.id)) === tab.key).length;
+      return next;
+    }, { not_started: 0, editing: 0, done: 0 });
+  }, [completedOrders, workByOrderId]);
+  const visibleOrders = useMemo(
+    () => completedOrders.filter((order) => getWorkEditStatus(workByOrderId.get(order.id)) === activeTab),
+    [activeTab, completedOrders, workByOrderId],
+  );
+  const activeWorkRecord = activeWorkOrder ? workByOrderId.get(activeWorkOrder.id) : undefined;
+
+  function submitWorkRecord(record: OrderWorkRecord) {
+    setWorkRecords(saveOrderWorkRecord(record));
+    setActiveWorkOrder(null);
+  }
+
+  return (
+    <div className="min-h-dvh bg-zinc-50 px-4 py-5">
+      <header className="flex items-start gap-3">
+        <Link className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-zinc-700 ring-1 ring-zinc-200" to="/companion/mine" aria-label="返回我的">
+          <ArrowLeft size={20} />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-rose-500">陪拍者工作台</p>
+          <h1 className="mt-1 text-2xl font-bold">编辑作品</h1>
+        </div>
+        <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-zinc-700 ring-1 ring-zinc-200" aria-hidden>
+          <ImagePlus size={19} />
+        </span>
+      </header>
+
+      <section className="mt-4 rounded-[14px] bg-white p-3 text-zinc-700 ring-1 ring-zinc-200">
+        <p className="text-xs font-black text-rose-500">作品按 3 个编辑状态分类</p>
+        <p className="mt-1 text-xs leading-5 text-zinc-500">
+          这里只显示已完成订单的共同成片。未编辑代表还没开始上传；正在编辑代表已上传或填写但未双方确认；已编辑完成代表双方确认后可同步到主页。
+        </p>
+      </section>
+
+      <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1">
+        {workTabs.map((tab) => (
+          <button
+            key={tab.key}
+            className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
+              activeTab === tab.key ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-500 ring-1 ring-zinc-200'
+            }`}
+            onClick={() => setActiveTab(tab.key)}
+            type="button"
+          >
+            {tab.label}
+            <span className="ml-1 text-xs opacity-70">{counts[tab.key]}</span>
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-3 text-xs font-semibold leading-5 text-zinc-400">{workTabs.find((tab) => tab.key === activeTab)?.desc}</p>
+
+      <div className="mt-4 space-y-4">
+        {visibleOrders.map((order) => (
+          <WorkEditOrderCard key={order.id} order={order} record={workByOrderId.get(order.id)} onManage={() => setActiveWorkOrder(order)} />
+        ))}
+      </div>
+
+      {!visibleOrders.length && (
+        <div className="mt-16 text-center">
+          <FileText className="mx-auto text-zinc-300" size={48} />
+          <p className="mt-4 text-sm font-semibold text-zinc-500">当前没有这个编辑状态的作品</p>
+        </div>
+      )}
+
+      {activeWorkOrder ? (
+        <OrderWorkDialog
+          order={activeWorkOrder}
+          post={posts.find((post) => post.id === activeWorkOrder.postId)}
+          record={activeWorkRecord}
+          onClose={() => setActiveWorkOrder(null)}
+          onSubmit={submitWorkRecord}
+          onDispute={(record, reason) => {
+            submitWorkRecord(markOrderWorkDisputed(record, reason));
+            updateOrderFunding(activeWorkOrder.id, { fundsStatus: 'frozen', settlementStatus: 'frozen' });
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; record?: OrderWorkRecord; onManage: () => void }) {
+  const status = getWorkEditStatus(record);
+  const statusLabel = workTabs.find((tab) => tab.key === status)?.label ?? '未编辑';
+  const actionText = status === 'not_started' ? '开始编辑' : status === 'editing' ? '继续编辑' : '查看成片';
+  const imageCount = record?.imageUrls.length ?? 0;
+
+  return (
+    <article className="rounded-[10px] border border-zinc-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-zinc-400">{order.orderNo}</p>
+          <h2 className="mt-1 truncate text-lg font-bold">{order.activityName ?? order.title}</h2>
+        </div>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${getWorkEditTone(status)}`}>{statusLabel}</span>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm">
+        <InfoLine icon={<UserRound size={17} />} label="创作者" value={order.creatorName || order.creatorPhone || order.creatorId || '预约用户'} />
+        <InfoLine icon={<MapPin size={17} />} label="地点" value={order.place} />
+        <InfoLine icon={<CalendarDays size={17} />} label="时间" value={`${order.dateLabel ?? ''} ${order.timeLabel ?? order.time}`.trim()} />
+        <InfoLine icon={<Clock3 size={17} />} label="时长" value={order.durationLabel ?? `${order.durationMinutes ?? 0}分钟`} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2 rounded-[10px] bg-zinc-50 p-3 text-center">
+        <WorkMetric label="照片/Live" value={`${imageCount}/9`} />
+        <WorkMetric label="创作者确认" value={record?.creatorConfirmed ? '已确认' : '未确认'} />
+        <WorkMetric label="摄影师确认" value={record?.photographerConfirmed ? '已确认' : '未确认'} />
+      </div>
+
+      <button className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white" onClick={onManage} type="button">
+        <ImagePlus size={17} />
+        {actionText}
+      </button>
+    </article>
+  );
+}
+
+function WorkMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-zinc-400">{label}</p>
+      <p className="mt-1 text-xs font-black text-zinc-900">{value}</p>
     </div>
   );
 }
@@ -346,6 +516,17 @@ function formatAddOns(order: AppOrder) {
   const count = addOns.reduce((total, item) => total + item.quantity, 0);
   const amount = addOns.reduce((total, item) => total + item.amountCents, 0);
   return `${count}项 ${formatMoney(amount)}`;
+}
+
+function getWorkEditStatus(record?: OrderWorkRecord): WorkEditTab {
+  if (!record) return 'not_started';
+  return isOrderWorkConfirmed(record) ? 'done' : 'editing';
+}
+
+function getWorkEditTone(status: WorkEditTab) {
+  if (status === 'done') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+  if (status === 'editing') return 'bg-blue-50 text-blue-700 ring-blue-100';
+  return 'bg-zinc-100 text-zinc-500 ring-zinc-200';
 }
 
 function getDisplayOrderStatus(status: OrderStatus): OrderStatus {

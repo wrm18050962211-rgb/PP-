@@ -530,7 +530,7 @@ function CompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; on
   );
 }
 
-function OrderWorkDialog({
+export function OrderWorkDialog({
   order,
   post,
   record,
