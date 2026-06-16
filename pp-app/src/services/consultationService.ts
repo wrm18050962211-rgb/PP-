@@ -258,16 +258,17 @@ export function getConsultationRiskText(record: ConsultationRecord) {
 function readConsultations() {
   if (typeof localStorage === 'undefined') return [];
   const records = new Map<string, ConsultationRecord>();
-  for (const record of readConsultationStorageValue(sharedConsultationStorageKey)) {
-    records.set(record.id, record);
-  }
 
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index);
     if (!key || key === sharedConsultationStorageKey || !key.endsWith(`:${storageKey}`)) continue;
     for (const record of readConsultationStorageValue(key)) {
-      records.set(record.id, record);
+      setNewestConsultation(records, record);
     }
+  }
+
+  for (const record of readConsultationStorageValue(sharedConsultationStorageKey)) {
+    setNewestConsultation(records, record);
   }
 
   return Array.from(records.values()).sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
@@ -284,6 +285,13 @@ function readConsultationStorageValue(key: string) {
     return raw ? (JSON.parse(raw) as ConsultationRecord[]) : [];
   } catch {
     return [];
+  }
+}
+
+function setNewestConsultation(records: Map<string, ConsultationRecord>, record: ConsultationRecord) {
+  const current = records.get(record.id);
+  if (!current || new Date(record.updatedAt).getTime() >= new Date(current.updatedAt).getTime()) {
+    records.set(record.id, record);
   }
 }
 
