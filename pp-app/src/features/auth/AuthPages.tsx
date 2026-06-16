@@ -1,5 +1,5 @@
 import { ArrowLeft, Camera, CheckCircle2, LogOut, MessageSquareText, ShieldCheck, Smartphone, UserRound } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   accountHasRole,
@@ -18,6 +18,16 @@ import {
 } from '../../services/authService';
 
 type PublicRole = RegisterInput['role'];
+
+function toPublicRole(value: unknown): PublicRole | null {
+  return value === 'consumer' || value === 'companion' ? value : null;
+}
+
+function getRegisterPath(role: PublicRole, phone?: string) {
+  const params = new URLSearchParams({ role });
+  if (phone) params.set('phone', phone);
+  return `/auth/register?${params.toString()}`;
+}
 
 const roleOptions: Array<{ role: PublicRole; title: string; desc: string; icon: typeof UserRound }> = [
   { role: 'consumer', title: '创作者', desc: '发现作品、预约摄影师、管理成片', icon: UserRound },
@@ -63,11 +73,19 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const registerState = location.state as { role?: PublicRole; phone?: string } | null;
-  const [role, setRole] = useState<PublicRole>(registerState?.role ?? 'consumer');
-  const [phone, setPhone] = useState(registerState?.phone ?? '');
+  const registerParams = new URLSearchParams(location.search);
+  const initialRole = toPublicRole(registerState?.role) ?? toPublicRole(registerParams.get('role')) ?? 'consumer';
+  const initialPhone = registerState?.phone ?? registerParams.get('phone') ?? '';
+  const [role, setRole] = useState<PublicRole>(initialRole);
+  const [phone, setPhone] = useState(initialPhone);
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    setRole(initialRole);
+    setPhone(initialPhone);
+  }, [initialRole, initialPhone]);
 
   function sendCode() {
     try {
@@ -82,7 +100,7 @@ export function RegisterPage() {
   async function submit() {
     try {
       const account = registerWithPhone({ phone, code, role });
-      navigate(getRoleOnboardingPath(role), { replace: true, state: { role, phone: account.phone } });
+      navigate(accountHasRole(role) ? getPostAuthHome(role) : getRoleOnboardingPath(role), { replace: true, state: { role, phone: account.phone } });
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     }
@@ -209,7 +227,8 @@ export function LoginPage() {
           phone={missingRolePrompt.phone}
           onClose={() => setMissingRolePrompt(null)}
           onRegister={() => {
-            navigate('/auth/register', {
+            navigate(getRegisterPath(missingRolePrompt.role, missingRolePrompt.phone), {
+              replace: true,
               state: { role: missingRolePrompt.role, phone: missingRolePrompt.phone },
             });
           }}
@@ -224,7 +243,7 @@ export function LoginPage() {
         type="button"
         onClick={() => {
           setMissingRolePrompt(null);
-          navigate('/auth/register', { state: { role, phone } });
+          navigate(getRegisterPath(role, phone), { replace: true, state: { role, phone } });
         }}
       >
         注册

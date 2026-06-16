@@ -153,16 +153,27 @@ export function registerWithPhone(input: RegisterInput) {
   const phone = normalizePhone(input.phone);
   validatePhoneCode(phone, input.code);
   const existing = readAccount()?.phone === phone ? readAccount() : null;
-  const roles = existing?.roles ?? [];
-  const alreadyApproved = roles.includes(input.role);
-  const pendingRoleRegistrations = alreadyApproved ? (existing?.pendingRoleRegistrations ?? []) : Array.from(new Set([...(existing?.pendingRoleRegistrations ?? []), input.role]));
-  const roleReviewStatus = { ...(existing?.roleReviewStatus ?? {}), [input.role]: alreadyApproved ? 'approved' as const : 'draft' as const };
+  const existingStatus = existing?.roleReviewStatus?.[input.role];
+  if (existingStatus === 'pending') throw new PendingRoleReviewError(input.role);
+
+  const alreadyApproved = existingStatus === 'approved' || (existing ? getUsableRoles(existing).includes(input.role) : false);
+  const shouldApproveImmediately = input.role === 'consumer' || alreadyApproved;
+  const approvedRoles = existing ? getApprovedLocalRoles(existing) : [];
+  const roles = shouldApproveImmediately ? Array.from(new Set([...approvedRoles, input.role])) : approvedRoles;
+  const pendingRoleRegistrations = shouldApproveImmediately
+    ? (existing?.pendingRoleRegistrations ?? []).filter((role) => role !== input.role)
+    : (existing?.pendingRoleRegistrations ?? []).filter((role) => role !== input.role);
+  const completedRoleRegistrations = shouldApproveImmediately
+    ? Array.from(new Set([...(existing?.completedRoleRegistrations ?? []), input.role]))
+    : (existing?.completedRoleRegistrations ?? []).filter((role) => role !== input.role);
+  const roleReviewStatus = { ...(existing?.roleReviewStatus ?? {}), [input.role]: shouldApproveImmediately ? 'approved' as const : 'draft' as const };
 
   const account: AuthAccount = {
     ...existing,
     phone,
     role: input.role,
     roles,
+    completedRoleRegistrations,
     pendingRoleRegistrations,
     roleReviewStatus,
     nickname: input.role === 'companion' ? 'Demo Photographer' : 'Demo Creator',
@@ -174,9 +185,14 @@ export function registerWithPhone(input: RegisterInput) {
   };
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(accountStorageKey, JSON.stringify(account));
-    localStorage.removeItem(loginStorageKey);
+    if (shouldApproveImmediately) {
+      localStorage.setItem(loginStorageKey, '1');
+    } else {
+      localStorage.removeItem(loginStorageKey);
+    }
   }
   persistRole(input.role);
+  notifySessionChanged(localSession(input.role));
   return account;
 }
 
@@ -327,11 +343,12 @@ function findLoginAccount(phone: string): AuthAccount | null {
 }
 
 function mergeLoginAccounts(testAccount: AuthAccount, localAccount: AuthAccount): AuthAccount {
+  const localApprovedRoles = getApprovedLocalRoles(localAccount);
   return {
     ...testAccount,
     role: localAccount.role ?? testAccount.role,
-    roles: Array.from(new Set([...testAccount.roles, ...localAccount.roles, ...(localAccount.completedRoleRegistrations ?? [])])),
-    completedRoleRegistrations: Array.from(new Set([...(testAccount.completedRoleRegistrations ?? []), ...(localAccount.completedRoleRegistrations ?? [])])),
+    roles: Array.from(new Set([...testAccount.roles, ...localApprovedRoles])),
+    completedRoleRegistrations: Array.from(new Set([...(testAccount.completedRoleRegistrations ?? []), ...localApprovedRoles])),
     pendingRoleRegistrations: Array.from(new Set([...(testAccount.pendingRoleRegistrations ?? []), ...(localAccount.pendingRoleRegistrations ?? [])])),
     roleReviewStatus: { ...(testAccount.roleReviewStatus ?? {}), ...(localAccount.roleReviewStatus ?? {}) },
     nickname: localAccount.nickname || testAccount.nickname,
@@ -413,8 +430,18 @@ function canUseRole(account: AuthAccount | null, role: UserRole) {
 
 function getUsableRoles(account: AuthAccount): PublicRole[] {
   const testRoles = findTestAccountIdentitiesByPhone(account.phone).map((identity) => identity.role);
-  if (testRoles.length) return Array.from(new Set([...testRoles, ...account.roles, ...(account.completedRoleRegistrations ?? [])]));
-  return account.roles;
+  return Array.from(new Set([...testRoles, ...getApprovedLocalRoles(account)]));
+}
+
+function getApprovedLocalRoles(account: AuthAccount): PublicRole[] {
+  return Array.from(
+    new Set(
+      [...account.roles, ...(account.completedRoleRegistrations ?? [])].filter((role) => {
+        const status = account.roleReviewStatus?.[role];
+        return status !== 'draft' && status !== 'pending' && status !== 'rejected';
+      }),
+    ),
+  );
 }
 
 function resolveUsableRole(account: AuthAccount | null, role: UserRole): UserRole {
@@ -447,23 +474,27 @@ function normalizeRoleReviewStatus(status: unknown): Partial<Record<PublicRole, 
 }
 
 function sanitizeLegacyAccount(account: AuthAccount): AuthAccount {
-  if (!['13910010001', '13910010002'].includes(account.phone) || account.roleReviewStatus?.companion === 'approved') return account;
+  if (!['13910010001', '13910010002'].includes(account.phone)) return account;
+  const companionStatus = account.roleReviewStatus?.companion;
+  const keepCompanionReview = companionStatus === 'draft' || companionStatus === 'pending';
   const roles = account.roles.filter((role) => role !== 'companion');
   const completedRoleRegistrations = (account.completedRoleRegistrations ?? []).filter((role) => role !== 'companion');
-  const pendingRoleRegistrations = (account.pendingRoleRegistrations ?? []).filter((role) => role !== 'companion');
+  const pendingRoleRegistrations = keepCompanionReview
+    ? account.pendingRoleRegistrations ?? []
+    : (account.pendingRoleRegistrations ?? []).filter((role) => role !== 'companion');
   const roleReviewStatus = { ...(account.roleReviewStatus ?? {}) };
-  delete roleReviewStatus.companion;
+  if (!keepCompanionReview) delete roleReviewStatus.companion;
   return {
     ...account,
-    role: account.role === 'companion' ? roles[0] ?? 'consumer' : account.role,
+    role: account.role === 'companion' && !keepCompanionReview ? roles[0] ?? 'consumer' : account.role,
     roles,
     completedRoleRegistrations,
     pendingRoleRegistrations,
     roleReviewStatus,
-    photographerName: undefined,
-    companionId: undefined,
-    photographerAvatarUrl: undefined,
-    photographerPostId: undefined,
+    photographerName: keepCompanionReview ? account.photographerName : undefined,
+    companionId: keepCompanionReview ? account.companionId : undefined,
+    photographerAvatarUrl: keepCompanionReview ? account.photographerAvatarUrl : undefined,
+    photographerPostId: keepCompanionReview ? account.photographerPostId : undefined,
   };
 }
 
