@@ -62,6 +62,17 @@ psql "$DATABASE_URL" -f database/seed_mvp.sql
 
 MVP 先支持城市 + 商圈/地点多选。后续需要地图圈选时，可用 `lat`、`lng`、`radius_meters` 或 PostGIS 字段升级。
 
+### 拍摄前妆造预留
+
+产品后续会在摄影预约前加入“化妆”和“穿衣”两个前置能力，但不建议在 MVP 阶段直接混入摄影师订单模型：
+
+- 化妆师应作为独立服务身份，例如后续扩展 `makeup_artists`、`makeup_artist_kyc`、`makeup_artist_tags`、`makeup_service_areas`、`makeup_packages`、`makeup_availability_slots`。
+- 化妆师必须通过管理员后台审核后才能展示和接单，审核仍进入 `audit_cases`，但 `target_type` 应与摄影师区分。
+- 化妆预约和摄影预约可以在产品流程上串联，但订单、支付、结算、纠纷应分别建模，避免一个摄影订单同时承担化妆师和摄影师两套履约责任。
+- 化妆师服务同样需要平台内聊天、风控、举报、退款和评价能力，后续可复用消息、风控、审核和结算的通用表。
+- 穿衣能力等 LT 项目可用后接入。PP 侧只沉淀拍摄地点、风格标签、常见穿搭、作品参考和跳转参数；LT 侧负责背景试穿、服装推荐和购买链路。
+- 与 LT 的连接数据建议先独立为 `location_outfit_insights`、`outfit_recommendation_links` 等扩展表，避免污染 `posts` 和摄影订单主表。
+
 ### 作品图片流
 
 - `posts`：作品帖子
