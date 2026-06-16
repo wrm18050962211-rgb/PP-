@@ -194,6 +194,7 @@ function PackageQuoteCard({
             <PackageMetric label="原图/精修" value={`${pkg.includedOriginals} 张原图 · ${pkg.includedRetouchedCount} 张精修`} />
             <PackageMetric label="多人加价" value={`+${formatCents(settings.addOns.extraPersonPerHourCents)} /人/小时`} />
             <PackageMetric label="额外修图" value={`${formatCents(settings.addOns.retouchPerImageCents)} /张`} />
+            <PackageMetric label="默认交通费" value={settings.addOns.travelFeeCents ? formatCents(settings.addOns.travelFeeCents) : '无'} />
           </div>
           <div className="mt-3 space-y-2 text-xs font-semibold leading-5 text-white/58">
             <RuleLine label="可拍时间" value={settings.rules.availableTimeRanges} />

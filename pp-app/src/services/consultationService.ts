@@ -152,6 +152,10 @@ export function estimateConsultationQuote(record: ConsultationRecord, companion:
     totalCents += settings.addOns.outdoorFeeCents;
     addOnLines.push(`室外附加 ${formatEstimateMoney(settings.addOns.outdoorFeeCents)}`);
   }
+  if (settings.addOns.travelFeeCents) {
+    totalCents += settings.addOns.travelFeeCents;
+    addOnLines.push(`交通费 ${formatEstimateMoney(settings.addOns.travelFeeCents)}`);
+  }
 
   const depositCents = Math.min(totalCents, selectedPackage.depositCents);
   return {
@@ -191,6 +195,10 @@ export function sendQuoteForConsultation(id: string, companion: Companion | unde
     if (item.requestCard.sceneType === 'outdoor' && settings.addOns.outdoorFeeCents) {
       totalCents += settings.addOns.outdoorFeeCents;
       addOnLines.push(`室外附加 ¥${Math.round(settings.addOns.outdoorFeeCents / 100)}`);
+    }
+    if (settings.addOns.travelFeeCents) {
+      totalCents += settings.addOns.travelFeeCents;
+      addOnLines.push(`交通费 ¥${Math.round(settings.addOns.travelFeeCents / 100)}`);
     }
     const totalCentsWithOverride = Math.max(0, override.totalCents ?? totalCents);
     const depositCents = Math.min(totalCentsWithOverride, Math.max(0, override.depositCents ?? selectedPackage.depositCents));

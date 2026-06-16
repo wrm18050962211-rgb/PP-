@@ -260,6 +260,7 @@ function estimateQuote(consultation: ConsultationRecord, companion?: Companion) 
   if (consultation.requestCard.needsVideo) totalCents += addOns.videoPerClipCents * Math.max(1, consultation.requestCard.videoCount ?? 1);
   if (consultation.requestCard.needsPolaroid) totalCents += addOns.polaroidPerShotCents * Math.max(1, consultation.requestCard.polaroidCount ?? 1);
   if (consultation.requestCard.sceneType === 'outdoor') totalCents += addOns.outdoorFeeCents;
+  totalCents += addOns.travelFeeCents;
 
   return {
     totalCents,

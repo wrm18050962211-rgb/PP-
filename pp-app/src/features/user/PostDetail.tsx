@@ -466,6 +466,10 @@ function PhotographerDrawerSummary({ post, packageSettings }: { post: FeedPost; 
           <p className="text-[#9b8c84]">修图</p>
           <p className="mt-1 text-[#3f302c]">含 {firstPackage.includedRetouchedCount} 张</p>
         </div>
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">默认交通费</p>
+          <p className="mt-1 text-[#3f302c]">{packageSettings.addOns.travelFeeCents ? formatCents(packageSettings.addOns.travelFeeCents) : '无'}</p>
+        </div>
       </div>
       <p className="text-[11px] font-bold leading-5 text-[#9b8c84]">交通/门票默认由创作者承担；高温、夜间、远距离可能加价，最终以咨询报价为准。</p>
     </div>

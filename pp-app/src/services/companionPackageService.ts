@@ -17,6 +17,7 @@ export type CompanionPackageSettings = {
   packages: CompanionPackage[];
   addOns: {
     extraPersonPerHourCents: number;
+    travelFeeCents: number;
     outdoorFeeCents: number;
     hotWeatherFeeCents: number;
     nightFeeCents: number;
@@ -48,11 +49,11 @@ const sharedPackageStorageKey = 'pp-cloud-db:shared:companion-package-settings-b
 
 export function readCompanionPackageSettings(companion?: Companion | null) {
   const sharedSettings = readSharedCompanionPackageSettings(companion?.id);
-  if (sharedSettings) return sharedSettings;
+  if (sharedSettings) return normalizePackageSettings(sharedSettings);
   const legacySettings = readLegacyScopedCompanionPackageSettings(companion?.id);
-  if (legacySettings) return legacySettings;
+  if (legacySettings) return normalizePackageSettings(legacySettings);
   if (companion?.id) return createDefaultPackageSettings(companion);
-  return readDomainJson<CompanionPackageSettings | null>(storageKey, null, 'companion') ?? createDefaultPackageSettings(companion);
+  return normalizePackageSettings(readDomainJson<CompanionPackageSettings | null>(storageKey, null, 'companion') ?? createDefaultPackageSettings(companion));
 }
 
 export function saveCompanionPackageSettings(settings: CompanionPackageSettings, companionId?: string | null) {
@@ -102,6 +103,7 @@ export function createDefaultPackageSettings(companion?: Companion | null): Comp
     ],
     addOns: {
       extraPersonPerHourCents: 5000,
+      travelFeeCents: 0,
       outdoorFeeCents: 0,
       hotWeatherFeeCents: 6000,
       nightFeeCents: 8000,
@@ -126,6 +128,16 @@ export function createDefaultPackageSettings(companion?: Companion | null): Comp
       deliveryPolicy: '摄影师上传原图后，平台先提供低清水印预览；确认完成后开放原图或进入争议处理。',
     },
     updatedAt: new Date().toISOString(),
+  };
+}
+
+function normalizePackageSettings(settings: CompanionPackageSettings): CompanionPackageSettings {
+  return {
+    ...settings,
+    addOns: {
+      ...settings.addOns,
+      travelFeeCents: settings.addOns.travelFeeCents ?? 0,
+    },
   };
 }
 

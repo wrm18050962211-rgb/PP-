@@ -162,6 +162,9 @@ export function CompanionPackageSettings() {
           <Field label="额外修图/张（元）">
             <input className="field" type="number" value={Math.round(settings.addOns.retouchPerImageCents / 100)} onChange={(event) => setSettings((current) => ({ ...current, addOns: { ...current.addOns, retouchPerImageCents: Number(event.target.value) * 100 } }))} />
           </Field>
+          <Field label="默认交通费（元）">
+            <input className="field" type="number" value={Math.round(settings.addOns.travelFeeCents / 100)} onChange={(event) => setSettings((current) => ({ ...current, addOns: { ...current.addOns, travelFeeCents: Number(event.target.value) * 100 } }))} />
+          </Field>
         </div>
         <Field label="取消规则">
           <textarea className="field min-h-20 resize-none rounded-[10px] py-3" value={settings.rules.cancellationPolicy} onChange={(event) => setSettings((current) => ({ ...current, rules: { ...current.rules, cancellationPolicy: event.target.value } }))} />
