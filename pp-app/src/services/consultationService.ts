@@ -48,6 +48,13 @@ export type ConsultationQuoteOverride = {
   addOnLines?: string[];
 };
 
+export type ConsultationQuoteEstimate = {
+  totalCents: number;
+  depositCents: number;
+  balanceCents: number;
+  addOnLines: string[];
+};
+
 export type ConsultationRecord = {
   id: string;
   creatorId?: string;
@@ -110,6 +117,44 @@ export function isSelfConsultation(post: FeedPost, session: AuthSession | null) 
   const photographerAccount = listTestAccounts().find((account) => account.role === 'companion' && account.companionId === post.companion.id);
   if (photographerAccount?.phone === session.user.phone) return true;
   return post.companion.id === `companion-local-${session.user.phone}`;
+}
+
+export function estimateConsultationQuote(record: ConsultationRecord, companion: Companion | undefined): ConsultationQuoteEstimate {
+  const settings = createDefaultPackageSettings(companion);
+  const selectedPackage = settings.packages.find((pkg) => pkg.id === record.requestCard.packageId) ?? settings.packages[0];
+  const extraPeople = Math.max(0, record.requestCard.peopleCount - 1);
+  const addOnLines: string[] = [];
+  let totalCents = selectedPackage.basePriceCents;
+
+  if (extraPeople) {
+    const amount = extraPeople * settings.addOns.extraPersonPerHourCents * Math.max(1, selectedPackage.durationMinutes / 60);
+    totalCents += amount;
+    addOnLines.push(`多人加价 ${formatEstimateMoney(amount)}`);
+  }
+  if (record.requestCard.needsVideo) {
+    const videoCount = Math.max(1, record.requestCard.videoCount ?? 1);
+    const amount = settings.addOns.videoPerClipCents * videoCount;
+    totalCents += amount;
+    addOnLines.push(`视频 ${videoCount} 条 ${formatEstimateMoney(amount)}`);
+  }
+  if (record.requestCard.needsPolaroid) {
+    const polaroidCount = Math.max(1, record.requestCard.polaroidCount ?? 1);
+    const amount = settings.addOns.polaroidPerShotCents * polaroidCount;
+    totalCents += amount;
+    addOnLines.push(`拍立得/胶片 ${polaroidCount} 张 ${formatEstimateMoney(amount)}`);
+  }
+  if (record.requestCard.sceneType === 'outdoor' && settings.addOns.outdoorFeeCents) {
+    totalCents += settings.addOns.outdoorFeeCents;
+    addOnLines.push(`室外附加 ${formatEstimateMoney(settings.addOns.outdoorFeeCents)}`);
+  }
+
+  const depositCents = Math.min(totalCents, selectedPackage.depositCents);
+  return {
+    totalCents,
+    depositCents,
+    balanceCents: Math.max(0, totalCents - depositCents),
+    addOnLines,
+  };
 }
 
 export function sendQuoteForConsultation(id: string, companion: Companion | undefined, override: ConsultationQuoteOverride = {}) {
@@ -240,4 +285,8 @@ function readConsultationStorageValue(key: string) {
   } catch {
     return [];
   }
+}
+
+function formatEstimateMoney(amountCents: number) {
+  return `¥${Math.round(amountCents / 100)}`;
 }

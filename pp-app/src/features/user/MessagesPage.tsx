@@ -221,7 +221,7 @@ export function MessagesPage() {
             onAccept={() => {
               const input = consultationToOrderInput(activeConsultation);
               if (!input) return;
-              const order = createOrder(input);
+              const order = createOrder(input, 'confirmed');
               closeConsultation(activeConsultation.id);
               navigate(`/consumer/messages/${order.id}`);
             }}

@@ -24,14 +24,14 @@ export function MinePage() {
   const posts = listFeedPosts();
   const ownProfile = buildOwnProfileSummary(session, posts[0]);
   const collectionSummary = getCollectionSummary(posts);
-  const pendingInquiryCount = session ? listConsultations(session).filter((item) => item.status === 'consulting').length : 0;
+  const activeInquiryCount = session ? listConsultations(session).filter((item) => item.status !== 'closed').length : 0;
   const quotedConsultationCount = session ? listConsultations(session).filter((item) => item.status === 'quoted' && item.quote).length : 0;
   const visibleCreatorMenuItems = creatorMenuItems.map((item) => {
-    if (item.label === '我的询价' && pendingInquiryCount > 0) {
+    if (item.label === '我的询价' && activeInquiryCount > 0) {
       return {
         ...item,
-        desc: `${item.desc} · ${pendingInquiryCount} 个待报价`,
-        badge: `${pendingInquiryCount}`,
+        desc: `${item.desc} · ${activeInquiryCount} 个进行中`,
+        badge: `${activeInquiryCount}`,
       };
     }
     if (item.label !== '我的订单' || quotedConsultationCount <= 0) return item;

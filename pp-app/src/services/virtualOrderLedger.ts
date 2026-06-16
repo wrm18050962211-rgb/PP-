@@ -13,8 +13,8 @@ type OrderActor = {
   companionPhone?: string;
 };
 
-export function createLedgerOrder(input: CreateOrderInput, session: AuthSession | null): AppOrder {
-  const order = createLocalOrder(input, 'paid_pending_confirm');
+export function createLedgerOrder(input: CreateOrderInput, session: AuthSession | null, initialStatus: OrderStatus = 'paid_pending_confirm'): AppOrder {
+  const order = createLocalOrder(input, initialStatus);
   const actor = getOrderActor(input.companionId, session);
   const nextOrder = { ...order, ...actor };
   upsertLedgerOrder(nextOrder);

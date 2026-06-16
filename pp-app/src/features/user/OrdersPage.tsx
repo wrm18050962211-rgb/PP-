@@ -18,7 +18,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
-import { closeConsultation, consultationToOrderInput, listConsultations, type ConsultationRecord } from '../../services/consultationService';
+import {
+  closeConsultation,
+  consultationToOrderInput,
+  estimateConsultationQuote,
+  listConsultations,
+  type ConsultationQuoteEstimate,
+  type ConsultationRecord,
+} from '../../services/consultationService';
 import { listFeedPosts } from '../../services/feedService';
 import {
   canEditOrderWork,
@@ -123,11 +130,11 @@ export function OrdersPage() {
   function acceptConsultationQuote(consultation: ConsultationRecord) {
     const input = consultationToOrderInput(consultation);
     if (!input) return;
-    const order = createOrder(input);
+    createOrder(input, 'confirmed');
     closeConsultation(consultation.id);
     setConsultationVersion((value) => value + 1);
-    setActiveStatus('paid_pending_confirm');
-    navigate(`/consumer/messages/${order.id}`);
+    setActiveStatus('confirmed');
+    navigate('/consumer/orders?tab=confirmed');
   }
 
   return (
@@ -173,9 +180,18 @@ export function OrdersPage() {
 
       <div className="mt-4 space-y-4">
         {showQuotedConsultations
-          ? quotedConsultations.map((consultation) => (
-              <ConsultationQuoteCard key={consultation.id} consultation={consultation} onAccept={() => acceptConsultationQuote(consultation)} />
-            ))
+          ? quotedConsultations.map((consultation) => {
+              const companion = posts.find((post) => post.companion.id === consultation.photographerId)?.companion;
+              const estimate = estimateConsultationQuote(consultation, companion);
+              return (
+                <ConsultationQuoteCard
+                  key={consultation.id}
+                  consultation={consultation}
+                  estimate={estimate}
+                  onAccept={() => acceptConsultationQuote(consultation)}
+                />
+              );
+            })
           : null}
         {filteredOrders.map((order) => (
           <OrderCard
@@ -346,8 +362,17 @@ function OrderCard({
   );
 }
 
-function ConsultationQuoteCard({ consultation, onAccept }: { consultation: QuotedConsultation; onAccept: () => void }) {
+function ConsultationQuoteCard({
+  consultation,
+  estimate,
+  onAccept,
+}: {
+  consultation: QuotedConsultation;
+  estimate: ConsultationQuoteEstimate;
+  onAccept: () => void;
+}) {
   const quote = consultation.quote;
+  const adjusted = quote.totalCents !== estimate.totalCents || quote.depositCents !== estimate.depositCents;
 
   return (
     <article className="rounded-[22px] border border-[#eadfd8] bg-white p-4 shadow-[0_12px_30px_rgba(63,48,44,0.05)]">
@@ -368,9 +393,11 @@ function ConsultationQuoteCard({ consultation, onAccept }: { consultation: Quote
       </div>
 
       <div className="mt-4 rounded-[18px] bg-[#fff5f1] p-3 text-sm font-semibold leading-6 text-[#6f625d]">
-        <PriceLine label="报价总价" value={formatMoney(quote.totalCents)} strong />
+        <PriceLine label="订单原报价" value={formatMoney(estimate.totalCents)} muted={adjusted} />
+        <PriceLine label="摄影师调整价" value={formatMoney(quote.totalCents)} strong />
         <PriceLine label="定金托管" value={formatMoney(quote.depositCents)} />
         <PriceLine label="拍摄前尾款" value={formatMoney(quote.balanceCents)} />
+        {adjusted ? <p className="mt-2 text-xs text-[#a99b94]">摄影师已基于需求卡调整价格，请确认后支付定金。</p> : null}
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
@@ -387,7 +414,7 @@ function ConsultationQuoteCard({ consultation, onAccept }: { consultation: Quote
           type="button"
         >
           <CheckCircle2 size={17} />
-          接受并付定金
+          确认并付定金
         </button>
       </div>
     </article>

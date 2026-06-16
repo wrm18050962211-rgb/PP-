@@ -101,8 +101,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       application,
       bookingSettings,
       workDraft,
-      createOrder: (orderInput) => {
-        const order = createLedgerOrder(orderInput, session);
+      createOrder: (orderInput, initialStatus) => {
+        const order = createLedgerOrder(orderInput, session, initialStatus);
         const nextOrders = [order, ...orders];
         setOrders(nextOrders);
         persist({ orders: nextOrders });
