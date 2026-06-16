@@ -285,6 +285,8 @@ export type OrderStep = {
   completed: boolean;
 };
 
+export type OrderImageQuantityMode = '4' | '9' | 'custom' | 'unlimited';
+
 export type AppOrder = {
   id: string;
   orderNo: string;
@@ -311,6 +313,8 @@ export type AppOrder = {
   timeLabel?: string;
   durationMinutes?: number;
   durationLabel?: string;
+  imageQuantityMode?: OrderImageQuantityMode;
+  customImageQuantity?: number;
   addOns?: OrderAddOnInput[];
   consultationId?: string;
   quoteId?: string;
@@ -360,6 +364,8 @@ export type CreateOrderInput = {
   timeLabel: string;
   durationMinutes: number;
   durationLabel: string;
+  imageQuantityMode?: OrderImageQuantityMode;
+  customImageQuantity?: number;
   addOns: OrderAddOnInput[];
   consultationId?: string;
   quoteId?: string;

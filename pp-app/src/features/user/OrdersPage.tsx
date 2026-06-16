@@ -435,6 +435,7 @@ function ConsultationQuoteCard({
         <DetailLine icon={<MapPin size={17} />} label="地点" value={consultation.requestCard.place} />
         <DetailLine icon={<CalendarDays size={17} />} label="时间" value={`${consultation.requestCard.date} ${consultation.requestCard.timeRange}`} />
         <DetailLine icon={<Users size={17} />} label="人数" value={`${consultation.requestCard.peopleCount} 人 · ${consultation.requestCard.sceneType === 'outdoor' ? '室外' : '室内'}`} />
+        <DetailLine icon={<ImagePlus size={17} />} label="图片数量" value={formatConsultationImageQuantity(consultation)} />
       </div>
 
       <div className="mt-4 rounded-[18px] bg-[#fff5f1] p-3 text-sm font-semibold leading-6 text-[#6f625d]">
@@ -470,6 +471,13 @@ function isQuotedConsultation(consultation: ConsultationRecord): consultation is
   return consultation.status === 'quoted' && Boolean(consultation.quote);
 }
 
+function formatConsultationImageQuantity(consultation: ConsultationRecord) {
+  const { imageQuantityMode, customImageQuantity } = consultation.requestCard;
+  if (imageQuantityMode === 'unlimited') return '数量不限';
+  if (imageQuantityMode === 'custom') return `${customImageQuantity ?? 12} 张`;
+  return `${imageQuantityMode ?? '9'} 张`;
+}
+
 function parseOrderStatusTab(tab: string | null): OrderStatus | 'all' {
   if (!tab) return 'all';
   return statusTabs.some((item) => item.key === tab) ? (tab as OrderStatus | 'all') : 'all';
@@ -480,6 +488,8 @@ function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; recor
   const statusLabel = workTabs.find((tab) => tab.key === status)?.label ?? '未编辑';
   const actionText = status === 'not_started' ? '开始编辑' : status === 'editing' ? '继续编辑' : '查看成片';
   const imageCount = record?.imageUrls.length ?? 0;
+  const imageLimit = getOrderImageLimit(order);
+  const imageLimitText = imageLimit.limit === null ? '不限' : String(imageLimit.limit);
 
   return (
     <article className="rounded-[22px] pp-surface p-4">
@@ -499,7 +509,7 @@ function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; recor
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2 rounded-[18px] bg-[#fff5f1] p-3 text-center">
-        <WorkMetric label="照片/Live" value={`${imageCount}/9`} />
+        <WorkMetric label="照片/Live" value={`${imageCount}/${imageLimitText}`} />
         <WorkMetric label="创作者确认" value={record?.creatorConfirmed ? '已确认' : '未确认'} />
         <WorkMetric label="摄影师确认" value={record?.photographerConfirmed ? '已确认' : '未确认'} />
       </div>
@@ -643,6 +653,8 @@ export function OrderWorkDialog({
   const modificationPending = Boolean(draft.changeRequestBy && !draft.changeAccepted);
   const originalReleased = isOriginalReleased(draft);
   const previewUrls = getOrderWorkPreviewUrls(draft);
+  const imageLimit = getOrderImageLimit(order);
+  const imageLimitText = imageLimit.limit === null ? '不限' : String(imageLimit.limit);
 
   function updateEditableDraft(patch: Partial<OrderWorkRecord>) {
     setDraft((current) => ({
@@ -659,7 +671,9 @@ export function OrderWorkDialog({
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
-    const imageUrls = await readFilesAsDataUrls(Array.from(files).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/')).slice(0, 9));
+    const selectedFiles = Array.from(files).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'));
+    const limitedFiles = imageLimit.limit === null ? selectedFiles : selectedFiles.slice(0, imageLimit.limit);
+    const imageUrls = await readFilesAsDataUrls(limitedFiles);
     updateEditableDraft({
       imageUrls,
       originalUrls: imageUrls,
@@ -729,9 +743,11 @@ export function OrderWorkDialog({
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-black text-zinc-400">上传照片/Live</p>
-              <p className="mt-1 text-[11px] font-semibold leading-5 text-zinc-400">最多 9 张，上传后生成低清/水印预览。</p>
+              <p className="mt-1 text-[11px] font-semibold leading-5 text-zinc-400">
+                {imageLimit.limit === null ? '需求卡为数量不限，上传后生成低清/水印预览。' : `需求卡要求最多 ${imageLimit.limit} 张，超出会只保留前 ${imageLimit.limit} 张。`}
+              </p>
             </div>
-            <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-black text-zinc-400">{draft.imageUrls.length}/9</span>
+            <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-black text-zinc-400">{draft.imageUrls.length}/{imageLimitText}</span>
           </div>
 
           <div className="grid grid-cols-3 gap-1">
@@ -1158,6 +1174,17 @@ function mediaFromWorkUrl(url: string, index: number) {
 function parseDataUrlContentType(url: string) {
   const match = url.match(/^data:([^;,]+)/);
   return match?.[1] ?? '';
+}
+
+export function getOrderImageLimit(order: Pick<AppOrder, 'imageQuantityMode' | 'customImageQuantity'>) {
+  const mode = order.imageQuantityMode ?? '9';
+  if (mode === 'unlimited') return { limit: null as number | null, label: '不限' };
+  if (mode === 'custom') {
+    const customLimit = Math.max(1, Math.floor(order.customImageQuantity ?? 9));
+    return { limit: customLimit, label: `${customLimit}张` };
+  }
+  const limit = Number(mode);
+  return { limit, label: `${limit}张` };
 }
 
 function getWorkEditStatus(record?: OrderWorkRecord): WorkEditTab {

@@ -221,6 +221,7 @@ function InfoLine({ icon: Icon, label, value }: { icon: typeof CalendarDays; lab
 function formatAddOns(consultation: ConsultationRecord) {
   const card = consultation.requestCard;
   const items = [
+    `图片数量 ${formatImageQuantity(card)}`,
     card.needsRetouch ? `修图 ${formatRetouch(card.retouchSelection, card.customRetouchCount)}` : '不需要修图',
     card.needsVideo ? `视频 ${card.videoCount ?? 1} 条 · 平均 ${card.videoAverageDurationSeconds ?? 15} 秒` : '不需要视频',
     card.needsPolaroid ? `拍立得/胶片 ${card.polaroidCount ?? 1} 张` : '不需要拍立得/胶片',
@@ -230,6 +231,12 @@ function formatAddOns(consultation: ConsultationRecord) {
     card.hasTicketOrEntry ? '涉及门票/入园' : '不涉及门票/入园',
   ];
   return items.join(' · ');
+}
+
+function formatImageQuantity(card: ConsultationRecord['requestCard']) {
+  if (card.imageQuantityMode === 'unlimited') return '不限';
+  if (card.imageQuantityMode === 'custom') return `${card.customImageQuantity ?? 12} 张`;
+  return `${card.imageQuantityMode ?? '9'} 张`;
 }
 
 function formatRetouch(selection?: ConsultationRecord['requestCard']['retouchSelection'], customCount?: number) {

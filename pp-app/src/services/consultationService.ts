@@ -1,4 +1,4 @@
-import type { AuthSession, Companion, CreateOrderInput, FeedPost } from '../types/api';
+import type { AuthSession, Companion, CreateOrderInput, FeedPost, OrderImageQuantityMode } from '../types/api';
 import { evaluateMessageRisk } from '../utils/messageRisk';
 import { listTestAccounts } from './accountDirectory';
 import { readCompanionPackageSettings } from './companionPackageService';
@@ -16,6 +16,8 @@ export type ConsultationRequestCard = {
   packageId: string;
   packageName: string;
   sceneType: 'outdoor' | 'indoor';
+  imageQuantityMode: OrderImageQuantityMode;
+  customImageQuantity?: number;
   needsRetouch: boolean;
   retouchSelection?: '4' | '9' | 'all' | 'custom';
   customRetouchCount?: number;
@@ -242,6 +244,8 @@ export function consultationToOrderInput(record: ConsultationRecord): CreateOrde
     timeLabel,
     durationMinutes: getConsultationDurationMinutes(startAt, endAt),
     durationLabel: record.requestCard.timeRange,
+    imageQuantityMode: record.requestCard.imageQuantityMode,
+    customImageQuantity: record.requestCard.imageQuantityMode === 'custom' ? record.requestCard.customImageQuantity : undefined,
     addOns: [],
     consultationId: record.id,
     quoteId: record.quote.id,

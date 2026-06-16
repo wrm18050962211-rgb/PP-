@@ -25,7 +25,7 @@ import {
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import type { AppOrder, OrderStatus } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
-import { OrderWorkDialog } from '../user/OrdersPage';
+import { OrderWorkDialog, getOrderImageLimit } from '../user/OrdersPage';
 
 type CompanionOrderTab = OrderStatus;
 type WorkEditTab = 'not_started' | 'editing' | 'done';
@@ -292,6 +292,8 @@ function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; recor
   const statusLabel = workTabs.find((tab) => tab.key === status)?.label ?? '未编辑';
   const actionText = status === 'not_started' ? '开始编辑' : status === 'editing' ? '继续编辑' : '查看成片';
   const imageCount = record?.imageUrls.length ?? 0;
+  const imageLimit = getOrderImageLimit(order);
+  const imageLimitText = imageLimit.limit === null ? '不限' : String(imageLimit.limit);
 
   return (
     <article className="rounded-[10px] border border-zinc-200 bg-white p-4">
@@ -311,7 +313,7 @@ function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; recor
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2 rounded-[10px] bg-zinc-50 p-3 text-center">
-        <WorkMetric label="照片/Live" value={`${imageCount}/9`} />
+        <WorkMetric label="照片/Live" value={`${imageCount}/${imageLimitText}`} />
         <WorkMetric label="创作者确认" value={record?.creatorConfirmed ? '已确认' : '未确认'} />
         <WorkMetric label="摄影师确认" value={record?.photographerConfirmed ? '已确认' : '未确认'} />
       </div>

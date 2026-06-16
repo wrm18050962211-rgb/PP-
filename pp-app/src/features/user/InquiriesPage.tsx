@@ -139,12 +139,19 @@ function DetailLine({ icon, label, value }: { icon: React.ReactNode; label: stri
 function formatAddOns(consultation: ConsultationRecord) {
   const card = consultation.requestCard;
   return [
+    `图片数量 ${formatImageQuantity(card)}`,
     card.needsRetouch ? `需要修图 ${formatRetouch(card.retouchSelection, card.customRetouchCount)}` : '不需要修图',
     card.needsVideo ? `需要视频 ${card.videoCount ?? 1} 条` : '不需要视频',
     card.needsPolaroid ? `拍立得/胶片 ${card.polaroidCount ?? 1} 张` : '不需要拍立得/胶片',
     card.acceptsPublication ? '接受客片发布' : '不接受客片发布',
     card.needsRoutePlanning ? '需要路线规划' : '不需要路线规划',
   ].join(' · ');
+}
+
+function formatImageQuantity(card: ConsultationRecord['requestCard']) {
+  if (card.imageQuantityMode === 'unlimited') return '不限';
+  if (card.imageQuantityMode === 'custom') return `${card.customImageQuantity ?? 12} 张`;
+  return `${card.imageQuantityMode ?? '9'} 张`;
 }
 
 function formatRetouch(selection?: ConsultationRecord['requestCard']['retouchSelection'], customCount?: number) {

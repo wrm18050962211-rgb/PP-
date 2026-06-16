@@ -42,6 +42,8 @@ export function ConsultationRequestModal({
     packageId: initialPackage.id,
     packageName: initialPackage.name,
     sceneType: 'outdoor',
+    imageQuantityMode: '9',
+    customImageQuantity: 12,
     needsRetouch: true,
     retouchSelection: '4',
     customRetouchCount: 12,
@@ -197,6 +199,7 @@ export function ConsultationRequestModal({
             <Toggle label="室外" active={card.sceneType === 'outdoor'} onClick={() => setCard((current) => ({ ...current, sceneType: 'outdoor' }))} />
             <Toggle label="室内" active={card.sceneType === 'indoor'} onClick={() => setCard((current) => ({ ...current, sceneType: 'indoor' }))} />
           </div>
+          <ImageQuantityPanel card={card} onChange={setCard} />
           <div className="grid grid-cols-2 gap-2">
             <Check label="需要修图" checked={card.needsRetouch} onChange={(value) => setCard((current) => ({ ...current, needsRetouch: value }))} />
             <Check label="需要视频" checked={card.needsVideo} onChange={(value) => setCard((current) => ({ ...current, needsVideo: value }))} />
@@ -335,6 +338,63 @@ function ConsultationAvailabilityPicker({
   );
 }
 
+function ImageQuantityPanel({
+  card,
+  onChange,
+}: {
+  card: ConsultationRequestCard;
+  onChange: React.Dispatch<React.SetStateAction<ConsultationRequestCard>>;
+}) {
+  const mode = card.imageQuantityMode ?? '9';
+
+  return (
+    <div className="grid gap-2 rounded-[12px] bg-white p-3 ring-1 ring-zinc-200">
+      <div className="grid grid-cols-2 gap-2">
+        <MiniField label="图片数量">
+          <select
+            className="mini-field"
+            value={mode}
+            onChange={(event) =>
+              onChange((current) => ({
+                ...current,
+                imageQuantityMode: event.target.value as ConsultationRequestCard['imageQuantityMode'],
+              }))
+            }
+          >
+            <option value="4">4 张</option>
+            <option value="9">9 张</option>
+            <option value="custom">自定义数量</option>
+            <option value="unlimited">数量不限</option>
+          </select>
+        </MiniField>
+        {mode === 'custom' ? (
+          <MiniField label="自定义张数">
+            <select
+              className="mini-field"
+              value={card.customImageQuantity ?? 12}
+              onChange={(event) => onChange((current) => ({ ...current, customImageQuantity: Number(event.target.value) }))}
+            >
+              {Array.from({ length: 48 }, (_, index) => index + 1).map((count) => (
+                <option key={count} value={count}>
+                  {count} 张
+                </option>
+              ))}
+            </select>
+          </MiniField>
+        ) : (
+          <div className="rounded-[10px] bg-[#f7f7f5] px-3 py-2">
+            <p className="text-xs font-black text-zinc-500">交付限制</p>
+            <p className="mt-1 text-sm font-black text-zinc-950">{formatImageQuantityLabel(card)}</p>
+          </div>
+        )}
+      </div>
+      <p className="text-[11px] font-semibold leading-5 text-zinc-400">
+        该数量会同步到订单成片协作，编辑作品时按这里限制上传；选择数量不限则不限制上传张数。
+      </p>
+    </div>
+  );
+}
+
 function AddOnDetailPanel({
   card,
   onChange,
@@ -390,6 +450,12 @@ function AddOnDetailPanel({
       ) : null}
     </div>
   );
+}
+
+function formatImageQuantityLabel(card: ConsultationRequestCard) {
+  if (card.imageQuantityMode === 'unlimited') return '不限张数';
+  if (card.imageQuantityMode === 'custom') return `${card.customImageQuantity ?? 12} 张`;
+  return `${card.imageQuantityMode ?? '9'} 张`;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
