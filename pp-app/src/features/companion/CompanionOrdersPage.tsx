@@ -52,7 +52,7 @@ const tabs: Array<{ key: CompanionOrderTab; label: string }> = [
 const workTabs: WorkEditStatus[] = [
   { key: 'not_started', label: '未编辑', desc: '已完成订单，还没有上传或填写成片信息' },
   { key: 'editing', label: '正在编辑', desc: '已进入成片协作，等待补充内容或双方确认' },
-  { key: 'done', label: '已编辑完成', desc: '创作者和摄影师已确认，可选择同步主页' },
+  { key: 'done', label: '已完成编辑', desc: '创作者和摄影师已确认，可选择同步主页' },
 ];
 
 const statusMeta: Record<string, { label: string; tone: string }> = {

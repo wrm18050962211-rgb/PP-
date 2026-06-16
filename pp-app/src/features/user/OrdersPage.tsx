@@ -53,6 +53,7 @@ type OrderAction =
   | { type: 'review'; order: AppOrder }
   | { type: 'work'; order: AppOrder }
   | null;
+type WorkEditTab = 'not_started' | 'editing' | 'done';
 
 const statusTabs: Array<{ key: OrderStatus | 'all'; label: string }> = [
   { key: 'all', label: '全部' },
@@ -60,6 +61,12 @@ const statusTabs: Array<{ key: OrderStatus | 'all'; label: string }> = [
   { key: 'confirmed', label: '已确认' },
   { key: 'completed', label: '已完成' },
   { key: 'cancelled', label: '已取消' },
+];
+
+const workTabs: Array<{ key: WorkEditTab; label: string; desc: string }> = [
+  { key: 'not_started', label: '未编辑', desc: '已完成订单，还没有上传或填写成片信息' },
+  { key: 'editing', label: '正在编辑', desc: '已进入成片协作，等待补充内容或双方确认' },
+  { key: 'done', label: '已完成编辑', desc: '创作者和摄影师已确认，可选择同步主页' },
 ];
 
 const statusMeta: Record<string, { label: string; tone: string }> = {
@@ -94,6 +101,7 @@ export function OrdersPage() {
   const workMode = searchParams.get('work') === '1';
   const backTo = searchParams.get('from') === 'companion' ? '/companion/mine' : '/consumer/mine';
   const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>(() => parseOrderStatusTab(searchParams.get('tab')));
+  const [activeWorkTab, setActiveWorkTab] = useState<WorkEditTab>('not_started');
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
   const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
@@ -110,6 +118,17 @@ export function OrdersPage() {
   );
   const showQuotedConsultations = !workMode && quotedConsultations.length > 0 && (activeStatus === 'all' || activeStatus === 'paid_pending_confirm');
   const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
+  const completedWorkOrders = useMemo(() => orders.filter((order) => getDisplayOrderStatus(order.status) === 'completed'), [orders]);
+  const workCounts = useMemo(() => {
+    return workTabs.reduce<Record<WorkEditTab, number>>((next, tab) => {
+      next[tab.key] = completedWorkOrders.filter((order) => getWorkEditStatus(workByOrderId.get(order.id)) === tab.key).length;
+      return next;
+    }, { not_started: 0, editing: 0, done: 0 });
+  }, [completedWorkOrders, workByOrderId]);
+  const filteredWorkOrders = useMemo(
+    () => completedWorkOrders.filter((order) => getWorkEditStatus(workByOrderId.get(order.id)) === activeWorkTab),
+    [activeWorkTab, completedWorkOrders, workByOrderId],
+  );
 
   useEffect(() => {
     setActiveStatus(parseOrderStatusTab(searchParams.get('tab')));
@@ -164,22 +183,48 @@ export function OrdersPage() {
       )}
 
       <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1">
-        {statusTabs.map((tab) => (
-          <button
-            key={tab.key}
-            className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
-              activeStatus === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
-            }`}
-            onClick={() => setActiveStatus(tab.key)}
-            type="button"
-          >
-            {tab.label}
-          </button>
-        ))}
+        {workMode
+          ? workTabs.map((tab) => (
+              <button
+                key={tab.key}
+                className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
+                  activeWorkTab === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
+                }`}
+                onClick={() => setActiveWorkTab(tab.key)}
+                type="button"
+              >
+                {tab.label}
+                <span className="ml-1 text-xs opacity-70">{workCounts[tab.key]}</span>
+              </button>
+            ))
+          : statusTabs.map((tab) => (
+              <button
+                key={tab.key}
+                className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
+                  activeStatus === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
+                }`}
+                onClick={() => setActiveStatus(tab.key)}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
       </div>
 
+      {workMode ? <p className="mt-3 text-xs font-semibold leading-5 text-[#8f8078]">{workTabs.find((tab) => tab.key === activeWorkTab)?.desc}</p> : null}
+
       <div className="mt-4 space-y-4">
-        {showQuotedConsultations
+        {workMode
+          ? filteredWorkOrders.map((order) => (
+              <WorkEditOrderCard
+                key={order.id}
+                order={order}
+                record={workByOrderId.get(order.id)}
+                onManage={() => setActiveAction({ type: 'work', order })}
+              />
+            ))
+          : null}
+        {!workMode && showQuotedConsultations
           ? quotedConsultations.map((consultation) => {
               const companion = posts.find((post) => post.companion.id === consultation.photographerId)?.companion;
               const estimate = estimateConsultationQuote(consultation, companion);
@@ -193,7 +238,7 @@ export function OrdersPage() {
               );
             })
           : null}
-        {filteredOrders.map((order) => (
+        {!workMode && filteredOrders.map((order) => (
           <OrderCard
             key={order.id}
             order={order}
@@ -207,10 +252,10 @@ export function OrdersPage() {
         ))}
       </div>
 
-      {!filteredOrders.length && !showQuotedConsultations && (
+      {((workMode && !filteredWorkOrders.length) || (!workMode && !filteredOrders.length && !showQuotedConsultations)) && (
         <div className="mt-16 text-center">
           <ReceiptText className="mx-auto text-zinc-300" size={48} />
-          <p className="mt-4 text-sm font-semibold text-[#8f8078]">当前没有这个状态的订单</p>
+          <p className="mt-4 text-sm font-semibold text-[#8f8078]">{workMode ? '当前没有这个编辑状态的作品' : '当前没有这个状态的订单'}</p>
         </div>
       )}
 
@@ -428,6 +473,52 @@ function isQuotedConsultation(consultation: ConsultationRecord): consultation is
 function parseOrderStatusTab(tab: string | null): OrderStatus | 'all' {
   if (!tab) return 'all';
   return statusTabs.some((item) => item.key === tab) ? (tab as OrderStatus | 'all') : 'all';
+}
+
+function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; record?: OrderWorkRecord; onManage: () => void }) {
+  const status = getWorkEditStatus(record);
+  const statusLabel = workTabs.find((tab) => tab.key === status)?.label ?? '未编辑';
+  const actionText = status === 'not_started' ? '开始编辑' : status === 'editing' ? '继续编辑' : '查看成片';
+  const imageCount = record?.imageUrls.length ?? 0;
+
+  return (
+    <article className="rounded-[22px] pp-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-[#a99b94]">{order.orderNo}</p>
+          <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{order.activityName ?? order.title}</h2>
+        </div>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${getWorkEditTone(status)}`}>{statusLabel}</span>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm">
+        <DetailLine icon={<Camera size={17} />} label="项目" value={order.activityName ?? order.title} />
+        <DetailLine icon={<MapPin size={17} />} label="地点" value={order.place} />
+        <DetailLine icon={<CalendarDays size={17} />} label="时间" value={`${order.dateLabel ?? ''} ${order.timeLabel ?? order.time}`.trim()} />
+        <DetailLine icon={<Clock3 size={17} />} label="时长" value={order.durationLabel ?? `${order.durationMinutes ?? 0}分钟`} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2 rounded-[18px] bg-[#fff5f1] p-3 text-center">
+        <WorkMetric label="照片/Live" value={`${imageCount}/9`} />
+        <WorkMetric label="创作者确认" value={record?.creatorConfirmed ? '已确认' : '未确认'} />
+        <WorkMetric label="摄影师确认" value={record?.photographerConfirmed ? '已确认' : '未确认'} />
+      </div>
+
+      <button className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white" onClick={onManage} type="button">
+        <ImagePlus size={17} />
+        {actionText}
+      </button>
+    </article>
+  );
+}
+
+function WorkMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-[#a99b94]">{label}</p>
+      <p className="mt-1 text-xs font-black text-[#3f302c]">{value}</p>
+    </div>
+  );
 }
 
 function ProtectedCompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; onManage: () => void }) {
@@ -1067,6 +1158,17 @@ function mediaFromWorkUrl(url: string, index: number) {
 function parseDataUrlContentType(url: string) {
   const match = url.match(/^data:([^;,]+)/);
   return match?.[1] ?? '';
+}
+
+function getWorkEditStatus(record?: OrderWorkRecord): WorkEditTab {
+  if (!record) return 'not_started';
+  return isOrderWorkConfirmed(record) ? 'done' : 'editing';
+}
+
+function getWorkEditTone(status: WorkEditTab) {
+  if (status === 'done') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+  if (status === 'editing') return 'bg-blue-50 text-blue-700 ring-blue-100';
+  return 'bg-zinc-100 text-zinc-500 ring-zinc-200';
 }
 
 function getDisplayOrderStatus(status: OrderStatus): OrderStatus {
