@@ -10,7 +10,14 @@ export function CompanionPackageSettings() {
   const navigate = useNavigate();
   const { session } = useAppData();
   const posts = useMemo(() => listFeedPosts(), []);
-  const companion = posts.find((post) => post.companion.id === session?.companionId)?.companion ?? posts[0]?.companion;
+  const companion = posts.find((post) => post.companion.id === session?.companionId)?.companion ?? (session?.companionId && posts[0]?.companion
+    ? {
+      ...posts[0].companion,
+      id: session.companionId,
+      name: session.user.nickname || posts[0].companion.name,
+      avatar: session.user.avatarUrl || posts[0].companion.avatar,
+    }
+    : posts[0]?.companion);
   const [settings, setSettings] = useState(() => readCompanionPackageSettings(companion) ?? createDefaultPackageSettings(companion));
   const primaryPackage = settings.packages[0];
 
@@ -51,7 +58,7 @@ export function CompanionPackageSettings() {
   }
 
   function save() {
-    saveCompanionPackageSettings(settings);
+    saveCompanionPackageSettings(settings, companion?.id ?? session?.companionId);
     navigate('/companion/mine');
   }
 

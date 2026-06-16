@@ -2,21 +2,26 @@ import { ImagePlus, LocateFixed, MapPin, Send, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { AuthSession, FeedPost } from '../../types/api';
 import { createConsultation, isSelfConsultation, type ConsultationRequestCard } from '../../services/consultationService';
-import { createDefaultPackageSettings } from '../../services/companionPackageService';
+import { createDefaultPackageSettings, formatCents, type CompanionPackageSettings } from '../../services/companionPackageService';
 import { requestConsumerLocation } from '../../services/locationService';
 
 export function ConsultationRequestModal({
   post,
   session,
+  packageSettings,
+  initialPackageId,
   onClose,
   onSubmitted,
 }: {
   post: FeedPost;
   session: AuthSession | null;
+  packageSettings?: CompanionPackageSettings;
+  initialPackageId?: string;
   onClose: () => void;
   onSubmitted: (id: string) => void;
 }) {
-  const settings = createDefaultPackageSettings(post.companion);
+  const settings = packageSettings ?? createDefaultPackageSettings(post.companion);
+  const initialPackage = settings.packages.find((pkg) => pkg.id === initialPackageId) ?? settings.packages[0];
   const dateOptions = useMemo(() => buildDateOptions(45), []);
   const timeOptions = useMemo(() => buildTimeOptions(), []);
   const placeOptions = useMemo(() => buildPlaceOptions(post), [post]);
@@ -27,8 +32,8 @@ export function ConsultationRequestModal({
     placeLat: post.lat,
     placeLng: post.lng,
     peopleCount: 1,
-    packageId: settings.packages[0].id,
-    packageName: settings.packages[0].name,
+    packageId: initialPackage.id,
+    packageName: initialPackage.name,
     sceneType: 'outdoor',
     needsRetouch: true,
     retouchSelection: '4',
@@ -52,6 +57,8 @@ export function ConsultationRequestModal({
   const selfConsultation = isSelfConsultation(post, session);
   const [submitError, setSubmitError] = useState('');
   const canSubmit = card.date.trim() && card.timeRange.trim() && card.place.trim() && !selfConsultation;
+  const selectedPackage = settings.packages.find((item) => item.id === card.packageId) ?? settings.packages[0];
+  const selectedBalanceCents = Math.max(0, selectedPackage.basePriceCents - selectedPackage.depositCents);
 
   function updateTimeRange(nextStart: string, nextEnd: string) {
     const safeEnd = timeToMinutes(nextEnd) > timeToMinutes(nextStart) ? nextEnd : getNextTimeOption(nextStart, timeOptions);
@@ -90,7 +97,6 @@ export function ConsultationRequestModal({
 
   function submit() {
     if (!canSubmit) return;
-    const selectedPackage = settings.packages.find((item) => item.id === card.packageId) ?? settings.packages[0];
     try {
       const record = createConsultation(post, { ...card, packageName: selectedPackage.name }, session);
       onSubmitted(record.id);
@@ -165,10 +171,21 @@ export function ConsultationRequestModal({
               </select>
             </Field>
             <Field label="套餐/时长">
-              <select className="field" value={card.packageId} onChange={(event) => setCard((current) => ({ ...current, packageId: event.target.value }))}>
+              <select className="field" value={card.packageId} onChange={(event) => {
+                const nextPackage = settings.packages.find((pkg) => pkg.id === event.target.value) ?? settings.packages[0];
+                setCard((current) => ({ ...current, packageId: nextPackage.id, packageName: nextPackage.name }));
+              }}>
                 {settings.packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
               </select>
             </Field>
+          </div>
+          <div className="grid grid-cols-3 gap-2 rounded-[12px] bg-white p-3 text-xs font-black text-zinc-950 ring-1 ring-zinc-200">
+            <MiniEstimate label="套餐预估" value={formatCents(selectedPackage.basePriceCents)} />
+            <MiniEstimate label="定金" value={formatCents(selectedPackage.depositCents)} />
+            <MiniEstimate label="尾款" value={formatCents(selectedBalanceCents)} />
+            <p className="col-span-3 text-[11px] font-semibold leading-5 text-zinc-400">
+              {selectedPackage.description} 最终价格以摄影师确认报价为准。
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Toggle label="室外" active={card.sceneType === 'outdoor'} onClick={() => setCard((current) => ({ ...current, sceneType: 'outdoor' }))} />
@@ -288,6 +305,15 @@ function MiniField({ label, children }: { label: string; children: React.ReactNo
         {children}
       </span>
     </label>
+  );
+}
+
+function MiniEstimate({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[8px] bg-[#f7f7f5] p-2">
+      <p className="text-[11px] font-bold text-zinc-400">{label}</p>
+      <p className="mt-1 text-sm">{value}</p>
+    </div>
   );
 }
 

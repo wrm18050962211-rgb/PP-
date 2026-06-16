@@ -63,6 +63,13 @@ export const dataDomainPolicies: Record<string, DataDomainPolicy> = {
     migrationTarget: 'TencentDB companion_packages / companion_pricing_rules',
     note: 'Photographer package templates and pricing rules are configured once and reused across consultations.',
   },
+  'companion-package-settings-by-companion-v1': {
+    layer: 'cloud',
+    sensitivity: 'user',
+    owner: 'account-role',
+    migrationTarget: 'TencentDB companion_packages / companion_pricing_rules',
+    note: 'Shared photographer package index used by creator-facing profile and consultation quote previews.',
+  },
   'consultations-v1': {
     layer: 'cloud',
     sensitivity: 'sensitive',

@@ -1,14 +1,15 @@
-import { ArrowLeft, CalendarDays, MapPin, MessageCircle, Star } from 'lucide-react';
+import { ArrowLeft, CalendarDays, ChevronDown, MapPin, MessageCircle, Send, Star } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { ConsultationRequestModal } from './ConsultationRequestModal';
-import { createDefaultPackageSettings, formatCents } from '../../services/companionPackageService';
+import { formatCents, readCompanionPackageSettings } from '../../services/companionPackageService';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
 import { getFollowerCountForPerson, getPostLikeCount } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
+import type { CompanionPackage, CompanionPackageSettings } from '../../services/companionPackageService';
 
 export function PhotographerProfilePage() {
   const { photographerId } = useParams();
@@ -16,8 +17,9 @@ export function PhotographerProfilePage() {
   const { orders, session } = useAppData();
   const isCompanionMode = session?.role === 'companion';
   const [reviewsOpen, setReviewsOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
+  const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
   const [consultOpen, setConsultOpen] = useState(false);
+  const [consultPackageId, setConsultPackageId] = useState<string | null>(null);
   const posts = listFeedPosts();
   const photographerPosts = posts.filter((post) => post.companion.id === photographerId);
   const profilePost = photographerPosts[0] || posts[0];
@@ -36,7 +38,13 @@ export function PhotographerProfilePage() {
   const followerCount = getFollowerCountForPerson(`photographer-${photographer.id}`, posts);
   const ratingDistribution = buildRatingDistribution(photographer.ratingCount, photographer.ratingAvg);
   const reviews = buildPhotographerReviews(photographer, works);
-  const packageSettings = createDefaultPackageSettings(photographer);
+  const packageSettings = readCompanionPackageSettings(photographer);
+
+  function openConsultForPackage(packageId?: string) {
+    if (isCompanionMode) return;
+    setConsultPackageId(packageId ?? packageSettings.packages[0].id);
+    setConsultOpen(true);
+  }
 
   return (
     <div className="min-h-dvh bg-[#050505] pb-24 text-white">
@@ -78,7 +86,7 @@ export function PhotographerProfilePage() {
             看作品
           </Link>
           {isCompanionMode ? null : (
-            <button className="flex h-10 items-center justify-center rounded-[6px] bg-white/12 text-sm font-black text-white" onClick={() => setConsultOpen(true)} type="button">
+            <button className="flex h-10 items-center justify-center rounded-[6px] bg-white/12 text-sm font-black text-white" onClick={() => openConsultForPackage()} type="button">
               咨询档期/报价
             </button>
           )}
@@ -87,60 +95,26 @@ export function PhotographerProfilePage() {
 
       <section className="mx-4 mb-4 rounded-[10px] bg-white/[0.08] p-3 ring-1 ring-white/10">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-black">价格预期</h2>
-          <button className="text-xs font-black text-white/58" onClick={() => setRulesOpen((value) => !value)} type="button">
-            {rulesOpen ? '收起规则' : '查看完整规则'}
-          </button>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold">
-          <PriceChip label="起拍价" value={`${formatCents(packageSettings.packages[0].basePriceCents)} / ${Math.round(packageSettings.packages[0].durationMinutes / 60)}小时`} />
-          <PriceChip label="定金" value={`${formatCents(packageSettings.packages[0].depositCents)} 锁档期`} />
-          <PriceChip label="半天" value={formatCents(packageSettings.packages[1].basePriceCents)} />
-          <PriceChip label="全天" value={formatCents(packageSettings.packages[2].basePriceCents)} />
-          <PriceChip label="多人加价" value={`+${formatCents(packageSettings.addOns.extraPersonPerHourCents)} /人/小时`} />
-          <PriceChip label="修图" value={`免费 ${packageSettings.packages[0].includedRetouchedCount} 张，额外 ${formatCents(packageSettings.addOns.retouchPerImageCents)}/张`} />
-        </div>
-        <p className="mt-3 text-[11px] font-semibold leading-5 text-white/50">交通/门票由创作者承担；高温、夜间、远距离、特殊设备可能加价。</p>
-        {rulesOpen ? (
-          <div className="mt-3 space-y-2 border-t border-white/10 pt-3 text-xs font-semibold leading-5 text-white/64">
-            <RuleLine label="可拍时间" value={packageSettings.rules.availableTimeRanges} />
-            <RuleLine label="改期规则" value={packageSettings.rules.reschedulePolicy} />
-            <RuleLine label="取消规则" value={packageSettings.rules.cancellationPolicy} />
-            <RuleLine label="天气规则" value={packageSettings.rules.weatherPolicy} />
-            <RuleLine label="客片发布" value={packageSettings.rules.publicationPolicy} />
-            <RuleLine label="不接范围" value={packageSettings.rules.excludedScenes} />
-            <RuleLine label="交付规则" value={packageSettings.rules.deliveryPolicy} />
+          <div>
+            <h2 className="text-sm font-black">套餐与报价</h2>
+            <p className="mt-1 text-[11px] font-semibold text-white/42">服务内容、价格和规则以摄影师设置为准。</p>
           </div>
-        ) : null}
-      </section>
-
-      <section className="mx-4 mb-4 rounded-[10px] bg-white/[0.06] p-3 ring-1 ring-white/8">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-black">服务内容</h2>
           <span className="inline-flex items-center gap-1 text-xs font-bold text-white/58">
             <Star size={12} className="fill-white/46 text-white/46" />
             {photographer.ratingAvg.toFixed(1)}
           </span>
         </div>
         <div className="mt-3 space-y-2">
-          {photographer.activities.slice(0, 3).map((item) => (
-            isCompanionMode ? (
-              <div key={item.id} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-[6px] bg-black/24 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-black text-white">{item.name}</p>
-                  <p className="mt-0.5 text-[11px] font-semibold text-white/46">{item.durationLabel}</p>
-                </div>
-                <span className="text-xs font-black text-white">¥{Math.round(item.priceCents / 100)}</span>
-              </div>
-            ) : (
-              <Link key={item.id} to={`/consumer/checkout/${profilePost.id}`} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-[6px] bg-black/24 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-black text-white">{item.name}</p>
-                  <p className="mt-0.5 text-[11px] font-semibold text-white/46">{item.durationLabel}</p>
-                </div>
-                <span className="text-xs font-black text-white">¥{Math.round(item.priceCents / 100)}</span>
-              </Link>
-            )
+          {packageSettings.packages.map((pkg) => (
+            <PackageQuoteCard
+              key={pkg.id}
+              pkg={pkg}
+              settings={packageSettings}
+              expanded={expandedPackageId === pkg.id}
+              isCompanionMode={isCompanionMode}
+              onToggle={() => setExpandedPackageId((current) => (current === pkg.id ? null : pkg.id))}
+              onConsult={() => openConsultForPackage(pkg.id)}
+            />
           ))}
         </div>
         <p className="mt-3 flex items-center gap-1 text-[11px] font-semibold text-white/48">
@@ -163,6 +137,8 @@ export function PhotographerProfilePage() {
         <ConsultationRequestModal
           post={profilePost}
           session={session}
+          packageSettings={packageSettings}
+          initialPackageId={consultPackageId ?? undefined}
           onClose={() => setConsultOpen(false)}
           onSubmitted={(id) => {
             setConsultOpen(false);
@@ -174,10 +150,71 @@ export function PhotographerProfilePage() {
   );
 }
 
-function PriceChip({ label, value }: { label: string; value: string }) {
+function PackageQuoteCard({
+  pkg,
+  settings,
+  expanded,
+  isCompanionMode,
+  onToggle,
+  onConsult,
+}: {
+  pkg: CompanionPackage;
+  settings: CompanionPackageSettings;
+  expanded: boolean;
+  isCompanionMode: boolean;
+  onToggle: () => void;
+  onConsult: () => void;
+}) {
+  const balanceCents = Math.max(0, pkg.basePriceCents - pkg.depositCents);
+
   return (
-    <div className="rounded-[8px] bg-black/24 p-2">
-      <p className="text-white/42">{label}</p>
+    <article className="overflow-hidden rounded-[8px] bg-black/24 ring-1 ring-white/8">
+      <button type="button" className="grid w-full grid-cols-[1fr_auto] items-center gap-3 px-3 py-3 text-left" onClick={onToggle}>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-black text-white">{pkg.name}</span>
+          <span className="mt-1 block truncate text-[11px] font-semibold text-white/46">
+            {formatDuration(pkg.durationMinutes)} · 含 {pkg.includedRetouchedCount} 张精修 · {formatCents(pkg.basePriceCents)}
+          </span>
+        </span>
+        <span className="flex items-center gap-2 text-right">
+          <span className="text-sm font-black text-white">{formatCents(pkg.basePriceCents)}</span>
+          <ChevronDown size={16} className={`text-white/46 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      {expanded ? (
+        <div className="border-t border-white/10 px-3 pb-3 pt-2">
+          <p className="text-xs font-semibold leading-5 text-white/64">{pkg.description}</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold">
+            <PackageMetric label="套餐价格" value={formatCents(pkg.basePriceCents)} />
+            <PackageMetric label="定金" value={`${formatCents(pkg.depositCents)} 锁档期`} />
+            <PackageMetric label="尾款" value={`${formatCents(balanceCents)} 拍摄前托管`} />
+            <PackageMetric label="原图/精修" value={`${pkg.includedOriginals} 张原图 · ${pkg.includedRetouchedCount} 张精修`} />
+            <PackageMetric label="多人加价" value={`+${formatCents(settings.addOns.extraPersonPerHourCents)} /人/小时`} />
+            <PackageMetric label="额外修图" value={`${formatCents(settings.addOns.retouchPerImageCents)} /张`} />
+          </div>
+          <div className="mt-3 space-y-2 text-xs font-semibold leading-5 text-white/58">
+            <RuleLine label="可拍时间" value={settings.rules.availableTimeRanges} />
+            <RuleLine label="取消规则" value={settings.rules.cancellationPolicy} />
+            <RuleLine label="天气规则" value={settings.rules.weatherPolicy} />
+            <RuleLine label="交通/门票" value={`${settings.rules.travelFeePolicy} ${settings.rules.ticketFeePolicy}`} />
+            <RuleLine label="交付规则" value={settings.rules.deliveryPolicy} />
+          </div>
+          {isCompanionMode ? null : (
+            <button type="button" className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-black text-black" onClick={onConsult}>
+              <Send size={16} />
+              按这个套餐询价
+            </button>
+          )}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function PackageMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[8px] bg-white/[0.06] p-2">
+      <p className="text-white/36">{label}</p>
       <p className="mt-1 text-white">{value}</p>
     </div>
   );
@@ -366,4 +403,10 @@ function formatMetric(value: number) {
   if (value >= 10000) return `${(value / 10000).toFixed(1)}万`;
   if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
   return String(value);
+}
+
+function formatDuration(minutes: number) {
+  if (minutes % 60 === 0) return `${minutes / 60}小时`;
+  if (minutes > 60) return `${Math.floor(minutes / 60)}小时${minutes % 60}分钟`;
+  return `${minutes}分钟`;
 }

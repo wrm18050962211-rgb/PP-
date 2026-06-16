@@ -2,7 +2,7 @@ import { ArrowLeft, CalendarDays, Image as ImageIcon, MapPin, MessageCircle, Sen
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
-import { createDefaultPackageSettings } from '../../services/companionPackageService';
+import { readCompanionPackageSettings } from '../../services/companionPackageService';
 import {
   getConsultationRiskText,
   listConsultations,
@@ -239,7 +239,7 @@ function formatRetouch(selection?: ConsultationRecord['requestCard']['retouchSel
 }
 
 function estimateQuote(consultation: ConsultationRecord, companion?: Companion) {
-  const settings = createDefaultPackageSettings(companion);
+  const settings = readCompanionPackageSettings(companion);
   const selectedPackage = settings.packages.find((pkg) => pkg.id === consultation.requestCard.packageId) ?? settings.packages[0];
   let totalCents = selectedPackage.basePriceCents;
   const addOns = settings.addOns;

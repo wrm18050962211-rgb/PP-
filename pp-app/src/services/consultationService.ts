@@ -1,7 +1,7 @@
 import type { AuthSession, Companion, CreateOrderInput, FeedPost } from '../types/api';
 import { evaluateMessageRisk } from '../utils/messageRisk';
 import { listTestAccounts } from './accountDirectory';
-import { createDefaultPackageSettings } from './companionPackageService';
+import { readCompanionPackageSettings } from './companionPackageService';
 
 export type ConsultationRequestCard = {
   date: string;
@@ -120,7 +120,7 @@ export function isSelfConsultation(post: FeedPost, session: AuthSession | null) 
 }
 
 export function estimateConsultationQuote(record: ConsultationRecord, companion: Companion | undefined): ConsultationQuoteEstimate {
-  const settings = createDefaultPackageSettings(companion);
+  const settings = readCompanionPackageSettings(companion);
   const selectedPackage = settings.packages.find((pkg) => pkg.id === record.requestCard.packageId) ?? settings.packages[0];
   const extraPeople = Math.max(0, record.requestCard.peopleCount - 1);
   const addOnLines: string[] = [];
@@ -158,7 +158,7 @@ export function estimateConsultationQuote(record: ConsultationRecord, companion:
 }
 
 export function sendQuoteForConsultation(id: string, companion: Companion | undefined, override: ConsultationQuoteOverride = {}) {
-  const settings = createDefaultPackageSettings(companion);
+  const settings = readCompanionPackageSettings(companion);
   const records = readConsultations();
   const nextRecords = records.map((item) => {
     if (item.id !== id) return item;

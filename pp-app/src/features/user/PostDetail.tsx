@@ -4,10 +4,11 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
-import { createDefaultPackageSettings, formatCents } from '../../services/companionPackageService';
+import { formatCents, readCompanionPackageSettings } from '../../services/companionPackageService';
 import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle, listFeedPosts } from '../../services/feedService';
 import { getPostLikeCount, isPostFavorited, isPostLiked, toggleFavoritePost, toggleLikedPost } from '../../services/userCollectionService';
 import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
+import type { CompanionPackageSettings } from '../../services/companionPackageService';
 import { ConsultationRequestModal } from './ConsultationRequestModal';
 
 type Comment = {
@@ -65,6 +66,8 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const comments = useMemo(() => [...baseComments, ...localComments], [baseComments, localComments]);
   const [likeCount, setLikeCount] = useState(() => getPostLikeCount(post.id, collectionPosts));
   const shareCount = useMemo(() => formatMetric(260 + stableMetricSeed(`${post.id}-share`, 180)), [post.id]);
+  const packageSettings = readCompanionPackageSettings(photographer);
+  const firstPackage = packageSettings.packages[0];
 
   useEffect(() => {
     let mounted = true;
@@ -292,11 +295,11 @@ function PostDetailContent({ postId }: { postId?: string }) {
         avatar={photographer.avatar}
         hero={cover?.url}
         heroSlides={photographerWorks.flatMap((work) => work.images[0]?.url ? [{ id: work.id, image: work.images[0].url }] : [])}
-        meta={`¥${Math.round((photographer.activities[0]?.priceCents || 0) / 100)}起 · ${photographer.ratingAvg.toFixed(1)}分`}
+        meta={`${formatCents(firstPackage.basePriceCents)}起 · ${photographer.ratingAvg.toFixed(1)}分`}
         tags={photographer.tags}
         onClose={() => setDrawer(null)}
       >
-        <PhotographerDrawerSummary post={post} />
+        <PhotographerDrawerSummary post={post} packageSettings={packageSettings} />
         <Link className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]" to={`/consumer/photographer/${photographer.id}`}>
           查看摄影师主页
         </Link>
@@ -320,6 +323,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
         <ConsultationRequestModal
           post={post}
           session={session}
+          packageSettings={packageSettings}
           onClose={() => setConsultOpen(false)}
           onSubmitted={(id) => {
             setConsultOpen(false);
@@ -432,11 +436,10 @@ function CommentSheet({
   );
 }
 
-function PhotographerDrawerSummary({ post }: { post: FeedPost }) {
+function PhotographerDrawerSummary({ post, packageSettings }: { post: FeedPost; packageSettings: CompanionPackageSettings }) {
   const photographer = post.companion;
-  const packageSettings = createDefaultPackageSettings(photographer);
   const firstPackage = packageSettings.packages[0];
-  const halfDayPackage = packageSettings.packages[1];
+  const halfDayPackage = packageSettings.packages[1] ?? firstPackage;
 
   return (
     <div className="space-y-3 rounded-[18px] bg-white p-3 text-[#3f302c] ring-1 ring-[#eadfd8]">

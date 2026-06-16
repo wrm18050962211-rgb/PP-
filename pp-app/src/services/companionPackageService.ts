@@ -44,13 +44,21 @@ export type CompanionPackageSettings = {
 };
 
 const storageKey = 'companion-package-settings-v1';
+const sharedPackageStorageKey = 'pp-cloud-db:shared:companion-package-settings-by-companion-v1';
 
 export function readCompanionPackageSettings(companion?: Companion | null) {
+  const sharedSettings = readSharedCompanionPackageSettings(companion?.id);
+  if (sharedSettings) return sharedSettings;
+  const legacySettings = readLegacyScopedCompanionPackageSettings(companion?.id);
+  if (legacySettings) return legacySettings;
+  if (companion?.id) return createDefaultPackageSettings(companion);
   return readDomainJson<CompanionPackageSettings | null>(storageKey, null, 'companion') ?? createDefaultPackageSettings(companion);
 }
 
-export function saveCompanionPackageSettings(settings: CompanionPackageSettings) {
-  writeDomainJson(storageKey, { ...settings, updatedAt: new Date().toISOString() }, 'companion');
+export function saveCompanionPackageSettings(settings: CompanionPackageSettings, companionId?: string | null) {
+  const nextSettings = { ...settings, updatedAt: new Date().toISOString() };
+  writeDomainJson(storageKey, nextSettings, 'companion');
+  if (companionId) writeSharedCompanionPackageSettings(companionId, nextSettings);
 }
 
 export function createDefaultPackageSettings(companion?: Companion | null): CompanionPackageSettings {
@@ -123,4 +131,42 @@ export function createDefaultPackageSettings(companion?: Companion | null): Comp
 
 export function formatCents(cents: number) {
   return `¥${Math.round(cents / 100)}`;
+}
+
+function readSharedCompanionPackageSettings(companionId?: string | null) {
+  if (!companionId || typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(sharedPackageStorageKey);
+    const records = raw ? (JSON.parse(raw) as Record<string, CompanionPackageSettings>) : {};
+    return records[companionId] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSharedCompanionPackageSettings(companionId: string, settings: CompanionPackageSettings) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(sharedPackageStorageKey);
+    const records = raw ? (JSON.parse(raw) as Record<string, CompanionPackageSettings>) : {};
+    localStorage.setItem(sharedPackageStorageKey, JSON.stringify({ ...records, [companionId]: settings }));
+  } catch {
+    localStorage.setItem(sharedPackageStorageKey, JSON.stringify({ [companionId]: settings }));
+  }
+}
+
+function readLegacyScopedCompanionPackageSettings(companionId?: string | null) {
+  if (!companionId || typeof localStorage === 'undefined') return null;
+  try {
+    const scopedSuffix = `:${storageKey}`;
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key || !key.endsWith(scopedSuffix) || !key.includes(`:${companionId}:`)) continue;
+      const raw = localStorage.getItem(key);
+      if (raw) return JSON.parse(raw) as CompanionPackageSettings;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
