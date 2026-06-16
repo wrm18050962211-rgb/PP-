@@ -81,8 +81,8 @@ export function RegisterPage() {
 
   async function submit() {
     try {
-      registerWithPhone({ phone, code, role });
-      navigate(getRoleOnboardingPath(role), { replace: true });
+      const account = registerWithPhone({ phone, code, role });
+      navigate(getRoleOnboardingPath(role), { replace: true, state: { role, phone: account.phone } });
     } catch (nextError) {
       setError(getErrorMessage(nextError));
     }
@@ -115,7 +115,7 @@ export function RegisterPage() {
       {error ? <ErrorLine text={error} /> : null}
 
       <button className="mt-5 h-12 w-full rounded-full bg-[#e85d75] text-sm font-black text-white" type="button" onClick={submit}>
-        注册并进入登录
+        注册账号
       </button>
       <Link className="mt-4 block text-center text-sm font-bold text-zinc-500" to="/auth/login">
         已有账号，去登录
@@ -219,9 +219,16 @@ export function LoginPage() {
       <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={() => void submit()}>
         登录
       </button>
-      <Link className="mt-4 block text-center text-sm font-bold text-zinc-500" to="/auth/register" state={{ role, phone }}>
+      <button
+        className="mt-4 block w-full text-center text-sm font-bold text-zinc-500"
+        type="button"
+        onClick={() => {
+          setMissingRolePrompt(null);
+          navigate('/auth/register', { state: { role, phone } });
+        }}
+      >
         注册
-      </Link>
+      </button>
     </AuthFrame>
   );
 }
