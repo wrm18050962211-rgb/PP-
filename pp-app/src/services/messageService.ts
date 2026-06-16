@@ -66,6 +66,51 @@ export async function sendMessage(
   }
 }
 
+export async function sendImageMessage(
+  conversationId: string,
+  file: File,
+  from: Message['from'] = 'user',
+): Promise<{ blocked: boolean; message?: Message; matchedKeywords: string[] }> {
+  const scanText = `图片 ${file.name}`;
+  const risk = evaluateMessageRisk(scanText);
+  const matchedKeywords = risk.hits.map((hit) => hit.keyword);
+  if (risk.shouldBlock) {
+    if (isApiEnabled()) {
+      try {
+        await apiPost<Message>(`/api/conversations/${conversationId}/messages`, { content: scanText, from, kind: 'image' });
+      } catch {
+        // The local UI still blocks the image even if risk-case sync fails.
+      }
+    }
+    return { blocked: true, matchedKeywords };
+  }
+
+  const imageUrl = await readFileAsDataUrl(file);
+  return {
+    blocked: false,
+    matchedKeywords,
+    message: createLocalMessage('[图片]', risk.level === 'medium' ? 'flagged' : 'clean', from, {
+      kind: 'image',
+      imageName: file.name,
+      imageUrl,
+    }),
+  };
+}
+
+export function sendVoiceMessage(
+  durationSeconds = 8,
+  from: Message['from'] = 'user',
+): { blocked: boolean; message: Message; matchedKeywords: string[] } {
+  return {
+    blocked: false,
+    matchedKeywords: [],
+    message: createLocalMessage(`[语音] ${durationSeconds}秒`, 'clean', from, {
+      kind: 'voice',
+      voiceDurationSeconds: durationSeconds,
+    }),
+  };
+}
+
 export async function submitOrderReport(orderId: string, description = '用户在消息页发起举报') {
   if (!isApiEnabled()) return true;
 
@@ -91,14 +136,30 @@ export function saveLocalConversation(conversation: Conversation) {
   }
 }
 
-function createLocalMessage(content: string, riskStatus: Message['riskStatus'], from: Message['from'] = 'user'): Message {
+function createLocalMessage(
+  content: string,
+  riskStatus: Message['riskStatus'],
+  from: Message['from'] = 'user',
+  extra: Partial<Message> = {},
+): Message {
   return {
     id: `local-message-${Date.now()}`,
     from,
+    kind: extra.kind ?? 'text',
     text: content,
     sentAt: new Date().toISOString(),
     riskStatus,
+    ...extra,
   };
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('图片读取失败'));
+    reader.readAsDataURL(file);
+  });
 }
 
 function getLocalConversation(orderId?: string): Conversation {

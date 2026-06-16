@@ -380,9 +380,13 @@ export type CreateOrderInput = {
 export type Message = {
   id: string;
   from: 'user' | 'companion' | 'admin' | 'system';
+  kind?: 'text' | 'image' | 'voice';
   text: string;
   sentAt: string;
   riskStatus: MessageRiskStatus;
+  imageUrl?: string;
+  imageName?: string;
+  voiceDurationSeconds?: number;
 };
 
 export type Conversation = {

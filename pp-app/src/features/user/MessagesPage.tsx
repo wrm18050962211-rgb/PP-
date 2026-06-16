@@ -1,13 +1,13 @@
-import { AlertTriangle, Camera, ChevronLeft, Flag, LockKeyhole, Pin, Search, Send, ShieldCheck } from 'lucide-react';
-import { useEffect, useMemo, useState, type PointerEvent } from 'react';
+import { AlertTriangle, Camera, ChevronLeft, Flag, ImagePlus, LockKeyhole, Mic, Phone, Pin, Search, Send, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { closeConsultation, consultationToOrderInput, getConsultation, getConsultationRiskText, listConsultations, sendQuoteForConsultation, type ConsultationRecord } from '../../services/consultationService';
 import { listTestAccounts } from '../../services/accountDirectory';
 import { listFeedPosts } from '../../services/feedService';
-import { evaluateMessageRisk, fetchConversation, getConversation, getConversationForOrder, saveLocalConversation, sendMessage, submitOrderReport } from '../../services/messageService';
+import { evaluateMessageRisk, fetchConversation, getConversation, getConversationForOrder, saveLocalConversation, sendImageMessage, sendMessage, sendVoiceMessage, submitOrderReport } from '../../services/messageService';
 import { readDomainJson, writeDomainJson } from '../../services/scopedStorage';
-import type { AppOrder, Conversation, FeedPost } from '../../types/api';
+import type { AppOrder, Conversation, FeedPost, Message } from '../../types/api';
 import { formatMoney } from '../../utils/money';
 
 type ThreadPrefs = {
@@ -40,6 +40,9 @@ export function MessagesPage() {
   const [allowMediumRisk, setAllowMediumRisk] = useState(false);
   const [reportSent, setReportSent] = useState(false);
   const [sendBlocked, setSendBlocked] = useState(false);
+  const [mediaNotice, setMediaNotice] = useState('');
+  const [callNotice, setCallNotice] = useState('');
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const risk = useMemo(() => evaluateMessageRisk(draft), [draft]);
   const isMediumRiskWaiting = risk.level === 'medium' && !allowMediumRisk;
   const messagesBasePath = session?.role === 'companion' ? '/companion/messages' : '/consumer/messages';
@@ -47,6 +50,10 @@ export function MessagesPage() {
   const otherProfileUrl = otherProfile?.profileUrl ?? '/consumer/companions';
   const activeThreadId = otherProfile ? getParticipantThreadId(otherProfile.profileUrl, otherProfile.name) : activeOrder ? getThreadId(activeOrder.id) : activeConsultation ? getThreadId(activeConsultation.id) : '';
   const pinned = activeThreadId ? threadPrefs.pinnedIds.includes(activeThreadId) : false;
+  const callTarget = useMemo(
+    () => getCallTarget(activeOrder, activeConsultation, session?.role),
+    [activeConsultation, activeOrder, session?.role],
+  );
 
   useEffect(() => {
     saveThreadPrefs(threadPrefs);
@@ -102,17 +109,61 @@ export function MessagesPage() {
       return;
     }
 
+    appendLocalMessage(result.message);
+    setDraft('');
+    setAllowMediumRisk(false);
+    setSendBlocked(false);
+  }
+
+  async function handleImageFile(file: File | undefined) {
+    if (!file) return;
+    setMediaNotice('');
+
+    try {
+      const result = await sendImageMessage(conversation.id, file, getMessageSender(session?.role));
+      if (result.blocked || !result.message) {
+        const keywords = result.matchedKeywords.join('、');
+        setMediaNotice(`图片命中联系方式/私下交易风险：${keywords || '疑似联系方式'}，已阻止发送。`);
+        return;
+      }
+
+      appendLocalMessage(result.message);
+      if (result.message.riskStatus === 'flagged') {
+        setMediaNotice('图片已发送，但文件名或文本元信息含敏感表达，平台会标记复核。');
+      }
+    } catch {
+      setMediaNotice('图片读取失败，请换一张图片重试。');
+    } finally {
+      if (imageInputRef.current) imageInputRef.current.value = '';
+    }
+  }
+
+  function handleVoiceSend() {
+    const durationSeconds = 6 + (conversation.messages.length % 5) * 3;
+    const result = sendVoiceMessage(durationSeconds, getMessageSender(session?.role));
+    appendLocalMessage(result.message);
+    setMediaNotice('');
+  }
+
+  function appendLocalMessage(message: Message) {
     setConversation((current) => {
       const nextConversation = {
         ...current,
-        messages: [...current.messages, result.message!],
+        messages: [...current.messages, message],
       };
       saveLocalConversation(nextConversation);
       return nextConversation;
     });
-    setDraft('');
-    setAllowMediumRisk(false);
-    setSendBlocked(false);
+  }
+
+  function handleCall() {
+    if (!callTarget.realPhone) {
+      setCallNotice('对方还没有绑定可转接电话。');
+      return;
+    }
+
+    setCallNotice(`正在通过平台虚拟号 ${callTarget.virtualPhone} 转接，对方真实手机号不会展示。`);
+    window.location.href = `tel:${callTarget.realPhone}`;
   }
 
   if (!orderId) {
@@ -164,6 +215,15 @@ export function MessagesPage() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
+              className="grid h-9 w-9 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]"
+              aria-label={`拨打平台虚拟号 ${callTarget.virtualPhone}`}
+              title={`平台虚拟号 ${callTarget.virtualPhone}`}
+              onClick={handleCall}
+              type="button"
+            >
+              <Phone size={17} />
+            </button>
+            <button
               className={`grid h-9 w-9 place-items-center rounded-full ${
                 pinned ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]'
               }`}
@@ -192,6 +252,7 @@ export function MessagesPage() {
           </div>
         </div>
         {reportSent && <p className="mt-2 text-center text-xs font-semibold text-rose-500">举报已记录，平台会优先复核这笔订单沟通。</p>}
+        {callNotice && <p className="mt-2 text-center text-xs font-semibold text-[#8f8078]">{callNotice}</p>}
       </header>
 
       <section className="border-b border-[#eadfd8] bg-white/72 px-4 py-3">
@@ -255,7 +316,7 @@ export function MessagesPage() {
                   mine ? 'bg-[#3f302c] text-white' : 'bg-white/86 text-[#3f302c] ring-1 ring-[#eadfd8]'
                 }`}
               >
-                <p>{message.text}</p>
+                <MessageBubbleContent message={message} mine={mine} />
                 {message.riskStatus === 'flagged' && <p className="mt-1 text-[11px] text-amber-500">已提示风险</p>}
               </div>
             </div>
@@ -268,6 +329,7 @@ export function MessagesPage() {
           <RiskNotice tone="high" text={`检测到高风险内容：${riskKeywords || '联系方式或私下交易'}。为保障双方权益，此消息不能发送。`} />
         )}
         {sendBlocked && risk.level === 'high' && <RiskNotice tone="high" text="发送已被阻止。请删除联系方式、转账或绕平台交易相关内容后再试。" />}
+        {mediaNotice && <RiskNotice tone={mediaNotice.includes('阻止') ? 'high' : 'medium'} text={mediaNotice} />}
         {risk.level === 'medium' && (
           <RiskNotice
             tone="medium"
@@ -280,6 +342,13 @@ export function MessagesPage() {
         )}
 
         <div className="flex items-end gap-2">
+          <input
+            ref={imageInputRef}
+            className="hidden"
+            type="file"
+            accept="image/*"
+            onChange={(event) => void handleImageFile(event.target.files?.[0])}
+          />
           <textarea
             className="max-h-28 min-h-11 flex-1 resize-none rounded-[18px] bg-white/82 px-4 py-3 text-sm leading-5 text-[#3f302c] outline-none ring-1 ring-[#eadfd8] placeholder:text-[#b0a29b] focus:ring-2 focus:ring-[#e8c5cb]"
             placeholder="输入订单相关需求，例如集合点、拍摄风格、时间确认"
@@ -306,6 +375,24 @@ export function MessagesPage() {
             aria-label="发送消息"
           >
             {risk.shouldBlock ? <LockKeyhole size={18} /> : <Send size={18} />}
+          </button>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white/82 text-xs font-black text-[#3f302c] ring-1 ring-[#eadfd8]"
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+          >
+            <ImagePlus size={16} />
+            发送图片
+          </button>
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white/82 text-xs font-black text-[#3f302c] ring-1 ring-[#eadfd8]"
+            type="button"
+            onClick={handleVoiceSend}
+          >
+            <Mic size={16} />
+            发送语音
           </button>
         </div>
       </footer>
@@ -518,6 +605,35 @@ function ConsultationActionPanel({
   );
 }
 
+function MessageBubbleContent({ message, mine }: { message: Message; mine: boolean }) {
+  if (message.kind === 'image' && message.imageUrl) {
+    return (
+      <div className="space-y-2">
+        <img
+          className="max-h-56 w-full rounded-xl object-cover"
+          src={message.imageUrl}
+          alt={message.imageName || '聊天图片'}
+        />
+        <p className={`text-[11px] leading-4 ${mine ? 'text-white/70' : 'text-[#8f8078]'}`}>
+          {message.imageName || '图片'} · 已做联系方式风控
+        </p>
+      </div>
+    );
+  }
+
+  if (message.kind === 'voice') {
+    return (
+      <div className="flex min-w-[128px] items-center gap-2">
+        <Mic size={17} />
+        <span className="font-bold">语音消息</span>
+        <span className={mine ? 'text-white/70' : 'text-[#8f8078]'}>{message.voiceDurationSeconds ?? 8}″</span>
+      </div>
+    );
+  }
+
+  return <p>{message.text}</p>;
+}
+
 function buildMessageThreads(orders: AppOrder[], posts: FeedPost[], sessionRole?: string): MessageThread[] {
   return orders.map((order, index) => {
     const post = findPostForOrder(order, posts);
@@ -661,6 +777,34 @@ function getOtherParticipantForConsultation(consultation: ConsultationRecord, se
     avatar: consultation.photographerAvatar,
     profileUrl: `/consumer/photographer/${consultation.photographerId}`,
   };
+}
+
+function getCallTarget(order: AppOrder | undefined, consultation: ConsultationRecord | null, sessionRole?: string) {
+  const accounts = listTestAccounts();
+  const realPhone = order
+    ? sessionRole === 'companion'
+      ? order.creatorPhone
+      : order.companionPhone || accounts.find((account) => account.role === 'companion' && account.companionId === order.companionId)?.phone
+    : consultation
+      ? sessionRole === 'companion'
+        ? consultation.creatorPhone
+        : accounts.find((account) => account.role === 'companion' && account.companionId === consultation.photographerId)?.phone
+      : undefined;
+
+  return {
+    realPhone,
+    virtualPhone: createVirtualRelayNumber(`${order?.id ?? consultation?.id ?? 'local'}:${realPhone ?? 'pending'}`),
+  };
+}
+
+function createVirtualRelayNumber(seed: string) {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+  const middle = String(1000 + (hash % 9000)).padStart(4, '0');
+  const tail = String(1000 + (Math.floor(hash / 17) % 9000)).padStart(4, '0');
+  return `95013-${middle}-${tail}`;
 }
 
 function formatThreadDate(date: Date) {
