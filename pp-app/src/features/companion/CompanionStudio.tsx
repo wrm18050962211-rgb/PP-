@@ -12,9 +12,10 @@ import {
 import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { applyCompanionProfile, readCompanionProfile } from '../../services/companionProfileService';
 import { listConsultations } from '../../services/consultationService';
 import { listFeedPosts } from '../../services/feedService';
-import type { FeedPost, UserRole } from '../../types/api';
+import type { FeedPost } from '../../types/api';
 import { getCollectionSummary } from '../user/UserCollectionPage';
 
 type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: string; badge?: string };
@@ -128,7 +129,7 @@ function buildPhotographerProfileSummary(post: FeedPost | undefined, session: Re
   }
 
   const profilePost = post ?? fallbackPost;
-  const photographer = profilePost.companion;
+  const photographer = applyCompanionProfile(profilePost.companion, readCompanionProfile(profilePost.companion.id, 'companion'));
   return {
     to: `/companion/photographer/${photographer.id}`,
     name: photographer.name,

@@ -5,6 +5,7 @@ import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { ConsultationRequestModal } from './ConsultationRequestModal';
 import { formatCents, readCompanionPackageSettings } from '../../services/companionPackageService';
+import { applyCompanionProfile, readCompanionProfile, type CompanionWithEditableProfile } from '../../services/companionProfileService';
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
 import { getFollowerCountForPerson, getPostLikeCount } from '../../services/userCollectionService';
@@ -24,7 +25,7 @@ export function PhotographerProfilePage() {
   const posts = listFeedPosts();
   const photographerPosts = posts.filter((post) => post.companion.id === photographerId);
   const profilePost = photographerPosts[0] || posts[0];
-  const photographer = profilePost.companion;
+  const photographer = applyCompanionProfile(profilePost.companion, readCompanionProfile(profilePost.companion.id, session?.role));
   const photographerOrderWorks = listOrderWorkRecords()
     .filter((record) => record.publishToPhotographer && isOrderWorkConfirmed(record))
     .map((record) => {
@@ -80,6 +81,7 @@ export function PhotographerProfilePage() {
             <MapPin size={15} className="shrink-0" />
             <span className="truncate">{photographer.areas.slice(0, 3).join(' / ')}</span>
           </p>
+          <PhotographerProfileMeta photographer={photographer} />
         </div>
 
         <div className={`mt-4 grid gap-2 ${isCompanionMode ? 'grid-cols-1' : 'grid-cols-[1fr_1fr]'}`}>
@@ -263,6 +265,31 @@ function WorkGrid({ works, basePath }: { works: FeedPost[]; basePath: string }) 
         </Link>
       ))}
     </section>
+  );
+}
+
+function PhotographerProfileMeta({ photographer }: { photographer: CompanionWithEditableProfile }) {
+  const tagGroups = [
+    { label: '注册资料', items: [photographer.registrationGenderLabel, photographer.registrationAgeRangeLabel].filter(Boolean) },
+    { label: '性格', items: photographer.profilePersonalityTags },
+    { label: '擅长', items: photographer.profileStyleTags },
+    { label: '互动', items: photographer.profileInteractionTags },
+    { label: '设备', items: photographer.profileEquipment },
+  ].filter((group) => group.items.length > 0);
+
+  return (
+    <div className="mt-3 space-y-2">
+      {tagGroups.map((group) => (
+        <div key={group.label} className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-0.5 text-[11px] font-black text-white/38">{group.label}</span>
+          {group.items.slice(0, 5).map((item) => (
+            <span key={`${group.label}-${item}`} className="rounded-full bg-white/[0.08] px-2 py-1 text-[11px] font-bold text-white/68">
+              {item}
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 

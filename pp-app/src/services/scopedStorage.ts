@@ -56,6 +56,13 @@ export const dataDomainPolicies: Record<string, DataDomainPolicy> = {
     migrationTarget: 'TencentDB creator_profiles / COS profile_media',
     note: 'Creator profile avatar, display name, and bio are account-owned profile data. MVP stores locally under the cloud namespace.',
   },
+  'companion-profile-v1': {
+    layer: 'cloud',
+    sensitivity: 'user',
+    owner: 'account-role',
+    migrationTarget: 'TencentDB companion_profiles / companion_profile_audit_cases / COS profile_media',
+    note: 'Photographer public profile edits are account-owned; avatar changes require admin review before replacing the public image.',
+  },
   'companion-package-settings-v1': {
     layer: 'cloud',
     sensitivity: 'user',
