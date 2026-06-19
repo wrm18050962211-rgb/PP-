@@ -871,8 +871,8 @@ export function OrderWorkDialog({
           {!deliveryReady ? (
             <p className="rounded-[10px] bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-5 text-amber-800">
               {imageLimit.limit === null
-                ? '摄影师需要先至少交付 1 张底片，之后才可确认当前版本。'
-                : `摄影师需要先交付约定 ${imageLimit.limit} 张底片，当前 ${draft.imageUrls.length} 张。`}
+                ? '摄影师需要先至少交付 1 张底片；创作者看到预览后可以先确认当前版本。'
+                : `摄影师仍需补齐约定 ${imageLimit.limit} 张底片，当前 ${draft.imageUrls.length} 张；创作者可先确认当前预览版本。`}
             </p>
           ) : null}
 

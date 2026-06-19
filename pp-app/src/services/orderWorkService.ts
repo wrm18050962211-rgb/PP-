@@ -123,8 +123,10 @@ export function canActorEditOrderWork(record: OrderWorkRecord, actor: WorkActor)
 
 export function canActorConfirmOrderWork(record: OrderWorkRecord, actor: WorkActor, requiredImageCount?: number | null) {
   if (record.orderCompletedAt || record.deliveryStatus === 'disputed' || getOrderWorkStage(record) === 'locked') return false;
-  if (!hasDeliveredRequiredWork(record, requiredImageCount)) return false;
+  const hasAnyDeliveredMedia = getOrderWorkOriginalUrls(record).length > 0 || Boolean(record.previewUrls?.length);
+  if (!hasAnyDeliveredMedia) return false;
   if (actor === 'photographer') {
+    if (!hasDeliveredRequiredWork(record, requiredImageCount)) return false;
     if (record.photographerConfirmed) return false;
     return record.lastEditedBy === 'creator' ? record.creatorConfirmed : true;
   }
