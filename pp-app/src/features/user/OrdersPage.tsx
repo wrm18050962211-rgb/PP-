@@ -732,13 +732,14 @@ export function OrderWorkDialog({
     setSyncRevision((value) => value + 1);
   }
 
-  function updateEditableDraft(patch: Partial<OrderWorkRecord>, summary = `${actorLabel}更新了成片信息`) {
+  function updateEditableDraft(patch: Partial<OrderWorkRecord> | ((current: OrderWorkRecord) => Partial<OrderWorkRecord>), summary = `${actorLabel}更新了成片信息`) {
     const now = new Date().toISOString();
-    setDraft((current) =>
-      appendOrderWorkActivity(
+    setDraft((current) => {
+      const nextPatch = typeof patch === 'function' ? patch(current) : patch;
+      return appendOrderWorkActivity(
         {
           ...current,
-          ...patch,
+          ...nextPatch,
           creatorConfirmed: false,
           photographerConfirmed: false,
           creatorConfirmedAt: undefined,
@@ -759,27 +760,33 @@ export function OrderWorkDialog({
         'edited',
         summary,
         now,
-      ),
-    );
+      );
+    });
     queueDraftSync();
   }
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length || !canUploadOriginals) return;
     const selectedFiles = Array.from(files).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'));
-    const limitedFiles = imageLimit.limit === null ? selectedFiles : selectedFiles.slice(0, imageLimit.limit);
-    const imageUrls = await readFilesAsDataUrls(limitedFiles);
+    const remainingSlots = imageLimit.limit === null ? selectedFiles.length : Math.max(imageLimit.limit - draft.imageUrls.length, 0);
+    if (remainingSlots <= 0) return;
+    const limitedFiles = selectedFiles.slice(0, remainingSlots);
+    const uploadedUrls = await readFilesAsStoredDataUrls(limitedFiles);
     updateEditableDraft(
-      {
-        imageUrls,
-        originalUrls: imageUrls,
-        previewUrls: imageUrls,
-        watermarkText: createWatermarkText(order),
-        previewMode: 'low_res_watermarked',
-        deliveryStatus: 'preview_ready',
-        disputeReason: undefined,
+      (current) => {
+        const currentUrls = current.originalUrls?.length ? current.originalUrls : current.imageUrls;
+        const imageUrls = imageLimit.limit === null ? [...currentUrls, ...uploadedUrls] : [...currentUrls, ...uploadedUrls].slice(0, imageLimit.limit);
+        return {
+          imageUrls,
+          originalUrls: imageUrls,
+          previewUrls: imageUrls,
+          watermarkText: createWatermarkText(order),
+          previewMode: 'low_res_watermarked',
+          deliveryStatus: 'preview_ready',
+          disputeReason: undefined,
+        };
       },
-      `${actorLabel}上传了 ${imageUrls.length} 张照片/Live`,
+      `${actorLabel}追加上传了 ${uploadedUrls.length} 张照片/Live`,
     );
   }
 
@@ -1029,6 +1036,10 @@ export function OrderWorkDialog({
           </div>
         </div>
 
+        <button className="h-11 w-full rounded-full bg-zinc-950 text-sm font-black text-white" onClick={submit} type="button">
+          保存协作状态
+        </button>
+
         <div className="grid grid-cols-2 gap-2">
           <button
             className={`h-11 rounded-full text-sm font-black ${
@@ -1111,10 +1122,6 @@ export function OrderWorkDialog({
             </button>
           </div>
         ) : null}
-
-        <button className="h-11 w-full rounded-full bg-zinc-950 text-sm font-black text-white" onClick={submit} type="button">
-          保存协作状态
-        </button>
       </div>
     </ActionSheet>
   );
@@ -1353,18 +1360,52 @@ function formatAddOns(order: AppOrder) {
   return `${count}张 ${formatMoney(amount)}`;
 }
 
-function readFilesAsDataUrls(files: File[]) {
-  return Promise.all(
-    files.map(
-      (file) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result ?? ''));
-          reader.onerror = () => reject(reader.error);
-          reader.readAsDataURL(file);
-        }),
-    ),
-  );
+function readFilesAsStoredDataUrls(files: File[]) {
+  return Promise.all(files.map((file) => (file.type.startsWith('image/') ? readImageAsCompressedDataUrl(file) : readFileAsDataUrl(file))));
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function readImageAsCompressedDataUrl(file: File) {
+  const originalUrl = await readFileAsDataUrl(file);
+  return new Promise<string>((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const maxSide = 900;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        resolve(originalUrl);
+        return;
+      }
+      context.drawImage(image, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(originalUrl);
+            return;
+          }
+          resolve(readFileAsDataUrl(new File([blob], file.name, { type: 'image/jpeg' })));
+        },
+        'image/jpeg',
+        0.68,
+      );
+    };
+    image.onerror = () => resolve(originalUrl);
+    image.src = originalUrl;
+  });
 }
 
 function WatermarkedMedia({
