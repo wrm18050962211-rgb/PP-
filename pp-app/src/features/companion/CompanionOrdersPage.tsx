@@ -227,8 +227,24 @@ function CompanionWorkEditPage() {
     if (autoCompletedRecords.length) setWorkRecords(listOrderWorkRecords());
   }, [completedOrders, updateOrderFunding, workByOrderId]);
 
-  function submitWorkRecord(record: OrderWorkRecord) {
+  useEffect(() => {
+    const refreshWorkRecords = () => setWorkRecords(listOrderWorkRecords());
+    window.addEventListener('focus', refreshWorkRecords);
+    window.addEventListener('storage', refreshWorkRecords);
+    document.addEventListener('visibilitychange', refreshWorkRecords);
+    return () => {
+      window.removeEventListener('focus', refreshWorkRecords);
+      window.removeEventListener('storage', refreshWorkRecords);
+      document.removeEventListener('visibilitychange', refreshWorkRecords);
+    };
+  }, []);
+
+  function syncWorkRecord(record: OrderWorkRecord) {
     setWorkRecords(saveOrderWorkRecord(record));
+  }
+
+  function submitWorkRecord(record: OrderWorkRecord) {
+    syncWorkRecord(record);
     setActiveWorkOrder(null);
   }
 
@@ -274,7 +290,15 @@ function CompanionWorkEditPage() {
 
       <div className="mt-4 space-y-4">
         {visibleOrders.map((order) => (
-          <WorkEditOrderCard key={order.id} order={order} record={workByOrderId.get(order.id)} onManage={() => setActiveWorkOrder(order)} />
+          <WorkEditOrderCard
+            key={order.id}
+            order={order}
+            record={workByOrderId.get(order.id)}
+            onManage={() => {
+              setWorkRecords(listOrderWorkRecords());
+              setActiveWorkOrder(order);
+            }}
+          />
         ))}
       </div>
 
@@ -292,6 +316,7 @@ function CompanionWorkEditPage() {
           post={posts.find((post) => post.id === activeWorkOrder.postId)}
           record={activeWorkRecord}
           onClose={() => setActiveWorkOrder(null)}
+          onDraftChange={syncWorkRecord}
           onSubmit={submitWorkRecord}
           onDispute={(record, reason) => {
             submitWorkRecord(markOrderWorkDisputed(record, reason));

@@ -153,6 +153,18 @@ export function OrdersPage() {
     setActiveStatus(parseOrderStatusTab(searchParams.get('tab')));
   }, [searchParams]);
 
+  useEffect(() => {
+    const refreshWorkRecords = () => setWorkRecords(listOrderWorkRecords());
+    window.addEventListener('focus', refreshWorkRecords);
+    window.addEventListener('storage', refreshWorkRecords);
+    document.addEventListener('visibilitychange', refreshWorkRecords);
+    return () => {
+      window.removeEventListener('focus', refreshWorkRecords);
+      window.removeEventListener('storage', refreshWorkRecords);
+      document.removeEventListener('visibilitychange', refreshWorkRecords);
+    };
+  }, []);
+
   function submitReview(orderId: string) {
     const nextIds = Array.from(new Set([...reviewedOrderIds, orderId]));
     setReviewedOrderIds(nextIds);
@@ -160,8 +172,12 @@ export function OrdersPage() {
     setActiveAction(null);
   }
 
-  function submitWorkRecord(record: OrderWorkRecord) {
+  function syncWorkRecord(record: OrderWorkRecord) {
     setWorkRecords(saveOrderWorkRecord(record));
+  }
+
+  function submitWorkRecord(record: OrderWorkRecord) {
+    syncWorkRecord(record);
     setActiveAction(null);
   }
 
@@ -239,7 +255,10 @@ export function OrdersPage() {
                 key={order.id}
                 order={order}
                 record={workByOrderId.get(order.id)}
-                onManage={() => setActiveAction({ type: 'work', order })}
+                onManage={() => {
+                  setWorkRecords(listOrderWorkRecords());
+                  setActiveAction({ type: 'work', order });
+                }}
               />
             ))
           : null}
@@ -265,7 +284,10 @@ export function OrdersPage() {
             workRecord={workByOrderId.get(order.id)}
             onCancel={() => setActiveAction({ type: 'cancel', order })}
             onReview={() => setActiveAction({ type: 'review', order })}
-            onManageWork={() => setActiveAction({ type: 'work', order })}
+            onManageWork={() => {
+              setWorkRecords(listOrderWorkRecords());
+              setActiveAction({ type: 'work', order });
+            }}
             onPayBalance={() => updateOrderFunding(order.id, { balanceStatus: 'paid', fundsStatus: 'full_escrowed' })}
           />
         ))}
@@ -299,6 +321,7 @@ export function OrdersPage() {
           post={posts.find((post) => post.id === activeAction.order.postId)}
           record={workByOrderId.get(activeAction.order.id)}
           onClose={() => setActiveAction(null)}
+          onDraftChange={syncWorkRecord}
           onSubmit={submitWorkRecord}
           onCompleteOrder={(record) => {
             submitWorkRecord(completeOrderWork(record, 'creator'));
@@ -661,6 +684,7 @@ export function OrderWorkDialog({
   post,
   record,
   onClose,
+  onDraftChange,
   onSubmit,
   onCompleteOrder,
   onDispute,
@@ -670,12 +694,14 @@ export function OrderWorkDialog({
   post?: FeedPost;
   record?: OrderWorkRecord;
   onClose: () => void;
+  onDraftChange?: (record: OrderWorkRecord) => void;
   onSubmit: (record: OrderWorkRecord) => void;
   onCompleteOrder?: (record: OrderWorkRecord) => void;
   onDispute: (record: OrderWorkRecord, reason: string) => void;
 }) {
   const [draft, setDraft] = useState<OrderWorkRecord>(() => record ?? createOrderWorkRecord(order, post));
   const [disputeReason, setDisputeReason] = useState('');
+  const [syncRevision, setSyncRevision] = useState(0);
   const confirmed = isOrderWorkConfirmed(draft);
   const stage = getOrderWorkStage(draft);
   const editable = canActorEditOrderWork(draft, actor);
@@ -691,6 +717,20 @@ export function OrderWorkDialog({
   const canCompleteOrder = actor === 'creator' && confirmed && !draft.orderCompletedAt && order.settlementStatus !== 'settled';
   const canConfirmAsCreator = actor === 'creator' && canActorConfirmOrderWork(draft, 'creator', requiredImageCount);
   const canConfirmAsPhotographer = actor === 'photographer' && canActorConfirmOrderWork(draft, 'photographer', requiredImageCount);
+
+  useEffect(() => {
+    if (!record || record.updatedAt === draft.updatedAt) return;
+    setDraft(record);
+  }, [record?.orderId, record?.updatedAt]);
+
+  useEffect(() => {
+    if (!syncRevision) return;
+    onDraftChange?.(buildSubmitRecord(draft));
+  }, [syncRevision]);
+
+  function queueDraftSync() {
+    setSyncRevision((value) => value + 1);
+  }
 
   function updateEditableDraft(patch: Partial<OrderWorkRecord>, summary = `${actorLabel}更新了成片信息`) {
     const now = new Date().toISOString();
@@ -721,6 +761,7 @@ export function OrderWorkDialog({
         now,
       ),
     );
+    queueDraftSync();
   }
 
   async function handleFiles(files: FileList | null) {
@@ -768,6 +809,7 @@ export function OrderWorkDialog({
         now,
       );
     });
+    queueDraftSync();
   }
 
   function buildSubmitRecord(recordToSave = draft) {
@@ -818,6 +860,7 @@ export function OrderWorkDialog({
         now,
       ),
     );
+    queueDraftSync();
   }
 
   function dispute() {
