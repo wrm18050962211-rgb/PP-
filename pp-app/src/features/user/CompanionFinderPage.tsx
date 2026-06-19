@@ -1,5 +1,5 @@
-import { MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { ChevronDown, MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { applyBookingSettingsToCompanion, defaultBookingSettings } from '../../data/bookingSettings';
@@ -301,6 +301,7 @@ function CompanionFilterSheet({
   onClose: () => void;
 }) {
   const groups = mode === 'all' ? filterGroupOrder : [mode];
+  const [expandedKey, setExpandedKey] = useState<FilterKey | null>(null);
 
   return (
     <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-end bg-black/70" onClick={onClose}>
@@ -311,14 +312,25 @@ function CompanionFilterSheet({
             <X size={18} />
           </button>
         </div>
-        <div className="mt-4 space-y-5">
-          {groups.map((key) =>
-            key === 'budget' ? (
-              <BudgetRangeEditor key={key} filters={filters} onChange={onBudgetChange} />
-            ) : (
-              <FilterOptionGroup key={key} filterKey={key} value={filters[key]} onSelect={(value) => onSelect(key, value)} />
-            ),
-          )}
+        <div className="mt-4 space-y-2">
+          {groups.map((key) => {
+            const open = expandedKey === key;
+            return (
+              <FilterDrawerGroup
+                key={key}
+                label={filterLabels[key]}
+                summary={getFilterSummary(key, filters)}
+                open={open}
+                onToggle={() => setExpandedKey((current) => (current === key ? null : key))}
+              >
+                {key === 'budget' ? (
+                  <BudgetRangeEditor filters={filters} onChange={onBudgetChange} />
+                ) : (
+                  <FilterOptionGroup filterKey={key} value={filters[key]} onSelect={(value) => onSelect(key, value)} />
+                )}
+              </FilterDrawerGroup>
+            );
+          })}
         </div>
         <div className="mt-6 grid grid-cols-2 gap-2">
           <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onReset}>
@@ -333,17 +345,45 @@ function CompanionFilterSheet({
   );
 }
 
+function FilterDrawerGroup({
+  label,
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string;
+  summary: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[18px] border border-zinc-200 bg-white">
+      <button className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left" onClick={onToggle} type="button" aria-expanded={open}>
+        <span>
+          <span className="block text-xs font-black text-zinc-400">{label}</span>
+          <span className="mt-1 block text-sm font-black text-zinc-950">{summary}</span>
+        </span>
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full bg-zinc-100 text-zinc-700 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
+          <ChevronDown size={18} />
+        </span>
+      </button>
+      {open ? <div className="border-t border-zinc-100 px-4 pb-4 pt-3">{children}</div> : null}
+    </section>
+  );
+}
+
 function FilterOptionGroup({ filterKey, value, onSelect }: { filterKey: CategoricalFilterKey; value: string; onSelect: (value: string) => void }) {
   const options = getFilterOptions(filterKey);
 
   return (
-    <div>
-      <p className="mb-2 text-xs font-black text-zinc-400">{filterLabels[filterKey]}</p>
-      <div className={`grid gap-2 ${filterKey === 'date' ? 'grid-cols-2' : 'grid-cols-2'}`}>
+    <div className="max-h-[42dvh] overflow-y-auto pr-1">
+      <div className="grid grid-cols-2 gap-2">
         {options.map((option) => (
           <button
             key={option}
-            className={`min-h-11 rounded-full px-3 text-sm font-black ${
+            className={`min-h-10 rounded-full px-3 text-sm font-black ${
               value === option ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'
             }`}
             onClick={() => onSelect(option)}
@@ -366,11 +406,7 @@ function BudgetRangeEditor({
 }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-black text-zinc-400">{filterLabels.budget}</p>
-        <span className="rounded-full bg-black px-3 py-1 text-xs font-black text-white">{formatBudgetRange(filters.budgetMin, filters.budgetMax)}</span>
-      </div>
-      <div className="space-y-4 rounded-[14px] border border-zinc-200 bg-zinc-50 p-4">
+      <div className="space-y-4 rounded-[14px] bg-zinc-50 p-4">
         <RangeRow label="下限" value={filters.budgetMin} onChange={(value) => onChange({ budgetMin: value })} min={BUDGET_MIN} max={filters.budgetMax} />
         <RangeRow label="上限" value={filters.budgetMax} onChange={(value) => onChange({ budgetMax: value })} min={filters.budgetMin} max={BUDGET_MAX} unlimited />
       </div>
@@ -539,6 +575,11 @@ function getFilterOptions(key: CategoricalFilterKey) {
 function getFilterOptionLabel(key: CategoricalFilterKey, value: string) {
   if (key === 'date' && value !== DATE_ANY) return formatDatePill(value);
   return value;
+}
+
+function getFilterSummary(key: FilterKey, filters: FinderFilters) {
+  if (key === 'budget') return formatBudgetRange(filters.budgetMin, filters.budgetMax);
+  return getFilterOptionLabel(key, filters[key]);
 }
 
 function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: ReturnType<typeof listFeedPosts>[number]): FinderFilters {
