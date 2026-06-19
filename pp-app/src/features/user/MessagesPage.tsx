@@ -350,8 +350,8 @@ export function MessagesPage() {
             onChange={(event) => void handleImageFile(event.target.files?.[0])}
           />
           <textarea
-            className="max-h-28 min-h-11 min-w-0 flex-1 resize-none rounded-[18px] bg-white/82 px-4 py-3 text-sm leading-5 text-[#3f302c] outline-none ring-1 ring-[#eadfd8] placeholder:text-[#b0a29b] focus:ring-2 focus:ring-[#e8c5cb]"
-            placeholder="输入订单相关需求，例如集合点、拍摄风格、时间确认"
+            className="max-h-28 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-[18px] bg-white/82 px-4 py-3 text-sm leading-5 text-[#3f302c] outline-none ring-1 ring-[#eadfd8] focus:ring-2 focus:ring-[#e8c5cb]"
+            aria-label="输入聊天消息"
             value={draft}
             onChange={(event) => {
               setDraft(event.target.value);
