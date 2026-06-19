@@ -64,6 +64,21 @@ function PostDetailContent({ postId }: { postId?: string }) {
     const works = collectionPosts.filter((item) => getCreatorIdentity(item).id === visibleCreator.id);
     return works.some((item) => item.id === post.id) ? works : [post, ...works];
   }, [collectionPosts, post, visibleCreator?.id]);
+  const creatorWorkCards = useMemo(
+    () =>
+      creatorWorks.flatMap((work) =>
+        work.images[0]?.url
+          ? [
+              {
+                id: work.id,
+                image: work.images[0].url,
+                title: getPostTitle(work),
+              },
+            ]
+          : [],
+      ),
+    [creatorWorks],
+  );
   const cover = post.images[0];
   const images = post.images;
   const activeMedia = images[activeImage] ?? cover;
@@ -278,7 +293,8 @@ function PostDetailContent({ postId }: { postId?: string }) {
         name={visibleCreator.name}
         avatar={visibleCreator.avatar}
         hero={cover?.url}
-        heroSlides={creatorWorks.flatMap((work) => work.images[0]?.url ? [{ id: work.id, image: work.images[0].url }] : [])}
+        heroSlides={creatorWorkCards.map((work) => ({ id: work.id, image: work.image }))}
+        workCards={creatorWorkCards}
         meta={visibleCreator.bio}
         tags={visibleCreator.tags}
         basePath={appHomePath}
@@ -493,6 +509,7 @@ function ProfileDrawer({
   avatar,
   hero,
   heroSlides,
+  workCards,
   meta,
   tags,
   basePath,
@@ -507,6 +524,7 @@ function ProfileDrawer({
   avatar: string;
   hero?: string;
   heroSlides?: Array<{ id: string; image: string }>;
+  workCards?: Array<{ id: string; image: string; title: string }>;
   meta: string;
   tags: readonly string[];
   basePath: string;
@@ -605,6 +623,29 @@ function ProfileDrawer({
               </span>
             ))}
           </div>
+          {workCards?.length ? (
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-black text-[#9b8c84]">创作者作品</p>
+                <span className="text-[11px] font-bold text-[#b2a49d]">点封面快速查看</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {workCards.slice(0, 6).map((work) => (
+                  <Link
+                    key={work.id}
+                    className="group relative aspect-[4/5] overflow-hidden rounded-[16px] bg-[#eadfd8] ring-1 ring-[#eadfd8]"
+                    to={`${basePath}/post/${work.id}`}
+                    aria-label={`查看作品：${work.title}`}
+                  >
+                    <img className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" src={work.image} alt={work.title} />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/72 to-transparent p-2">
+                      <p className="truncate text-[11px] font-black text-white">{work.title}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
           <div className={`grid gap-2 ${pinActions ? 'mt-auto pt-6' : ''}`}>{children}</div>
         </div>
       </aside>
