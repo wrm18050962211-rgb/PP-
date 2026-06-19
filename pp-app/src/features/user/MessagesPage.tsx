@@ -350,7 +350,7 @@ export function MessagesPage() {
             onChange={(event) => void handleImageFile(event.target.files?.[0])}
           />
           <textarea
-            className="max-h-28 min-h-11 flex-1 resize-none rounded-[18px] bg-white/82 px-4 py-3 text-sm leading-5 text-[#3f302c] outline-none ring-1 ring-[#eadfd8] placeholder:text-[#b0a29b] focus:ring-2 focus:ring-[#e8c5cb]"
+            className="max-h-28 min-h-11 min-w-0 flex-1 resize-none rounded-[18px] bg-white/82 px-4 py-3 text-sm leading-5 text-[#3f302c] outline-none ring-1 ring-[#eadfd8] placeholder:text-[#b0a29b] focus:ring-2 focus:ring-[#e8c5cb]"
             placeholder="输入订单相关需求，例如集合点、拍摄风格、时间确认"
             value={draft}
             onChange={(event) => {
@@ -376,23 +376,23 @@ export function MessagesPage() {
           >
             {risk.shouldBlock ? <LockKeyhole size={18} /> : <Send size={18} />}
           </button>
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
           <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white/82 text-xs font-black text-[#3f302c] ring-1 ring-[#eadfd8]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/88 text-[#3f302c] shadow-sm ring-1 ring-[#eadfd8]"
             type="button"
             onClick={() => imageInputRef.current?.click()}
+            aria-label="发送图片"
+            title="发送图片"
           >
-            <ImagePlus size={16} />
-            发送图片
+            <ImagePlus size={19} />
           </button>
           <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white/82 text-xs font-black text-[#3f302c] ring-1 ring-[#eadfd8]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/88 text-[#3f302c] shadow-sm ring-1 ring-[#eadfd8]"
             type="button"
             onClick={handleVoiceSend}
+            aria-label="发送语音"
+            title="发送语音"
           >
-            <Mic size={16} />
-            发送语音
+            <Mic size={19} />
           </button>
         </div>
       </footer>
