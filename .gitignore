@@ -1,6 +1,9 @@
 node_modules/
 dist/
 database/generated/
+pp-app/ios/App/Pods/
+pp-app/ios/App/build/
+pp-app/ios/DerivedData/
 
 *.log
 *.err.log
