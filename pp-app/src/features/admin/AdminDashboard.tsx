@@ -230,7 +230,7 @@ export function AdminDashboard() {
             <p className="text-xs font-bold text-[#e85d75]">PP 运营后台</p>
             <h1 className="mt-1 text-xl font-black text-[#3f302c] md:text-2xl">审核、风控、订单和结算</h1>
           </div>
-          <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]" aria-label="通知">
+          <button className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]" aria-label="通知">
             <Bell size={18} />
           </button>
         </div>

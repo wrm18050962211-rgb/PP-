@@ -112,10 +112,27 @@ npm run dev -- --host 127.0.0.1 --port 5174
 
 目标：先让网页在 iPhone 尺寸下像 App，而不是桌面网页缩小版。
 
+验证机型矩阵：
+
+| 机型 | CSS 视口 | 覆盖原因 |
+| --- | --- | --- |
+| iPhone SE | 375 x 667 | 小屏兜底 |
+| iPhone 15 | 393 x 852 | 15 标准屏 |
+| iPhone 15 Pro | 393 x 852 | 15 Pro 常见主力机 |
+| iPhone 15 Pro Max | 430 x 932 | 15 大屏 |
+| iPhone 16 | 393 x 852 | 16 标准屏 |
+| iPhone 16 Pro | 402 x 874 | 16 Pro / 6.3 英寸屏 |
+| iPhone 16 Pro Max | 440 x 956 | 16 Pro Max / 6.9 英寸屏 |
+| iPhone 17 | 402 x 874 | 17 标准屏 / 6.3 英寸屏 |
+| iPhone 17 Pro | 402 x 874 | 17 Pro / 6.3 英寸屏 |
+| iPhone 17 Pro Max | 440 x 956 | 17 Pro Max / 6.9 英寸屏 |
+
+说明：CSS 视口按设备像素除以 3x Retina 缩放推算，用于本地浏览器适配检查。Apple 官方规格中，iPhone 17 / 17 Pro 为 2622 x 1206 像素，iPhone 17 Pro Max 为 2868 x 1320 像素；iPhone 16 Pro / Pro Max 与对应 17 Pro / Pro Max 使用同组视口基准。
+
 要检查和修改：
 
 1. iPhone SE 小屏不横向滚动。
-2. iPhone 15/15 Pro 刘海屏和底部 Home Indicator 不遮挡内容。
+2. iPhone 15-17、Pro、Pro Max 刘海屏和底部 Home Indicator 不遮挡内容。
 3. 底部导航、主要按钮、表单输入框适合手指点击。
 4. 登录、预约、支付、订单页面在键盘弹起时不被遮挡。
 5. 图片流加载失败时有空状态。
@@ -127,7 +144,7 @@ npm run dev -- --host 127.0.0.1 --port 5174
 
 ```text
 /consumer
-/consumer/post/:id
+/consumer/post/post-wukang
 /consumer/orders
 /consumer/mine
 /companion
@@ -462,6 +479,7 @@ App 内提供客服、举报、退款说明和删除账号入口。
 
 - 2026-06-24：已完成第 1 步，确认当前分支和主计划文档。
 - 2026-06-24：已完成第 2 步，补齐 iPhone 顶部触控高度、底部安全区、订单筛选触控高度、后台横向标签触控高度，并完成 iPhone SE / iPhone 15 尺寸复查。
+- 2026-06-24：按 iPhone SE、15、15 Pro、15 Pro Max、16、16 Pro、16 Pro Max、17、17 Pro、17 Pro Max 扩展复查矩阵；覆盖 `/consumer`、`/consumer/post/post-wukang`、`/consumer/orders`、`/consumer/mine`、`/companion`、`/admin` 共 60 项，结果为 0 个页面级横向溢出、0 个底部导航遮挡、0 个关键控件低于 44px。
 
 ## 当前建议下一步
 

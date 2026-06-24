@@ -176,8 +176,8 @@ function PostDetailContent({ postId }: { postId?: string }) {
   return (
     <div className="relative h-dvh overflow-hidden bg-black text-white">
       <header className="fixed inset-x-0 top-0 z-40 mx-auto max-w-md bg-black/96 px-3 py-2 text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
-        <div className={`grid h-14 items-center gap-2 ${visibleCreator ? 'grid-cols-[30px_minmax(0,1fr)_minmax(0,1fr)]' : 'grid-cols-[30px_minmax(0,1fr)]'}`}>
-          <Link to={appHomePath} className="grid h-8 w-8 place-items-center text-white/88" aria-label="返回发现">
+        <div className={`grid h-14 items-center gap-2 ${visibleCreator ? 'grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)]' : 'grid-cols-[44px_minmax(0,1fr)]'}`}>
+          <Link to={appHomePath} className="grid h-11 w-11 place-items-center text-white/88" aria-label="返回发现">
             <ArrowLeft size={22} />
           </Link>
           {visibleCreator ? <ProfileIdentityButton role="创作者" name={visibleCreator.name} avatar={visibleCreator.avatar} onClick={() => setDrawer('creator')} /> : null}
@@ -574,7 +574,7 @@ function ProfileDrawer({
           {canSlide ? (
             <>
               <button
-                className="absolute left-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/36 text-white backdrop-blur"
+                className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/36 text-white backdrop-blur"
                 onClick={showPrevious}
                 type="button"
                 aria-label="上一张作品"
@@ -582,7 +582,7 @@ function ProfileDrawer({
                 <ChevronLeft size={18} />
               </button>
               <button
-                className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/36 text-white backdrop-blur"
+                className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/36 text-white backdrop-blur"
                 onClick={showNext}
                 type="button"
                 aria-label="下一张作品"
