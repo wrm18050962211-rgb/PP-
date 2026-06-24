@@ -213,16 +213,40 @@ npm run ios:open
 Xcode 里要做：
 
 1. 选择 Team。
-2. 设置正式 Bundle ID。
-3. 设置 Display Name 为 `PP` 或最终 App 名。
-4. 只保留第一版需要的 iPhone 方向，优先竖屏。
-5. 检查 App 图标、启动屏、权限文案。
+2. 设置正式 Bundle ID。当前占位值为 `com.ppplatform.app`。
+3. 设置 Display Name 为 `PP` 或最终 App 名。当前已设置为 `PP`。
+4. 只保留第一版需要的 iPhone 方向，优先竖屏。当前已设置为 iPhone 竖屏。
+5. 检查 App 图标、启动屏、权限文案。当前已替换临时 PP 图标和启动图，并补齐相册、相机、定位权限文案。
 6. 先跑 iPhone 模拟器。
 7. 再跑真机。
 
+本阶段已完成的壳配置：
+
+```text
+已重新生成完整 pp-app/ios Xcode 工程
+已同步 dist 到 ios/App/App/public
+已设置 Display Name 为 PP
+已设置产品名为 PP
+已将第一版设备族限制为 iPhone
+已将方向限制为竖屏
+已补齐相册、相机、定位权限说明
+已声明不使用非豁免加密
+已替换默认 Capacitor 图标和启动屏为临时 PP 品牌图
+```
+
+仍需人工完成：
+
+```text
+在 Xcode 选择 Apple Developer Team
+把 Bundle ID 从 com.ppplatform.app 改成最终正式值
+首次打开 Xcode 时允许解析 Swift Package 依赖
+选择 iPhone 15 / 16 / 17 系列模拟器跑一次
+连接真机跑一次
+```
+
 完成标准：
 
-- iPhone 模拟器打开不白屏。
+- iPhone 模拟器打开不白屏。当前已通过 iPhone 17 模拟器安装启动验证。
 - 真机打开不白屏。
 - 首页、详情、订单、我的页面能正常切换。
 
@@ -522,10 +546,11 @@ App 内提供客服、举报、退款说明和删除账号入口。
 - 2026-06-24：已完成第 2 步，补齐 iPhone 顶部触控高度、底部安全区、订单筛选触控高度、后台横向标签触控高度，并完成 iPhone SE / iPhone 15 尺寸复查。
 - 2026-06-24：按 iPhone SE、15、15 Pro、15 Pro Max、16、16 Pro、16 Pro Max、17、17 Pro、17 Pro Max 扩展复查矩阵；覆盖 `/consumer`、`/consumer/post/post-wukang`、`/consumer/orders`、`/consumer/mine`、`/companion`、`/admin` 共 60 项，结果为 0 个页面级横向溢出、0 个底部导航遮挡、0 个关键控件低于 44px。
 - 2026-06-24：完成第 3 步生产环境保护基线，新增 App Store 构建环境校验、生产 API 保护、生产 mock 登录/支付拦截，并把包体偏大优化放到第 11.5 步专项处理。
+- 2026-06-24：推进第 4 步，重新生成完整 iOS Xcode 工程，完成 PP 临时图标/启动图、iPhone 竖屏、权限文案、产品名和 iOS 壳配置基线；已解析 Swift Package 依赖，并通过 iPhone 17 模拟器 Debug 构建、安装和启动验证。
 
 ## 当前建议下一步
 
-下一步从“第 4 步：Xcode iOS 壳跑通”开始。
+下一步继续完成“第 4 步：Xcode iOS 壳跑通”的人工验收。
 
 优先检查：
 
@@ -536,4 +561,4 @@ pp-app/ios/App/App/Info.plist
 pp-app/ios/App/App/Assets.xcassets
 ```
 
-目标是在 Xcode 里跑通 iPhone 真机/模拟器壳，确认图标、启动页、权限文案、Bundle ID、签名配置和 WebView 页面显示正常。
+目标是在 Xcode 里选择 Team 和模拟器，跑通 iPhone 真机/模拟器壳，确认图标、启动页、权限文案、Bundle ID、签名配置和 WebView 页面显示正常。
