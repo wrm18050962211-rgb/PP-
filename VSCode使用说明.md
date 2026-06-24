@@ -63,3 +63,4 @@ npm.cmd run dev
 - `pp-app/src/services`：前端 API 服务层
 - `server/server.mjs`：第二版本地后端 API
 - `database`：数据库 schema、API 契约和后端计划
+- `APP_STORE_IPHONE_LAUNCH_PLAN.md`：iPhone 封装和 App Store 上线逐步计划

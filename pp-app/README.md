@@ -47,3 +47,9 @@ npm run ios:open
 ```
 
 上架前需要在 Xcode 里绑定自己的 Apple Developer Team，并确认 Bundle Identifier 已在 Apple Developer 后台创建。
+
+完整的 iPhone 适配和 App Store 上线步骤见：
+
+```bash
+../APP_STORE_IPHONE_LAUNCH_PLAN.md
+```

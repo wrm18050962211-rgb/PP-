@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(fileURLToPath(import.meta.url));
 const storePath = resolve(root, 'data/store.json');
 const port = Number(process.env.PORT || 8787);
+const host = process.env.HOST || '127.0.0.1';
 const virtualProfiles = [
   ['Luna', 'female', '武康路', ['武康路', '安福路', '湖南路', '衡山路'], 'Citywalk 陪拍', ['自然抓拍', '会指导动作', '适合第一次拍照'], ['Citywalk', '自然光', '松弛感'], '偏温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。', 39900, 120, 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80'],
   ['Aki', 'female', '巨鹿路', ['巨鹿路', '富民路', '长乐路', '静安寺'], '探店生活照', ['探店构图', '小红书风格', '穿搭建议'], ['探店', '日常感', '咖啡店'], '熟悉咖啡店和街角光线，适合想要轻松日常头像和朋友圈照片的用户。', 32900, 90, 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'],
@@ -34,7 +35,7 @@ http
       sendJson(res, 500, fail('SERVER_ERROR', error instanceof Error ? error.message : 'Server error'));
     }
   })
-  .listen(port, () => console.log('PP backend v2 listening on http://127.0.0.1:' + port));
+  .listen(port, host, () => console.log(`PP backend v2 listening on http://${host}:${port}`));
 
 async function route(method, url, body, store) {
   const path = url.pathname;
