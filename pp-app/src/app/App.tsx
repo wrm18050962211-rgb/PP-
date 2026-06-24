@@ -14,6 +14,8 @@ import { CompanionProfileEdit } from '../features/companion/CompanionProfileEdit
 import { PublishPost } from '../features/companion/PublishPost';
 import { CompanionStudio } from '../features/companion/CompanionStudio';
 import { ServiceRangeSettings } from '../features/companion/ServiceRangeSettings';
+import { CreatorDemoGate } from '../features/demo/CreatorDemoGate';
+import { DemoQrPage } from '../features/demo/DemoQrPage';
 import { CheckoutPage } from '../features/user/CheckoutPage';
 import { CompanionFinderPage } from '../features/user/CompanionFinderPage';
 import { CreatorOnboarding } from '../features/user/CreatorOnboarding';
@@ -33,6 +35,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<EntryRedirect />} />
+      <Route path="/d" element={<CreatorDemoGate />} />
+      <Route path="/qr-demo" element={<DemoQrPage />} />
+      <Route path="/demo" element={<CreatorDemoGate />} />
 
       <Route
         path="/auth/register"

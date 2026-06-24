@@ -112,6 +112,30 @@ export function getRegisteredAccount() {
   return readAccount();
 }
 
+export function startCreatorDemoSession() {
+  const account: AuthAccount = {
+    phone: '13900001001',
+    role: 'consumer',
+    roles: ['consumer'],
+    completedRoleRegistrations: ['consumer'],
+    pendingRoleRegistrations: [],
+    roleReviewStatus: { consumer: 'approved' },
+    nickname: '调研试用创作者',
+    creatorName: '调研试用创作者',
+    creatorId: 'creator-survey-demo',
+    creatorAvatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80',
+    registeredAt: new Date().toISOString(),
+  };
+
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(accountStorageKey, JSON.stringify(account));
+    localStorage.setItem(loginStorageKey, '1');
+  }
+  persistRole('consumer');
+  notifySessionChanged(localSession('consumer'));
+  return account;
+}
+
 export function accountHasRole(role: PublicRole) {
   const account = readAccount();
   if (!account) return false;
