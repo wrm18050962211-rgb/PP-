@@ -53,14 +53,14 @@ export function RoleShell() {
 
   return (
     <div className="min-h-dvh pp-page">
-      <main className={`mx-auto min-h-dvh w-full max-w-md shadow-[0_0_46px_rgba(91,64,49,0.08)] ${showBottomNav ? 'pb-24' : ''}`}>
+      <main className={`mx-auto min-h-dvh w-full max-w-md shadow-[0_0_46px_rgba(91,64,49,0.08)] ${showBottomNav ? 'pb-[calc(6rem+env(safe-area-inset-bottom))]' : ''}`}>
         <Outlet context={{ homeChromeCompact: compactChrome }} />
       </main>
 
       {showBottomNav ? (
         <nav
           className={`fixed left-1/2 z-40 flex -translate-x-1/2 items-center justify-around rounded-full border border-white/12 bg-black/82 text-white shadow-[0_16px_42px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-300 ${
-            compactChrome ? 'bottom-3 h-12 w-[272px] px-2' : 'bottom-4 h-14 w-[304px] px-2'
+            compactChrome ? 'bottom-[max(0.75rem,env(safe-area-inset-bottom))] h-12 w-[272px] px-2' : 'bottom-[max(1rem,env(safe-area-inset-bottom))] h-14 w-[304px] px-2'
           }`}
           aria-label="摄影师端导航"
         >

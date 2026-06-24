@@ -234,14 +234,14 @@ export function AdminDashboard() {
             <Bell size={18} />
           </button>
         </div>
-        <div className="scrollbar-none mt-4 flex gap-2 overflow-x-auto">
+        <div className="scrollbar-none mt-4 flex gap-2 overflow-x-auto pb-1">
           {modules.map((item) => {
             const Icon = item.icon;
             const active = activeModule === item.key;
             return (
               <button
                 key={item.key}
-                className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${active ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]'}`}
+                className={`flex h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${active ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]'}`}
                 onClick={() => setActiveModule(item.key)}
               >
                 <Icon size={15} />

@@ -458,16 +458,23 @@ App 内提供客服、举报、退款说明和删除账号入口。
 8. 跑最小验证。
 9. 保存本地检查点。
 
+## 推进记录
+
+- 2026-06-24：已完成第 1 步，确认当前分支和主计划文档。
+- 2026-06-24：已完成第 2 步，补齐 iPhone 顶部触控高度、底部安全区、订单筛选触控高度、后台横向标签触控高度，并完成 iPhone SE / iPhone 15 尺寸复查。
+
 ## 当前建议下一步
 
-下一步从“第 2 步：iPhone Web 适配基线”开始。
+下一步从“第 3 步：生产环境开关”开始。
 
 优先检查：
 
 ```text
-http://127.0.0.1:5174/consumer
-http://127.0.0.1:5174/consumer/orders
-http://127.0.0.1:5174/consumer/mine
+pp-app/.env.example
+pp-app/.env.production
+pp-app/src/services/apiClient.ts
+pp-app/src/services/authService.ts
+pp-app/src/services/paymentService.ts
 ```
 
-检查完成后，再进入“第 3 步：生产环境开关”。这样顺序更稳，先让界面像 App，再处理上线包和 Xcode。
+目标是让生产包不连接 `127.0.0.1`，并隐藏 mock 登录、mock 支付、测试角色切换等上架前痕迹。

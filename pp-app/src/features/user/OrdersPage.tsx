@@ -222,7 +222,7 @@ export function OrdersPage() {
           ? workTabs.map((tab) => (
               <button
                 key={tab.key}
-                className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
+                className={`h-11 shrink-0 rounded-full px-4 text-sm font-bold ${
                   activeWorkTab === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
                 }`}
                 onClick={() => setActiveWorkTab(tab.key)}
@@ -235,7 +235,7 @@ export function OrdersPage() {
           : statusTabs.map((tab) => (
               <button
                 key={tab.key}
-                className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
+                className={`h-11 shrink-0 rounded-full px-4 text-sm font-bold ${
                   activeStatus === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
                 }`}
                 onClick={() => setActiveStatus(tab.key)}

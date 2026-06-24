@@ -422,13 +422,13 @@ export function HomeFeed() {
   return (
     <div className={`min-h-dvh bg-[#050505] text-white transition-[padding] duration-300 ${topPaddingClass}`}>
       <header
-        className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md px-4 pt-3 text-white transition-all duration-300 ${
+        className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md px-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white transition-all duration-300 sm:px-4 ${
           topChromeHidden ? 'pointer-events-none -translate-y-full opacity-0' : 'translate-y-0 opacity-100'
         }`}
       >
-        <div className="flex h-10 items-center justify-between gap-3">
+        <div className="flex h-11 items-center justify-between gap-2">
           <button
-            className={`pointer-events-auto flex h-9 max-w-[112px] shrink-0 items-center gap-1.5 rounded-full px-2 shadow-[0_10px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition ${
+            className={`pointer-events-auto flex h-11 max-w-[104px] shrink-0 items-center gap-1.5 rounded-full px-2 shadow-[0_10px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition sm:max-w-[112px] ${
               locationActive ? 'bg-white text-black' : 'bg-black/26 text-white'
             }`}
             onClick={() => setCityOpen(true)}
@@ -439,11 +439,11 @@ export function HomeFeed() {
             <span className="min-w-0 truncate text-base font-black leading-none">{locationLabel}</span>
           </button>
 
-          <nav className="pointer-events-auto flex h-9 items-center gap-5 text-base font-black text-white/48 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+          <nav className="pointer-events-auto flex h-11 items-center gap-1.5 text-[15px] font-black text-white/48 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] sm:gap-3 sm:text-base">
             {channels.map((channel) => (
               <button
                 key={channel}
-                className={`relative flex h-9 items-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${filters.channel === channel ? 'text-white' : ''}`}
+                className={`relative flex h-11 min-w-11 items-center justify-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${filters.channel === channel ? 'text-white' : ''}`}
                 onClick={() => selectFeedChannel(channel)}
               >
                 {channel}
@@ -452,25 +452,25 @@ export function HomeFeed() {
             ))}
           </nav>
 
-          <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+          <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
             <button
-              className={`relative grid h-9 w-9 place-items-center rounded-full transition ${
+              className={`relative grid h-11 w-11 place-items-center rounded-full transition ${
                 filters.query ? 'bg-white text-black' : 'bg-black/26 text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)] ring-1 ring-white/14 backdrop-blur-md'
               }`}
               onClick={openSearch}
               aria-label="搜索"
             >
-              <Search size={18} />
+              <Search size={19} />
               {filters.query ? <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-black" /> : null}
             </button>
             <button
-              className={`relative grid h-9 w-9 place-items-center rounded-full transition ${
+              className={`relative grid h-11 w-11 place-items-center rounded-full transition ${
                 activeFilterCount ? 'bg-white text-black' : 'bg-black/26 text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)] ring-1 ring-white/14 backdrop-blur-md'
               }`}
               onClick={() => setFilterOpen(true)}
               aria-label="筛选"
             >
-              <SlidersHorizontal size={18} />
+              <SlidersHorizontal size={19} />
               {activeFilterCount ? (
                 <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-black px-1 text-[10px] font-black text-white ring-1 ring-white/50">
                   {activeFilterCount}
