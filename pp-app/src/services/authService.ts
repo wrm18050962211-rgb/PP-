@@ -1,5 +1,5 @@
 import type { AuthSession, UserRole } from '../types/api';
-import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { apiGet, apiPost, isApiEnabled, isMockRuntimeAllowed, isProductionRuntime, useMockFallback } from './apiClient';
 import { findTestAccountIdentitiesByPhone, type PublicRole, type TestAccountIdentity } from './accountDirectory';
 import { isMiniProgramRuntime, wxLogin } from './miniProgramBridge';
 
@@ -75,6 +75,8 @@ export async function fetchAuthSession(): Promise<AuthSession> {
 }
 
 export async function switchMockRole(role: UserRole): Promise<AuthSession> {
+  if (isProductionRuntime()) throw new Error('生产环境不能使用 mock 身份切换，请接入真实登录会话。');
+
   const account = readAccount();
   if (!canUseRole(account, role)) return localSession(readStoredRole());
 
@@ -118,7 +120,7 @@ export function accountHasRole(role: PublicRole) {
 
 export function getAvailableLoginRoles(phone?: string): PublicRole[] {
   const normalizedPhone = normalizePhone(phone ?? '');
-  const testRoles = normalizedPhone ? findTestAccountIdentitiesByPhone(normalizedPhone).map((identity) => identity.role) : [];
+  const testRoles = isMockRuntimeAllowed() && normalizedPhone ? findTestAccountIdentitiesByPhone(normalizedPhone).map((identity) => identity.role) : [];
   if (testRoles.length) return Array.from(new Set(testRoles));
   const account = readAccount();
   if (!account || (normalizedPhone && account.phone !== normalizedPhone)) return [];
@@ -134,6 +136,8 @@ export function getPostAuthHome(role = readStoredRole()) {
 }
 
 export function requestPhoneCode(phone: string) {
+  if (isProductionRuntime()) throw new Error('生产环境需要接入真实短信验证码接口，不能使用本地测试验证码。');
+
   const normalizedPhone = normalizePhone(phone);
   if (!isValidPhone(normalizedPhone)) throw new Error('请输入 11 位手机号');
 
@@ -297,6 +301,8 @@ function isUserRole(role: unknown): role is UserRole {
 }
 
 function localSession(role: UserRole): AuthSession {
+  if (isProductionRuntime()) return useMockFallback({} as AuthSession, 'local auth session');
+
   const account = readAccount();
   const activeRole = resolveUsableRole(account, role);
   if (activeRole !== role) persistRole(activeRole);
@@ -333,7 +339,7 @@ function localSession(role: UserRole): AuthSession {
 }
 
 function findLoginAccount(phone: string): AuthAccount | null {
-  const testIdentities = findTestAccountIdentitiesByPhone(phone);
+  const testIdentities = isMockRuntimeAllowed() ? findTestAccountIdentitiesByPhone(phone) : [];
   const account = readAccount();
   if (testIdentities.length) {
     const testAccount = mapTestIdentities(testIdentities);

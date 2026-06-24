@@ -2,7 +2,7 @@ import { seedOrders } from '../data/mockApi';
 import type { AppOrder, CreateOrderInput, OrderStatus, PaymentRequest } from '../types/api';
 import { formatMoney } from '../utils/money';
 import { getOrderSteps, orderStatusText } from '../utils/status';
-import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { apiGet, apiPost, isApiEnabled, useMockFallback } from './apiClient';
 import { requestMiniProgramPayment } from './paymentService';
 
 type CreateOrderResponse = AppOrder & {
@@ -28,22 +28,22 @@ export function createLocalOrder(input: CreateOrderInput, status: OrderStatus = 
 }
 
 export async function fetchOrders(role: 'user' | 'companion' | 'admin' = 'user'): Promise<AppOrder[]> {
-  if (!isApiEnabled()) return listSeedOrders();
+  if (!isApiEnabled()) return useMockFallback(listSeedOrders(), 'seed orders');
 
   try {
     const response = await apiGet<{ items: AppOrder[] }>(`/api/orders?role=${role}`);
-    return response.success ? response.data.items : listSeedOrders();
+    return response.success ? response.data.items : useMockFallback(listSeedOrders(), 'seed orders');
   } catch {
-    return listSeedOrders();
+    return useMockFallback(listSeedOrders(), 'seed orders');
   }
 }
 
 export async function submitOrder(input: CreateOrderInput): Promise<AppOrder> {
-  if (!isApiEnabled()) return createLocalOrder(input);
+  if (!isApiEnabled()) return useMockFallback(createLocalOrder(input), 'local order creation');
 
   try {
     const response = await apiPost<CreateOrderResponse>('/api/orders', input);
-    if (!response.success) return createLocalOrder(input);
+    if (!response.success) return useMockFallback(createLocalOrder(input), 'local order creation');
 
     const payment = response.data.payment;
     if (!payment) return response.data;
@@ -51,7 +51,7 @@ export async function submitOrder(input: CreateOrderInput): Promise<AppOrder> {
     const paidOrder = await requestMiniProgramPayment(payment);
     return paidOrder ?? response.data;
   } catch {
-    return createLocalOrder(input);
+    return useMockFallback(createLocalOrder(input), 'local order creation');
   }
 }
 

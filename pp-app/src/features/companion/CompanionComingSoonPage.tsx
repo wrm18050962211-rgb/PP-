@@ -16,10 +16,10 @@ export function CompanionComingSoonPage() {
         <div className="grid h-12 w-12 place-items-center rounded-full bg-white/10 text-white">
           <Sparkles size={24} />
         </div>
-        <p className="mt-6 text-sm font-black text-[#ff4f79]">MVP 暂缓开放</p>
-        <h1 className="mt-2 text-3xl font-black tracking-normal">功能敬请期待</h1>
+        <p className="mt-6 text-sm font-black text-[#ff4f79]">主动邀约暂未开放</p>
+        <h1 className="mt-2 text-3xl font-black tracking-normal">先处理咨询报价</h1>
         <p className="mt-3 text-sm font-semibold leading-6 text-white/62">
-          摄影师主动寻找创作者付费拍照涉及审核、邀约、报价和纠纷规则，当前版本先专注咨询报价、接单、交付和共同编辑作品闭环。
+          为了保护双方交易安全，摄影师主动邀约会在审核、报价和纠纷规则完善后开放。当前版本先处理创作者已提交的咨询需求。
         </p>
       </section>
 

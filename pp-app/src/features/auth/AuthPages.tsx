@@ -16,6 +16,7 @@ import {
   requestPhoneCode,
   type RegisterInput,
 } from '../../services/authService';
+import { isMockRuntimeAllowed } from '../../services/apiClient';
 
 type PublicRole = RegisterInput['role'];
 
@@ -90,7 +91,7 @@ export function RegisterPage() {
   function sendCode() {
     try {
       const nextCode = requestPhoneCode(phone);
-      setDemoCode(nextCode);
+      setDemoCode(isMockRuntimeAllowed() ? nextCode : '');
       setError('');
     } catch (nextError) {
       setError(getErrorMessage(nextError));
@@ -158,7 +159,7 @@ export function LoginPage() {
   function sendCode() {
     try {
       const nextCode = requestPhoneCode(phone);
-      setDemoCode(nextCode);
+      setDemoCode(isMockRuntimeAllowed() ? nextCode : '');
       setError('');
     } catch (nextError) {
       setError(getErrorMessage(nextError));
@@ -319,8 +320,8 @@ export function AccountSettingsPage() {
 
       <section className="mt-5 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
         <SettingRow icon={<Smartphone size={19} />} title="手机号" desc={account?.phone ?? '未绑定'} />
-        <SettingRow icon={<ShieldCheck size={19} />} title="实名认证" desc="MVP 本地模拟，后续接入微信与平台审核" />
-        <SettingRow icon={<MessageSquareText size={19} />} title="验证码登录" desc="当前使用本地 mock 验证码" />
+        <SettingRow icon={<ShieldCheck size={19} />} title="实名认证" desc={isMockRuntimeAllowed() ? '本地演示资料，后续接入平台审核' : '线上审核资料'} />
+        <SettingRow icon={<MessageSquareText size={19} />} title="验证码登录" desc={isMockRuntimeAllowed() ? '当前使用本地测试验证码' : '线上短信验证码'} />
       </section>
 
       <button
@@ -342,7 +343,7 @@ function AuthFrame({ eyebrow, title, children }: { eyebrow: string; title: strin
         <div className="pt-8">
           <p className="text-sm font-black text-[#e85d75]">{eyebrow}</p>
           <h1 className="mt-2 text-3xl font-black tracking-normal">{title}</h1>
-          <p className="mt-3 text-sm font-semibold leading-6 text-zinc-500">用手机号验证码完成本地 MVP 登录，后续可平滑替换为微信手机号授权。</p>
+          <p className="mt-3 text-sm font-semibold leading-6 text-zinc-500">{isMockRuntimeAllowed() ? '用手机号验证码完成本地演示登录，后续可平滑替换为微信手机号授权。' : '用手机号验证码完成登录，验证码由线上短信服务发送。'}</p>
         </div>
         <div className="mt-7 rounded-[16px] bg-white p-4 shadow-sm ring-1 ring-zinc-200">{children}</div>
       </section>
@@ -394,7 +395,7 @@ function PhoneCodeForm({
           </button>
         </div>
       </label>
-      {demoCode ? <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">本地测试验证码：{demoCode}</p> : null}
+      {isMockRuntimeAllowed() && demoCode ? <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">本地测试验证码：{demoCode}</p> : null}
     </div>
   );
 }

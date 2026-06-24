@@ -1,6 +1,6 @@
 import { companions, feedPosts } from '../data/mockApi';
 import type { ActivityPricing, AvailabilitySlot, Companion, CompanionExtra, FeedPost, PublishedWorkDraft } from '../types/api';
-import { apiGet, isApiEnabled } from './apiClient';
+import { apiGet, isApiEnabled, useMockFallback } from './apiClient';
 
 export type FeedPageRequest = {
   limit?: number;
@@ -82,7 +82,7 @@ export function mergeApprovedWorkIntoFeed(posts: FeedPost[], workDraft: Publishe
 }
 
 export async function fetchFeedPostPage(options: FeedPageRequest = {}): Promise<FeedPostPage> {
-  if (!isApiEnabled()) return listFeedPostPage(options);
+  if (!isApiEnabled()) return useMockFallback(listFeedPostPage(options), 'feed post page');
 
   try {
     const response = await apiGet<FeedPostPage>(buildFeedPostsPath(options));
@@ -92,9 +92,9 @@ export async function fetchFeedPostPage(options: FeedPageRequest = {}): Promise<
           nextCursor: response.data.nextCursor ?? null,
           hasMore: Boolean(response.data.hasMore),
         }
-      : listFeedPostPage(options);
+      : useMockFallback(listFeedPostPage(options), 'feed post page');
   } catch {
-    return listFeedPostPage(options);
+    return useMockFallback(listFeedPostPage(options), 'feed post page');
   }
 }
 
@@ -665,12 +665,13 @@ function createVirtualExtras(index: number): CompanionExtra[] {
 }
 
 export async function fetchPostDetail(postId?: string): Promise<FeedPost> {
-  if (!isApiEnabled() || !postId) return getPostDetail(postId);
+  if (!postId) return useMockFallback(getPostDetail(postId), 'post detail');
+  if (!isApiEnabled()) return useMockFallback(getPostDetail(postId), 'post detail');
 
   try {
     const response = await apiGet<FeedPost>(`/api/posts/${postId}`);
-    return response.success ? withPostTitle(response.data) : getPostDetail(postId);
+    return response.success ? withPostTitle(response.data) : useMockFallback(getPostDetail(postId), 'post detail');
   } catch {
-    return getPostDetail(postId);
+    return useMockFallback(getPostDetail(postId), 'post detail');
   }
 }

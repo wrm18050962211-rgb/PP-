@@ -11,7 +11,7 @@ import type {
   PublishedWorkDraft,
 } from '../types/api';
 import { evaluateMessageRisk } from '../utils/messageRisk';
-import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { apiGet, apiPost, isApiEnabled, useMockFallback } from './apiClient';
 
 const moderationStorageKey = 'pp-admin-moderation-v1';
 
@@ -29,13 +29,13 @@ export function getAdminDashboardData(application: CompanionApplication, workDra
 
 export async function fetchAdminDashboardData(application: CompanionApplication, workDraft: PublishedWorkDraft, orders: AppOrder[]): Promise<AdminDashboardData> {
   const fallback = getAdminDashboardData(application, workDraft, orders);
-  if (!isApiEnabled()) return fallback;
+  if (!isApiEnabled()) return useMockFallback(fallback, 'admin dashboard');
 
   try {
     const response = await apiGet<AdminDashboardData>('/api/admin/dashboard');
-    return response.success ? response.data : fallback;
+    return response.success ? response.data : useMockFallback(fallback, 'admin dashboard');
   } catch {
-    return fallback;
+    return useMockFallback(fallback, 'admin dashboard');
   }
 }
 
@@ -72,13 +72,13 @@ export function getAdminModerationData(orders: AppOrder[] = seedOrders): AdminMo
 
 export async function fetchAdminModerationData(orders: AppOrder[] = seedOrders): Promise<AdminModerationData> {
   const fallback = getAdminModerationData(orders);
-  if (!isApiEnabled()) return fallback;
+  if (!isApiEnabled()) return useMockFallback(fallback, 'admin moderation data');
 
   try {
     const response = await apiGet<AdminModerationData>('/api/admin/moderation');
-    return response.success ? response.data : fallback;
+    return response.success ? response.data : useMockFallback(fallback, 'admin moderation data');
   } catch {
-    return fallback;
+    return useMockFallback(fallback, 'admin moderation data');
   }
 }
 

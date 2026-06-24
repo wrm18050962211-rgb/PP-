@@ -1,6 +1,6 @@
 import { defaultApplication, defaultWorkDraft, seedOrders } from '../data/mockApi';
 import type { CompanionApplication, CompanionDashboard, PublishedWorkDraft } from '../types/api';
-import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { apiGet, apiPost, isApiEnabled, useMockFallback } from './apiClient';
 
 export function getDefaultApplication(): CompanionApplication {
   return defaultApplication;
@@ -20,13 +20,13 @@ export function getCompanionDashboard(): CompanionDashboard {
 }
 
 export async function fetchCompanionDashboard(): Promise<CompanionDashboard> {
-  if (!isApiEnabled()) return getCompanionDashboard();
+  if (!isApiEnabled()) return useMockFallback(getCompanionDashboard(), 'companion dashboard');
 
   try {
     const response = await apiGet<CompanionDashboard>('/api/companion/me');
-    return response.success ? response.data : getCompanionDashboard();
+    return response.success ? response.data : useMockFallback(getCompanionDashboard(), 'companion dashboard');
   } catch {
-    return getCompanionDashboard();
+    return useMockFallback(getCompanionDashboard(), 'companion dashboard');
   }
 }
 

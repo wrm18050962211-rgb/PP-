@@ -55,3 +55,21 @@ export async function listFeedPosts() {
 - 已配置 `VITE_API_BASE_URL`：优先请求真实接口，失败时回退到 `mockApi`
 
 `feedService`、`orderService`、`messageService`、`companionService`、`adminService` 都保留同步 mock 函数，用于页面初始化和本地开发不闪空；异步函数用于真实 API 同步。
+
+## 生产环境保护
+
+App Store/TestFlight 包必须使用 HTTPS API：
+
+```bash
+cp .env.production.example .env.production
+npm run build:appstore
+```
+
+生产环境会阻止：
+
+- `VITE_API_BASE_URL` 缺失。
+- `VITE_API_BASE_URL` 指向 `127.0.0.1`、`localhost`、`0.0.0.0`。
+- 使用本地测试验证码。
+- 使用 mock 身份切换。
+- 使用 mock 支付成功接口。
+- 用户端作品流、订单、陪拍端、后台主要接口失败后回退到本地 mock 数据。

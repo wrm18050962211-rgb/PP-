@@ -162,8 +162,8 @@ npm run dev -- --host 127.0.0.1 --port 5174
 
 要改：
 
-1. 新增或完善 `pp-app/.env.production`。
-2. 设置正式 `VITE_API_BASE_URL`。
+1. 复制 `pp-app/.env.production.example` 为 `pp-app/.env.production`。
+2. 把 `VITE_API_BASE_URL` 改成正式 HTTPS API 域名。
 3. 生产环境禁止使用 `127.0.0.1` 和 localhost。
 4. 隐藏 mock 登录、mock 支付、测试角色切换。
 5. coming soon 页面改成真实空状态。
@@ -173,7 +173,21 @@ npm run dev -- --host 127.0.0.1 --port 5174
 
 - 生产构建不会连本地 API。
 - 页面看不到“测试账号、mock 支付、开发模式”等字样。
-- `npm run build` 成功。
+- `npm run build:appstore` 成功。
+
+本阶段先做保护开关：
+
+```text
+生产包缺少 VITE_API_BASE_URL 时阻止 App Store 构建
+生产包使用非 HTTPS API 时阻止 App Store 构建
+生产包使用 127.0.0.1 / localhost / 0.0.0.0 时阻止 App Store 构建
+生产运行时禁止本地测试验证码
+生产运行时禁止 mock 身份切换
+生产运行时禁止 mock 支付成功接口
+生产运行时主要数据接口失败后不再回退到本地 mock 数据
+```
+
+本阶段不直接完成真实登录、真实短信、真实支付、真实作品数据，这些分别在第 5 步、第 8 步、第 9 步继续推进。
 
 ### 第 4 步：Xcode iOS 壳跑通
 
@@ -409,6 +423,33 @@ App 内必须能找到：
 - TestFlight 包能完成浏览、预约、支付、查订单。
 - 没有首屏白屏、接口 404、支付后状态不一致问题。
 
+### 第 11.5 步：包体优化专项
+
+目标：TestFlight 前处理构建时的包体偏大提醒，降低首屏解析压力。
+
+当前提醒：
+
+```text
+主 JS 文件超过 Vite 默认 500 kB 提醒线
+gzip 后约 205 kB
+```
+
+这不是构建失败，也不是 App Store 必然拒审项，但在 TestFlight 前要做一次专项优化。
+
+优化方案：
+
+1. 把用户端、摄影师端、运营后台页面按路由懒加载。
+2. 把低频页面从主包拆出去，例如后台、设置、编辑作品、审核面板。
+3. 检查 `lucide-react` 图标是否按需打包。
+4. 检查是否有未使用的大模块或重复 mock 数据进入主包。
+5. 必要时配置构建分包，让首屏先加载发现页核心功能。
+6. 再跑一次 `npm run build:appstore`，确认主包体积下降。
+
+完成标准：
+
+- 首屏主包明显下降，或已经确认当前体积对 TestFlight 真机启动无明显影响。
+- 包体提醒处理结果写回本文档。
+
 ### 第 12 步：App Store 提交
 
 目标：提交第一版审核。
@@ -480,19 +521,19 @@ App 内提供客服、举报、退款说明和删除账号入口。
 - 2026-06-24：已完成第 1 步，确认当前分支和主计划文档。
 - 2026-06-24：已完成第 2 步，补齐 iPhone 顶部触控高度、底部安全区、订单筛选触控高度、后台横向标签触控高度，并完成 iPhone SE / iPhone 15 尺寸复查。
 - 2026-06-24：按 iPhone SE、15、15 Pro、15 Pro Max、16、16 Pro、16 Pro Max、17、17 Pro、17 Pro Max 扩展复查矩阵；覆盖 `/consumer`、`/consumer/post/post-wukang`、`/consumer/orders`、`/consumer/mine`、`/companion`、`/admin` 共 60 项，结果为 0 个页面级横向溢出、0 个底部导航遮挡、0 个关键控件低于 44px。
+- 2026-06-24：完成第 3 步生产环境保护基线，新增 App Store 构建环境校验、生产 API 保护、生产 mock 登录/支付拦截，并把包体偏大优化放到第 11.5 步专项处理。
 
 ## 当前建议下一步
 
-下一步从“第 3 步：生产环境开关”开始。
+下一步从“第 4 步：Xcode iOS 壳跑通”开始。
 
 优先检查：
 
 ```text
-pp-app/.env.example
-pp-app/.env.production
-pp-app/src/services/apiClient.ts
-pp-app/src/services/authService.ts
-pp-app/src/services/paymentService.ts
+pp-app/capacitor.config.ts
+pp-app/ios/App/App.xcodeproj
+pp-app/ios/App/App/Info.plist
+pp-app/ios/App/App/Assets.xcassets
 ```
 
-目标是让生产包不连接 `127.0.0.1`，并隐藏 mock 登录、mock 支付、测试角色切换等上架前痕迹。
+目标是在 Xcode 里跑通 iPhone 真机/模拟器壳，确认图标、启动页、权限文案、Bundle ID、签名配置和 WebView 页面显示正常。
