@@ -25,3 +25,25 @@
 npm install
 npm run dev
 ```
+
+## iOS 封装
+
+项目已接入 Capacitor iOS 壳工程，Xcode 工程位置：
+
+```bash
+ios/App/App.xcodeproj
+```
+
+前端修改后同步到 iOS：
+
+```bash
+npm run ios:sync
+```
+
+打开 Xcode：
+
+```bash
+npm run ios:open
+```
+
+上架前需要在 Xcode 里绑定自己的 Apple Developer Team，并确认 Bundle Identifier 已在 Apple Developer 后台创建。

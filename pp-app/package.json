@@ -6,16 +6,21 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
+    "ios:sync": "tsc -b && vite build && cap sync ios",
+    "ios:open": "cap open ios",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint ."
   },
   "dependencies": {
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
     "@eslint/js": "latest",
     "@tailwindcss/vite": "latest",
     "@types/react": "latest",
