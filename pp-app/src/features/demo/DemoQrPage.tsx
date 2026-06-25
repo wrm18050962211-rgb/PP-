@@ -1,15 +1,18 @@
 import { Camera, Check, ChevronRight, Copy, ExternalLink, Smartphone } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { createQrMatrix, createQrSvgPath, getQrSize } from './qrCode';
 
 export function DemoQrPage() {
   const demoUrl = useMemo(() => new URL(`${getPublicBasePath()}d`, window.location.origin).toString(), []);
-  const [copied, setCopied] = useState(false);
-  const qr = useMemo(() => {
-    const matrix = createQrMatrix(demoUrl);
-    return { path: createQrSvgPath(matrix), size: getQrSize() };
+  const qrImageUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      size: '720x720',
+      margin: '32',
+      data: demoUrl,
+    });
+    return `https://api.qrserver.com/v1/create-qr-code/?${params.toString()}`;
   }, [demoUrl]);
+  const [copied, setCopied] = useState(false);
 
   async function copyUrl() {
     await navigator.clipboard?.writeText(demoUrl);
@@ -64,10 +67,7 @@ export function DemoQrPage() {
           </div>
 
           <div className="mt-5 rounded-[18px] bg-[#f6f5f1] p-4 ring-1 ring-zinc-200">
-            <svg className="mx-auto aspect-square w-full max-w-[320px]" viewBox={`0 0 ${qr.size + 8} ${qr.size + 8}`} role="img" aria-label="创作者端试用二维码">
-              <rect width={qr.size + 8} height={qr.size + 8} rx="2" fill="#fff" />
-              <path d={qr.path} fill="#111" transform="translate(4 4)" />
-            </svg>
+            <img className="mx-auto aspect-square w-full max-w-[320px] rounded-[12px] bg-white p-2" src={qrImageUrl} alt="创作者端试用二维码" />
           </div>
 
           <div className="mt-4 rounded-[12px] bg-zinc-50 px-3 py-3 ring-1 ring-zinc-200">
