@@ -5,41 +5,44 @@ const loginStorageKey = 'pp-auth-logged-in-v1';
 export function startCreatorDemoSession() {
   const account = {
     phone: '13900001001',
-    role: 'consumer',
-    roles: ['consumer'],
-    completedRoleRegistrations: ['consumer'],
+    role: 'companion',
+    roles: ['companion'],
+    completedRoleRegistrations: ['companion'],
     pendingRoleRegistrations: [],
-    roleReviewStatus: { consumer: 'approved' },
+    roleReviewStatus: { companion: 'approved' },
     nickname: '调研试用创作者',
     creatorName: '调研试用创作者',
     creatorId: 'creator-survey-demo',
+    photographerName: '调研试用创作者',
+    companionId: 'companion-survey-demo',
     creatorAvatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80',
+    photographerAvatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80',
     registeredAt: new Date().toISOString(),
   };
 
   localStorage.setItem(accountStorageKey, JSON.stringify(account));
   localStorage.setItem(loginStorageKey, '1');
-  localStorage.setItem(roleStorageKey, 'consumer');
+  localStorage.setItem(roleStorageKey, 'companion');
   window.dispatchEvent(
     new CustomEvent('pp-auth-session-changed', {
       detail: {
-        token: 'local-consumer-session',
+        token: 'local-companion-session',
         provider: 'mock_wechat',
-        role: 'consumer',
-        roles: ['consumer'],
+        role: 'companion',
+        roles: ['companion'],
         user: {
-          id: account.creatorId,
-          openId: `mock-openid-${account.creatorId}`,
+          id: account.companionId,
+          openId: `mock-openid-${account.companionId}`,
           phone: account.phone,
           nickname: account.creatorName,
           avatarUrl: account.creatorAvatarUrl,
           gender: 'unknown',
           city: 'Shanghai',
           status: 'active',
-          isCompanion: false,
-          roles: ['consumer'],
+          isCompanion: true,
+          roles: ['companion'],
         },
-        companionId: null,
+        companionId: account.companionId,
         adminScope: [],
         loginAt: new Date().toISOString(),
       },

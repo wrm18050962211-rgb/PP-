@@ -11,7 +11,7 @@ export function CreatorDemoGate() {
     const timer = window.setTimeout(() => {
       try {
         startCreatorDemoSession();
-        navigate('/consumer', { replace: true });
+        navigate('/companion', { replace: true });
       } catch (nextError) {
         setError(nextError instanceof Error ? nextError.message : '试用入口启动失败');
       }
@@ -35,7 +35,7 @@ export function CreatorDemoGate() {
               <Camera size={24} />
             </div>
             <p className="text-sm font-black text-white/78">PP 创作者端试用</p>
-            <h1 className="mt-2 text-[2rem] font-black leading-[1.05] tracking-normal">正在进入发现页</h1>
+            <h1 className="mt-2 text-[2rem] font-black leading-[1.05] tracking-normal">正在进入创作者端</h1>
             <p className="mt-3 max-w-[18rem] text-sm font-bold leading-6 text-white/74">已为本次调研准备好试用身份，无需注册。</p>
           </div>
         </section>
@@ -47,13 +47,13 @@ export function CreatorDemoGate() {
             <div className="flex items-center justify-between rounded-[18px] bg-white p-4 shadow-[0_14px_36px_rgba(24,24,27,0.08)] ring-1 ring-zinc-200">
               <div>
                 <p className="text-sm font-black">正在准备试用环境</p>
-                <p className="mt-1 text-xs font-bold text-zinc-500">创作者身份 · 发现作品 · 预约流程</p>
+                <p className="mt-1 text-xs font-bold text-zinc-500">创作者身份 · 接单配置 · 作品发布</p>
               </div>
               <Loader2 className="animate-spin text-zinc-950" size={24} />
             </div>
           )}
 
-          <Link className="mt-4 flex h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white" to="/consumer" replace>
+          <Link className="mt-4 flex h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white" to="/companion" replace>
             直接进入
             <ChevronRight size={18} />
           </Link>
