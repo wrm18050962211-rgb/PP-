@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codex/vertical-db-api
+      - codex/qr-demo-public
   workflow_dispatch:
 
 permissions:
