@@ -35,9 +35,13 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<EntryRedirect />} />
-      <Route path="/d" element={<CreatorDemoGate />} />
+      <Route path="/d" element={<CreatorDemoGate role="consumer" />} />
+      <Route path="/d/creator" element={<CreatorDemoGate role="consumer" />} />
+      <Route path="/d/photographer" element={<CreatorDemoGate role="companion" />} />
       <Route path="/qr-demo" element={<DemoQrPage />} />
-      <Route path="/demo" element={<CreatorDemoGate />} />
+      <Route path="/demo" element={<CreatorDemoGate role="consumer" />} />
+      <Route path="/demo/creator" element={<CreatorDemoGate role="consumer" />} />
+      <Route path="/demo/photographer" element={<CreatorDemoGate role="companion" />} />
 
       <Route
         path="/auth/register"

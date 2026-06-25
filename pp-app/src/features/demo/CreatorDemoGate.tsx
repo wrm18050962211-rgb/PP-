@@ -1,24 +1,48 @@
 import { Camera, ChevronRight, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { startCreatorDemoSession } from './demoSession';
+import { startCompanionDemoSession, startCreatorDemoSession, type DemoRole } from './demoSession';
 
-export function CreatorDemoGate() {
+const demoGateCopy = {
+  consumer: {
+    eyebrow: 'PP 创作者端试用',
+    title: '正在进入创作者端',
+    subtitle: '已为本次调研准备好创作者试用身份，无需注册。',
+    loadingTitle: '正在准备创作者环境',
+    loadingDesc: '创作者身份 · 浏览作品 · 预约流程',
+    target: '/consumer',
+  },
+  companion: {
+    eyebrow: 'PP 摄影师端试用',
+    title: '正在进入摄影师端',
+    subtitle: '已为本次调研准备好摄影师试用身份，无需注册。',
+    loadingTitle: '正在准备摄影师环境',
+    loadingDesc: '摄影师身份 · 接单报价 · 档期管理',
+    target: '/companion/mine',
+  },
+} satisfies Record<DemoRole, { eyebrow: string; title: string; subtitle: string; loadingTitle: string; loadingDesc: string; target: string }>;
+
+export function CreatorDemoGate({ role = 'consumer' }: { role?: DemoRole }) {
   const navigate = useNavigate();
   const [error, setError] = useState('');
+  const copy = demoGateCopy[role];
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        startCreatorDemoSession();
-        navigate('/consumer', { replace: true });
+        if (role === 'companion') {
+          startCompanionDemoSession();
+        } else {
+          startCreatorDemoSession();
+        }
+        navigate(copy.target, { replace: true });
       } catch (nextError) {
         setError(nextError instanceof Error ? nextError.message : '试用入口启动失败');
       }
     }, 260);
 
     return () => window.clearTimeout(timer);
-  }, [navigate]);
+  }, [copy.target, navigate, role]);
 
   return (
     <div className="min-h-dvh bg-[#050505] px-5 py-[max(1rem,env(safe-area-inset-top))] text-white">
@@ -34,9 +58,9 @@ export function CreatorDemoGate() {
             <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[16px] bg-white text-zinc-950 shadow-lg">
               <Camera size={24} />
             </div>
-            <p className="text-sm font-black text-white/78">PP 创作者端试用</p>
-            <h1 className="mt-2 text-[2rem] font-black leading-[1.05] tracking-normal">正在进入创作者端</h1>
-            <p className="mt-3 max-w-[18rem] text-sm font-bold leading-6 text-white/74">已为本次调研准备好试用身份，无需注册。</p>
+            <p className="text-sm font-black text-white/78">{copy.eyebrow}</p>
+            <h1 className="mt-2 text-[2rem] font-black leading-[1.05] tracking-normal">{copy.title}</h1>
+            <p className="mt-3 max-w-[18rem] text-sm font-bold leading-6 text-white/74">{copy.subtitle}</p>
           </div>
         </section>
 
@@ -46,14 +70,14 @@ export function CreatorDemoGate() {
           ) : (
             <div className="flex items-center justify-between rounded-[18px] bg-white p-4 shadow-[0_14px_36px_rgba(24,24,27,0.08)] ring-1 ring-zinc-200">
               <div>
-                <p className="text-sm font-black">正在准备试用环境</p>
-                <p className="mt-1 text-xs font-bold text-zinc-500">创作者身份 · 浏览作品 · 预约流程</p>
+                <p className="text-sm font-black">{copy.loadingTitle}</p>
+                <p className="mt-1 text-xs font-bold text-zinc-500">{copy.loadingDesc}</p>
               </div>
               <Loader2 className="animate-spin text-zinc-950" size={24} />
             </div>
           )}
 
-          <Link className="mt-4 flex h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white" to="/consumer" replace>
+          <Link className="mt-4 flex h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white" to={copy.target} replace>
             直接进入
             <ChevronRight size={18} />
           </Link>
