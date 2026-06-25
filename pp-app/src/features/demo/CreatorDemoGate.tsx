@@ -11,7 +11,7 @@ export function CreatorDemoGate() {
     const timer = window.setTimeout(() => {
       try {
         startCreatorDemoSession();
-        navigate('/companion', { replace: true });
+        navigate('/companion/mine', { replace: true });
       } catch (nextError) {
         setError(nextError instanceof Error ? nextError.message : '试用入口启动失败');
       }
@@ -53,7 +53,7 @@ export function CreatorDemoGate() {
             </div>
           )}
 
-          <Link className="mt-4 flex h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white" to="/companion" replace>
+          <Link className="mt-4 flex h-12 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white" to="/companion/mine" replace>
             直接进入
             <ChevronRight size={18} />
           </Link>
