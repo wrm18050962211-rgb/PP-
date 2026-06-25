@@ -1,7 +1,7 @@
 import { Camera, ChevronRight, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { startCreatorDemoSession } from '../../services/authService';
+import { startCreatorDemoSession } from './demoSession';
 
 export function CreatorDemoGate() {
   const navigate = useNavigate();
