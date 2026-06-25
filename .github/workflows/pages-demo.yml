@@ -1,0 +1,87 @@
+name: 发布调研扫码 Demo
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 套用扫码 Demo 补丁
+        env:
+          DEMO_PATCH_GZ_B64: >-
+            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
+        run: |
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import os
+          import pathlib
+          import subprocess
+          import sys
+
+          patch_path = pathlib.Path('/tmp/pp-demo.patch')
+          patch_path.write_bytes(gzip.decompress(base64.b64decode(os.environ['DEMO_PATCH_GZ_B64'])))
+
+          if subprocess.run(['git', 'apply', '--check', str(patch_path)]).returncode == 0:
+              subprocess.run(['git', 'apply', str(patch_path)], check=True)
+          elif subprocess.run(['git', 'apply', '-R', '--check', str(patch_path)]).returncode == 0:
+              print('Demo patch already present')
+          else:
+              sys.exit('Demo patch does not match this branch')
+          PY
+
+      - name: 设置 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pp-app/package-lock.json
+
+      - name: 安装依赖
+        run: npm ci
+        working-directory: pp-app
+
+      - name: 构建网页
+        run: npm run build -- --base=/PP-/
+        working-directory: pp-app
+
+      - name: 准备静态页面
+        run: |
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+        working-directory: pp-app
+
+      - name: 配置 Pages
+        uses: actions/configure-pages@v5
+
+      - name: 上传网页产物
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pp-app/dist
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 发布到 Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
