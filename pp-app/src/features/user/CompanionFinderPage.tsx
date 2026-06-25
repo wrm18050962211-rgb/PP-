@@ -40,6 +40,7 @@ const INTERACTION_ANY = '互动不限';
 const EQUIPMENT_ANY = '设备不限';
 const BUDGET_MIN = 0;
 const BUDGET_MAX = 2000;
+const BUDGET_UNLIMITED = BUDGET_MAX;
 const BUDGET_STEP = 50;
 
 const staticFilterOptions: Record<Exclude<CategoricalFilterKey, 'date'>, string[]> = {
@@ -73,7 +74,7 @@ const initialFinderFilters: FinderFilters = {
   interaction: INTERACTION_ANY,
   equipment: EQUIPMENT_ANY,
   budgetMin: BUDGET_MIN,
-  budgetMax: BUDGET_MAX,
+  budgetMax: BUDGET_UNLIMITED,
 };
 
 export function CompanionFinderPage() {
@@ -627,7 +628,7 @@ function getActiveFilterCount(filters: FinderFilters) {
     if (key === 'budgetMin' || key === 'budgetMax') return false;
     return filters[key] !== initialFinderFilters[key];
   }).length;
-  const budgetChanged = filters.budgetMin !== BUDGET_MIN || filters.budgetMax !== BUDGET_MAX;
+  const budgetChanged = filters.budgetMin !== BUDGET_MIN || filters.budgetMax !== BUDGET_UNLIMITED;
   return categoricalCount + (budgetChanged ? 1 : 0);
 }
 
@@ -688,6 +689,10 @@ function formatBudgetRange(min: number, max: number) {
 }
 
 function parseBudgetParam(value: string | null, fallback: number) {
+  const normalized = normalizeText(value);
+  if (!normalized) return fallback;
+  if (normalized === '不限' || normalized === 'unlimited') return BUDGET_UNLIMITED;
+
   const parsed = Number(value);
   return Number.isFinite(parsed) ? clampToBudget(parsed) : fallback;
 }

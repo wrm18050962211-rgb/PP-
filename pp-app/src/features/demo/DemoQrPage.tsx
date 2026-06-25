@@ -1,17 +1,10 @@
 import { Camera, Check, ChevronRight, Copy, ExternalLink, Smartphone } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { createQrSvgDataUri } from './qrCode';
 
 export function DemoQrPage() {
-  const demoUrl = useMemo(() => new URL(`${getPublicBasePath()}d`, window.location.origin).toString(), []);
-  const qrImageUrl = useMemo(() => {
-    const params = new URLSearchParams({
-      size: '720x720',
-      margin: '32',
-      data: demoUrl,
-    });
-    return `https://api.qrserver.com/v1/create-qr-code/?${params.toString()}`;
-  }, [demoUrl]);
+  const demoUrl = useMemo(() => getSurveyDemoUrl(), []);
+  const qrImageUrl = useMemo(() => createQrSvgDataUri(demoUrl), [demoUrl]);
   const [copied, setCopied] = useState(false);
 
   async function copyUrl() {
@@ -79,10 +72,10 @@ export function DemoQrPage() {
               {copied ? <Check size={18} /> : <Copy size={18} />}
               {copied ? '已复制' : '复制链接'}
             </button>
-            <Link className="flex h-12 items-center justify-center gap-2 rounded-full bg-[#e85d75] text-sm font-black text-white" to="/d">
+            <a className="flex h-12 items-center justify-center gap-2 rounded-full bg-[#e85d75] text-sm font-black text-white" href={demoUrl}>
               打开试用
               <ChevronRight size={18} />
-            </Link>
+            </a>
           </div>
 
           <a className="mt-3 flex h-11 items-center justify-center gap-2 rounded-full bg-zinc-100 text-sm font-black text-zinc-700" href={demoUrl} target="_blank" rel="noreferrer">
@@ -95,7 +88,6 @@ export function DemoQrPage() {
   );
 }
 
-function getPublicBasePath() {
-  const baseUrl = import.meta.env.BASE_URL;
-  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+function getSurveyDemoUrl() {
+  return 'https://wrm18050962211-rgb.github.io/PP-/d';
 }
