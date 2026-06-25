@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { createQrMatrix, createQrSvgPath, getQrSize } from './qrCode';
 
 export function DemoQrPage() {
-  const demoUrl = useMemo(() => new URL('/d', window.location.href).toString(), []);
+  const demoUrl = useMemo(() => new URL(`${getPublicBasePath()}d`, window.location.origin).toString(), []);
   const [copied, setCopied] = useState(false);
   const qr = useMemo(() => {
     const matrix = createQrMatrix(demoUrl);
@@ -93,4 +93,9 @@ export function DemoQrPage() {
       </main>
     </div>
   );
+}
+
+function getPublicBasePath() {
+  const baseUrl = import.meta.env.BASE_URL;
+  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 }
