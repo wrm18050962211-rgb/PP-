@@ -3,7 +3,8 @@ import { ChangeEvent, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
-import type { PostImage } from '../../types/api';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
+import { uploadPostImage } from '../../services/mediaService';
 
 const styleTags = ['自然光', '松弛感', '小红书', '夜景', '旅行感', '咖啡店', '胶片感', '街拍', '文艺', '甜酷'];
 const activityTypes = ['Citywalk 陪拍', '探店吃饭陪拍', '逛街拍照', '夜景散步', '旅行跟拍', '生日纪念'];
@@ -29,10 +30,10 @@ export function PublishPost() {
   }
 
   async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/'));
+    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'));
     if (!files.length) return;
 
-    const nextImages = await Promise.all(files.map(readImageFile));
+    const nextImages = await Promise.all(files.map(uploadPostImage));
     const images = [...workDraft.images, ...nextImages].map((image, index) => ({ ...image, sortOrder: index + 1 }));
     saveWorkDraft({ images, coverImageId: workDraft.coverImageId || images[0]?.id || '' });
     event.target.value = '';
@@ -49,7 +50,7 @@ export function PublishPost() {
   return (
     <div className="px-4 py-5 pb-24">
       <header className="flex items-center gap-3">
-        <Link to="/companion" className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100" aria-label="返回">
+        <Link to="/companion/mine" className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100" aria-label="返回">
           <ArrowLeft size={20} />
         </Link>
         <div>
@@ -62,7 +63,7 @@ export function PublishPost() {
         <label className="relative block aspect-[4/5] overflow-hidden rounded-[10px] border border-dashed border-zinc-300 bg-zinc-50">
           {coverImage ? (
             <>
-              <img className="h-full w-full object-cover" src={coverImage.url} alt="作品封面预览" />
+              <LivePhotoMedia media={coverImage} alt="作品封面预览" fit="cover" loading="eager" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-white">
                 <p className="text-sm font-black">当前封面</p>
                 <p className="mt-1 line-clamp-1 text-xs text-white/78">{workDraft.location || '选择下方图片可切换封面'}</p>
@@ -77,7 +78,7 @@ export function PublishPost() {
               </div>
             </div>
           )}
-          <input className="sr-only" type="file" accept="image/*" multiple onChange={handleFiles} />
+          <input className="sr-only" type="file" accept="image/*,video/*" multiple onChange={handleFiles} />
         </label>
 
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -90,7 +91,7 @@ export function PublishPost() {
               onClick={() => saveWorkDraft({ coverImageId: image.id })}
               aria-label="选择封面"
             >
-              <img className="h-full w-full object-cover" src={image.url} alt="" />
+              <LivePhotoMedia media={image} alt="" fit="cover" />
               {image.id === workDraft.coverImageId ? (
                 <span className="absolute left-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-rose-500 text-white">
                   <Check size={13} />
@@ -111,7 +112,7 @@ export function PublishPost() {
           ))}
           <label className="grid h-24 w-20 shrink-0 place-items-center rounded-[8px] border border-dashed border-zinc-300 bg-zinc-50 text-zinc-500">
             <ImagePlus size={22} />
-            <input className="sr-only" type="file" accept="image/*" multiple onChange={handleFiles} />
+            <input className="sr-only" type="file" accept="image/*,video/*" multiple onChange={handleFiles} />
           </label>
         </div>
       </section>
@@ -195,19 +196,4 @@ export function PublishPost() {
       </button>
     </div>
   );
-}
-
-function readImageFile(file: File): Promise<PostImage> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => {
-      resolve({
-        id: `draft-image-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        url: String(reader.result),
-        sortOrder: 0,
-      });
-    };
-    reader.readAsDataURL(file);
-  });
 }

@@ -14,17 +14,20 @@ import {
   Shield,
   Snowflake,
   UserCheck,
+  UserCog,
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
 import { fetchAdminModerationData, syncAdminModerationAction } from '../../services/adminService';
+import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
+import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import type { AdminActionType, AdminModerationData, AdminReportCase, AdminRiskMessageCase } from '../../types/api';
 import type { AppOrder, OrderStatus, PublishedWorkDraft } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
 
-type AdminModuleKey = 'companions' | 'works' | 'orders' | 'risk' | 'reports' | 'finance' | 'settings';
+type AdminModuleKey = 'companions' | 'works' | 'orders' | 'risk' | 'reports' | 'accounts' | 'finance' | 'settings';
 
 type RiskCase = {
   id: string;
@@ -64,12 +67,22 @@ type SystemConfig = {
   status: '已启用' | '待完善';
 };
 
+type AccountCase = {
+  id: string;
+  name: string;
+  role: '创作者' | '摄影师' | '普通用户';
+  status: '正常' | '观察中' | '限制中' | '已停用';
+  risk: string;
+  lastActive: string;
+};
+
 const modules: Array<{ key: AdminModuleKey; label: string; icon: React.ElementType }> = [
   { key: 'companions', label: '陪拍者审核', icon: UserCheck },
   { key: 'works', label: '作品审核', icon: FileSearch },
   { key: 'orders', label: '订单管理', icon: CreditCard },
   { key: 'risk', label: '消息风控', icon: MessageSquareWarning },
   { key: 'reports', label: '举报处理', icon: Flag },
+  { key: 'accounts', label: '账号状态', icon: UserCog },
   { key: 'finance', label: '财务结算', icon: Banknote },
   { key: 'settings', label: '系统配置', icon: Settings },
 ];
@@ -124,6 +137,12 @@ const settlementSeed: SettlementCase[] = [
   { id: 'settlement-3', companion: 'Nana', orderNo: 'PP26052404', grossCents: 36900, commissionCents: 5535, payableCents: 31365, status: '冻结中' },
 ];
 
+const accountSeed: AccountCase[] = [
+  { id: 'account-creator-1', name: 'Demo Creator', role: '创作者', status: '正常', risk: '内容发布稳定', lastActive: '今天 18:10' },
+  { id: 'account-photographer-1', name: 'Mori', role: '摄影师', status: '观察中', risk: '近期出现 1 次联系方式拦截', lastActive: '今天 17:42' },
+  { id: 'account-user-1', name: '用户 203', role: '普通用户', status: '限制中', risk: '举报处理中，聊天能力已临时限制', lastActive: '昨天 21:36' },
+];
+
 const configSeed: SystemConfig[] = [
   { id: 'config-1', name: '取消规则', value: '服务开始前 2 小时可免费取消', status: '已启用' },
   { id: 'config-2', name: '平台抽成', value: '15%', status: '已启用' },
@@ -132,7 +151,7 @@ const configSeed: SystemConfig[] = [
 ];
 
 export function AdminDashboard() {
-  const { application, workDraft, orders, reviewApplication, reviewWork, updateOrderStatus } = useAppData();
+  const { application, workDraft, orders, reviewApplication, reviewWork, updateOrderStatus, updateOrderFunding } = useAppData();
   const [activeModule, setActiveModule] = useState<AdminModuleKey>('companions');
   const [selectedOrderId, setSelectedOrderId] = useState(orders[0]?.id ?? '');
   const [riskCases, setRiskCases] = useState(riskSeed);
@@ -143,6 +162,8 @@ export function AdminDashboard() {
   const [reportActionLogs, setReportActionLogs] = useState<Record<string, string[]>>({});
   const [settlements, setSettlements] = useState(settlementSeed);
   const [selectedSettlementId, setSelectedSettlementId] = useState(settlementSeed[0]?.id ?? '');
+  const [accounts, setAccounts] = useState(accountSeed);
+  const [selectedAccountId, setSelectedAccountId] = useState(accountSeed[0]?.id ?? '');
   const [configs, setConfigs] = useState(configSeed);
   const [selectedConfigId, setSelectedConfigId] = useState(configSeed[0]?.id ?? '');
 
@@ -163,9 +184,18 @@ export function AdminDashboard() {
   }, [orders]);
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0];
+  const localDisputeReports = useMemo(() => buildLocalDisputeReports(orders), [orders]);
+  const visibleReportCases = useMemo(
+    () => [
+      ...localDisputeReports,
+      ...reportCases.filter((item) => !localDisputeReports.some((localItem) => localItem.id === item.id)),
+    ],
+    [localDisputeReports, reportCases],
+  );
   const selectedRisk = riskCases.find((item) => item.id === selectedRiskId) ?? riskCases[0];
-  const selectedReport = reportCases.find((item) => item.id === selectedReportId) ?? reportCases[0];
+  const selectedReport = visibleReportCases.find((item) => item.id === selectedReportId) ?? visibleReportCases[0];
   const selectedSettlement = settlements.find((item) => item.id === selectedSettlementId) ?? settlements[0];
+  const selectedAccount = accounts.find((item) => item.id === selectedAccountId) ?? accounts[0];
   const selectedConfig = configs.find((item) => item.id === selectedConfigId) ?? configs[0];
 
   const metrics = useMemo(
@@ -178,7 +208,7 @@ export function AdminDashboard() {
     [application.reviewStatus, orders.length, riskCases, workDraft.reviewStatus],
   );
 
-  const pendingReports = reportCases.filter((item) => item.status !== '已完结').length;
+  const pendingReports = visibleReportCases.filter((item) => item.status !== '已完结').length;
   const pendingSettlementCents = settlements.filter((item) => item.status === '待结算').reduce((sum, item) => sum + item.payableCents, 0);
 
   function recordRiskAction(id: string, action: string, actionType: AdminActionType) {
@@ -200,18 +230,18 @@ export function AdminDashboard() {
             <p className="text-xs font-bold text-[#e85d75]">PP 运营后台</p>
             <h1 className="mt-1 text-xl font-black text-[#3f302c] md:text-2xl">审核、风控、订单和结算</h1>
           </div>
-          <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]" aria-label="通知">
+          <button className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]" aria-label="通知">
             <Bell size={18} />
           </button>
         </div>
-        <div className="scrollbar-none mt-4 flex gap-2 overflow-x-auto">
+        <div className="scrollbar-none mt-4 flex gap-2 overflow-x-auto pb-1">
           {modules.map((item) => {
             const Icon = item.icon;
             const active = activeModule === item.key;
             return (
               <button
                 key={item.key}
-                className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${active ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]'}`}
+                className={`flex h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${active ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]'}`}
                 onClick={() => setActiveModule(item.key)}
               >
                 <Icon size={15} />
@@ -244,7 +274,7 @@ export function AdminDashboard() {
           )}
           {activeModule === 'works' && <WorkAuditPanel workDraft={workDraft} onApprove={() => reviewWork('已通过')} onReject={() => reviewWork('需修改')} />}
           {activeModule === 'orders' && selectedOrder && (
-            <OrderPanel orders={orders} selectedOrder={selectedOrder} onSelect={setSelectedOrderId} onUpdateStatus={updateOrderStatus} />
+            <OrderPanel orders={orders} selectedOrder={selectedOrder} onSelect={setSelectedOrderId} onUpdateStatus={updateOrderStatus} onUpdateFunding={updateOrderFunding} />
           )}
           {activeModule === 'risk' && selectedRisk && (
             <RiskPanel
@@ -263,7 +293,7 @@ export function AdminDashboard() {
           )}
           {activeModule === 'reports' && selectedReport && (
             <ReportPanel
-              reports={reportCases}
+              reports={visibleReportCases}
               selectedReport={selectedReport}
               selectedOrder={orders.find((order) => order.orderNo === selectedReport.orderNo)}
               actionLogs={reportActionLogs[selectedReport.id] ?? []}
@@ -274,6 +304,14 @@ export function AdminDashboard() {
                 const order = orders.find((item) => item.orderNo === orderNo);
                 if (order) updateOrderStatus(order.id, 'disputed');
               }}
+            />
+          )}
+          {activeModule === 'accounts' && selectedAccount && (
+            <AccountPanel
+              accounts={accounts}
+              selectedAccount={selectedAccount}
+              onSelect={setSelectedAccountId}
+              onUpdate={(id, status) => setAccounts((items) => items.map((item) => (item.id === id ? { ...item, status } : item)))}
             />
           )}
           {activeModule === 'finance' && selectedSettlement && (
@@ -368,12 +406,25 @@ function OrderPanel({
   selectedOrder,
   onSelect,
   onUpdateStatus,
+  onUpdateFunding,
 }: {
   orders: AppOrder[];
   selectedOrder: AppOrder;
   onSelect: (id: string) => void;
   onUpdateStatus: (orderId: string, status: OrderStatus) => void;
+  onUpdateFunding: ReturnType<typeof useAppData>['updateOrderFunding'];
 }) {
+  const workRecord = listOrderWorkRecords().find((record) => record.orderId === selectedOrder.id);
+  const deliveryStatus = workRecord
+    ? workRecord.deliveryStatus === 'disputed'
+      ? '争议处理中'
+      : isOrderWorkConfirmed(workRecord)
+        ? '双方已确认'
+        : workRecord.previewUrls?.length
+          ? '水印预览已生成'
+          : '未上传'
+    : '未上传';
+
   return (
     <ModuleFrame title="订单管理" count={`${orders.length} 单`}>
       <ListDetailLayout
@@ -392,6 +443,28 @@ function OrderPanel({
                 ['创建时间', formatDate(selectedOrder.createdAt)],
               ]}
             />
+            <InfoGrid
+              items={[
+                ['咨询ID', selectedOrder.consultationId ?? '-'],
+                ['报价ID', selectedOrder.quoteId ?? '-'],
+                ['定金', selectedOrder.depositCents ? formatMoney(selectedOrder.depositCents) : '-'],
+                ['尾款', selectedOrder.balanceCents ? formatMoney(selectedOrder.balanceCents) : '-'],
+                ['定金状态', selectedOrder.depositStatus ?? '-'],
+                ['尾款状态', selectedOrder.balanceStatus ?? '-'],
+                ['托管状态', selectedOrder.fundsStatus ?? '-'],
+                ['结算状态', selectedOrder.settlementStatus ?? '-'],
+                ['取消方', selectedOrder.cancellationActor ?? '-'],
+                ['取消阶段', selectedOrder.cancellationPhase ?? '-'],
+                ['违约扣除', selectedOrder.cancellationPenaltyCents ? formatMoney(selectedOrder.cancellationPenaltyCents) : '-'],
+                ['退还创作者', selectedOrder.refundToCreatorCents ? formatMoney(selectedOrder.refundToCreatorCents) : '-'],
+                ['赔付对方', selectedOrder.compensationToCounterpartyCents ? formatMoney(selectedOrder.compensationToCounterpartyCents) : '-'],
+                ['平台费用', selectedOrder.platformFeeCents ? formatMoney(selectedOrder.platformFeeCents) : '-'],
+                ['取消说明', selectedOrder.cancellationSummary ?? '-'],
+                ['交付状态', deliveryStatus],
+                ['预览模式', workRecord?.previewMode ?? '-'],
+                ['争议原因', workRecord?.disputeReason ?? '-'],
+              ]}
+            />
             <div className="mt-4 grid grid-cols-2 gap-2">
               <AdminButton onClick={() => onUpdateStatus(selectedOrder.id, 'confirmed')} disabled={selectedOrder.status === 'confirmed'}>
                 确认服务
@@ -402,8 +475,41 @@ function OrderPanel({
               <AdminButton variant="soft" onClick={() => onUpdateStatus(selectedOrder.id, 'refunding')} disabled={selectedOrder.status === 'refunding'}>
                 发起退款
               </AdminButton>
-              <AdminButton variant="danger" onClick={() => onUpdateStatus(selectedOrder.id, 'cancelled')} disabled={selectedOrder.status === 'cancelled'}>
+              <AdminButton
+                variant="danger"
+                onClick={() => {
+                  onUpdateFunding(selectedOrder.id, calculateCancellationSettlement(selectedOrder, 'admin', '管理员后台取消订单'));
+                  onUpdateStatus(selectedOrder.id, 'cancelled');
+                }}
+                disabled={selectedOrder.status === 'cancelled'}
+              >
                 取消订单
+              </AdminButton>
+              <AdminButton
+                variant="soft"
+                onClick={() => onUpdateFunding(selectedOrder.id, { fundsStatus: 'frozen', settlementStatus: 'frozen' })}
+                disabled={selectedOrder.fundsStatus === 'frozen'}
+              >
+                冻结托管款
+              </AdminButton>
+              <AdminButton
+                variant="soft"
+                onClick={() => {
+                  onUpdateFunding(selectedOrder.id, { fundsStatus: 'refunded', balanceStatus: 'refunded', settlementStatus: 'cancelled' });
+                  onUpdateStatus(selectedOrder.id, 'refunded');
+                }}
+                disabled={selectedOrder.fundsStatus === 'refunded'}
+              >
+                裁定退款
+              </AdminButton>
+              <AdminButton
+                onClick={() => {
+                  onUpdateFunding(selectedOrder.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
+                  onUpdateStatus(selectedOrder.id, 'completed');
+                }}
+                disabled={selectedOrder.fundsStatus === 'settled'}
+              >
+                结算摄影师
               </AdminButton>
             </div>
           </DetailCard>
@@ -596,6 +702,61 @@ function ReportPanel({
   );
 }
 
+function AccountPanel({
+  accounts,
+  selectedAccount,
+  onSelect,
+  onUpdate,
+}: {
+  accounts: AccountCase[];
+  selectedAccount: AccountCase;
+  onSelect: (id: string) => void;
+  onUpdate: (id: string, status: AccountCase['status']) => void;
+}) {
+  return (
+    <ModuleFrame title="账号状态管理" count={`${accounts.length} 个账号`}>
+      <ListDetailLayout
+        list={accounts.map((account) => (
+          <ListRow
+            key={account.id}
+            active={account.id === selectedAccount.id}
+            title={account.name}
+            subtitle={`${account.role} · ${account.lastActive}`}
+            meta={account.status}
+            onClick={() => onSelect(account.id)}
+          />
+        ))}
+        detail={
+          <DetailCard eyebrow={selectedAccount.role} title={selectedAccount.name} status={selectedAccount.status}>
+            <InfoGrid
+              items={[
+                ['账号类型', selectedAccount.role],
+                ['当前状态', selectedAccount.status],
+                ['最近活跃', selectedAccount.lastActive],
+                ['风控备注', selectedAccount.risk],
+              ]}
+            />
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <AdminButton onClick={() => onUpdate(selectedAccount.id, '正常')} disabled={selectedAccount.status === '正常'}>
+                恢复正常
+              </AdminButton>
+              <AdminButton variant="soft" onClick={() => onUpdate(selectedAccount.id, '观察中')} disabled={selectedAccount.status === '观察中'}>
+                加入观察
+              </AdminButton>
+              <AdminButton variant="soft" icon={<Ban size={16} />} onClick={() => onUpdate(selectedAccount.id, '限制中')} disabled={selectedAccount.status === '限制中'}>
+                限制能力
+              </AdminButton>
+              <AdminButton variant="danger" icon={<PauseCircle size={16} />} onClick={() => onUpdate(selectedAccount.id, '已停用')} disabled={selectedAccount.status === '已停用'}>
+                停用账号
+              </AdminButton>
+            </div>
+          </DetailCard>
+        }
+      />
+    </ModuleFrame>
+  );
+}
+
 function FinancePanel({
   settlements,
   selectedSettlement,
@@ -677,6 +838,23 @@ function mapRemoteModerationData(data: AdminModerationData): { riskCases: RiskCa
     riskCases: data.messageCases.map(mapRemoteRiskCase),
     reportCases: data.reportCases.map(mapRemoteReportCase),
   };
+}
+
+function buildLocalDisputeReports(orders: AppOrder[]): ReportCase[] {
+  return listOrderWorkRecords()
+    .filter((record) => record.deliveryStatus === 'disputed')
+    .map((record) => {
+      const order = orders.find((item) => item.id === record.orderId);
+      return {
+        id: `work-dispute-${record.orderId}`,
+        type: '成片预览争议',
+        reporter: order?.creatorName || order?.creatorPhone || '创作者',
+        target: order?.companion || '摄影师',
+        orderNo: order?.orderNo || record.orderId,
+        status: '待处理' as const,
+        summary: record.disputeReason || '创作者对低清/动态水印预览发起争议，等待管理员裁定托管款和原图开放。',
+      };
+    });
 }
 
 function mapRemoteRiskCase(item: AdminRiskMessageCase): RiskCase {

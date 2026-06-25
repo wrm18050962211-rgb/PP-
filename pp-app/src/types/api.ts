@@ -43,6 +43,7 @@ export type MessageRiskStatus = 'clean' | 'blocked' | 'flagged' | 'replaced';
 export type ReportStatus = 'pending' | 'investigating' | 'resolved' | 'rejected';
 
 export type SettlementStatus = 'pending' | 'frozen' | 'settled' | 'cancelled';
+export type CancellationActor = 'creator' | 'photographer' | 'admin';
 
 export type ReviewStatus = '草稿' | '待审核' | '已通过' | '需修改';
 
@@ -51,23 +52,91 @@ export type Money = {
   amountText: string;
 };
 
+export type MiniProgramPayParams = {
+  timeStamp: string;
+  nonceStr: string;
+  package: string;
+  signType: 'RSA' | 'MD5' | string;
+  paySign: string;
+};
+
+export type PaymentRequest = {
+  paymentId: string;
+  paymentNo?: string;
+  channel: string;
+  provider: 'wechat_pay' | 'mock_wechat' | string;
+  mode: 'mock' | 'production' | string;
+  status: PaymentStatus;
+  amountCents: number;
+  amountText?: string;
+  miniProgramPayParams: MiniProgramPayParams;
+  payPayload?: {
+    provider?: string;
+    mode?: string;
+    miniProgramPayParams?: MiniProgramPayParams;
+    mockSuccessPath?: string;
+    migrationTarget?: string;
+  };
+};
+
 export type User = {
   id: string;
+  openId?: string;
   phone?: string;
   nickname: string;
   avatarUrl?: string;
   gender: 'female' | 'male' | 'unknown' | string;
   city?: string;
+  lastLat?: number;
+  lastLng?: number;
+  lastLocationUpdatedAt?: string;
   status: UserStatus;
   isCompanion: boolean;
+  roles?: UserRole[];
+};
+
+export type UserRole = 'consumer' | 'companion' | 'admin';
+
+export type AuthSession = {
+  token: string;
+  provider: 'mock_wechat' | 'wechat';
+  role: UserRole;
+  roles: UserRole[];
+  user: User;
+  companionId?: string | null;
+  adminScope?: string[];
+  loginAt: string;
 };
 
 export type PostImage = {
   id: string;
   url: string;
+  mediaKind?: 'image' | 'live' | 'video' | string;
+  videoUrl?: string;
+  posterUrl?: string;
   width?: number;
   height?: number;
   sortOrder: number;
+  provider?: 'local' | 'tencent_cos' | string;
+  objectKey?: string;
+  contentType?: string;
+  sizeBytes?: number;
+};
+
+export type MediaUploadPurpose = 'post-image' | 'avatar' | 'portfolio' | 'identity' | 'video';
+
+export type MediaUploadPolicy = {
+  provider: 'tencent_cos' | string;
+  mode: 'mock' | 'production' | string;
+  bucket: string;
+  region: string;
+  purpose: MediaUploadPurpose;
+  objectKey: string;
+  contentType: string;
+  uploadUrl: string;
+  publicUrl: string;
+  expiresAt: string;
+  credentials?: Record<string, unknown>;
 };
 
 export type AvailabilitySlot = {
@@ -98,6 +167,22 @@ export type CompanionExtra = {
   priceText: string;
 };
 
+export type GeoPoint = {
+  lat: number;
+  lng: number;
+};
+
+export type ServiceArea = {
+  id: string;
+  city: string;
+  areaName: string;
+  areaType: string;
+  lat: number;
+  lng: number;
+  radiusMeters: number;
+  enabled: boolean;
+};
+
 export type BookingDurationMinutes = 60 | 90 | 120 | 240;
 
 export type RepeatWeekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -120,6 +205,9 @@ export type CompanionBookingSettings = {
   companionId: string;
   availableDates: string[];
   timeRanges: BookingTimeRange[];
+  weeklyTimeRanges?: Partial<Record<RepeatWeekday, BookingTimeRange[]>>;
+  scheduleApplyMode?: 'weekly' | 'single_week';
+  weekOverrides?: Record<string, Partial<Record<RepeatWeekday, BookingTimeRange[]>>>;
   repeatEnabled: boolean;
   repeatWeekdays: RepeatWeekday[];
   temporaryAccepting: boolean;
@@ -144,9 +232,11 @@ export type Companion = {
   serviceEnabled: boolean;
   ratingAvg: number;
   ratingCount: number;
+  location?: GeoPoint;
   tags: string[];
   safetyBadges: string[];
   areas: string[];
+  serviceAreas?: ServiceArea[];
   slots: AvailabilitySlot[];
   activities: ActivityPricing[];
   extras: CompanionExtra[];
@@ -154,13 +244,38 @@ export type Companion = {
 
 export type FeedPost = {
   id: string;
+  title?: string;
   location: string;
   timeLabel: string;
   caption: string;
   styleTags: string[];
   activity: string;
+  city?: string;
+  locationName?: string;
+  lat?: number;
+  lng?: number;
+  venueType?: string;
+  shootTime?: string;
+  activityCategory?: string;
+  durationMinutes?: number;
+  budgetCents?: number;
   images: PostImage[];
   companion: Companion;
+  creator?: {
+    id: string;
+    name: string;
+    avatar?: string;
+    phone?: string;
+    source: 'order' | 'creator_upload' | string;
+  };
+};
+
+export type MatchingCompanionItem = {
+  companion: Companion;
+  nearestServiceArea: ServiceArea;
+  distanceMeters: number;
+  distanceText: string;
+  matchScore: number;
 };
 
 export type FeedPostCard = FeedPost;
@@ -169,6 +284,8 @@ export type OrderStep = {
   label: string;
   completed: boolean;
 };
+
+export type OrderImageQuantityMode = '4' | '9' | 'custom' | 'unlimited';
 
 export type AppOrder = {
   id: string;
@@ -182,6 +299,10 @@ export type AppOrder = {
   amountText: string;
   companion: string;
   companionId: string;
+  creatorId?: string;
+  creatorPhone?: string;
+  creatorName?: string;
+  companionPhone?: string;
   postId: string;
   activityId?: string;
   activityName?: string;
@@ -192,7 +313,26 @@ export type AppOrder = {
   timeLabel?: string;
   durationMinutes?: number;
   durationLabel?: string;
+  imageQuantityMode?: OrderImageQuantityMode;
+  customImageQuantity?: number;
   addOns?: OrderAddOnInput[];
+  consultationId?: string;
+  quoteId?: string;
+  depositCents?: number;
+  balanceCents?: number;
+  depositStatus?: 'unpaid' | 'paid' | 'refunded' | 'forfeited';
+  balanceStatus?: 'unpaid' | 'paid' | 'refunded';
+  fundsStatus?: 'none' | 'deposit_escrowed' | 'full_escrowed' | 'frozen' | 'settled' | 'refunded';
+  settlementStatus?: SettlementStatus;
+  cancellationActor?: CancellationActor;
+  cancellationPhase?: 'paid_pending_confirm' | 'confirmed_before_balance' | 'full_escrowed' | 'completed' | 'other';
+  cancellationReason?: string;
+  cancellationPenaltyCents?: number;
+  refundToCreatorCents?: number;
+  compensationToCounterpartyCents?: number;
+  platformFeeCents?: number;
+  cancellationSummary?: string;
+  cancelledAt?: string;
   createdAt: string;
   steps: string[];
   currentStep: number;
@@ -224,15 +364,29 @@ export type CreateOrderInput = {
   timeLabel: string;
   durationMinutes: number;
   durationLabel: string;
+  imageQuantityMode?: OrderImageQuantityMode;
+  customImageQuantity?: number;
   addOns: OrderAddOnInput[];
+  consultationId?: string;
+  quoteId?: string;
+  depositCents?: number;
+  balanceCents?: number;
+  depositStatus?: 'unpaid' | 'paid' | 'refunded' | 'forfeited';
+  balanceStatus?: 'unpaid' | 'paid' | 'refunded';
+  fundsStatus?: 'none' | 'deposit_escrowed' | 'full_escrowed' | 'frozen' | 'settled' | 'refunded';
+  settlementStatus?: SettlementStatus;
 };
 
 export type Message = {
   id: string;
   from: 'user' | 'companion' | 'admin' | 'system';
+  kind?: 'text' | 'image' | 'voice';
   text: string;
   sentAt: string;
   riskStatus: MessageRiskStatus;
+  imageUrl?: string;
+  imageName?: string;
+  voiceDurationSeconds?: number;
 };
 
 export type Conversation = {

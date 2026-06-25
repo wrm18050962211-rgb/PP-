@@ -1,15 +1,15 @@
 import type { OrderStatus, ReviewStatus } from '../types/api';
 
 export const orderStatusText: Record<OrderStatus, string> = {
-  pending_payment: '待支付',
+  pending_payment: '待确认',
   paid_pending_confirm: '待确认',
   confirmed: '已确认',
-  in_service: '服务中',
+  in_service: '已确认',
   completed: '已完成',
   cancelled: '已取消',
-  refunding: '退款中',
-  refunded: '已退款',
-  disputed: '争议处理中',
+  refunding: '已取消',
+  refunded: '已取消',
+  disputed: '已取消',
 };
 
 export const reviewStatusFromApi: Record<string, ReviewStatus> = {
@@ -22,17 +22,17 @@ export const reviewStatusFromApi: Record<string, ReviewStatus> = {
 };
 
 export function getOrderSteps(status: OrderStatus) {
-  const steps = ['已支付', '待陪拍者确认', '服务开始', '完成评价'];
+  const steps = ['待确认', '已确认', '已完成', '已取消'];
   const currentStepByStatus: Record<OrderStatus, number> = {
     pending_payment: 0,
     paid_pending_confirm: 1,
     confirmed: 2,
-    in_service: 3,
-    completed: 4,
-    cancelled: 1,
-    refunding: 1,
-    refunded: 1,
-    disputed: 2,
+    in_service: 2,
+    completed: 3,
+    cancelled: 4,
+    refunding: 4,
+    refunded: 4,
+    disputed: 4,
   };
 
   return {

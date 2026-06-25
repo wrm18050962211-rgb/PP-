@@ -1,23 +1,27 @@
-import {
-  ArrowLeft,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Heart,
-  MapPin,
-  Maximize2,
-  Share2,
-  ShieldCheck,
-  Sparkles,
-  X,
-} from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, Bookmark, ChevronLeft, ChevronRight, Heart, MapPin, MessageCircle, Share2, Star, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
-import { BookingSheet } from '../../components/BookingSheet';
-import { Chip } from '../../components/Chip';
-import { buildApprovedWorkPost, fetchPostDetail, getPostDetail } from '../../services/feedService';
-import type { FeedPost, PublishedWorkDraft } from '../../types/api';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
+import { formatCents, readCompanionPackageSettings } from '../../services/companionPackageService';
+import { applyCreatorProfile, getCreatorBio, getCreatorIdentity, readCreatorProfile, type CreatorProfileDraft } from '../../services/creatorProfileService';
+import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle, listFeedPosts } from '../../services/feedService';
+import { getPostLikeCount, isPostFavorited, isPostLiked, toggleFavoritePost, toggleLikedPost } from '../../services/userCollectionService';
+import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
+import type { CompanionPackageSettings } from '../../services/companionPackageService';
+import { ConsultationRequestModal } from './ConsultationRequestModal';
+
+type Comment = {
+  id: string;
+  role: 'creator' | 'photographer' | 'consumer';
+  name: string;
+  avatar: string;
+  text: string;
+  rating?: number;
+};
+
+type DrawerType = 'creator' | 'photographer' | null;
 
 export function PostDetail() {
   const { postId } = useParams();
@@ -25,27 +29,67 @@ export function PostDetail() {
 }
 
 function PostDetailContent({ postId }: { postId?: string }) {
-  const { workDraft } = useAppData();
-  const galleryRef = useRef<HTMLDivElement>(null);
-  const [bookingOpen, setBookingOpen] = useState(false);
-  const [viewerOpen, setViewerOpen] = useState(false);
+  const navigate = useNavigate();
+  const { session, workDraft } = useAppData();
+  const imageTrackRef = useRef<HTMLDivElement>(null);
+  const [consultOpen, setConsultOpen] = useState(false);
+  const [drawer, setDrawer] = useState<DrawerType>(null);
   const [activeImage, setActiveImage] = useState(0);
-  const [saved, setSaved] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [localComments, setLocalComments] = useState<Comment[]>([]);
   const [toast, setToast] = useState('');
   const [remotePost, setRemotePost] = useState(() => getInitialPost(postId, workDraft));
   const localPost = useMemo(() => buildApprovedWorkPost(workDraft), [workDraft]);
   const post = localPost && localPost.id === postId ? localPost : remotePost;
-
-  const goToImage = useCallback(
-    (index: number) => {
-      const nextIndex = (index + post.images.length) % post.images.length;
-      setActiveImage(nextIndex);
-      const gallery = galleryRef.current;
-      const target = gallery?.children.item(nextIndex) as HTMLElement | null;
-      target?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    },
-    [post.images.length],
+  const collectionPosts = useMemo(() => {
+    const posts = listFeedPosts();
+    return posts.some((item) => item.id === post.id) ? posts : [post, ...posts];
+  }, [post]);
+  const postTitle = getPostTitle(post);
+  const photographer = post.companion;
+  const isCompanionMode = session?.role === 'companion';
+  const appHomePath = isCompanionMode ? '/companion' : '/consumer';
+  const photographerWorks = useMemo(() => {
+    const works = collectionPosts.filter((item) => item.companion.id === photographer.id);
+    return works.some((item) => item.id === post.id) ? works : [post, ...works];
+  }, [collectionPosts, photographer.id, post]);
+  const creatorProfile = readCreatorProfile('consumer');
+  const visibleCreator = getVisibleCreator(post, creatorProfile);
+  const creatorWorks = useMemo(() => {
+    if (!visibleCreator) return [];
+    const works = collectionPosts.filter((item) => getCreatorIdentity(item).id === visibleCreator.id);
+    return works.some((item) => item.id === post.id) ? works : [post, ...works];
+  }, [collectionPosts, post, visibleCreator?.id]);
+  const creatorWorkCards = useMemo(
+    () =>
+      creatorWorks.flatMap((work) =>
+        work.images[0]?.url
+          ? [
+              {
+                id: work.id,
+                image: work.images[0].url,
+                title: getPostTitle(work),
+              },
+            ]
+          : [],
+      ),
+    [creatorWorks],
   );
+  const cover = post.images[0];
+  const images = post.images;
+  const activeMedia = images[activeImage] ?? cover;
+  const isLandscape = getImageAspectRatio(activeMedia) >= 1;
+  const mediaHeightClass = isLandscape ? (captionExpanded ? 'h-[44dvh]' : 'h-[58dvh]') : captionExpanded ? 'h-[56dvh]' : 'h-[66dvh]';
+  const baseComments = useMemo(() => buildComments(post, visibleCreator), [post, visibleCreator?.avatar, visibleCreator?.name]);
+  const comments = useMemo(() => [...baseComments, ...localComments], [baseComments, localComments]);
+  const [likeCount, setLikeCount] = useState(() => getPostLikeCount(post.id, collectionPosts));
+  const shareCount = useMemo(() => formatMetric(260 + stableMetricSeed(`${post.id}-share`, 180)), [post.id]);
+  const packageSettings = readCompanionPackageSettings(photographer);
+  const firstPackage = packageSettings.packages[0];
 
   useEffect(() => {
     let mounted = true;
@@ -61,236 +105,628 @@ function PostDetailContent({ postId }: { postId?: string }) {
   }, [localPost, postId]);
 
   useEffect(() => {
-    const nextImage = post.images[activeImage + 1] ?? post.images[0];
-    if (!nextImage) return;
-
-    const preload = new Image();
-    preload.src = nextImage.url;
-  }, [activeImage, post.images]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (bookingOpen) return;
-      if (event.key === 'Escape' && viewerOpen) setViewerOpen(false);
-      if (event.key === 'ArrowLeft') goToImage(activeImage - 1);
-      if (event.key === 'ArrowRight') goToImage(activeImage + 1);
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeImage, bookingOpen, goToImage, viewerOpen]);
-
-  useEffect(() => {
     if (!toast) return;
-
     const timer = window.setTimeout(() => setToast(''), 1600);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const syncActiveImage = () => {
-    const gallery = galleryRef.current;
-    if (!gallery) return;
-
-    const center = gallery.scrollLeft + gallery.clientWidth / 2;
-    let nearestIndex = 0;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-
-    Array.from(gallery.children).forEach((child, index) => {
-      const item = child as HTMLElement;
-      const itemCenter = item.offsetLeft + item.clientWidth / 2;
-      const distance = Math.abs(center - itemCenter);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = index;
-      }
-    });
-
-    setActiveImage(nearestIndex);
-  };
+  useEffect(() => {
+    setActiveImage(0);
+    setLiked(isPostLiked(post.id, collectionPosts));
+    setBookmarked(isPostFavorited(post.id, collectionPosts));
+    setLikeCount(getPostLikeCount(post.id, collectionPosts));
+    setCaptionExpanded(false);
+    setCommentsOpen(false);
+    setCommentText('');
+    setLocalComments([]);
+    imageTrackRef.current?.scrollTo({ left: 0 });
+  }, [collectionPosts, post.id]);
 
   const handleShare = async () => {
-    const shareUrl = window.location.href;
-
     try {
       if (navigator.share) {
-        await navigator.share({
-          title: `${post.location} · ${post.activity}`,
-          text: post.caption,
-          url: shareUrl,
-        });
+        await navigator.share({ title: postTitle, text: post.caption, url: window.location.href });
         return;
       }
-
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(window.location.href);
       setToast('链接已复制');
     } catch {
       setToast('分享已取消');
     }
   };
 
+  const openConsultation = () => {
+    if (isCompanionMode) return;
+    setDrawer(null);
+    setConsultOpen(true);
+  };
+
+  const scrollToImage = (index: number) => {
+    const track = imageTrackRef.current;
+    if (!track || images.length === 0) return;
+    const nextIndex = Math.min(Math.max(index, 0), images.length - 1);
+    track.scrollTo({ left: nextIndex * track.clientWidth, behavior: 'smooth' });
+    setActiveImage(nextIndex);
+  };
+
+  const handleImageScroll = () => {
+    const track = imageTrackRef.current;
+    if (!track || track.clientWidth === 0 || images.length === 0) return;
+    const nextIndex = Math.round(track.scrollLeft / track.clientWidth);
+    setActiveImage(Math.min(Math.max(nextIndex, 0), images.length - 1));
+  };
+
+  const submitComment = () => {
+    const nextText = commentText.trim();
+    if (!nextText) return;
+
+    setLocalComments((current) => [
+      ...current,
+      {
+        id: `local-comment-${Date.now()}`,
+        role: 'consumer',
+        name: '我',
+        avatar: visibleCreator?.avatar || photographer.avatar,
+        text: nextText,
+      },
+    ]);
+    setCommentText('');
+  };
+
   return (
-    <div className="min-h-dvh pp-page pb-24">
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#eadfd8]/80 bg-[#fbf7f2]/92 px-4 py-3 backdrop-blur-xl">
-        <Link to="/consumer" className="grid h-10 w-10 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" aria-label="返回发现页">
-          <ArrowLeft size={20} />
-        </Link>
-        <p className="text-sm font-semibold text-[#5f514b]">帖子详情</p>
-        <div className="flex h-10 items-center gap-2">
-          <button
-            className={`grid h-10 w-10 place-items-center rounded-full ${saved ? 'pp-primary' : 'bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]'}`}
-            onClick={() => {
-              setSaved((current) => !current);
-              setToast(saved ? '已取消收藏' : '已收藏');
-            }}
-            aria-label={saved ? '取消收藏' : '收藏帖子'}
-          >
-            <Heart size={18} fill={saved ? 'currentColor' : 'none'} />
-          </button>
-          <button className="grid h-10 w-10 place-items-center rounded-full bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]" onClick={handleShare} aria-label="分享帖子">
-            <Share2 size={18} />
-          </button>
+    <div className="relative h-dvh overflow-hidden bg-black text-white">
+      <header className="fixed inset-x-0 top-0 z-40 mx-auto max-w-md bg-black/96 px-3 py-2 text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
+        <div className={`grid h-14 items-center gap-2 ${visibleCreator ? 'grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)]' : 'grid-cols-[44px_minmax(0,1fr)]'}`}>
+          <Link to={appHomePath} className="grid h-11 w-11 place-items-center text-white/88" aria-label="返回发现">
+            <ArrowLeft size={22} />
+          </Link>
+          {visibleCreator ? <ProfileIdentityButton role="创作者" name={visibleCreator.name} avatar={visibleCreator.avatar} onClick={() => setDrawer('creator')} /> : null}
+          <ProfileIdentityButton
+            align="right"
+            role="摄影师"
+            name={photographer.name}
+            avatar={photographer.avatar}
+            onClick={() => setDrawer('photographer')}
+          />
         </div>
       </header>
 
-      <section className="relative bg-[#fbf7f2]">
-        <div ref={galleryRef} className="flex snap-x snap-mandatory overflow-x-auto px-3 pt-3 scrollbar-none" onScroll={syncActiveImage}>
-          {post.images.map((image, index) => (
-            <figure key={image.id} className="relative mr-3 h-[64dvh] w-[92%] shrink-0 snap-center overflow-hidden rounded-[22px] bg-[#eadfd8] last:mr-0">
-              <button className="h-full w-full" onClick={() => setViewerOpen(true)} aria-label={`放大查看第 ${index + 1} 张图片`}>
-                <img className="h-full w-full object-cover" src={image.url} alt={`${post.location} 第 ${index + 1} 张`} loading={index === 0 ? 'eager' : 'lazy'} />
-              </button>
-              <div className="absolute right-3 top-3 rounded-full bg-white/82 px-3 py-1.5 text-xs font-bold text-[#3f302c] backdrop-blur">
-                {index + 1}/{post.images.length}
-              </div>
-            </figure>
-          ))}
-        </div>
-
-        {post.images.length > 1 ? (
-          <>
-            <button
-              className="absolute left-5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/74 text-[#3f302c] backdrop-blur"
-              onClick={() => goToImage(activeImage - 1)}
-              aria-label="上一张图片"
-            >
-              <ChevronLeft size={22} />
-            </button>
-            <button
-              className="absolute right-5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/74 text-[#3f302c] backdrop-blur"
-              onClick={() => goToImage(activeImage + 1)}
-              aria-label="下一张图片"
-            >
-              <ChevronRight size={22} />
-            </button>
-            <button
-              className="absolute bottom-5 right-6 grid h-10 w-10 place-items-center rounded-full bg-white/78 text-[#3f302c] backdrop-blur"
-              onClick={() => setViewerOpen(true)}
-              aria-label="放大查看图片"
-            >
-              <Maximize2 size={17} />
-            </button>
-          </>
-        ) : null}
-      </section>
-
-      <section className="px-4 pb-7 pt-5">
-        <div className="pp-surface rounded-[22px] p-4">
-          <div className="flex flex-wrap gap-2">
-            {post.styleTags.map((tag) => (
-              <Chip key={tag}>{tag}</Chip>
+      <main className={`h-dvh bg-black pt-[72px] ${captionExpanded ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+        <section className="bg-black">
+          <div ref={imageTrackRef} className={`flex w-full snap-x snap-mandatory overflow-x-auto scroll-smooth bg-black scrollbar-none ${mediaHeightClass}`} onScroll={handleImageScroll}>
+            {images.map((image, index) => (
+              <figure key={image.id} className="flex h-full w-full shrink-0 snap-center items-center justify-center bg-black">
+                <LivePhotoMedia media={image} alt={`${post.location} 第${index + 1}张`} fit="contain" loading={index === 0 ? 'eager' : 'lazy'} />
+              </figure>
             ))}
           </div>
 
-          <h1 className="mt-4 flex items-center gap-2 text-2xl font-black leading-tight text-[#3f302c]">
-            <MapPin size={22} className="shrink-0 text-[#e85d75]" />
-            <span className="min-w-0 truncate">{post.location}</span>
-          </h1>
-          <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-[#7a6b64]">
-            <CalendarDays size={16} className="shrink-0 text-[#9fb89f]" />
-            <span className="truncate">{post.timeLabel}</span>
-          </p>
-
-          <div className="mt-5 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-bold text-[#e85d75]">
-              <Sparkles size={16} />
-              <span>{post.activity}</span>
+          {images.length > 1 ? (
+            <div className="flex h-5 items-center justify-center gap-1.5 bg-black">
+              {images.map((image, index) => (
+                <button
+                  key={image.id}
+                  className={`h-1.5 rounded-full transition-all ${index === activeImage ? 'w-5 bg-white' : 'w-1.5 bg-white/32'}`}
+                  onClick={() => scrollToImage(index)}
+                  aria-label={`查看第${index + 1}张作品图`}
+                />
+              ))}
             </div>
-            {post.companion.isVirtual ? (
-              <p className="rounded-[14px] bg-[#fff7df] px-3 py-2 text-xs font-bold leading-5 text-[#8a5a12] ring-1 ring-[#f2dfaa]">
-                虚拟陪拍者样例，仅用于页面填充、功能调试和运营流程演示，后续可在后台替换为真实资料。
-              </p>
-            ) : null}
-            <p className="text-[15px] leading-7 text-[#5f514b]">{post.caption}</p>
-          </div>
-        </div>
-      </section>
+          ) : null}
+        </section>
 
-      <button className="fixed inset-x-0 bottom-16 z-30 mx-auto w-full max-w-md px-3 pb-3 text-left" onClick={() => setBookingOpen(true)} aria-label={`预约 ${post.companion.name}`}>
-        <div className="flex items-center gap-3 rounded-[22px] border border-[#eadfd8] bg-white/95 p-3 text-[#27211f] shadow-2xl shadow-[#5b4031]/12 backdrop-blur">
-          <img className="h-13 w-13 rounded-[18px] object-cover" src={post.companion.photo || post.companion.avatar} alt={`${post.companion.name} 真人照片`} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <p className="truncate font-bold">{post.companion.name}</p>
-              {post.companion.isVirtual ? (
-                <span className="inline-flex shrink-0 rounded-full bg-[#fff7df] px-2 py-0.5 text-[11px] font-bold text-[#8a5a12] ring-1 ring-[#f2dfaa]">
-                  虚拟
-                </span>
-              ) : null}
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full pp-safe px-2 py-0.5 text-[11px] font-bold">
-                <ShieldCheck size={13} />
-                已认证
-              </span>
+        <section className="bg-black px-4 pb-4 pt-2 text-white">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-4">
+              <button
+                className="inline-flex items-center gap-1.5 text-white"
+                onClick={() => {
+                  const nextLiked = toggleLikedPost(post.id, collectionPosts);
+                  setLiked(nextLiked);
+                  setLikeCount(getPostLikeCount(post.id, collectionPosts));
+                  setToast(nextLiked ? '已点赞' : '已取消点赞');
+                }}
+                aria-label="点赞作品"
+              >
+                <Heart size={27} fill={liked ? 'currentColor' : 'none'} />
+                <span className="text-sm font-bold">{formatSocialCount(likeCount)}</span>
+              </button>
+              <button
+                className="text-white"
+                onClick={() => {
+                  const nextBookmarked = toggleFavoritePost(post.id, collectionPosts);
+                  setBookmarked(nextBookmarked);
+                  setToast(nextBookmarked ? '已收藏' : '已取消收藏');
+                }}
+                aria-label="收藏作品"
+              >
+                <Bookmark size={27} fill={bookmarked ? 'currentColor' : 'none'} />
+              </button>
+              <button className="inline-flex items-center gap-1.5 text-white" onClick={handleShare} aria-label="转发作品">
+                <Share2 size={26} />
+                <span className="text-sm font-bold">{shareCount}</span>
+              </button>
+              <button className="inline-flex items-center gap-1.5 text-white" onClick={() => setCommentsOpen(true)} aria-label="查看评论">
+                <MessageCircle size={27} />
+                <span className="text-sm font-bold">{comments.length}</span>
+              </button>
             </div>
-            <p className="mt-1 truncate text-xs font-medium text-[#8f8078]">{post.companion.tags.join(' · ')}</p>
-          </div>
-          <span className="shrink-0 rounded-full pp-primary px-4 py-2 text-sm font-bold">¥{Math.round(post.companion.activities[0].priceCents / 100)}起</span>
-        </div>
-      </button>
 
-      <BookingSheet companion={post.companion} postId={post.id} open={bookingOpen} onClose={() => setBookingOpen(false)} />
-
-      {viewerOpen ? (
-        <div className="fixed inset-0 z-50 bg-black text-white" onClick={() => setViewerOpen(false)}>
-          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-black/55 px-4 py-3 backdrop-blur">
-            <button className="grid h-10 w-10 place-items-center rounded-full bg-white/10" onClick={() => setViewerOpen(false)} aria-label="关闭图片预览">
-              <X size={20} />
+            <button className="flex min-w-0 max-w-[34%] items-center justify-end gap-1 text-xs font-semibold text-white/58" onClick={() => setDrawer('photographer')}>
+              <MapPin size={13} className="shrink-0" />
+              <span className="truncate">{post.locationName || post.location}</span>
             </button>
-            <p className="text-sm font-bold">
-              {activeImage + 1}/{post.images.length}
-            </p>
-            <span className="h-10 w-10" />
           </div>
-          <button
-            className="absolute left-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 backdrop-blur"
-            onClick={(event) => {
-              event.stopPropagation();
-              goToImage(activeImage - 1);
-            }}
-            aria-label="上一张预览图片"
-          >
-            <ChevronLeft size={24} />
-          </button>
-          <img className="h-full w-full object-contain px-3 py-16" src={post.images[activeImage]?.url} alt={`${post.location} 大图预览`} onClick={(event) => event.stopPropagation()} />
-          <button
-            className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 backdrop-blur"
-            onClick={(event) => {
-              event.stopPropagation();
-              goToImage(activeImage + 1);
-            }}
-            aria-label="下一张预览图片"
-          >
-            <ChevronRight size={24} />
-          </button>
-        </div>
+
+          <div className="mt-3">
+            <h1 className="line-clamp-1 text-[14px] font-black leading-5 text-white">{postTitle}</h1>
+            <p className={`mt-1 ${captionExpanded ? '' : 'line-clamp-1'} text-[13px] leading-5 text-white/84`}>
+              {visibleCreator ? (
+                <button className="mr-1 font-black text-white" onClick={() => setDrawer('creator')}>
+                  {visibleCreator.name}
+                </button>
+              ) : null}
+              {post.caption}
+            </p>
+            <button className="mt-1 text-xs font-semibold text-white/38" onClick={() => setCaptionExpanded((current) => !current)}>
+              {captionExpanded ? '收起' : '展开'}
+            </button>
+            {captionExpanded ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {post.styleTags.slice(0, 4).map((tag) => (
+                  <span key={tag} className="border border-white/12 px-2 py-1 text-[11px] font-bold text-white/48">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+      </main>
+
+      {visibleCreator ? (
+      <ProfileDrawer
+        open={drawer === 'creator'}
+        side="left"
+        title="创作者"
+        name={visibleCreator.name}
+        avatar={visibleCreator.avatar}
+        hero={cover?.url}
+        heroSlides={creatorWorkCards.map((work) => ({ id: work.id, image: work.image }))}
+        workCards={creatorWorkCards}
+        meta={visibleCreator.bio}
+        tags={visibleCreator.tags}
+        basePath={appHomePath}
+        pinActions
+        onClose={() => setDrawer(null)}
+      >
+        <Link className="flex h-12 items-center justify-center rounded-full bg-[#3f302c] text-sm font-black text-white" to={`${appHomePath}/creator/${visibleCreator.id}`}>
+          查看创作者主页
+        </Link>
+        <Link
+          className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]"
+          to={isCompanionMode ? `${appHomePath}/creator/${visibleCreator.id}` : `/consumer/companions?sameStyle=${post.id}`}
+        >
+          {isCompanionMode ? '查看同款作品' : '拍同款'}
+        </Link>
+      </ProfileDrawer>
       ) : null}
 
-      {toast ? <div className="fixed left-1/2 top-20 z-[60] -translate-x-1/2 rounded-full bg-[#3f302c] px-4 py-2 text-sm font-bold text-white shadow-xl">{toast}</div> : null}
+      <ProfileDrawer
+        open={drawer === 'photographer'}
+        side="right"
+        title="摄影师"
+        name={photographer.name}
+        avatar={photographer.avatar}
+        hero={cover?.url}
+        heroSlides={photographerWorks.flatMap((work) => work.images[0]?.url ? [{ id: work.id, image: work.images[0].url }] : [])}
+        meta={`${formatCents(firstPackage.basePriceCents)}起 · ${photographer.ratingAvg.toFixed(1)}分`}
+        tags={photographer.tags}
+        basePath={appHomePath}
+        onClose={() => setDrawer(null)}
+      >
+        <PhotographerDrawerSummary post={post} packageSettings={packageSettings} />
+        <Link className="flex h-12 items-center justify-center rounded-full bg-[#f6eee8] text-sm font-black text-[#3f302c] ring-1 ring-[#eadfd8]" to={`${appHomePath}/photographer/${photographer.id}`}>
+          查看摄影师主页
+        </Link>
+        {isCompanionMode ? null : (
+          <button className="h-12 rounded-full bg-[#3f302c] text-sm font-black text-white" onClick={openConsultation}>
+            预约这位摄影师
+          </button>
+        )}
+      </ProfileDrawer>
+
+      <CommentSheet
+        open={commentsOpen}
+        comments={comments}
+        value={commentText}
+        onChange={setCommentText}
+        onClose={() => setCommentsOpen(false)}
+        onSubmit={submitComment}
+      />
+
+      {consultOpen && !isCompanionMode ? (
+        <ConsultationRequestModal
+          post={post}
+          session={session}
+          packageSettings={packageSettings}
+          onClose={() => setConsultOpen(false)}
+          onSubmitted={(id) => {
+            setConsultOpen(false);
+            navigate(`/consumer/messages/${id}`);
+          }}
+        />
+      ) : null}
+      {toast ? <div className="fixed left-1/2 top-20 z-[60] -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-bold text-black shadow-xl">{toast}</div> : null}
     </div>
   );
+}
+
+function ProfileIdentityButton({
+  role,
+  name,
+  avatar,
+  align = 'left',
+  onClick,
+}: {
+  role: string;
+  name: string;
+  avatar: string;
+  align?: 'left' | 'right';
+  onClick: () => void;
+}) {
+  return (
+    <button className={`flex min-w-0 items-center gap-2 ${align === 'right' ? 'justify-end text-right' : ''}`} onClick={onClick}>
+      <img className={`h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/28 ${align === 'right' ? 'order-2' : ''}`} src={avatar} alt={name} />
+      <span className="min-w-0">
+        <span className="block text-[10px] font-bold leading-3 text-white/46">{role}</span>
+        <span className="block truncate text-[13px] font-black leading-4 text-white">{name}</span>
+      </span>
+    </button>
+  );
+}
+
+function CommentSheet({
+  open,
+  comments,
+  value,
+  onChange,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  comments: Comment[];
+  value: string;
+  onChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2">
+      <button className="absolute inset-0 bg-black/58" onClick={onClose} aria-label="关闭评论" />
+      <section className="absolute bottom-0 left-0 right-0 max-h-[78dvh] overflow-hidden rounded-t-[26px] bg-[#111] text-white shadow-2xl ring-1 ring-white/10">
+        <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-white/26" />
+        <div className="flex items-center justify-between px-4 py-4">
+          <div>
+            <h2 className="text-base font-black">评论</h2>
+            <p className="text-xs font-semibold text-white/40">{comments.length} 条讨论</p>
+          </div>
+          <button className="grid h-9 w-9 place-items-center rounded-full bg-white/8 text-white" onClick={onClose} aria-label="关闭评论">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="max-h-[48dvh] space-y-4 overflow-y-auto px-4 pb-4">
+          {comments.map((comment) => (
+            <article key={comment.id} className="flex gap-3">
+              <img className="h-9 w-9 shrink-0 rounded-full object-cover" src={comment.avatar} alt={comment.name} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-sm font-black">{comment.name}</p>
+                  <span className="text-[11px] font-bold text-white/36">{getRoleLabel(comment.role)}</span>
+                  {comment.rating ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-black text-[#f2c25b]">
+                      <Star size={11} className="fill-[#f2c25b]" />
+                      {comment.rating.toFixed(1)}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-white/72">{comment.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <form
+          className="flex items-end gap-2 border-t border-white/10 bg-[#151515] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <textarea
+            className="max-h-28 min-h-11 flex-1 resize-none rounded-[18px] border border-white/10 bg-white/8 px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/32"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="发表评论..."
+            rows={1}
+          />
+          <button className="h-11 rounded-full bg-white px-4 text-sm font-black text-black disabled:bg-white/16 disabled:text-white/26" disabled={!value.trim()} type="submit">
+            发布
+          </button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function PhotographerDrawerSummary({ post, packageSettings }: { post: FeedPost; packageSettings: CompanionPackageSettings }) {
+  const photographer = post.companion;
+  const firstPackage = packageSettings.packages[0];
+  const halfDayPackage = packageSettings.packages[1] ?? firstPackage;
+
+  return (
+    <div className="space-y-3 rounded-[18px] bg-white p-3 text-[#3f302c] ring-1 ring-[#eadfd8]">
+      <div>
+        <p className="text-xs font-black text-[#9b8c84]">自我介绍</p>
+        <p className="mt-1 text-xs font-bold leading-5 text-[#6f5f58]">{photographer.bio}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs font-black">
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">起拍价</p>
+          <p className="mt-1 text-[#3f302c]">{formatCents(firstPackage.basePriceCents)} / {Math.round(firstPackage.durationMinutes / 60)}小时</p>
+        </div>
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">定金</p>
+          <p className="mt-1 text-[#3f302c]">{formatCents(firstPackage.depositCents)} 锁档期</p>
+        </div>
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">半天</p>
+          <p className="mt-1 text-[#3f302c]">{formatCents(halfDayPackage.basePriceCents)}</p>
+        </div>
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">修图</p>
+          <p className="mt-1 text-[#3f302c]">含 {firstPackage.includedRetouchedCount} 张</p>
+        </div>
+        <div className="rounded-[12px] bg-[#fbf7f2] p-2">
+          <p className="text-[#9b8c84]">默认交通费</p>
+          <p className="mt-1 text-[#3f302c]">{packageSettings.addOns.travelFeeCents ? formatCents(packageSettings.addOns.travelFeeCents) : '无'}</p>
+        </div>
+      </div>
+      <p className="text-[11px] font-bold leading-5 text-[#9b8c84]">交通/门票默认由创作者承担；高温、夜间、远距离可能加价，最终以咨询报价为准。</p>
+    </div>
+  );
+}
+
+function ProfileDrawer({
+  open,
+  side,
+  title,
+  name,
+  avatar,
+  hero,
+  heroSlides,
+  workCards,
+  meta,
+  tags,
+  basePath,
+  pinActions = false,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  side: 'left' | 'right';
+  title: string;
+  name: string;
+  avatar: string;
+  hero?: string;
+  heroSlides?: Array<{ id: string; image: string }>;
+  workCards?: Array<{ id: string; image: string; title: string }>;
+  meta: string;
+  tags: readonly string[];
+  basePath: string;
+  pinActions?: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const slides = heroSlides?.filter((slide) => slide.image) ?? [];
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setActiveSlide(0);
+      return;
+    }
+    if (slides.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % slides.length);
+    }, 2800);
+    return () => window.clearInterval(timer);
+  }, [open, slides.length]);
+
+  if (!open) return null;
+
+  const activeHero = slides[activeSlide] ?? (hero ? { id: '', image: hero } : null);
+  const canSlide = slides.length > 1;
+  const showPrevious = () => setActiveSlide((current) => (current - 1 + slides.length) % slides.length);
+  const showNext = () => setActiveSlide((current) => (current + 1) % slides.length);
+
+  return (
+    <div className="pointer-events-none fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2">
+      <button className="pointer-events-auto absolute inset-0 bg-black/42" onClick={onClose} aria-label="关闭侧栏" />
+      <aside
+        className={`pointer-events-auto absolute inset-y-0 flex w-[82%] max-w-[330px] flex-col overflow-hidden bg-[#fbf7f2] text-[#3f302c] shadow-2xl ${
+          side === 'left' ? 'left-0 rounded-r-[24px]' : 'right-0 rounded-l-[24px]'
+        }`}
+      >
+        <div className="relative h-56 overflow-hidden bg-[#eadfd8]">
+          {activeHero?.id ? (
+            <Link to={`${basePath}/post/${activeHero.id}`} aria-label={`查看${name}的作品`}>
+              <img className="h-full w-full object-cover transition-opacity duration-500" src={activeHero.image} alt={`${name}作品封面`} />
+            </Link>
+          ) : activeHero ? (
+            <img className="h-full w-full object-cover" src={activeHero.image} alt={name} />
+          ) : null}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-transparent to-black/52" />
+          {canSlide ? (
+            <>
+              <button
+                className="absolute left-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/36 text-white backdrop-blur"
+                onClick={showPrevious}
+                type="button"
+                aria-label="上一张作品"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                className="absolute right-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/36 text-white backdrop-blur"
+                onClick={showNext}
+                type="button"
+                aria-label="下一张作品"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <div className="absolute left-3 top-3 flex gap-1.5">
+                {slides.slice(0, 6).map((slide, index) => (
+                  <button
+                    key={slide.id}
+                    className={`h-1.5 rounded-full transition-all ${index === activeSlide ? 'w-5 bg-white' : 'w-1.5 bg-white/42'}`}
+                    onClick={() => setActiveSlide(index)}
+                    type="button"
+                    aria-label={`查看第${index + 1}张作品`}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+          <button className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-white/88 text-[#3f302c] backdrop-blur" onClick={onClose} aria-label="关闭侧栏">
+            <X size={18} />
+          </button>
+          <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3 text-white">
+            <img className="h-16 w-16 rounded-[20px] object-cover ring-2 ring-white/70" src={avatar} alt={name} />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black text-white/72">{title}</p>
+              <h2 className="truncate text-2xl font-black">{name}</h2>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
+          <p className="text-sm font-bold leading-6 text-[#7a6b64]">{meta}</p>
+          <div className="flex flex-wrap gap-2">
+            {tags.slice(0, 6).map((tag) => (
+              <span key={tag} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#7a6b64] ring-1 ring-[#eadfd8]">
+                {tag}
+              </span>
+            ))}
+          </div>
+          {workCards?.length ? (
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-black text-[#9b8c84]">创作者作品</p>
+                <span className="text-[11px] font-bold text-[#b2a49d]">点封面快速查看</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {workCards.slice(0, 6).map((work) => (
+                  <Link
+                    key={work.id}
+                    className="group relative aspect-[4/5] overflow-hidden rounded-[16px] bg-[#eadfd8] ring-1 ring-[#eadfd8]"
+                    to={`${basePath}/post/${work.id}`}
+                    aria-label={`查看作品：${work.title}`}
+                  >
+                    <img className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" src={work.image} alt={work.title} />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/72 to-transparent p-2">
+                      <p className="truncate text-[11px] font-black text-white">{work.title}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          <div className={`grid gap-2 ${pinActions ? 'mt-auto pt-6' : ''}`}>{children}</div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+export function buildCreator(post: FeedPost, profile?: CreatorProfileDraft | null) {
+  const baseCreator = getCreatorIdentity(post);
+  const appliedCreator = applyCreatorProfile(baseCreator, profile ?? null);
+  const bio = getCreatorBio(post, profile?.creatorId === baseCreator.id ? profile : null);
+
+  return {
+    ...appliedCreator,
+    meta: bio,
+    bio,
+    tags: buildCreatorPublicTags(post),
+  };
+}
+
+function getVisibleCreator(post: FeedPost, profile?: CreatorProfileDraft | null): ReturnType<typeof buildCreator> | null {
+  if (!post.creator && post.companion.isVirtual) return null;
+  return buildCreator(post, profile);
+}
+
+function buildCreatorPublicTags(post: FeedPost) {
+  const sourceTags = post.creator ? ['订单成片', ...post.styleTags, '共同确认'] : post.styleTags;
+  return [...new Set(sourceTags.filter(Boolean))];
+}
+
+function buildComments(post: FeedPost, creator: ReturnType<typeof buildCreator> | null): Comment[] {
+  const creatorComment: Comment[] = creator
+    ? [{
+      id: 'creator-comment',
+      role: 'creator',
+      name: creator.name,
+      avatar: creator.avatar,
+      text: '这组图的重点是自然走动和轻松表情，拍同款时可以保留街区光线和穿搭层次。',
+    }]
+    : [];
+
+  return [
+    ...creatorComment,
+    {
+      id: 'photographer-comment',
+      role: 'photographer',
+      name: post.companion.name,
+      avatar: post.companion.avatar,
+      rating: post.companion.ratingAvg,
+      text: '可以约原路线，也可以按你的位置调整到附近类似街区。拍摄前会确认预算、时间、风格和修图需求。',
+    },
+  ];
 }
 
 function getInitialPost(postId: string | undefined, workDraft: PublishedWorkDraft): FeedPost {
   const localPost = buildApprovedWorkPost(workDraft);
   if (localPost && localPost.id === postId) return localPost;
   return getPostDetail(postId);
+}
+
+function getImageAspectRatio(image?: PostImage) {
+  if (!image?.width || !image.height) return 3 / 4;
+  return image.width / image.height;
+}
+
+function stableMetricSeed(value: string, range: number) {
+  return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0) % range;
+}
+
+function formatMetric(value: number) {
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}万`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return String(value);
+}
+
+function formatSocialCount(value: number) {
+  return String(value);
+}
+
+function getRoleLabel(role: Comment['role']) {
+  if (role === 'creator') return '创作者';
+  if (role === 'photographer') return '摄影师';
+  return '用户';
 }

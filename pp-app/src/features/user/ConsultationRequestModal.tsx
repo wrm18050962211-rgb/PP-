@@ -1,0 +1,632 @@
+import { CalendarDays, Clock3, ImagePlus, LocateFixed, MapPin, Send, XCircle } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import type { AuthSession, AvailabilitySlot, FeedPost } from '../../types/api';
+import { applyBookingSettingsToCompanion, defaultBookingSettings } from '../../data/bookingSettings';
+import { createConsultation, isSelfConsultation, type ConsultationRequestCard } from '../../services/consultationService';
+import { readCompanionBookingSettings } from '../../services/companionBookingSettingsService';
+import { createDefaultPackageSettings, formatCents, type CompanionPackageSettings } from '../../services/companionPackageService';
+import { requestConsumerLocation } from '../../services/locationService';
+import { listLedgerOrdersForCompanion } from '../../services/virtualOrderLedger';
+import type { AppOrder } from '../../types/api';
+
+export function ConsultationRequestModal({
+  post,
+  session,
+  packageSettings,
+  initialPackageId,
+  onClose,
+  onSubmitted,
+}: {
+  post: FeedPost;
+  session: AuthSession | null;
+  packageSettings?: CompanionPackageSettings;
+  initialPackageId?: string;
+  onClose: () => void;
+  onSubmitted: (id: string) => void;
+}) {
+  const settings = packageSettings ?? createDefaultPackageSettings(post.companion);
+  const initialPackage = settings.packages.find((pkg) => pkg.id === initialPackageId) ?? settings.packages[0];
+  const bookingSettings = useMemo(
+    () => readCompanionBookingSettings(post.companion.id) ?? { ...defaultBookingSettings, companionId: post.companion.id },
+    [post.companion.id],
+  );
+  const bookableCompanion = useMemo(() => applyBookingSettingsToCompanion(post.companion, bookingSettings), [bookingSettings, post.companion]);
+  const companionOrders = useMemo(() => listLedgerOrdersForCompanion(post.companion.id), [post.companion.id]);
+  const consultationSlots = useMemo(
+    () => markOccupiedSlots(getFutureConsultationSlots(bookableCompanion.slots), companionOrders),
+    [bookableCompanion.slots, companionOrders],
+  );
+  const initialSlot = useMemo(() => getFirstAvailableConsultationSlot(consultationSlots), [consultationSlots]);
+  const initialSlotSelection = getSlotSelection(initialSlot);
+  const placeOptions = useMemo(() => buildPlaceOptions(post), [post]);
+  const [card, setCard] = useState<ConsultationRequestCard>({
+    date: initialSlotSelection.date,
+    timeRange: initialSlotSelection.timeRange,
+    slotId: initialSlot?.id,
+    startAt: initialSlot?.startAt,
+    endAt: initialSlot?.endAt,
+    place: post.locationName || post.location,
+    placeLat: post.lat,
+    placeLng: post.lng,
+    peopleCount: 1,
+    packageId: initialPackage.id,
+    packageName: initialPackage.name,
+    sceneType: 'outdoor',
+    imageQuantityMode: '9',
+    customImageQuantity: 12,
+    needsRetouch: true,
+    retouchSelection: '4',
+    customRetouchCount: 12,
+    needsVideo: false,
+    videoCount: 1,
+    videoAverageDurationSeconds: 15,
+    needsPolaroid: false,
+    polaroidCount: 1,
+    acceptsPublication: false,
+    needsRoutePlanning: true,
+    needsCompanionQueueing: false,
+    hasTicketOrEntry: false,
+    note: '',
+    referenceImages: [],
+  });
+  const [visibleDate, setVisibleDate] = useState(initialSlotSelection.date);
+  const [selectedSlotId, setSelectedSlotId] = useState(initialSlot?.id ?? '');
+  const [mapOpen, setMapOpen] = useState(false);
+  const [locationStatus, setLocationStatus] = useState('');
+  const selfConsultation = isSelfConsultation(post, session);
+  const [submitError, setSubmitError] = useState('');
+  const selectedSlot = consultationSlots.find((slot) => slot.id === selectedSlotId);
+  const canSubmit = Boolean(card.date.trim() && card.timeRange.trim() && card.place.trim() && selectedSlot?.status === 'available' && !selfConsultation);
+  const selectedPackage = settings.packages.find((item) => item.id === card.packageId) ?? settings.packages[0];
+  const selectedBalanceCents = Math.max(0, selectedPackage.basePriceCents - selectedPackage.depositCents);
+
+  function selectSlot(slot: AvailabilitySlot) {
+    if (slot.status !== 'available') return;
+    const selection = getSlotSelection(slot);
+    setVisibleDate(selection.date);
+    setSelectedSlotId(slot.id);
+    setCard((current) => ({
+      ...current,
+      date: selection.date,
+      timeRange: selection.timeRange,
+      slotId: slot.id,
+      startAt: slot.startAt,
+      endAt: slot.endAt,
+    }));
+  }
+
+  async function useCurrentLocation() {
+    setLocationStatus('正在获取定位...');
+    try {
+      const location = await requestConsumerLocation();
+      setCard((current) => ({
+        ...current,
+        place: `当前位置 ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`,
+        placeLat: location.lat,
+        placeLng: location.lng,
+      }));
+      setLocationStatus(`已定位，精度约 ${Math.round(location.accuracy ?? 0)}m`);
+    } catch {
+      setLocationStatus('定位失败，请在地图候选点中选择或检查浏览器定位权限');
+    }
+  }
+
+  function selectPlace(place: PlaceOption) {
+    setCard((current) => ({ ...current, place: place.label, placeLat: place.lat, placeLng: place.lng }));
+    setMapOpen(false);
+    setLocationStatus(place.lat && place.lng ? `已选择地图点：${place.label}` : '');
+  }
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const images = await Promise.all(Array.from(files).filter((file) => file.type.startsWith('image/')).slice(0, 6).map(readFileAsDataUrl));
+    setCard((current) => ({ ...current, referenceImages: images }));
+  }
+
+  function submit() {
+    if (!canSubmit) return;
+    try {
+      const record = createConsultation(post, { ...card, packageName: selectedPackage.name }, session);
+      onSubmitted(record.id);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : '提交失败，请重试');
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-black/62 px-0 sm:px-3" role="dialog" aria-modal="true">
+      <section className="max-h-[94dvh] w-full max-w-md overflow-x-hidden overflow-y-auto rounded-t-[22px] border border-zinc-200 bg-[#f7f7f5] px-3 pb-6 pt-3 text-zinc-950 shadow-[0_-22px_70px_rgba(0,0,0,0.28)] sm:rounded-[22px]">
+        <div className="sticky top-0 z-10 -mx-3 flex items-center justify-between bg-[#f7f7f5]/95 px-3 pb-3 pt-1 backdrop-blur-xl">
+          <div className="min-w-0">
+            <p className="text-xs font-black text-rose-500">咨询档期/报价</p>
+            <h2 className="truncate text-xl font-black tracking-normal text-zinc-950">需求卡</h2>
+          </div>
+          <button className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-zinc-500 ring-1 ring-zinc-200 backdrop-blur" onClick={onClose} type="button" aria-label="关闭">
+            <XCircle size={18} />
+          </button>
+        </div>
+
+        <div className="grid gap-3 pt-3">
+          <ConsultationAvailabilityPicker
+            slots={consultationSlots}
+            visibleDate={visibleDate}
+            selectedSlotId={selectedSlotId}
+            onDateSelect={setVisibleDate}
+            onSlotSelect={selectSlot}
+          />
+          <Field label="地点">
+            <select className="field" value={card.place} onChange={(event) => selectPlace(placeOptions.find((place) => place.label === event.target.value) ?? { label: event.target.value })}>
+              {placeOptions.map((place) => <option key={place.label} value={place.label}>{place.label}</option>)}
+            </select>
+          </Field>
+          <div className="grid min-w-0 grid-cols-2 gap-2">
+            <button className="flex h-10 min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full bg-white px-2 text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => void useCurrentLocation()} type="button">
+              <LocateFixed size={15} />
+              <span className="min-w-0 truncate">使用当前位置</span>
+            </button>
+            <button className="flex h-10 min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full bg-white px-2 text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => setMapOpen((value) => !value)} type="button">
+              <MapPin size={15} />
+              <span className="min-w-0 truncate">地图选择</span>
+            </button>
+          </div>
+          {locationStatus ? <p className="rounded-[8px] bg-white px-3 py-2 text-xs font-bold leading-5 text-zinc-400 ring-1 ring-zinc-100">{locationStatus}</p> : null}
+          {mapOpen ? (
+            <div className="rounded-[14px] bg-white p-3 ring-1 ring-zinc-200">
+              <p className="text-xs font-black text-zinc-500">地图候选点</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {placeOptions.map((place) => (
+                  <button key={place.label} className="min-h-10 rounded-[10px] bg-zinc-100 px-3 py-2 text-left text-xs font-bold leading-4 text-zinc-700 ring-1 ring-zinc-100" onClick={() => selectPlace(place)} type="button">
+                    {place.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="人数">
+              <select className="field" value={card.peopleCount} onChange={(event) => setCard((current) => ({ ...current, peopleCount: Number(event.target.value) }))}>
+                {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}人</option>)}
+              </select>
+            </Field>
+            <Field label="套餐/时长">
+              <select className="field" value={card.packageId} onChange={(event) => {
+                const nextPackage = settings.packages.find((pkg) => pkg.id === event.target.value) ?? settings.packages[0];
+                setCard((current) => ({ ...current, packageId: nextPackage.id, packageName: nextPackage.name }));
+              }}>
+                {settings.packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
+              </select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-3 gap-2 rounded-[12px] bg-white p-3 text-xs font-black text-zinc-950 ring-1 ring-zinc-200">
+            <MiniEstimate label="套餐预估" value={formatCents(selectedPackage.basePriceCents)} />
+            <MiniEstimate label="定金" value={formatCents(selectedPackage.depositCents)} />
+            <MiniEstimate label="尾款" value={formatCents(selectedBalanceCents)} />
+            <p className="col-span-3 text-[11px] font-semibold leading-5 text-zinc-400">
+              {selectedPackage.description} 最终价格以摄影师确认报价为准。
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Toggle label="室外" active={card.sceneType === 'outdoor'} onClick={() => setCard((current) => ({ ...current, sceneType: 'outdoor' }))} />
+            <Toggle label="室内" active={card.sceneType === 'indoor'} onClick={() => setCard((current) => ({ ...current, sceneType: 'indoor' }))} />
+          </div>
+          <ImageQuantityPanel card={card} onChange={setCard} />
+          <div className="grid grid-cols-2 gap-2">
+            <Check label="需要修图" checked={card.needsRetouch} onChange={(value) => setCard((current) => ({ ...current, needsRetouch: value }))} />
+            <Check label="需要视频" checked={card.needsVideo} onChange={(value) => setCard((current) => ({ ...current, needsVideo: value }))} />
+            <Check label="拍立得/胶片" checked={card.needsPolaroid} onChange={(value) => setCard((current) => ({ ...current, needsPolaroid: value }))} />
+            <Check label="接受客片发布" checked={card.acceptsPublication} onChange={(value) => setCard((current) => ({ ...current, acceptsPublication: value }))} />
+            <Check label="需要路线规划" checked={card.needsRoutePlanning} onChange={(value) => setCard((current) => ({ ...current, needsRoutePlanning: value }))} />
+            <Check label="包含陪逛/排队" checked={card.needsCompanionQueueing} onChange={(value) => setCard((current) => ({ ...current, needsCompanionQueueing: value }))} />
+            <Check label="涉及门票/入园" checked={card.hasTicketOrEntry} onChange={(value) => setCard((current) => ({ ...current, hasTicketOrEntry: value }))} />
+          </div>
+          <AddOnDetailPanel card={card} onChange={setCard} />
+          <Field label="文字备注">
+            <textarea
+              className="field min-h-28 resize-none rounded-[10px] py-3"
+              placeholder="风格、参考图、穿搭妆造、是否边逛边拍、门票交通如何承担等"
+              value={card.note}
+              onChange={(event) => setCard((current) => ({ ...current, note: event.target.value }))}
+            />
+          </Field>
+          <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white">
+            <ImagePlus size={17} />
+            上传参考图（最多 6 张）
+            <input className="hidden" type="file" accept="image/*" multiple onChange={(event) => void handleFiles(event.target.files)} />
+          </label>
+          {card.referenceImages.length ? <p className="text-xs font-bold text-zinc-400">已选择 {card.referenceImages.length} 张参考图</p> : null}
+        </div>
+
+        {selfConsultation ? <p className="mt-4 rounded-[10px] bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">不能用自己的创作者身份预约自己的摄影师身份。</p> : null}
+        {submitError ? <p className="mt-4 rounded-[10px] bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">{submitError}</p> : null}
+
+        <button className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-black text-white ${canSubmit ? 'bg-zinc-950' : 'bg-zinc-300'}`} disabled={!canSubmit} onClick={submit} type="button">
+          <Send size={17} />
+          提交并进入咨询
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function ConsultationAvailabilityPicker({
+  slots,
+  visibleDate,
+  selectedSlotId,
+  onDateSelect,
+  onSlotSelect,
+}: {
+  slots: AvailabilitySlot[];
+  visibleDate: string;
+  selectedSlotId: string;
+  onDateSelect: (date: string) => void;
+  onSlotSelect: (slot: AvailabilitySlot) => void;
+}) {
+  const dateOptions = buildSlotDateOptions(slots);
+  const fallbackDate = visibleDate || dateOptions[0]?.value || '';
+  const slotsForDate = slots.filter((slot) => getSlotDateValue(slot) === fallbackDate);
+  const availableCount = slotsForDate.filter((slot) => slot.status === 'available').length;
+
+  return (
+    <section className="rounded-[16px] bg-white p-3 ring-1 ring-zinc-200">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-1.5 text-sm font-black text-zinc-950">
+            <CalendarDays size={16} />
+            摄影师可约档期
+          </p>
+          <p className="mt-1 text-[11px] font-bold text-zinc-400">只能选择蓝色可约时间，灰色为已占用或不可约。</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black text-blue-600">{availableCount} 个可约</span>
+      </div>
+
+      {dateOptions.length ? (
+        <>
+          <div className="mt-3 grid min-w-0 grid-cols-3 gap-2">
+            {dateOptions.map((date) => {
+              const active = date.value === fallbackDate;
+              const disabled = date.availableCount === 0;
+              return (
+                <button
+                  key={date.value}
+                  className={`grid min-h-16 min-w-0 place-items-center rounded-[14px] px-2 py-2 text-center ring-1 transition ${
+                    active
+                      ? 'bg-zinc-950 text-white ring-zinc-950'
+                      : disabled
+                        ? 'bg-zinc-50 text-zinc-300 ring-zinc-100'
+                        : 'bg-[#f7f7f5] text-zinc-950 ring-zinc-100'
+                  }`}
+                  onClick={() => onDateSelect(date.value)}
+                  type="button"
+                >
+                  <span className="text-xs font-black">{date.weekday}</span>
+                  <span className="text-base font-black">{date.short}</span>
+                  <span className="text-[10px] font-bold opacity-70">{date.availableCount ? `${date.availableCount} 可约` : '无空档'}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 rounded-[14px] bg-[#f7f7f5] p-2">
+            <p className="mb-2 flex items-center gap-1.5 px-1 text-xs font-black text-zinc-400">
+              <Clock3 size={14} />
+              选择时间段
+            </p>
+            <div className="grid gap-2">
+              {slotsForDate.map((slot) => {
+                const available = slot.status === 'available';
+                const active = slot.id === selectedSlotId;
+                return (
+                  <button
+                    key={slot.id}
+                    className={`flex min-h-12 items-center justify-between rounded-[12px] px-3 text-left ring-1 transition ${
+                      active
+                        ? 'bg-blue-600 text-white ring-blue-600'
+                        : available
+                          ? 'bg-white text-zinc-950 ring-blue-100'
+                          : 'bg-zinc-100 text-zinc-400 ring-zinc-100'
+                    }`}
+                    disabled={!available}
+                    onClick={() => onSlotSelect(slot)}
+                    type="button"
+                  >
+                    <span className="text-sm font-black">{slot.timeLabel}</span>
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-black ${active ? 'bg-white/18 text-white' : available ? 'bg-blue-50 text-blue-600' : 'bg-white text-zinc-400'}`}>
+                      {available ? '可约' : getSlotStatusLabel(slot.status)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="mt-3 rounded-[14px] bg-zinc-100 px-3 py-5 text-center text-sm font-black text-zinc-400">
+          摄影师暂未开放可咨询档期
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ImageQuantityPanel({
+  card,
+  onChange,
+}: {
+  card: ConsultationRequestCard;
+  onChange: React.Dispatch<React.SetStateAction<ConsultationRequestCard>>;
+}) {
+  const mode = card.imageQuantityMode ?? '9';
+
+  return (
+    <div className="grid gap-2 rounded-[12px] bg-white p-3 ring-1 ring-zinc-200">
+      <div className="grid grid-cols-2 gap-2">
+        <MiniField label="图片数量">
+          <select
+            className="mini-field"
+            value={mode}
+            onChange={(event) =>
+              onChange((current) => ({
+                ...current,
+                imageQuantityMode: event.target.value as ConsultationRequestCard['imageQuantityMode'],
+              }))
+            }
+          >
+            <option value="4">4 张</option>
+            <option value="9">9 张</option>
+            <option value="custom">自定义数量</option>
+            <option value="unlimited">数量不限</option>
+          </select>
+        </MiniField>
+        {mode === 'custom' ? (
+          <MiniField label="自定义张数">
+            <select
+              className="mini-field"
+              value={card.customImageQuantity ?? 12}
+              onChange={(event) => onChange((current) => ({ ...current, customImageQuantity: Number(event.target.value) }))}
+            >
+              {Array.from({ length: 48 }, (_, index) => index + 1).map((count) => (
+                <option key={count} value={count}>
+                  {count} 张
+                </option>
+              ))}
+            </select>
+          </MiniField>
+        ) : (
+          <div className="rounded-[10px] bg-[#f7f7f5] px-3 py-2">
+            <p className="text-xs font-black text-zinc-500">交付限制</p>
+            <p className="mt-1 text-sm font-black text-zinc-950">{formatImageQuantityLabel(card)}</p>
+          </div>
+        )}
+      </div>
+      <p className="text-[11px] font-semibold leading-5 text-zinc-400">
+        该数量会同步到订单成片协作，编辑作品时按这里限制上传；选择数量不限则不限制上传张数。
+      </p>
+    </div>
+  );
+}
+
+function AddOnDetailPanel({
+  card,
+  onChange,
+}: {
+  card: ConsultationRequestCard;
+  onChange: React.Dispatch<React.SetStateAction<ConsultationRequestCard>>;
+}) {
+  if (!card.needsRetouch && !card.needsVideo && !card.needsPolaroid) return null;
+
+  return (
+    <div className="grid gap-2 rounded-[12px] bg-white p-3 ring-1 ring-zinc-200">
+      {card.needsRetouch ? (
+        <div className="grid grid-cols-2 gap-2">
+          <MiniField label="修图张数">
+            <select className="mini-field" value={card.retouchSelection ?? '4'} onChange={(event) => onChange((current) => ({ ...current, retouchSelection: event.target.value as ConsultationRequestCard['retouchSelection'] }))}>
+              <option value="4">4 张</option>
+              <option value="9">9 张</option>
+              <option value="all">全部</option>
+              <option value="custom">自定义数量</option>
+            </select>
+          </MiniField>
+          {(card.retouchSelection ?? '4') === 'custom' ? (
+            <MiniField label="自定义">
+              <select className="mini-field" value={card.customRetouchCount ?? 12} onChange={(event) => onChange((current) => ({ ...current, customRetouchCount: Number(event.target.value) }))}>
+                {Array.from({ length: 30 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} 张</option>)}
+              </select>
+            </MiniField>
+          ) : null}
+        </div>
+      ) : null}
+      {card.needsVideo ? (
+        <div className="grid grid-cols-2 gap-2">
+          <MiniField label="视频数量">
+            <select className="mini-field" value={card.videoCount ?? 1} onChange={(event) => onChange((current) => ({ ...current, videoCount: Number(event.target.value) }))}>
+              {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} 条</option>)}
+            </select>
+          </MiniField>
+          <MiniField label="平均时长">
+            <select className="mini-field" value={card.videoAverageDurationSeconds ?? 15} onChange={(event) => onChange((current) => ({ ...current, videoAverageDurationSeconds: Number(event.target.value) }))}>
+              {[15, 30, 60, 90, 120, 180].map((seconds) => <option key={seconds} value={seconds}>{seconds < 60 ? `${seconds} 秒` : `${seconds / 60} 分钟`}</option>)}
+            </select>
+          </MiniField>
+        </div>
+      ) : null}
+      {card.needsPolaroid ? (
+        <div className="grid grid-cols-2 gap-2">
+          <MiniField label="拍立得/胶片">
+            <select className="mini-field" value={card.polaroidCount ?? 1} onChange={(event) => onChange((current) => ({ ...current, polaroidCount: Number(event.target.value) }))}>
+              {Array.from({ length: 30 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} 片</option>)}
+            </select>
+          </MiniField>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatImageQuantityLabel(card: ConsultationRequestCard) {
+  if (card.imageQuantityMode === 'unlimited') return '不限张数';
+  if (card.imageQuantityMode === 'custom') return `${card.customImageQuantity ?? 12} 张`;
+  return `${card.imageQuantityMode ?? '9'} 张`;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-black text-zinc-950">{label}</span>
+      <span className="block [&_.field]:min-h-11 [&_.field]:w-full [&_.field]:rounded-[10px] [&_.field]:border [&_.field]:border-zinc-100 [&_.field]:bg-white [&_.field]:px-3 [&_.field]:text-sm [&_.field]:font-black [&_.field]:text-zinc-950 [&_.field]:outline-none [&_.field]:placeholder:text-zinc-300 [&_option]:bg-white [&_option]:text-zinc-950">
+        {children}
+      </span>
+    </label>
+  );
+}
+
+function MiniField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-black text-zinc-500">{label}</span>
+      <span className="block [&_.mini-field]:h-10 [&_.mini-field]:w-full [&_.mini-field]:rounded-[10px] [&_.mini-field]:border [&_.mini-field]:border-zinc-100 [&_.mini-field]:bg-[#f7f7f5] [&_.mini-field]:px-3 [&_.mini-field]:text-xs [&_.mini-field]:font-black [&_.mini-field]:text-zinc-950 [&_.mini-field]:outline-none [&_option]:bg-white [&_option]:text-zinc-950">
+        {children}
+      </span>
+    </label>
+  );
+}
+
+function MiniEstimate({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[8px] bg-[#f7f7f5] p-2">
+      <p className="text-[11px] font-bold text-zinc-400">{label}</p>
+      <p className="mt-1 text-sm">{value}</p>
+    </div>
+  );
+}
+
+function Toggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return <button className={`h-10 rounded-full text-sm font-black ${active ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-500 ring-1 ring-zinc-200'}`} onClick={onClick} type="button">{label}</button>;
+}
+
+function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return <label className="flex min-h-10 items-center gap-2 rounded-[8px] bg-white px-3 py-2 text-xs font-bold text-zinc-950 ring-1 ring-zinc-200"><input className="h-4 w-4 accent-zinc-950" type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />{label}</label>;
+}
+
+type PlaceOption = {
+  label: string;
+  lat?: number;
+  lng?: number;
+};
+
+function getFirstAvailableConsultationSlot(slots: AvailabilitySlot[]) {
+  return slots.find((slot) => slot.status === 'available') ?? slots[0] ?? null;
+}
+
+function getFutureConsultationSlots(slots: AvailabilitySlot[]) {
+  const now = Date.now();
+  return slots
+    .filter((slot) => {
+      const end = new Date(slot.endAt).getTime();
+      return Number.isFinite(end) && end > now;
+    })
+    .sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime());
+}
+
+function markOccupiedSlots(slots: AvailabilitySlot[], orders: AppOrder[]) {
+  const occupiedOrders = orders.filter((order) => ['confirmed', 'in_service'].includes(order.status) && order.startAt && order.endAt);
+  if (!occupiedOrders.length) return slots;
+
+  return slots.map((slot) => {
+    const occupied = occupiedOrders.some((order) => isTimeOverlapped(slot.startAt, slot.endAt, order.startAt ?? '', order.endAt ?? ''));
+    return occupied ? { ...slot, status: 'booked' as const } : slot;
+  });
+}
+
+function isTimeOverlapped(leftStart: string, leftEnd: string, rightStart: string, rightEnd: string) {
+  const leftStartTime = new Date(leftStart).getTime();
+  const leftEndTime = new Date(leftEnd).getTime();
+  const rightStartTime = new Date(rightStart).getTime();
+  const rightEndTime = new Date(rightEnd).getTime();
+  if (![leftStartTime, leftEndTime, rightStartTime, rightEndTime].every(Number.isFinite)) return false;
+  return leftStartTime < rightEndTime && leftEndTime > rightStartTime;
+}
+
+function getSlotSelection(slot: AvailabilitySlot | null) {
+  return {
+    date: slot ? getSlotDateValue(slot) : '',
+    timeRange: slot?.timeLabel ?? '',
+  };
+}
+
+function buildSlotDateOptions(slots: AvailabilitySlot[]) {
+  const dates = new Map<string, { value: string; weekday: string; short: string; availableCount: number }>();
+
+  slots.forEach((slot) => {
+    const value = getSlotDateValue(slot);
+    if (!value) return;
+    const current = dates.get(value) ?? {
+      value,
+      weekday: formatWeekday(value),
+      short: formatShortDate(value),
+      availableCount: 0,
+    };
+    dates.set(value, {
+      ...current,
+      availableCount: current.availableCount + (slot.status === 'available' ? 1 : 0),
+    });
+  });
+
+  return Array.from(dates.values()).sort((left, right) => left.value.localeCompare(right.value));
+}
+
+function getSlotDateValue(slot: AvailabilitySlot) {
+  return toDateValue(new Date(slot.startAt));
+}
+
+function toDateValue(date: Date) {
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatShortDate(value: string) {
+  const date = new Date(`${value}T00:00:00+08:00`);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function formatWeekday(value: string) {
+  const date = new Date(`${value}T00:00:00+08:00`);
+  return ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()];
+}
+
+function getSlotStatusLabel(status: AvailabilitySlot['status']) {
+  if (status === 'booked') return '已约';
+  if (status === 'locked') return '锁定';
+  if (status === 'unavailable') return '不可约';
+  return '可约';
+}
+
+function buildPlaceOptions(post: FeedPost): PlaceOption[] {
+  const basePlaces: PlaceOption[] = [
+    { label: post.locationName || post.location, lat: post.lat, lng: post.lng },
+    { label: post.location, lat: post.lat, lng: post.lng },
+    ...post.companion.areas.map((area) => ({ label: `${post.companion.baseCity} · ${area}` })),
+    { label: '上海 · 武康路', lat: 31.2104, lng: 121.4386 },
+    { label: '上海 · 安福路', lat: 31.2172, lng: 121.4472 },
+    { label: '上海 · 静安寺', lat: 31.2231, lng: 121.4451 },
+    { label: '上海 · 外滩', lat: 31.2397, lng: 121.4903 },
+    { label: '上海 · 新天地', lat: 31.2197, lng: 121.4752 },
+  ];
+  const seen = new Set<string>();
+  return basePlaces.filter((place) => {
+    if (!place.label || seen.has(place.label)) return false;
+    seen.add(place.label);
+    return true;
+  });
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}

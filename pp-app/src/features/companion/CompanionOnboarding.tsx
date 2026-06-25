@@ -13,9 +13,10 @@ import {
   UserRound,
   Video,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
+import { logoutAccount, markRoleRegistrationPending } from '../../services/authService';
 import type { CompanionApplication } from '../../types/domain';
 
 const cityOptions = ['上海', '北京', '广州', '深圳', '杭州', '成都', '南京', '苏州'];
@@ -24,7 +25,8 @@ const services = ['户外街拍', 'Citywalk', '商圈逛街', '餐厅探店', '�
 const tags = ['会指导动作', '轻松聊天', '懂女生需求', '适合第一次拍照'];
 
 export function CompanionOnboarding() {
-  const { application, saveApplication, submitApplication } = useAppData();
+  const navigate = useNavigate();
+  const { application, saveApplication, submitApplication, session } = useAppData();
   const auditItems = getAuditItems(application);
   const completedCount = auditItems.filter((item) => item.done).length;
   const canSubmit = completedCount === auditItems.length && application.reviewStatus !== '待审核' && application.reviewStatus !== '已通过';
@@ -54,6 +56,13 @@ export function CompanionOnboarding() {
   function startFaceCheck() {
     saveApplication({ faceCheckStatus: 'processing' });
     window.setTimeout(() => saveApplication({ faceCheckStatus: 'passed' }), 400);
+  }
+
+  async function completePhotographerRegistration() {
+    submitApplication();
+    markRoleRegistrationPending('companion');
+    await logoutAccount();
+    navigate('/auth/login', { replace: true, state: { role: 'companion', phone: session?.user.phone || application.phone } });
   }
 
   return (
@@ -183,7 +192,7 @@ export function CompanionOnboarding() {
       <button
         className={`mt-4 h-12 w-full rounded-full text-sm font-bold text-white ${canSubmit ? 'bg-rose-500' : 'bg-zinc-300'}`}
         disabled={!canSubmit}
-        onClick={submitApplication}
+        onClick={completePhotographerRegistration}
       >
         {application.reviewStatus === '待审核' ? '已提交审核' : application.reviewStatus === '已通过' ? '审核已通过' : '提交审核'}
       </button>
@@ -284,7 +293,7 @@ function ReviewStatusPanel({ application, completedCount, totalCount }: { applic
 function Header({ title }: { title: string }) {
   return (
     <header className="flex items-center gap-3">
-      <Link to="/companion" className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100" aria-label="返回">
+      <Link to="/companion/mine" className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100" aria-label="返回">
         <ArrowLeft size={20} />
       </Link>
       <h1 className="text-2xl font-bold">{title}</h1>

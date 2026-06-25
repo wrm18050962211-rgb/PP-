@@ -1,15 +1,23 @@
-import type { ActivityPricing, AvailabilitySlot, FeedPost } from '../types/api';
+import type { ActivityPricing, AvailabilitySlot, FeedPost, MatchingCompanionItem } from '../types/api';
+import { apiGet, isApiEnabled } from './apiClient';
 
-export type GenderPreference = 'any' | 'female_only';
+export type GenderPreference = 'any' | 'male' | 'female';
 
 export type MatchCompanionsInput = {
   city: string;
+  lat?: number;
+  lng?: number;
   location?: string;
+  locationKeywords?: string[];
   date?: string;
   time?: string;
   activityType?: string;
   durationMinutes?: number;
+  minDurationMinutes?: number;
+  maxDurationMinutes?: number;
+  minBudgetCents?: number;
   maxBudgetCents?: number;
+  maxDistanceMeters?: number;
   genderPreference?: GenderPreference;
   nearbyOnly?: boolean;
   keyword?: string;
@@ -26,6 +34,17 @@ type MatchCandidate = {
 };
 
 const ANY = '不限';
+
+const activityAliasKeywords: Record<string, string[]> = {
+  景点游客照: ['景点', '游客照', '公园', '外滩', '西湖', '展览', '美术馆', '景区'],
+  网红餐厅拍照: ['探店', '餐厅', '咖啡', '书店', '网红', '生活照', '吃饭'],
+  城市街拍: ['街拍', 'citywalk', '城市', '武康路', '安福路', '外滩', '街区'],
+  旅行跟拍: ['旅行', '跟拍', '路线', '陪逛', '景区', 'citywalk'],
+  节日纪念: ['节日', '生日', '毕业', '纪念', '新年', '圣诞', '周年'],
+  '情侣/婚纱': ['情侣', '婚纱', '结婚', '婚礼', '订婚', '领证'],
+  '亲子/宠物': ['亲子', '宠物', '猫', '狗', '家庭'],
+  商业形象: ['形象照', '证件照', '职业', '商务', '品牌', '商业', '头像'],
+};
 
 const locationDistanceRank: Record<string, number> = {
   武康路: 1,
@@ -50,28 +69,54 @@ export function matchCompanions(posts: FeedPost[], input: MatchCompanionsInput):
     .map((candidate) => candidate.post);
 }
 
+export async function fetchMatchedCompanions(input: MatchCompanionsInput): Promise<MatchingCompanionItem[]> {
+  if (!isApiEnabled() || !Number.isFinite(input.lat) || !Number.isFinite(input.lng)) return [];
+
+  const query = new URLSearchParams({
+    lat: String(input.lat),
+    lng: String(input.lng),
+  });
+  if (hasValue(input.city)) query.set('city', input.city);
+  if (input.activityType) query.set('activity', input.activityType);
+  if (input.genderPreference === 'female' || input.genderPreference === 'male') query.set('gender', input.genderPreference);
+  if (input.nearbyOnly) query.set('maxDistanceMeters', String(input.maxDistanceMeters ?? 5000));
+
+  try {
+    const response = await apiGet<{ items: MatchingCompanionItem[] }>(`/api/matching/companions?${query.toString()}`);
+    return response.success ? response.data.items : [];
+  } catch {
+    return [];
+  }
+}
+
 function buildCandidate(post: FeedPost, input: MatchCompanionsInput): MatchCandidate | null {
   const companion = post.companion;
 
   if (companion.status !== 'approved' || !companion.serviceEnabled) return null;
-  if (companion.baseCity !== input.city) return null;
-  if (input.genderPreference === 'female_only' && companion.gender !== 'female') return null;
+  if (hasValue(input.city) && companion.baseCity !== input.city) return null;
+  if ((input.genderPreference === 'female' || input.genderPreference === 'male') && companion.gender !== input.genderPreference) return null;
 
-  const searchText = normalizeFreeText(input.location || input.keyword);
-  if (searchText && !isPostSearchMatch(post, searchText)) return null;
+  const locationTexts = normalizeSearchTexts(input.locationKeywords?.length ? input.locationKeywords : [input.location]);
+  const keywordTexts = normalizeSearchTexts([input.keyword]);
+  if (locationTexts.length && !locationTexts.some((text) => isPostSearchMatch(post, text))) return null;
+  if (keywordTexts.length && !keywordTexts.every((text) => isPostSearchMatch(post, text))) return null;
 
   const matchedSlot = findMatchedSlot(companion.slots, input);
   if ((hasValue(input.date) || hasValue(input.time)) && !matchedSlot) return null;
 
   const matchedActivity = findMatchedActivity(companion.activities, post, input);
   if (!matchedActivity) return null;
+  if (input.minBudgetCents && matchedActivity.priceCents < input.minBudgetCents) return null;
   if (input.maxBudgetCents && matchedActivity.priceCents > input.maxBudgetCents) return null;
+
+  const distanceRank = getDistanceRank(post, locationTexts[0] ?? keywordTexts[0] ?? '', input.nearbyOnly);
+  if (input.nearbyOnly && input.maxDistanceMeters && distanceRank > getMaxDistanceRank(input.maxDistanceMeters)) return null;
 
   return {
     post,
     matchedSlot,
     matchedActivity,
-    distanceRank: getDistanceRank(post, searchText, input.nearbyOnly),
+    distanceRank,
     timeRank: getTimeRank(matchedSlot, input),
     featuredRank: isFeaturedPost(post) ? 0 : 1,
     activeAt: getRecentActiveAt(companion.slots),
@@ -93,7 +138,7 @@ function findMatchedActivity(activities: ActivityPricing[], post: FeedPost, inpu
   if (hasValue(input.activityType) && !matchesPostActivity(post, input.activityType)) return null;
 
   return (
-    activities.find((activity) => matchesActivityPrice(activity, input.activityType) && matchesDuration(activity, input.durationMinutes)) ??
+    activities.find((activity) => matchesActivityPrice(activity, input.activityType) && matchesDuration(activity, input)) ??
     null
   );
 }
@@ -113,24 +158,40 @@ function matchesTime(slot: AvailabilitySlot, time?: string) {
 function matchesActivityPrice(activity: ActivityPricing, activityType?: string) {
   if (!hasValue(activityType)) return true;
 
-  const target = normalizeFreeText(activityType ?? '');
-  return normalizeFreeText(activity.name).includes(target) || target.includes(normalizeFreeText(activity.name));
+  const keywords = getActivityKeywords(activityType);
+  const activityName = normalizeFreeText(activity.name);
+  return keywords.some((keyword) => activityName.includes(keyword) || keyword.includes(activityName));
 }
 
 function matchesPostActivity(post: FeedPost, activityType?: string) {
   if (!hasValue(activityType)) return true;
 
-  const target = normalizeFreeText(activityType ?? '');
-  return [post.activity, ...post.styleTags].some((item) => normalizeFreeText(item).includes(target) || target.includes(normalizeFreeText(item)));
+  if (post.activityCategory === activityType) return true;
+
+  const keywords = getActivityKeywords(activityType);
+  return [post.activityCategory, post.activity, ...post.styleTags, post.title, post.caption].some((item) => {
+    const normalized = normalizeFreeText(item);
+    if (!normalized) return false;
+    return keywords.some((keyword) => normalized.includes(keyword) || keyword.includes(normalized));
+  });
 }
 
-function matchesDuration(activity: ActivityPricing, durationMinutes?: number) {
-  if (!durationMinutes) return true;
-  return activity.durationMinutes === durationMinutes;
+function getActivityKeywords(activityType?: string) {
+  const target = normalizeFreeText(activityType ?? '');
+  const aliases = activityAliasKeywords[activityType ?? ''] ?? [];
+  return Array.from(new Set([target, ...aliases.map(normalizeFreeText)])).filter(Boolean);
+}
+
+function matchesDuration(activity: ActivityPricing, input: Pick<MatchCompanionsInput, 'durationMinutes' | 'minDurationMinutes' | 'maxDurationMinutes'>) {
+  if (input.durationMinutes) return activity.durationMinutes === input.durationMinutes;
+  if (input.minDurationMinutes && activity.durationMinutes < input.minDurationMinutes) return false;
+  if (input.maxDurationMinutes && activity.durationMinutes > input.maxDurationMinutes) return false;
+  return true;
 }
 
 function isPostSearchMatch(post: FeedPost, searchText: string) {
   const searchableFields = [
+    post.title,
     post.location,
     post.timeLabel,
     post.caption,
@@ -158,6 +219,13 @@ function getDistanceRank(post: FeedPost, location: string, nearbyOnly?: boolean)
 
   if (Number.isFinite(bestAreaRank)) return nearbyOnly ? bestAreaRank : bestAreaRank + 1;
   return post.location.includes(post.companion.baseCity) ? 20 : 99;
+}
+
+function getMaxDistanceRank(maxDistanceMeters: number) {
+  if (maxDistanceMeters <= 1000) return 1;
+  if (maxDistanceMeters <= 3000) return 3;
+  if (maxDistanceMeters <= 5000) return 5;
+  return 8;
 }
 
 function getTimeRank(slot: AvailabilitySlot | null, input: MatchCompanionsInput) {
@@ -189,6 +257,10 @@ function compareCandidates(a: MatchCandidate, b: MatchCandidate) {
 
 function normalizeFreeText(value?: string) {
   return (value ?? '').trim().toLowerCase();
+}
+
+function normalizeSearchTexts(values: Array<string | undefined>) {
+  return values.map((value) => normalizeFreeText(value)).filter(Boolean);
 }
 
 function hasValue(value?: string) {

@@ -6,21 +6,23 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
-    "ios:sync": "tsc -b && vite build && cap sync ios",
-    "ios:open": "cap open ios",
+    "build:appstore": "node scripts/check-production-env.mjs && tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "ios:add": "npm run build && npx cap add ios",
+    "ios:sync": "npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios"
   },
   "dependencies": {
-    "@capacitor/core": "^8.4.1",
-    "@capacitor/ios": "^8.4.1",
+    "@capacitor/core": "latest",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.4.1",
+    "@capacitor/cli": "latest",
+    "@capacitor/ios": "latest",
     "@eslint/js": "latest",
     "@tailwindcss/vite": "latest",
     "@types/react": "latest",

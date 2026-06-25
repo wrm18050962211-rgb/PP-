@@ -1,23 +1,61 @@
 import http from 'node:http';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createDecipheriv, randomBytes, sign } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createDataStore } from './store/index.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
-const storePath = resolve(root, 'data/store.json');
+const storePath = process.env.STORE_PATH ? resolve(process.env.STORE_PATH) : resolve(root, 'data/store.json');
+const dataStore = createDataStore({ storePath, initialStore, normalizeStore });
 const port = Number(process.env.PORT || 8787);
-const host = process.env.HOST || '127.0.0.1';
-const virtualProfiles = [
-  ['Luna', 'female', '武康路', ['武康路', '安福路', '湖南路', '衡山路'], 'Citywalk 陪拍', ['自然抓拍', '会指导动作', '适合第一次拍照'], ['Citywalk', '自然光', '松弛感'], '偏温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。', 39900, 120, 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80'],
-  ['Aki', 'female', '巨鹿路', ['巨鹿路', '富民路', '长乐路', '静安寺'], '探店生活照', ['探店构图', '小红书风格', '穿搭建议'], ['探店', '日常感', '咖啡店'], '熟悉咖啡店和街角光线，适合想要轻松日常头像和朋友圈照片的用户。', 32900, 90, 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80'],
-  ['Rin', 'female', '新天地', ['新天地', '淮海中路', '思南路', '复兴公园'], '城市街拍', ['都市感', '干净构图', '情绪引导'], ['城市感', '街拍', '高级感'], '擅长红砖、玻璃、街巷背景，适合想要利落一点的城市人像。', 42900, 120, 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?auto=format&fit=crop&w=240&q=80'],
-  ['Mika', 'female', '苏州河', ['苏州河', '外滩源', '北外滩', '南京东路'], '夜景散步', ['夜景路线熟', '安全提醒', '游客友好'], ['夜景', '蓝调', '旅行感'], '熟悉夜景人流和安全路线，会提醒集合点、动线和收尾时间。', 29900, 60, 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80'],
-  ['Yoyo', 'female', '徐家汇', ['徐家汇', '衡山路', '徐汇滨江', '天平路'], '校园感写真', ['清新风格', '笑容引导', '适合学生党'], ['清新', '校园感', '自然光'], '偏清爽自然的照片，会帮助缓解镜头尴尬，适合学生和毕业季。', 26900, 90, 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80'],
-  ['Cici', 'female', '外滩', ['外滩', '外白渡桥', '圆明园路', '南京东路'], '旅行跟拍', ['游客路线', '地标机位', '出片效率高'], ['旅行', '地标', '明亮'], '适合来上海短暂停留的游客，路线紧凑，优先保证地标合影和自然抓拍。', 69900, 240, 'https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80'],
-  ['Niko', 'male', '愚园路', ['愚园路', '中山公园', '江苏路', '番禺路'], '男生头像', ['男生友好', '不尴尬', '街头感'], ['街头', '头像', '松弛'], '适合男生头像、社交主页照片，会用简单指令减少摆拍感。', 29900, 90, 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80'],
-  ['Sora', 'female', '静安寺', ['静安寺', '南京西路', '铜仁路', '常德路'], '通勤形象照', ['职业形象', '干净背景', '效率高'], ['通勤', '简洁', '职业感'], '适合 LinkedIn、简历、商务社交头像，路线会避开过度游客化背景。', 45900, 120, 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=240&q=80'],
-  ['Peach', 'female', '滨江', ['徐汇滨江', '龙美术馆', '油罐艺术中心', '西岸'], '宠物友好陪拍', ['宠物友好', '耐心等待', '户外路线'], ['宠物', '户外', '暖色'], '可以陪同宠物出镜，节奏会留出休息和互动时间，适合轻松户外照。', 36900, 120, 'https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80'],
-  ['Bean', 'female', '田子坊', ['田子坊', '打浦桥', '瑞金二路', '思南路'], '复古胶片感', ['复古色调', '老街路线', '情绪片'], ['复古', '胶片感', '老街'], '偏复古和情绪表达，会选择老街、门窗、墙面做背景，适合安静风格。', 39900, 120, 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=240&q=80'],
+const platformFeeRate = 0.08;
+
+const orderStatusText = {
+  pending_payment: 'Pending payment',
+  paid_pending_confirm: 'Pending confirmation',
+  confirmed: 'Confirmed',
+  in_service: 'In service',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  refunding: 'Refunding',
+  refunded: 'Refunded',
+  disputed: 'Disputed',
+};
+
+const orderStepIndex = {
+  pending_payment: 0,
+  paid_pending_confirm: 1,
+  confirmed: 2,
+  in_service: 2,
+  completed: 3,
+  cancelled: 0,
+  refunding: 1,
+  refunded: 1,
+  disputed: 1,
+};
+
+const riskKeywords = [
+  { keyword: 'wechat', label: 'Contact exchange', level: 'high' },
+  { keyword: 'wx', label: 'Contact exchange', level: 'high' },
+  { keyword: 'vx', label: 'Contact exchange', level: 'high' },
+  { keyword: 'phone', label: 'Contact exchange', level: 'high' },
+  { keyword: 'mobile', label: 'Contact exchange', level: 'high' },
+  { keyword: 'offline pay', label: 'Off-platform payment', level: 'high' },
+  { keyword: 'private pay', label: 'Off-platform payment', level: 'high' },
+  { keyword: 'transfer', label: 'Off-platform payment', level: 'high' },
+  { keyword: 'bank card', label: 'Off-platform payment', level: 'high' },
+  { keyword: 'alipay', label: 'Off-platform payment', level: 'high' },
+  { keyword: 'paypal', label: 'Off-platform payment', level: 'high' },
+  { keyword: '微信', label: 'Contact exchange', level: 'high' },
+  { keyword: '加我', label: 'Contact exchange', level: 'high' },
+  { keyword: '电话', label: 'Contact exchange', level: 'high' },
+  { keyword: '手机号', label: 'Contact exchange', level: 'high' },
+  { keyword: '私下付', label: 'Off-platform payment', level: 'high' },
+  { keyword: '线下付', label: 'Off-platform payment', level: 'high' },
+  { keyword: '转账', label: 'Off-platform payment', level: 'high' },
+  { keyword: '银行卡', label: 'Off-platform payment', level: 'high' },
+  { keyword: '支付宝', label: 'Off-platform payment', level: 'high' },
 ];
 
 http
@@ -26,142 +64,586 @@ http
 
     try {
       const url = new URL(req.url || '/', 'http://local');
-      const store = await loadStore();
+      const { store, changed: storeChanged } = await dataStore.load();
       const body = await readBody(req);
       const result = await route(req.method || 'GET', url, body, store);
-      if (result.changed) await saveStore(store);
+      if (storeChanged || result.changed) await dataStore.save(store);
       sendJson(res, result.status, result.payload);
     } catch (error) {
       sendJson(res, 500, fail('SERVER_ERROR', error instanceof Error ? error.message : 'Server error'));
     }
   })
-  .listen(port, host, () => console.log(`PP backend v2 listening on http://${host}:${port}`));
+  .listen(port, () => console.log(`PP backend MVP listening on http://127.0.0.1:${port}`));
 
 async function route(method, url, body, store) {
   const path = url.pathname;
-  if (method === 'GET' && path === '/api/health') return json({ status: 'ok', version: '0.2.0' });
-  if (method === 'GET' && path === '/api/feed/posts') return json({ items: store.posts });
-  if (method === 'GET' && path.startsWith('/api/posts/')) return jsonOr404(store.posts.find((item) => item.id === last(path)), 'Post');
-  if (method === 'GET' && path === '/api/orders') return json({ items: store.orders });
+
+  if (method === 'GET' && path === '/api/health') {
+    return json({
+      status: 'ok',
+      version: '0.3.0',
+      storeVersion: store.meta.version,
+      storeDriver: dataStore.kind,
+      storeCapabilities: dataStore.capabilities,
+    });
+  }
+  if (method === 'GET' && path === '/api/ops/launch-check') return launchCheck();
+  if (method === 'GET' && path === '/api/auth/session') return authSession(store);
+  if (method === 'POST' && path === '/api/auth/wechat/login') return wechatLogin(store, body);
+  if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
+  if (method === 'POST' && path === '/api/auth/logout') return logout(store);
+  if (method === 'POST' && path === '/api/media/upload-policy') return createMediaUploadPolicy(store, body);
+  if (method === 'GET' && path === '/api/feed/posts') return json(listFeedPostPage(store, url));
+  if (method === 'GET' && path === '/api/matching/companions') return matchCompanions(store, url);
+  if (method === 'GET' && path.startsWith('/api/posts/')) return getPost(store, last(path));
+
+  if (method === 'POST' && path === '/api/orders/quote') return quoteOrder(store, body);
   if (method === 'POST' && path === '/api/orders') return createOrder(store, body);
-  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/confirm')) return setLifecycleStatus(store, path, 'confirm');
-  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/complete')) return setLifecycleStatus(store, path, 'complete');
-  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/cancel')) return setLifecycleStatus(store, path, 'cancel');
+  if (method === 'GET' && path === '/api/orders') return listOrders(store, url);
+  if (method === 'POST' && isNestedRoute(path, '/api/payments/', '/mock-success')) return mockPaymentSuccess(store, path);
+  if (method === 'POST' && path === '/api/payments/wechat/notify') return wechatPaymentNotify(store, body);
+  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/confirm')) return transitionOrder(store, path, 'confirm');
+  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/complete')) return transitionOrder(store, path, 'complete');
+  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/cancel')) return transitionOrder(store, path, 'cancel', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/status')) return setOrderStatus(store, path, body.status);
+
   if (method === 'GET' && isNestedRoute(path, '/api/orders/', '/conversation')) return getConversation(store, path);
-  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/report')) return createReport(store, path, body);
   if (method === 'POST' && isNestedRoute(path, '/api/conversations/', '/messages')) return sendMessage(store, path, body);
+  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/report')) return createReport(store, path, body);
+  if (method === 'POST' && path === '/api/reports') return createReport(store, `/api/orders/${body.orderId || ''}/report`, body);
+
   if (method === 'GET' && path === '/api/companion/me') return companionDashboard(store);
+  if (method === 'POST' && path === '/api/companion/me/application') return saveApplication(store, body);
+  if (method === 'PUT' && path === '/api/companion/me/application') return saveApplication(store, body);
+  if (method === 'POST' && path === '/api/companion/me/submit-review') return submitCompanionReview(store);
+
   if (method === 'GET' && path === '/api/admin/dashboard') return adminDashboard(store);
-  if (method === 'GET' && path === '/api/admin/moderation') return json({ messageCases: store.riskCases, reportCases: store.reports });
+  if (method === 'GET' && path === '/api/admin/moderation') return adminModeration(store);
+  if (method === 'GET' && path === '/api/admin/audit-cases') return listAuditCases(store, url);
+  if (method === 'POST' && isNestedRoute(path, '/api/admin/audit-cases/', '/approve')) return reviewAuditCase(store, path, 'approved');
+  if (method === 'POST' && isNestedRoute(path, '/api/admin/audit-cases/', '/reject')) return reviewAuditCase(store, path, 'rejected', body);
   if (method === 'POST' && isNestedRoute(path, '/api/admin/moderation/', '/actions')) return applyModerationAction(store, path, body);
-  if (method === 'POST' && path === '/api/companion/me/application') {
-    store.application = { ...store.application, ...body, submitted: false, reviewStatus: '草稿', updatedAt: now() };
-    return json(store.application, 200, true);
-  }
-  if (method === 'POST' && path === '/api/companion/me/submit-review') {
-    store.application = { ...store.application, submitted: true, reviewStatus: '待审核', updatedAt: now() };
-    return json(store.application, 200, true);
-  }
+
   return error(404, 'NOT_FOUND', 'Route not found');
 }
 
-function createOrder(store, input) {
-  const companion = store.companions.find((item) => item.id === input.companionId);
-  const slot = companion?.slots.find((item) => item.id === input.slotId);
-  if (!companion || !slot) return error(404, 'NOT_FOUND', 'Companion or slot not found');
-  if (slot.status !== 'available') return error(409, 'ORDER_SLOT_UNAVAILABLE', 'Slot is not available');
+function listFeedPostPage(store, url) {
+  const city = normalize(url.searchParams.get('city'));
+  const limit = clampNumber(toNumber(url.searchParams.get('limit')) ?? 20, 1, 50);
+  const cursor = clampNumber(toNumber(url.searchParams.get('cursor')) ?? 0, 0, Number.MAX_SAFE_INTEGER);
+  const source = store.posts
+    .filter((post) => post.status === 'approved' && post.isFeedVisible !== false)
+    .filter((post) => !city || normalize(post.city).includes(city) || normalize(post.location).includes(city));
+  const items = source.slice(cursor, cursor + limit).map(withPostTitle);
+  const nextOffset = cursor + items.length;
 
-  slot.status = 'booked';
-  const order = viewOrder({
-    ...input,
-    id: 'order-' + Date.now(),
-    orderNo: 'PP' + String(Date.now()).slice(-8),
-    status: 'paid_pending_confirm',
-    createdAt: now(),
-  });
-  store.orders.unshift(order);
-  store.payments.push({ id: 'payment-' + Date.now(), orderId: order.id, status: 'paid', amountCents: order.amountCents, paidAt: now() });
-  store.conversations[order.id] = createConversation(order);
-  return json(order, 200, true);
+  return {
+    items,
+    nextCursor: nextOffset < source.length ? String(nextOffset) : null,
+    hasMore: nextOffset < source.length,
+  };
 }
 
-function setLifecycleStatus(store, path, action) {
+function getPost(store, postId) {
+  const post = store.posts.find((item) => item.id === postId);
+  return post ? json(withPostTitle(post)) : error(404, 'NOT_FOUND', 'Post not found');
+}
+
+function withPostTitle(post) {
+  const title = buildPostTitle(post);
+  return post.title === title ? post : { ...post, title };
+}
+
+function buildPostTitle(post = {}) {
+  const explicitTitle = normalize(post.title);
+  if (explicitTitle) return explicitTitle;
+
+  const location = shortPostLocation(post);
+  const style = normalize(post.activity) || normalize(post.styleTags?.[0]);
+  const captionLead = normalize(post.caption).split(/[，。,.]/)[0]?.slice(0, 16);
+  return [location, style].filter(Boolean).join(' ') || captionLead || '作品样板';
+}
+
+function shortPostLocation(post = {}) {
+  const raw = normalize(post.locationName) || normalize(post.location) || normalize(post.companion?.areas?.[0]);
+  const simplified = raw.replace(/^上海\s*[·\-｜|路]\s*/, '');
+  const parts = simplified.split(/[·\-｜|]/).map((part) => part.trim()).filter(Boolean);
+  return parts.at(-1) || raw;
+}
+
+function createMediaUploadPolicy(store, body = {}) {
+  const session = ensureActiveSession(store);
+  const purpose = normalizeMediaPurpose(body.purpose);
+  const fileName = sanitizeFileName(body.fileName || 'upload.jpg');
+  const contentType = String(body.contentType || 'application/octet-stream');
+  const objectKey = `pp/${purpose}/${session.user.id}/${Date.now()}-${fileName}`;
+  const bucket = process.env.COS_BUCKET || 'pp-mvp-local-1250000000';
+  const region = process.env.COS_REGION || 'ap-shanghai';
+  const publicBaseUrl = process.env.COS_PUBLIC_BASE_URL || `https://${bucket}.cos.${region}.myqcloud.com`;
+
+  return json({
+    provider: 'tencent_cos',
+    mode: 'mock',
+    bucket,
+    region,
+    purpose,
+    objectKey,
+    contentType,
+    uploadUrl: `${publicBaseUrl}/${objectKey}`,
+    publicUrl: `${publicBaseUrl}/${objectKey}`,
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    credentials: {
+      type: 'mock_sts',
+      note: 'Replace this with Tencent Cloud STS temporary credentials before production upload.',
+    },
+  });
+}
+
+function normalizeMediaPurpose(purpose) {
+  return ['post-image', 'avatar', 'portfolio', 'identity', 'video'].includes(purpose) ? purpose : 'post-image';
+}
+
+function sanitizeFileName(fileName) {
+  return String(fileName)
+    .replace(/[/\\?%*:|"<>]/g, '-')
+    .replace(/\s+/g, '-')
+    .slice(0, 80);
+}
+
+function authSession(store) {
+  if (store.activeSession?.role) store.activeSession = createSession(store, normalizeRole(store.activeSession.role));
+  else store.activeSession = createSession(store, 'consumer');
+  return json(store.activeSession);
+}
+
+function mockWechatLogin(store, body = {}) {
+  const role = normalizeRole(body.role);
+  const session = createSession(store, role, null, { companionId: body.companionId });
+  store.activeSession = session;
+  return json(session, 200, true);
+}
+
+async function wechatLogin(store, body = {}) {
+  const code = String(body.code || '').trim();
+  if (!code) return error(400, 'VALIDATION_ERROR', 'WeChat login code is required');
+
+  if (hasWechatAuthConfig() && !code.startsWith('mock-')) {
+    const identity = await exchangeWechatCode(code);
+    const user = ensureWechatUser(store, identity);
+    const session = createSession(store, 'consumer', user);
+    session.provider = 'wechat';
+    session.openId = user.openId;
+    store.activeSession = session;
+    return json(session, 200, true);
+  }
+
+  const user = ensureWechatUser(store, {
+    openid: `mock-openid-${code.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'consumer'}`,
+    unionid: null,
+  });
+  const session = createSession(store, 'consumer', user);
+  session.provider = 'wechat';
+  session.mode = 'mock';
+  session.loginCode = code.startsWith('mock-') ? code : undefined;
+  store.activeSession = session;
+  return json(session, 200, true);
+}
+
+function logout(store) {
+  store.activeSession = null;
+  return json({ ok: true }, 200, true);
+}
+
+function createSession(store, role, existingUser = null, options = {}) {
+  const user = existingUser || store.activeSession?.user || ensureDemoUser(store, role);
+  const companionId = role === 'companion' ? resolveSessionCompanionId(store, options.companionId || store.activeSession?.companionId) : null;
+  const session = {
+    token: existingUser?.openId ? `wx-${role}-${existingUser.id}-session` : `local-${role}-session`,
+    provider: existingUser?.openId ? 'wechat' : 'mock_wechat',
+    role,
+    roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
+    user,
+    companionId,
+    adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
+    loginAt: now(),
+  };
+  return session;
+}
+
+function resolveSessionCompanionId(store, requestedCompanionId) {
+  if (requestedCompanionId && store.companions.some((item) => item.id === requestedCompanionId)) return requestedCompanionId;
+  return store.companions[0]?.id || null;
+}
+
+function ensureActiveSession(store, fallbackRole = 'consumer') {
+  const role = normalizeRole(store.activeSession?.role || fallbackRole);
+  store.activeSession = createSession(store, role, store.activeSession?.user || null);
+  return store.activeSession;
+}
+
+async function exchangeWechatCode(code) {
+  const appId = requiredEnv('WECHAT_MINI_PROGRAM_APP_ID');
+  const appSecret = requiredEnv('WECHAT_MINI_PROGRAM_APP_SECRET');
+  const url = new URL('https://api.weixin.qq.com/sns/jscode2session');
+  url.searchParams.set('appid', appId);
+  url.searchParams.set('secret', appSecret);
+  url.searchParams.set('js_code', code);
+  url.searchParams.set('grant_type', 'authorization_code');
+
+  const response = await fetch(url, { method: 'GET' });
+  const data = await response.json();
+  if (!response.ok || data.errcode) {
+    return Promise.reject(new Error(data.errmsg || `WeChat code2session failed with ${response.status}`));
+  }
+  return data;
+}
+
+function ensureWechatUser(store, identity) {
+  store.users ||= [];
+  const openId = String(identity.openid || '').trim();
+  if (!openId) throw new Error('WeChat code2session did not return openid');
+
+  let user = store.users.find((item) => item.openId === openId);
+  if (!user) {
+    user = {
+      id: `user-${openId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 28) || Date.now()}`,
+      openId,
+      unionId: identity.unionid || null,
+      nickname: 'WeChat User',
+      avatarUrl: '',
+      gender: 'unknown',
+      city: '',
+      status: 'active',
+      isCompanion: false,
+      roles: ['consumer'],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    store.users.push(user);
+  }
+
+  user.openId = openId;
+  user.unionId = identity.unionid || user.unionId || null;
+  user.roles = Array.from(new Set([...(user.roles || []), 'consumer']));
+  user.status = user.status || 'active';
+  user.updatedAt = now();
+  return user;
+}
+
+function ensureDemoUser(store, role) {
+  store.users ||= [];
+  const userId = `demo-${role}-user`;
+  let user = store.users.find((item) => item.id === userId);
+  if (!user) {
+    user = {
+      id: userId,
+      openId: `mock-openid-${role}`,
+      nickname: role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer',
+      avatarUrl: '',
+      gender: 'unknown',
+      city: 'Shanghai',
+      status: 'active',
+      isCompanion: role === 'companion',
+      roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    store.users.push(user);
+  }
+  user.openId ||= `mock-openid-${role}`;
+  user.nickname ||= role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer';
+  user.status = user.status || 'active';
+  user.isCompanion = role === 'companion';
+  user.roles = role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'];
+  user.updatedAt = now();
+  return user;
+}
+
+function normalizeRole(role) {
+  if (role === 'user') return 'consumer';
+  return ['consumer', 'companion', 'admin'].includes(role) ? role : 'consumer';
+}
+
+function canAccessOrder(store, order, session, requestedRole = session.role) {
+  const role = normalizeRole(requestedRole);
+  if (session.role === 'admin') return true;
+  if (role === 'admin') return false;
+  if (role === 'companion') return Boolean(order.companionId && order.companionId === session.companionId);
+  return !order.userId || order.userId === session.user.id;
+}
+
+function canMutateOrder(order, session, action) {
+  if (session.role === 'admin') return true;
+  if (action === 'confirm' || action === 'complete') return session.role === 'companion' && order.companionId === session.companionId;
+  if (action === 'cancel') return order.userId === session.user.id || (session.role === 'companion' && order.companionId === session.companionId);
+  return false;
+}
+
+function messageSenderRole(session) {
+  return session.role === 'admin' ? 'admin' : session.role === 'companion' ? 'companion' : 'user';
+}
+
+function quoteOrder(store, input) {
+  const context = resolveOrderContext(store, input);
+  if (context.error) return context.error;
+  return json(buildQuote(context, input));
+}
+
+async function createOrder(store, input) {
+  const session = ensureActiveSession(store, 'consumer');
+  const context = resolveOrderContext(store, input);
+  if (context.error) return context.error;
+  if (context.slot.status !== 'available') return error(409, 'ORDER_SLOT_UNAVAILABLE', 'Slot is not available');
+
+  const quote = buildQuote(context, input);
+  const orderId = id('order');
+  const paymentId = id('payment');
+  const order = viewOrder({
+    id: orderId,
+    orderNo: orderNo(),
+    status: 'pending_payment',
+    title: input.title || `${context.activity.name} booking`,
+    time: context.slot.label,
+    place: input.placeName || input.place || context.post.locationName || context.post.location,
+    amountCents: quote.totalAmountCents,
+    userId: session.user.id,
+    userName: session.user.nickname,
+    companion: context.companion.name,
+    companionId: context.companion.id,
+    postId: context.post.id,
+    activityId: context.activity.id,
+    activityName: context.activity.name,
+    slotId: context.slot.id,
+    startAt: context.slot.startAt,
+    endAt: context.slot.endAt,
+    dateLabel: context.slot.dateLabel,
+    timeLabel: context.slot.timeLabel,
+    durationMinutes: context.activity.durationMinutes,
+    durationLabel: context.activity.durationLabel,
+    addOns: quote.addOns,
+    placeAddress: input.placeAddress || '',
+    userNote: input.userNote || '',
+    quote,
+    paymentId,
+    createdAt: now(),
+    statusLogs: [statusLog('pending_payment', 'Order created and slot locked')],
+  });
+
+  const payment = {
+    id: paymentId,
+    paymentId,
+    paymentNo: paymentNo(),
+    orderId: order.id,
+    channel: input.channel || 'wechat_pay',
+    provider: 'wechat_pay',
+    mode: useLiveWechatPay() ? 'production' : 'mock',
+    status: 'pending',
+    amountCents: quote.totalAmountCents,
+    createdAt: now(),
+  };
+
+  if (payment.mode === 'production') {
+    try {
+      const prepay = await createWechatJsapiPrepay(payment, order, session);
+      Object.assign(payment, prepay);
+    } catch (paymentError) {
+      return error(502, 'WECHAT_PAY_PREPAY_FAILED', paymentError instanceof Error ? paymentError.message : 'WeChat Pay prepay failed');
+    }
+  }
+
+  context.slot.status = 'locked';
+  context.slot.lockedOrderId = order.id;
+  store.orders.unshift(order);
+  store.payments.unshift(payment);
+
+  return json({ ...order, payment: publicPayment(payment) }, 201, true);
+}
+
+function mockPaymentSuccess(store, path) {
+  const paymentId = path.split('/')[3];
+  const payment = store.payments.find((item) => item.id === paymentId || item.paymentId === paymentId);
+  if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
+  if (payment.status === 'paid') {
+    const paidOrder = store.orders.find((item) => item.id === payment.orderId);
+    return json({ payment: publicPayment(payment), order: paidOrder ? viewOrder(paidOrder) : null });
+  }
+
+  const order = store.orders.find((item) => item.id === payment.orderId);
+  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  if (order.status !== 'pending_payment') return error(409, 'ORDER_STATUS_INVALID', 'Order is not pending payment');
+
+  payment.status = 'paid';
+  payment.paidAt = now();
+  Object.assign(order, viewOrder({ ...order, status: 'paid_pending_confirm', paidAt: now() }));
+  order.statusLogs = [...(order.statusLogs || []), statusLog('paid_pending_confirm', 'Mock payment succeeded')];
+
+  const companion = store.companions.find((item) => item.id === order.companionId);
+  const slot = companion?.slots.find((item) => item.id === order.slotId);
+  if (slot) {
+    slot.status = 'booked';
+    slot.lockedOrderId = order.id;
+  }
+  store.conversations[order.id] ||= createConversation(order);
+
+  return json({ payment: publicPayment(payment), order: viewOrder(order), conversation: store.conversations[order.id] }, 200, true);
+}
+
+function listOrders(store, url) {
+  const session = ensureActiveSession(store);
+  const role = normalize(url.searchParams.get('role') || session.role || 'user');
+  const status = normalize(url.searchParams.get('status'));
+  const items = store.orders
+    .filter((order) => !status || normalize(order.status) === status)
+    .filter((order) => canAccessOrder(store, order, session, role))
+    .map(viewOrder);
+  return json({ items });
+}
+
+function transitionOrder(store, path, action, body = {}) {
+  const session = ensureActiveSession(store);
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
-  if (action === 'confirm' && order.status !== 'paid_pending_confirm') return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be confirmed');
-  if (action === 'complete' && !['confirmed', 'in_service'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be completed');
+  if (!canMutateOrder(order, session, action)) return error(403, 'FORBIDDEN', 'Order action is not allowed for current role');
 
-  const status = action === 'confirm' ? 'confirmed' : action === 'complete' ? 'completed' : 'cancelled';
-  Object.assign(order, viewOrder({ ...order, status }));
-  if (status === 'completed') createSettlement(store, order);
-  return json(order, 200, true);
+  if (action === 'confirm') {
+    if (order.status !== 'paid_pending_confirm') return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be confirmed');
+    return updateOrder(store, order, 'confirmed', 'Companion confirmed order');
+  }
+
+  if (action === 'complete') {
+    if (!['confirmed', 'in_service'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be completed');
+    const result = updateOrder(store, order, 'completed', 'Order completed');
+    createSettlement(store, order);
+    return result;
+  }
+
+  if (action === 'cancel') {
+    if (['completed', 'refunded'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be cancelled');
+    releaseSlot(store, order);
+    const result = updateOrder(store, order, order.status === 'pending_payment' ? 'cancelled' : 'refunding', body.reason || 'Order cancelled');
+    if (order.status === 'refunding') createRefund(store, order, body.reason || 'Order cancelled');
+    return result;
+  }
+
+  return error(400, 'VALIDATION_ERROR', 'Unknown action');
 }
 
 function setOrderStatus(store, path, status) {
+  const session = ensureActiveSession(store);
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
-  Object.assign(order, viewOrder({ ...order, status }));
+  if (session.role !== 'admin') return error(403, 'FORBIDDEN', 'Only admin can set arbitrary order status');
+  if (!orderStatusText[status]) return error(400, 'VALIDATION_ERROR', 'Unknown order status');
+  const result = updateOrder(store, order, status, 'Manual status update');
   if (status === 'completed') createSettlement(store, order);
-  return json(order, 200, true);
+  return result;
+}
+
+function updateOrder(store, order, status, reason) {
+  Object.assign(order, viewOrder({ ...order, status }));
+  order.statusLogs = [...(order.statusLogs || []), statusLog(status, reason)];
+  return json(viewOrder(order), 200, true);
 }
 
 function getConversation(store, path) {
+  const session = ensureActiveSession(store);
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  if (!canAccessOrder(store, order, session, session.role)) return error(403, 'FORBIDDEN', 'Order is not accessible for current role');
+  if (!['paid_pending_confirm', 'confirmed', 'in_service', 'completed', 'disputed'].includes(order.status)) {
+    return error(409, 'ORDER_STATUS_INVALID', 'Conversation opens after payment');
+  }
   store.conversations[order.id] ||= createConversation(order);
   return json(store.conversations[order.id], 200, true);
 }
 
 function sendMessage(store, path, body) {
+  const session = ensureActiveSession(store);
   const conversationId = path.split('/')[3];
   const conversation = Object.values(store.conversations).find((item) => item.id === conversationId);
   if (!conversation) return error(404, 'NOT_FOUND', 'Conversation not found');
-  const risk = evaluateRisk(body.content || '');
+  const order = findOrder(store, conversation.orderId);
+  if (!order || !canAccessOrder(store, order, session, session.role)) return error(403, 'FORBIDDEN', 'Conversation is not accessible for current role');
+  if (conversation.status === 'restricted') return error(403, 'FORBIDDEN', 'Conversation is restricted');
+
+  const content = String(body.content || '').trim();
+  if (!content) return error(400, 'VALIDATION_ERROR', 'Message content is required');
+
+  const risk = evaluateRisk(content);
   if (risk.shouldBlock) {
-    const order = findOrder(store, conversation.orderId);
-    store.riskCases.unshift({
-      id: 'risk-' + Date.now(),
-      type: 'message_risk',
-      status: 'pending',
-      riskLevel: 'high',
-      riskLabel: '高风险拦截',
+    const blockedMessage = {
+      id: id('blocked-message'),
+      from: body.from || messageSenderRole(session),
+      text: content,
+      sentAt: now(),
+      riskStatus: 'blocked',
+    };
+    store.messageRiskEvents.unshift({
+      id: id('message-risk-event'),
       conversationId,
       orderId: conversation.orderId,
-      orderNo: conversation.orderNo,
-      orderTitle: order?.title || '',
-      orderStatusText: order?.statusText || '',
-      orderAmountText: order?.amountText || '',
-      userName: '用户',
-      companionName: order?.companion || '',
-      blockedMessage: { id: 'blocked-' + Date.now(), from: 'user', text: body.content || '', sentAt: now(), riskStatus: 'blocked' },
-      hitWords: risk.hits,
-      contextMessages: conversation.messages,
+      message: blockedMessage,
+      matchedKeywords: risk.hits,
+      action: 'block',
       createdAt: now(),
-      actionLogs: [],
     });
-    return error(422, 'MESSAGE_BLOCKED', 'Message blocked by risk control', true);
+    store.riskCases.unshift(createRiskCase(order, conversation, blockedMessage, risk.hits));
+    return {
+      status: 422,
+      changed: true,
+      payload: {
+        success: false,
+        data: {
+          riskStatus: 'blocked',
+          matchedKeywords: risk.hits.map((hit) => hit.keyword),
+          message: 'For platform safety, please keep communication and payment on PP.',
+        },
+        error: { code: 'MESSAGE_BLOCKED', message: 'Message contains contact or off-platform payment content' },
+      },
+    };
   }
-  const message = { id: 'message-' + Date.now(), from: 'user', text: body.content || '', sentAt: now(), riskStatus: 'clean' };
+
+  const message = {
+    id: id('message'),
+    from: body.from || messageSenderRole(session),
+    text: content,
+    sentAt: now(),
+    riskStatus: risk.hits.length ? 'flagged' : 'clean',
+  };
   conversation.messages.push(message);
+
+  if (risk.hits.length) {
+    store.messageRiskEvents.unshift({
+      id: id('message-risk-event'),
+      conversationId,
+      orderId: conversation.orderId,
+      message,
+      matchedKeywords: risk.hits,
+      action: 'flag',
+      createdAt: now(),
+    });
+  }
+
   return json(message, 200, true);
 }
 
 function createReport(store, path, body) {
-  const order = findOrder(store, path.split('/')[3]);
+  const orderId = path.split('/')[3] || body.orderId;
+  const order = findOrder(store, orderId);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
 
   const report = {
-    id: 'report-' + Date.now(),
+    id: id('report'),
     type: 'report_dispute',
     status: 'pending',
-    riskLevel: 'medium',
-    riskLabel: body.reason || '消息沟通举报',
+    riskLevel: body.riskLevel || 'medium',
+    riskLabel: body.category || body.reason || 'Order dispute',
     reporterRole: body.reporterRole || 'user',
-    reporterName: body.reporterRole === 'companion' ? order.companion : '用户',
-    targetName: body.reporterRole === 'companion' ? '用户' : order.companion,
-    reason: body.reason || '消息沟通举报',
-    description: body.description || '用户在消息页发起举报，等待运营复核聊天上下文。',
+    reporterName: body.reporterRole === 'companion' ? order.companion : 'Demo user',
+    targetName: body.reporterRole === 'companion' ? 'Demo user' : order.companion,
+    reason: body.reason || body.category || 'Order communication report',
+    description: body.description || 'A user report was created from the order conversation.',
+    evidenceFiles: body.evidenceFiles || [],
     orderId: order.id,
     orderNo: order.orderNo,
     orderTitle: order.title,
@@ -172,86 +654,17 @@ function createReport(store, path, body) {
   };
 
   store.reports.unshift(report);
-  return json(report, 200, true);
-}
-
-function applyModerationAction(store, path, body) {
-  const caseId = path.split('/')[4];
-  const actionType = body.actionType || 'confirm_violation';
-  const note = body.note || actionLabel(actionType);
-  const log = {
-    id: 'action-' + Date.now(),
-    type: actionType,
-    label: actionLabel(actionType),
-    note,
-    createdAt: now(),
-  };
-
-  const riskCase = store.riskCases.find((item) => item.id === caseId);
-  if (riskCase) {
-    riskCase.status = nextMessageCaseStatus(actionType, riskCase.status);
-    riskCase.actionLogs = [log, ...(riskCase.actionLogs || [])];
-    if (actionType === 'freeze_order') {
-      const order = findOrder(store, riskCase.orderId);
-      if (order) Object.assign(order, viewOrder({ ...order, status: 'disputed' }));
-    }
-    return json(riskCase, 200, true);
-  }
-
-  const reportCase = store.reports.find((item) => item.id === caseId);
-  if (reportCase) {
-    reportCase.status = nextReportCaseStatus(actionType, reportCase.status);
-    reportCase.actionLogs = [log, ...(reportCase.actionLogs || [])];
-    if (actionType === 'freeze_order') {
-      const order = findOrder(store, reportCase.orderId);
-      if (order) Object.assign(order, viewOrder({ ...order, status: 'disputed' }));
-    }
-    return json(reportCase, 200, true);
-  }
-
-  return error(404, 'NOT_FOUND', 'Moderation case not found');
-}
-
-function actionLabel(actionType) {
-  const labels = {
-    release_message: '放行消息',
-    confirm_violation: '确认为违规',
-    warn_user: '警告用户',
-    warn_companion: '警告陪拍者',
-    restrict_chat: '限制聊天',
-    freeze_order: '冻结订单',
-    suspend_companion: '暂停陪拍者接单',
-    resolve_report: '处理完成',
-  };
-  return labels[actionType] || '记录处置';
-}
-
-function nextMessageCaseStatus(actionType, currentStatus) {
-  if (actionType === 'release_message') return 'released';
-  if (actionType === 'confirm_violation') return 'violation';
-  if (actionType === 'restrict_chat') return 'restricted';
-  return currentStatus;
-}
-
-function nextReportCaseStatus(actionType, currentStatus) {
-  if (actionType === 'resolve_report') return 'resolved';
-  if (actionType === 'confirm_violation' || actionType === 'freeze_order') return 'investigating';
-  return currentStatus;
-}
-
-function createSettlement(store, order) {
-  if (store.settlements.some((item) => item.orderId === order.id)) return;
-  const commissionCents = Math.round(order.amountCents * 0.15);
-  store.settlements.push({
-    id: 'settlement-' + Date.now(),
-    orderId: order.id,
-    companionId: order.companionId,
-    grossCents: order.amountCents,
-    commissionCents,
-    payableCents: order.amountCents - commissionCents,
+  store.auditCases.unshift({
+    id: id('audit-case'),
+    targetType: 'report',
+    targetId: report.id,
+    title: `Report ${report.reason}`,
     status: 'pending',
     createdAt: now(),
+    payload: report,
+    logs: [],
   });
+  return json(report, 201, true);
 }
 
 function companionDashboard(store) {
@@ -260,30 +673,399 @@ function companionDashboard(store) {
   return json({
     weeklyEstimatedCents: completed.reduce((sum, order) => sum + order.amountCents, 0),
     pendingCents: pending,
-    availableCents: 0,
+    availableCents: store.wallets[0]?.availableCents || 0,
     orderStats: [
-      '待确认 ' + store.orders.filter((order) => order.status === 'paid_pending_confirm').length,
-      '今日行程 ' + store.orders.filter((order) => order.status === 'confirmed').length,
-      '已完成 ' + completed.length,
-      '取消 ' + store.orders.filter((order) => order.status === 'cancelled').length,
+      `Pending confirmation ${store.orders.filter((order) => order.status === 'paid_pending_confirm').length}`,
+      `Confirmed ${store.orders.filter((order) => order.status === 'confirmed').length}`,
+      `Completed ${completed.length}`,
+      `Cancelled ${store.orders.filter((order) => order.status === 'cancelled').length}`,
     ],
   });
 }
 
+function saveApplication(store, body) {
+  store.application = { ...store.application, ...body, submitted: false, reviewStatus: 'draft', updatedAt: now() };
+  return json(store.application, 200, true);
+}
+
+function submitCompanionReview(store) {
+  store.application = { ...store.application, submitted: true, reviewStatus: 'pending_review', updatedAt: now() };
+  const existing = store.auditCases.find((item) => item.targetType === 'companion' && item.targetId === 'companion-mori' && item.status === 'pending');
+  if (!existing) {
+    store.auditCases.unshift({
+      id: id('audit-case'),
+      targetType: 'companion',
+      targetId: 'companion-mori',
+      title: 'Companion onboarding review',
+      status: 'pending',
+      createdAt: now(),
+      payload: store.application,
+      logs: [],
+    });
+  }
+  return json(store.application, 200, true);
+}
+
 function adminDashboard(store) {
+  const pendingCompanions = store.auditCases.filter((item) => item.targetType === 'companion' && item.status === 'pending').length;
+  const pendingPosts = store.auditCases.filter((item) => item.targetType === 'post' && item.status === 'pending').length;
+  const pendingReports = store.reports.filter((item) => item.status === 'pending').length;
+  const gmvCents = store.orders.filter((item) => item.status !== 'cancelled').reduce((sum, item) => sum + item.amountCents, 0);
+  const refundCents = store.refunds.reduce((sum, item) => sum + item.amountCents, 0);
+
   return json({
     metrics: [
-      { label: '待审核陪拍者', value: store.application.reviewStatus === '待审核' ? '1' : '0' },
-      { label: '待审作品', value: store.workDraft.reviewStatus === '待审核' ? '1' : '0' },
-      { label: '订单总数', value: String(store.orders.length) },
-      { label: '风控拦截', value: String(store.riskCases.length) },
+      { label: 'Pending companions', value: String(pendingCompanions) },
+      { label: 'Pending posts', value: String(pendingPosts) },
+      { label: 'Orders', value: String(store.orders.length) },
+      { label: 'Risk blocks', value: String(store.riskCases.length) },
+      { label: 'GMV', value: formatMoney(gmvCents) },
+      { label: 'Refunds', value: formatMoney(refundCents) },
+      { label: 'Pending reports', value: String(pendingReports) },
     ],
     moduleCards: [
-      { title: '消息风控', desc: '联系方式、私下交易、敏感词' },
-      { title: '举报纠纷', desc: '爽约、跳单、退款介入' },
-      { title: '结算财务', desc: '抽成、提现、冻结结算' },
+      { title: 'Message risk', desc: 'Blocked contact exchange and off-platform payment attempts' },
+      { title: 'Reports', desc: 'Order disputes and report handling' },
+      { title: 'Settlements', desc: 'Pending, frozen, and released companion income' },
     ],
+    reviewQueues: {
+      companions: store.auditCases.filter((item) => item.targetType === 'companion' && item.status === 'pending'),
+      posts: store.auditCases.filter((item) => item.targetType === 'post' && item.status === 'pending'),
+    },
+    recentOrders: store.orders.slice(0, 5).map(viewOrder),
   });
+}
+
+function adminModeration(store) {
+  return json({
+    messageCases: store.riskCases,
+    reportCases: store.reports,
+  });
+}
+
+function listAuditCases(store, url) {
+  const targetType = normalize(url.searchParams.get('targetType'));
+  const status = normalize(url.searchParams.get('status'));
+  const items = store.auditCases
+    .filter((item) => !targetType || normalize(item.targetType) === targetType)
+    .filter((item) => !status || normalize(item.status) === status);
+  return json({ items });
+}
+
+function reviewAuditCase(store, path, nextStatus, body = {}) {
+  const caseId = path.split('/')[4];
+  const auditCase = store.auditCases.find((item) => item.id === caseId);
+  if (!auditCase) return error(404, 'NOT_FOUND', 'Audit case not found');
+  if (auditCase.status !== 'pending') return error(409, 'AUDIT_CASE_NOT_PENDING', 'Audit case is not pending');
+
+  auditCase.status = nextStatus;
+  auditCase.resolvedAt = now();
+  auditCase.logs = [
+    { id: id('audit-log'), action: nextStatus, note: body.reason || nextStatus, createdAt: now() },
+    ...(auditCase.logs || []),
+  ];
+
+  if (auditCase.targetType === 'companion') {
+    const companion = store.companions.find((item) => item.id === auditCase.targetId);
+    if (companion) {
+      companion.status = nextStatus === 'approved' ? 'approved' : 'needs_change';
+      companion.serviceEnabled = nextStatus === 'approved';
+    }
+  }
+
+  if (auditCase.targetType === 'post') {
+    const post = store.posts.find((item) => item.id === auditCase.targetId);
+    if (post) {
+      post.status = nextStatus === 'approved' ? 'approved' : 'rejected';
+      post.isFeedVisible = nextStatus === 'approved';
+      if (nextStatus === 'approved') post.publishedAt = now();
+    }
+  }
+
+  if (auditCase.targetType === 'report') {
+    const report = store.reports.find((item) => item.id === auditCase.targetId);
+    if (report) report.status = nextStatus === 'approved' ? 'resolved' : 'rejected';
+  }
+
+  store.adminActionLogs.unshift({
+    id: id('admin-action'),
+    type: `audit_${nextStatus}`,
+    targetType: auditCase.targetType,
+    targetId: auditCase.targetId,
+    note: body.reason || nextStatus,
+    createdAt: now(),
+  });
+
+  return json({ ok: true, auditCase }, 200, true);
+}
+
+function applyModerationAction(store, path, body) {
+  const caseId = path.split('/')[4];
+  const actionType = body.actionType || 'confirm_violation';
+  const log = {
+    id: id('action'),
+    type: actionType,
+    label: actionLabel(actionType),
+    note: body.note || actionLabel(actionType),
+    createdAt: now(),
+  };
+
+  const riskCase = store.riskCases.find((item) => item.id === caseId);
+  if (riskCase) {
+    riskCase.status = nextMessageCaseStatus(actionType, riskCase.status);
+    riskCase.actionLogs = [log, ...(riskCase.actionLogs || [])];
+    applyModerationSideEffect(store, riskCase.orderId, actionType);
+    return json(riskCase, 200, true);
+  }
+
+  const reportCase = store.reports.find((item) => item.id === caseId);
+  if (reportCase) {
+    reportCase.status = nextReportCaseStatus(actionType, reportCase.status);
+    reportCase.actionLogs = [log, ...(reportCase.actionLogs || [])];
+    applyModerationSideEffect(store, reportCase.orderId, actionType);
+    return json(reportCase, 200, true);
+  }
+
+  return error(404, 'NOT_FOUND', 'Moderation case not found');
+}
+
+function applyModerationSideEffect(store, orderId, actionType) {
+  const order = findOrder(store, orderId);
+  if (!order) return;
+  if (actionType === 'freeze_order') {
+    Object.assign(order, viewOrder({ ...order, status: 'disputed' }));
+    order.statusLogs = [...(order.statusLogs || []), statusLog('disputed', 'Order frozen by moderation')];
+  }
+  if (actionType === 'restrict_chat') {
+    const conversation = store.conversations[orderId];
+    if (conversation) conversation.status = 'restricted';
+  }
+}
+
+function resolveOrderContext(store, input) {
+  const post = store.posts.find((item) => item.id === input.postId) || store.posts.find((item) => item.companion.id === input.companionId);
+  const companion = store.companions.find((item) => item.id === input.companionId) || post?.companion;
+  if (!post || !companion) return { error: error(404, 'NOT_FOUND', 'Post or companion not found') };
+
+  const slot = companion.slots.find((item) => item.id === input.slotId);
+  const activity = companion.activities.find((item) => item.id === (input.activityPricingId || input.activityId));
+  if (!slot || !activity) return { error: error(404, 'NOT_FOUND', 'Slot or activity not found') };
+
+  return { post, companion, slot, activity };
+}
+
+function buildQuote(context, input) {
+  const extrasInput = Array.isArray(input.extras) ? input.extras : Array.isArray(input.addOns) ? input.addOns : [];
+  const addOns = extrasInput
+    .map((line) => {
+      const extraId = line.extraId || line.id;
+      const extra = context.companion.extras.find((item) => item.id === extraId);
+      if (!extra) return null;
+      const quantity = Math.max(1, Number(line.quantity || 1));
+      return {
+        extraId: extra.id,
+        name: extra.name,
+        unitLabel: extra.unitLabel,
+        quantity,
+        unitPriceCents: extra.priceCents,
+        amountCents: extra.priceCents * quantity,
+      };
+    })
+    .filter(Boolean);
+  const baseAmountCents = context.activity.priceCents;
+  const extraAmountCents = addOns.reduce((sum, item) => sum + item.amountCents, 0);
+  const totalAmountCents = baseAmountCents + extraAmountCents;
+  const platformFeeCents = Math.round(totalAmountCents * platformFeeRate);
+  const companionIncomeCents = totalAmountCents - platformFeeCents;
+  return {
+    baseAmountCents,
+    extraAmountCents,
+    totalAmountCents,
+    platformFeeCents,
+    companionIncomeCents,
+    addOns,
+    lines: [
+      { label: `${context.activity.name} - ${context.activity.durationLabel}`, amountText: formatMoney(baseAmountCents) },
+      ...addOns.map((item) => ({ label: `${item.name} x ${item.quantity}`, amountText: formatMoney(item.amountCents) })),
+    ],
+  };
+}
+
+function createSettlement(store, order) {
+  if (store.settlements.some((item) => item.orderId === order.id)) return;
+  const commissionCents = order.quote?.platformFeeCents ?? Math.round(order.amountCents * platformFeeRate);
+  const payableCents = order.amountCents - commissionCents;
+  const settlement = {
+    id: id('settlement'),
+    orderId: order.id,
+    orderNo: order.orderNo,
+    companionId: order.companionId,
+    grossCents: order.amountCents,
+    commissionCents,
+    payableCents,
+    status: 'pending',
+    settleAfter: now(),
+    createdAt: now(),
+  };
+  store.settlements.unshift(settlement);
+  const wallet = ensureWallet(store, order.companionId);
+  wallet.pendingCents += payableCents;
+  store.ledgerEntries.unshift({
+    id: id('ledger'),
+    companionId: order.companionId,
+    orderId: order.id,
+    entryType: 'order_income',
+    amountCents: payableCents,
+    createdAt: now(),
+  });
+}
+
+function createRefund(store, order, reason) {
+  if (store.refunds.some((item) => item.orderId === order.id)) return;
+  store.refunds.unshift({
+    id: id('refund'),
+    orderId: order.id,
+    orderNo: order.orderNo,
+    amountCents: order.amountCents,
+    reason,
+    status: 'pending',
+    createdAt: now(),
+  });
+}
+
+function releaseSlot(store, order) {
+  const companion = store.companions.find((item) => item.id === order.companionId);
+  const slot = companion?.slots.find((item) => item.id === order.slotId);
+  if (!slot) return;
+  slot.status = 'available';
+  delete slot.lockedOrderId;
+}
+
+function createConversation(order) {
+  return {
+    id: `conversation-${order.id}`,
+    orderId: order.id,
+    orderNo: order.orderNo,
+    userId: order.userId || 'demo-consumer-user',
+    companionId: order.companionId,
+    status: 'active',
+    safetyNotice: 'Keep all communication and payments inside PP for safety.',
+    messages: [
+      {
+        id: `message-${order.id}-welcome`,
+        from: 'system',
+        text: `Order ${order.orderNo} is paid. Please confirm time, place, and shooting needs here.`,
+        sentAt: now(),
+        riskStatus: 'clean',
+      },
+    ],
+  };
+}
+
+function createRiskCase(order, conversation, blockedMessage, hitWords) {
+  return {
+    id: id('risk-case'),
+    type: 'message_risk',
+    status: 'pending',
+    riskLevel: 'high',
+    riskLabel: 'Blocked message',
+    conversationId: conversation.id,
+    orderId: conversation.orderId,
+    orderNo: conversation.orderNo,
+    orderTitle: order?.title || '',
+    orderStatusText: order?.statusText || '',
+    orderAmountText: order?.amountText || '',
+    userName: 'Demo user',
+    companionName: order?.companion || '',
+    blockedMessage,
+    hitWords,
+    contextMessages: [...conversation.messages.slice(-5), blockedMessage],
+    createdAt: now(),
+    actionLogs: [],
+  };
+}
+
+function matchCompanions(store, url) {
+  const lat = toNumber(url.searchParams.get('lat')) ?? 31.2112;
+  const lng = toNumber(url.searchParams.get('lng')) ?? 121.4476;
+  const city = normalize(url.searchParams.get('city'));
+  const activity = normalize(url.searchParams.get('activity'));
+  const gender = normalize(url.searchParams.get('gender'));
+  const maxDistanceMeters = clampNumber(toNumber(url.searchParams.get('maxDistanceMeters')) ?? 8000, 500, 50000);
+  const limit = clampNumber(toNumber(url.searchParams.get('limit')) ?? 20, 1, 50);
+
+  const items = store.companions
+    .filter((companion) => companion.status === 'approved' && companion.serviceEnabled)
+    .filter((companion) => !city || normalize(companion.baseCity).includes(city))
+    .filter((companion) => !gender || gender === 'any' || normalize(companion.gender) === gender)
+    .filter((companion) => !activity || companion.activities.some((item) => normalize(item.name).includes(activity)))
+    .map((companion) => buildMatchCandidate(companion, lat, lng, maxDistanceMeters))
+    .filter(Boolean)
+    .sort((a, b) => b.matchScore - a.matchScore || a.distanceMeters - b.distanceMeters)
+    .slice(0, limit);
+
+  return json({ items });
+}
+
+function buildMatchCandidate(companion, lat, lng, maxDistanceMeters) {
+  const nearestServiceArea = companion.serviceAreas
+    .map((area) => ({ ...area, distanceMeters: haversineMeters(lat, lng, area.lat, area.lng) }))
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)[0];
+  if (!nearestServiceArea) return null;
+
+  const acceptedDistance = Math.min(maxDistanceMeters, nearestServiceArea.radiusMeters || maxDistanceMeters);
+  if (nearestServiceArea.distanceMeters > acceptedDistance) return null;
+  const distanceMeters = Math.round(nearestServiceArea.distanceMeters);
+  const distanceRatio = Math.min(distanceMeters / acceptedDistance, 1);
+  return {
+    companion,
+    nearestServiceArea,
+    distanceMeters,
+    distanceText: distanceMeters < 1000 ? `${distanceMeters}m` : `${(distanceMeters / 1000).toFixed(1)}km`,
+    matchScore: clampNumber(100 - distanceRatio * 70 + Math.round((companion.ratingAvg || 0) * 5), 1, 100),
+  };
+}
+
+function evaluateRisk(content) {
+  const original = String(content || '').toLowerCase();
+  const compact = original.normalize('NFKC').replace(/[\s\p{P}\p{S}_]+/gu, '');
+  const hits = riskKeywords.filter((item) => original.includes(item.keyword.toLowerCase()) || compact.includes(item.keyword.toLowerCase()));
+  return { hits, shouldBlock: hits.length > 0 };
+}
+
+function normalizeStore(store) {
+  let changed = false;
+  const next = { ...initialStore(), ...store };
+  next.meta = { ...(store.meta || {}), version: 3 };
+  next.companions = Array.isArray(store.companions) && store.companions.length ? store.companions : initialStore().companions;
+  next.posts = Array.isArray(store.posts) && store.posts.length ? store.posts : initialStore().posts;
+  next.users = Array.isArray(store.users) ? store.users : [];
+  next.activeSession = store.activeSession || null;
+  next.orders = Array.isArray(store.orders) ? store.orders : [];
+  next.payments = Array.isArray(store.payments) ? store.payments : [];
+  next.conversations = store.conversations && typeof store.conversations === 'object' ? store.conversations : {};
+  next.riskCases = Array.isArray(store.riskCases) ? store.riskCases : [];
+  next.messageRiskEvents = Array.isArray(store.messageRiskEvents) ? store.messageRiskEvents : [];
+  next.reports = Array.isArray(store.reports) ? store.reports : [];
+  next.auditCases = Array.isArray(store.auditCases) ? store.auditCases : seedAuditCases(next);
+  next.auditLogs = Array.isArray(store.auditLogs) ? store.auditLogs : [];
+  next.adminActionLogs = Array.isArray(store.adminActionLogs) ? store.adminActionLogs : [];
+  next.settlements = Array.isArray(store.settlements) ? store.settlements : [];
+  next.ledgerEntries = Array.isArray(store.ledgerEntries) ? store.ledgerEntries : [];
+  next.refunds = Array.isArray(store.refunds) ? store.refunds : [];
+  next.wallets = Array.isArray(store.wallets) ? store.wallets : [];
+  next.application = store.application || { reviewStatus: 'draft', updatedAt: now() };
+  next.workDraft = store.workDraft || { reviewStatus: 'draft', updatedAt: now() };
+
+  if (seedVirtualData(next)) changed = true;
+  if (seedVirtualTradeData(next)) changed = true;
+  normalizeCompanions(next);
+  normalizePosts(next);
+  normalizeOrders(next);
+  if (!next.auditCases.length) next.auditCases = seedAuditCases(next);
+
+  changed = changed || store.meta?.version !== 3 || !Array.isArray(store.auditCases);
+  return { store: next, changed };
 }
 
 function initialStore() {
@@ -293,7 +1075,7 @@ function initialStore() {
     name: 'Mori',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80',
     photo: 'https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=900&q=80',
-    bio: '会聊天，也会帮你慢慢找角度，第一次拍照也不尴尬。',
+    bio: 'Gentle citywalk guide who helps first-time users feel natural on camera.',
     gender: 'female',
     baseCity: '上海',
     status: 'approved',
@@ -303,20 +1085,25 @@ function initialStore() {
     tags: ['会指导动作', '轻松聊天', '适合第一次拍照'],
     safetyBadges: ['已实名认证', '视频已审核', '平台担保'],
     areas: ['武康路', '安福路', '衡山路', '徐家汇'],
+    serviceAreas: [],
     slots: [
-      slot('slot-mori-1', '5月26日 周二 10:00-12:00', '5月26日 周二', '10:00-12:00', '2026-05-26T02:00:00.000Z', '2026-05-26T04:00:00.000Z'),
-      slot('slot-mori-2', '5月27日 周三 14:00-16:00', '5月27日 周三', '14:00-16:00', '2026-05-27T06:00:00.000Z', '2026-05-27T08:00:00.000Z'),
+      slot('slot-mori-1', '今天 10:00-12:00', '今天', '10:00-12:00', '2026-06-11T02:00:00.000Z', '2026-06-11T04:00:00.000Z'),
+      slot('slot-mori-2', '今天 14:00-16:00', '今天', '14:00-16:00', '2026-06-11T06:00:00.000Z', '2026-06-11T08:00:00.000Z'),
     ],
-    activities: [activity('activity-citywalk', 'Citywalk', 120, '2小时', 39900), activity('activity-cafe', '探店吃饭', 90, '1.5小时', 29900)],
+    activities: [activity('activity-citywalk', 'Citywalk', 120, '2小时', 39900), activity('activity-cafe', '探店', 90, '1.5小时', 29900)],
     extras: [extra('extra-retouch', '精修', 'per_photo', '张', 3000), extra('extra-rush', '加急出图', 'per_order', '单', 8000)],
   };
   const post = {
     id: 'post-wukang',
+    status: 'approved',
+    isFeedVisible: true,
+    city: '上海',
+    locationName: '武康路',
     location: '上海 · 武康路',
-    timeLabel: '傍晚 / 春季 / 2026年5月',
+    timeLabel: '今天可拍 / 傍晚 / 2026年6月',
     caption: '黄昏的梧桐树影很温柔，适合边散步边拍松弛感街拍。',
-    styleTags: ['Citywalk', '自然光', '松弛感'],
-    activity: 'Citywalk 陪拍',
+    styleTags: ['Citywalk', '自然光', '松弛感', '今天可拍'],
+    activity: 'Citywalk',
     images: [
       { id: 'img-wukang-1', url: 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', width: 900, height: 1200, sortOrder: 1 },
       { id: 'img-wukang-2', url: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80', width: 900, height: 1200, sortOrder: 2 },
@@ -347,18 +1134,662 @@ function initialStore() {
     createdAt: now(),
   });
   return {
-    meta: { version: 2, createdAt: now() },
+    meta: { version: 3, createdAt: now() },
+    users: [],
+    activeSession: null,
     companions: [companion],
     posts: [post],
     orders: [order],
     payments: [],
     conversations: { [order.id]: createConversation(order) },
     riskCases: [],
+    messageRiskEvents: [],
     reports: [],
+    auditCases: [],
+    auditLogs: [],
+    adminActionLogs: [],
     settlements: [],
-    application: { reviewStatus: '草稿', updatedAt: now() },
-    workDraft: { reviewStatus: '草稿', updatedAt: now() },
+    ledgerEntries: [],
+    refunds: [],
+    wallets: [],
+    application: { reviewStatus: 'draft', updatedAt: now() },
+    workDraft: { reviewStatus: 'draft', updatedAt: now() },
   };
+}
+
+const VIRTUAL_LANDSCAPE_INDEXES = new Set([1, 4, 7, 10, 13, 16]);
+const VIRTUAL_LANDSCAPE_IMAGES = [
+  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1200&q=80',
+];
+
+const VIRTUAL_LIVE_VIDEO_URLS = [
+  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+  'https://media.w3.org/2010/05/sintel/trailer.mp4',
+];
+
+function createVirtualPostImages(postId, index, image, secondaryImage, avatar) {
+  const isLandscape = VIRTUAL_LANDSCAPE_INDEXES.has(index);
+  const isLive = index % 4 === 1 || index % 7 === 0;
+  const landscapeImageIndex = Math.floor(index / 3) % VIRTUAL_LANDSCAPE_IMAGES.length;
+  const coverUrl = isLandscape ? VIRTUAL_LANDSCAPE_IMAGES[landscapeImageIndex] : image;
+  const liveVideoUrl = VIRTUAL_LIVE_VIDEO_URLS[index % VIRTUAL_LIVE_VIDEO_URLS.length];
+  return [
+    {
+      id: `${postId}-image-1`,
+      url: coverUrl,
+      mediaKind: isLive ? 'live' : 'image',
+      videoUrl: isLive ? liveVideoUrl : undefined,
+      posterUrl: coverUrl,
+      width: isLandscape ? 1200 : 900,
+      height: isLandscape ? 800 : 1200,
+      sortOrder: 1,
+    },
+    { id: `${postId}-image-2`, url: secondaryImage || avatar, mediaKind: 'image', width: 900, height: 1200, sortOrder: 2 },
+  ];
+}
+
+function hasSamePostImages(currentImages = [], nextImages = []) {
+  return nextImages.every((nextImage, index) => {
+    const currentImage = currentImages[index];
+    return (
+      currentImage?.url === nextImage.url &&
+      currentImage?.width === nextImage.width &&
+      currentImage?.height === nextImage.height &&
+      currentImage?.mediaKind === nextImage.mediaKind &&
+      currentImage?.videoUrl === nextImage.videoUrl &&
+      currentImage?.posterUrl === nextImage.posterUrl
+    );
+  });
+}
+
+function seedVirtualData(store) {
+  let changed = false;
+  const profiles = [
+    ['Luna', 'female', '武康路', 'Citywalk', 39900, ['Citywalk', '自然光', '松弛感', '今天可拍'], '温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80'],
+    ['Aki', 'female', '巨鹿路', '探店', 32900, ['探店', '日常感', '咖啡店', '今天可拍'], '熟悉咖啡店和街角光线，适合轻松日常头像和朋友圈照片。', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80'],
+    ['Mika', 'female', '苏州河', '夜景', 29900, ['夜景', '蓝调', '散步', '今天可拍'], '熟悉夜景人流和安全路线，会提醒集合点、动线和收尾时间。', 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=900&q=80'],
+    ['Rin', 'female', '新天地', '城市街拍', 42900, ['城市感', '街拍', '杂志感', '今天可拍'], '擅长红砖、玻璃、街巷背景，适合利落一点的城市人像。', 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80'],
+    ['Yoyo', 'female', '徐家汇', '校园感写真', 26900, ['清新', '校园感', '自然光', '今天可拍'], '偏清爽自然的照片，会帮助缓解镜头尴尬，适合学生和毕业季。', 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80'],
+    ['Cici', 'female', '外滩', '旅行跟拍', 69900, ['旅行', '地标', '明亮', '今天可拍'], '适合来上海短暂停留的游客，路线紧凑，优先保证地标合影和自然抓拍。', 'https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'],
+    ['Niko', 'male', '愚园路', '男生头像', 29900, ['街头', '头像', '松弛', '黑白'], '适合男生头像、社交主页照片，会用简单指令减少摆拍感。', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80'],
+    ['Sora', 'female', '静安寺', '通勤形象照', 45900, ['通勤', '简洁', '职业感', '黑白'], '适合商务社交头像，路线会避开过度游客化背景，画面更像杂志专访。', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=900&q=80'],
+    ['Peach', 'female', '徐汇滨江', '宠物友好陪拍', 36900, ['宠物', '户外', '自然', '今天可拍'], '可以陪同宠物出镜，节奏会留出休息和互动时间，适合轻松户外照。', 'https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80'],
+    ['Bean', 'female', '田子坊', '复古胶片感', 39900, ['复古', '胶片感', '老街', '情绪'], '偏复古和情绪表达，会选择老街、门窗、墙面做背景，适合安静风格。', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80'],
+    ['Noir', 'male', '西岸', '黑白大片', 52900, ['黑白', '杂志感', '艺术馆', '大片'], '偏广告大片和黑白情绪，会把建筑线条、人物姿态和留白一起设计。', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80'],
+    ['Iris', 'female', '安福路', '时装街拍', 48900, ['时装', '街拍', '黑白', '今天可拍'], '适合穿搭记录和主理人形象照，会控制背景干净度和人物比例。', 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80'],
+    ['June', 'female', '龙美术馆', '艺术馆大片', 55900, ['艺术馆', '大片', '极简', '黑白'], '偏极简展馆和大面积留白，适合冷静、干净、像广告图的作品。', 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80'],
+    ['Vera', 'female', '前滩', '都市广告感', 49900, ['广告感', '都市', '干净', '今天可拍'], '用玻璃幕墙、台阶和光影做画面，适合想要更成熟质感的用户。', 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80'],
+    ['Kiko', 'female', 'M50', '创意园街拍', 38900, ['创意园', '街拍', '涂鸦', '松弛'], '适合更年轻、更有街头感的照片，会避开杂乱背景，保留城市纹理。', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80'],
+    ['Tao', 'male', '北外滩', '建筑线条人像', 46900, ['建筑', '线条', '黑白', '男生友好'], '偏建筑空间和线条构图，适合男生、情侣或偏冷感的城市人像。', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80'],
+    ['Mina', 'female', '思南路', '法式街区', 43900, ['法式', '街区', '自然光', '今天可拍'], '适合裙装、情侣和轻复古风格，会用街角、门廊和树影组织画面。', 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80'],
+    ['Haru', 'male', '大学路', '咖啡街区', 33900, ['咖啡', '街区', '生活方式', '今天可拍'], '适合更生活方式的照片，边走边拍，画面干净但不强摆拍。', 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80'],
+    ['Leia', 'female', '迪士尼小镇', '主题旅行跟拍', 69900, ['旅行', '主题', '明亮', '游客友好'], '适合主题乐园和游客路线，节奏快，会优先抓情绪和地标记忆点。', 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80', 'https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80'],
+  ];
+
+  for (const [index, profile] of profiles.entries()) {
+    const [name, gender, area, activityName, priceCents, styleTags, bio, image, avatar, secondaryImage] = profile;
+    const companionId = `virtual-companion-${index + 1}`;
+    const companionData = {
+      id: companionId,
+      userId: `virtual-user-${index + 1}`,
+      name,
+      isVirtual: true,
+      avatar,
+      photo: image,
+      bio,
+      gender,
+      baseCity: '上海',
+      status: 'approved',
+      serviceEnabled: true,
+      ratingAvg: 4.6 + index / 10,
+      ratingCount: 8 + index,
+      tags: ['虚拟摄影师', '路线规划', '会指导动作'],
+      safetyBadges: ['虚拟样例', '平台托管', '可测试预约'],
+      areas: [area, '安福路', '徐汇滨江'],
+      serviceAreas: [],
+      slots: [
+        slot(`virtual-slot-${index + 1}-1`, '今天 15:00', '今天', '15:00', '2026-06-11T07:00:00.000Z', '2026-06-11T09:00:00.000Z'),
+        slot(`virtual-slot-${index + 1}-2`, '今天 19:00', '今天', '19:00', '2026-06-11T11:00:00.000Z', '2026-06-11T13:00:00.000Z'),
+        slot(`virtual-slot-${index + 1}-3`, '周末 10:00', '周末', '10:00', '2026-06-14T02:00:00.000Z', '2026-06-14T04:00:00.000Z'),
+      ],
+      activities: [
+        activity(`virtual-activity-${index + 1}`, activityName, 120, '2小时', Number(priceCents)),
+        activity(`virtual-activity-${index + 1}-light`, '轻量头像快拍', 60, '1小时', Math.max(Number(priceCents) - 12000, 19900)),
+      ],
+      extras: [
+        extra(`virtual-extra-${index + 1}-retouch`, '精修', 'per_photo', '张', 3000),
+        extra(`virtual-extra-${index + 1}-rush`, '加急出图', 'per_order', '单', 8000),
+      ],
+    };
+    const companionIndex = store.companions.findIndex((item) => item.id === companionId);
+    const existingCompanion = companionIndex >= 0 ? store.companions[companionIndex] : null;
+    if (!existingCompanion) {
+      store.companions.push(companionData);
+      changed = true;
+    } else if (existingCompanion.baseCity !== '上海' || !existingCompanion.areas?.includes(area) || existingCompanion.photo !== image || existingCompanion.avatar !== avatar) {
+      store.companions[companionIndex] = { ...companionData, slots: existingCompanion.slots?.length ? existingCompanion.slots : companionData.slots };
+      changed = true;
+    }
+
+    const companion = store.companions.find((item) => item.id === companionId);
+    const postId = `virtual-post-${index + 1}`;
+    const postData = {
+      id: postId,
+      status: 'approved',
+      isFeedVisible: true,
+      city: '上海',
+      locationName: area,
+      location: `上海 · ${area}`,
+      timeLabel: '今天可拍 / 虚拟样例 / 可替换资料',
+      caption: `${bio} 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。`,
+      styleTags: [...styleTags],
+      activity: activityName,
+      images: createVirtualPostImages(postId, index, image, secondaryImage, avatar),
+      companion,
+    };
+    const postIndex = store.posts.findIndex((item) => item.id === postId);
+    const existingPost = postIndex >= 0 ? store.posts[postIndex] : null;
+    if (!existingPost) {
+      store.posts.push(postData);
+      changed = true;
+    } else if (
+      existingPost.city !== '上海' ||
+      existingPost.locationName !== area ||
+      (existingPost.images?.length || 0) < postData.images.length ||
+      !hasSamePostImages(existingPost.images, postData.images)
+    ) {
+      store.posts[postIndex] = postData;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function seedVirtualTradeData(store) {
+  let changed = false;
+  const trades = [
+    {
+      id: 'virtual-trade-post-1',
+      orderId: 'virtual-trade-order-1',
+      orderNo: 'PPV26060001',
+      companionId: 'companion-mori',
+      creatorId: 'creator-00000000-0000-0000-0000-000000000701',
+      creatorName: 'Creator 1',
+      creatorPhone: '13910010001',
+      location: '上海 · 武康路',
+      activity: 'Citywalk',
+      caption: 'Creator 1 and Mori completed this Citywalk order. The final work keeps natural street light and relaxed movement.',
+      styleTags: ['订单成片', 'Citywalk', '自然光', '共同确认'],
+      amountCents: 48900,
+      dateLabel: '今天',
+      timeLabel: '17:30',
+      images: [
+        ['virtual-trade-post-1-image-1', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 900, 1200],
+        ['virtual-trade-post-1-image-2', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80', 900, 1200],
+      ],
+    },
+    {
+      id: 'virtual-trade-post-2',
+      orderId: 'virtual-trade-order-2',
+      orderNo: 'PPV26060002',
+      companionId: 'virtual-companion-2',
+      creatorId: 'creator-00000000-0000-0000-0000-000000000702',
+      creatorName: 'Creator 2',
+      creatorPhone: '13910010002',
+      location: '上海 · 巨鹿路',
+      activity: '探店生活照',
+      caption: 'Creator 2 and Aki completed this cafe lifestyle shoot. Window light, table details, and daily outfit shots are confirmed by both sides.',
+      styleTags: ['订单成片', '探店', '日常感', '共同确认'],
+      amountCents: 32900,
+      dateLabel: '昨天',
+      timeLabel: '15:30',
+      images: [
+        ['virtual-trade-post-2-image-1', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 900, 1200],
+        ['virtual-trade-post-2-image-2', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 900, 1200],
+      ],
+    },
+    {
+      id: 'virtual-trade-post-3',
+      orderId: 'virtual-trade-order-3',
+      orderNo: 'PPV26060003',
+      companionId: 'virtual-companion-3',
+      creatorId: 'creator-00000000-0000-0000-0000-000000000703',
+      creatorName: 'Creator 3',
+      creatorPhone: '13910010003',
+      location: '上海 · 外滩',
+      activity: '夜景散步',
+      caption: 'Creator 3 and Mika completed this night walk order. Blue-hour skyline images and light-assisted portraits are jointly edited.',
+      styleTags: ['订单成片', '夜景', '蓝调', '共同确认'],
+      amountCents: 52900,
+      dateLabel: '6月11日',
+      timeLabel: '19:30',
+      images: [
+        ['virtual-trade-post-3-image-1', 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=1200&q=80', 1200, 800],
+        ['virtual-trade-post-3-image-2', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=900&q=80', 900, 1200],
+      ],
+    },
+    {
+      id: 'virtual-trade-post-4',
+      orderId: 'virtual-trade-order-4',
+      orderNo: 'PPV26060004',
+      companionId: 'companion-mori',
+      creatorId: 'creator-00000000-0000-0000-0000-000000000704',
+      creatorName: 'Creator 4',
+      creatorPhone: '13910010004',
+      location: '上海 · 安福路',
+      activity: '书店街拍',
+      caption: 'Creator 4 and Mori completed this bookstore street shoot. The final images use storefront lines and soft cloudy light.',
+      styleTags: ['订单成片', '街拍', '文艺', '共同确认'],
+      amountCents: 39900,
+      dateLabel: '6月10日',
+      timeLabel: '10:00',
+      images: [
+        ['virtual-trade-post-4-image-1', 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80', 900, 1200],
+        ['virtual-trade-post-4-image-2', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', 900, 1200],
+      ],
+    },
+  ];
+
+  for (const [index, trade] of trades.entries()) {
+    const companion = store.companions.find((item) => item.id === trade.companionId) || store.companions[0];
+    if (!companion) continue;
+
+    const postData = {
+      id: trade.id,
+      status: 'approved',
+      isFeedVisible: true,
+      city: '上海',
+      locationName: trade.location,
+      location: trade.location,
+      timeLabel: `订单成片 / ${trade.dateLabel} ${trade.timeLabel}`,
+      caption: trade.caption,
+      styleTags: trade.styleTags,
+      activity: trade.activity,
+      images: trade.images.map(([id, url, width, height], imageIndex) => ({ id, url, width, height, sortOrder: imageIndex + 1, mediaKind: 'image' })),
+      companion,
+      creator: {
+        id: trade.creatorId,
+        name: trade.creatorName,
+        phone: trade.creatorPhone,
+        avatar: trade.images[1]?.[1] || trade.images[0]?.[1],
+        source: 'order',
+      },
+    };
+    const postIndex = store.posts.findIndex((item) => item.id === trade.id);
+    if (postIndex < 0) {
+      store.posts.unshift(postData);
+      changed = true;
+    } else if (store.posts[postIndex].creator?.id !== trade.creatorId || store.posts[postIndex].images?.[0]?.url !== postData.images[0].url) {
+      store.posts[postIndex] = { ...store.posts[postIndex], ...postData };
+      changed = true;
+    }
+
+    const orderData = viewOrder({
+      id: trade.orderId,
+      orderNo: trade.orderNo,
+      status: 'completed',
+      title: trade.activity,
+      time: `${trade.dateLabel} ${trade.timeLabel}`,
+      place: trade.location,
+      amountCents: trade.amountCents,
+      companion: companion.name,
+      companionId: companion.id,
+      creatorId: trade.creatorId,
+      creatorPhone: trade.creatorPhone,
+      creatorName: trade.creatorName,
+      companionPhone: `1393003${String(index + 1).padStart(4, '0')}`,
+      postId: trade.id,
+      activityId: companion.activities?.[0]?.id || `virtual-trade-activity-${index + 1}`,
+      activityName: trade.activity,
+      slotId: companion.slots?.[0]?.id || `virtual-trade-slot-${index + 1}`,
+      startAt: new Date(Date.UTC(2026, 5, 10 + index, 8, 0, 0)).toISOString(),
+      endAt: new Date(Date.UTC(2026, 5, 10 + index, 10, 0, 0)).toISOString(),
+      dateLabel: trade.dateLabel,
+      timeLabel: trade.timeLabel,
+      durationMinutes: 120,
+      durationLabel: '2 hours',
+      addOns: [],
+      createdAt: new Date(Date.UTC(2026, 5, 10 + index, 6, 0, 0)).toISOString(),
+    });
+    const orderIndex = store.orders.findIndex((item) => item.id === trade.orderId);
+    if (orderIndex < 0) {
+      store.orders.unshift(orderData);
+      store.conversations[orderData.id] ||= createConversation(orderData);
+      changed = true;
+    } else if (store.orders[orderIndex].postId !== trade.id || store.orders[orderIndex].status !== 'completed') {
+      store.orders[orderIndex] = { ...store.orders[orderIndex], ...orderData };
+      store.conversations[orderData.id] ||= createConversation(orderData);
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+function normalizeCompanions(store) {
+  const points = [
+    { lat: 31.2109, lng: 121.4457 },
+    { lat: 31.2197, lng: 121.4544 },
+    { lat: 31.2221, lng: 121.4755 },
+    { lat: 31.2442, lng: 121.4891 },
+  ];
+  store.companions.forEach((companion, index) => {
+    companion.status ||= 'approved';
+    companion.serviceEnabled = companion.serviceEnabled !== false;
+    companion.baseCity ||= '上海';
+    companion.activities ||= [activity(`${companion.id}-activity`, 'Citywalk', 120, '2 hours', 39900)];
+    companion.extras ||= [];
+    companion.slots ||= [];
+    companion.areas ||= [companion.locationName || '武康路'];
+    companion.serviceAreas = buildServiceAreas(companion, points[index % points.length]);
+  });
+}
+
+function normalizePosts(store) {
+  store.posts.forEach((post) => {
+    const companion = store.companions.find((item) => item.id === post.companion?.id) || post.companion || store.companions[0];
+    post.companion = companion;
+    post.status ||= 'approved';
+    post.isFeedVisible = post.isFeedVisible !== false;
+    post.city ||= companion.baseCity || '上海';
+    post.locationName ||= post.location || companion.areas?.[0] || '武康路';
+    post.location ||= `${post.city} - ${post.locationName}`;
+  });
+}
+
+function normalizeOrders(store) {
+  store.orders.forEach((order) => {
+    order.userId ||= 'demo-consumer-user';
+    order.userName ||= 'Demo Consumer';
+    Object.assign(order, viewOrder(order));
+    if (['paid_pending_confirm', 'confirmed', 'in_service', 'completed', 'disputed'].includes(order.status)) {
+      store.conversations[order.id] ||= createConversation(order);
+    }
+    const companion = store.companions.find((item) => item.id === order.companionId);
+    const slot = companion?.slots.find((item) => item.id === order.slotId);
+    if (slot && order.status !== 'cancelled' && order.status !== 'refunded') {
+      slot.status = order.status === 'pending_payment' ? 'locked' : 'booked';
+      slot.lockedOrderId = order.id;
+    }
+  });
+}
+
+function seedAuditCases(store) {
+  return [
+    {
+      id: 'audit-case-demo-post',
+      targetType: 'post',
+      targetId: store.posts[0]?.id || 'post-wukang',
+      title: 'Demo post review queue item',
+      status: 'pending',
+      createdAt: now(),
+      payload: { note: 'Seed moderation case for admin demo.' },
+      logs: [],
+    },
+  ];
+}
+
+function buildServiceAreas(companion, fallbackPoint) {
+  const areas = companion.serviceAreas?.length ? companion.serviceAreas : companion.areas.map((areaName, index) => ({ areaName, index }));
+  return areas.map((area, index) => {
+    const point = Number.isFinite(area.lat) && Number.isFinite(area.lng) ? area : offsetPoint(fallbackPoint, index);
+    return {
+      id: area.id || `${companion.id}-area-${index + 1}`,
+      city: area.city || companion.baseCity || '上海',
+      areaName: area.areaName || area.name || area,
+      areaType: area.areaType || 'business_area',
+      lat: point.lat,
+      lng: point.lng,
+      radiusMeters: area.radiusMeters || (index === 0 ? 4000 : 2500),
+      enabled: area.enabled !== false,
+    };
+  });
+}
+
+function ensureWallet(store, companionId) {
+  let wallet = store.wallets.find((item) => item.companionId === companionId);
+  if (!wallet) {
+    wallet = { id: id('wallet'), companionId, pendingCents: 0, availableCents: 0, frozenCents: 0 };
+    store.wallets.push(wallet);
+  }
+  return wallet;
+}
+
+function viewOrder(order) {
+  return {
+    ...order,
+    statusText: orderStatusText[order.status] || order.status,
+    amountText: formatMoney(order.amountCents),
+    steps: ['Created', 'Paid', 'Confirmed', 'Completed'],
+    currentStep: orderStepIndex[order.status] ?? 0,
+  };
+}
+
+function publicPayment(payment) {
+  const miniProgramPayParams = buildMiniProgramPayParams(payment);
+  return {
+    paymentId: payment.id,
+    paymentNo: payment.paymentNo,
+    channel: payment.channel,
+    provider: payment.provider || 'wechat_pay',
+    mode: payment.mode || 'mock',
+    status: payment.status,
+    amountCents: payment.amountCents,
+    amountText: formatMoney(payment.amountCents),
+    miniProgramPayParams,
+    payPayload: {
+      provider: payment.provider || 'wechat_pay',
+      mode: payment.mode || 'mock',
+      miniProgramPayParams,
+      mockSuccessPath: `/api/payments/${payment.id}/mock-success`,
+      migrationTarget: 'wx.requestPayment',
+    },
+    paidAt: payment.paidAt,
+  };
+}
+
+function buildMiniProgramPayParams(payment) {
+  const timeStamp = String(Math.floor(new Date(payment.createdAt || now()).getTime() / 1000));
+  return {
+    timeStamp,
+    nonceStr: payment.nonceStr || `mock-${payment.id}`.replace(/[^a-zA-Z0-9]/g, '').slice(0, 32),
+    package: payment.prepayPackage || `prepay_id=mock_${payment.id}`,
+    signType: payment.signType || 'RSA',
+    paySign: payment.paySign || `mock-sign-${payment.id}`,
+  };
+}
+
+async function createWechatJsapiPrepay(payment, order, session) {
+  const appId = requiredEnv('WECHAT_MINI_PROGRAM_APP_ID');
+  const mchId = requiredEnv('WECHAT_PAY_MCH_ID');
+  const notifyUrl = requiredEnv('WECHAT_PAY_NOTIFY_URL');
+  const privateKey = getWechatPayPrivateKey();
+  const body = {
+    appid: appId,
+    mchid: mchId,
+    description: order.title.slice(0, 127),
+    out_trade_no: payment.paymentNo,
+    notify_url: notifyUrl,
+    amount: { total: payment.amountCents, currency: 'CNY' },
+    payer: { openid: session.user.openId },
+  };
+
+  if (!body.payer.openid || body.payer.openid.startsWith('mock-openid-')) {
+    throw new Error('Live WeChat Pay requires a real user openid from wx.login');
+  }
+
+  const response = await wechatPayRequest('/v3/pay/transactions/jsapi', body, privateKey);
+  const prepayPackage = `prepay_id=${response.prepay_id}`;
+  const timeStamp = String(Math.floor(Date.now() / 1000));
+  const nonceStr = randomString(32);
+  const paySign = signWechatPayMessage(`${appId}\n${timeStamp}\n${nonceStr}\n${prepayPackage}\n`, privateKey);
+  return {
+    prepayId: response.prepay_id,
+    prepayPackage,
+    timeStamp,
+    nonceStr,
+    signType: 'RSA',
+    paySign,
+  };
+}
+
+async function wechatPayRequest(path, body, privateKey) {
+  const method = 'POST';
+  const url = `https://api.mch.weixin.qq.com${path}`;
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = randomString(32);
+  const bodyText = JSON.stringify(body);
+  const message = `${method}\n${path}\n${timestamp}\n${nonce}\n${bodyText}\n`;
+  const signature = signWechatPayMessage(message, privateKey);
+  const authorization = [
+    'WECHATPAY2-SHA256-RSA2048',
+    `mchid="${requiredEnv('WECHAT_PAY_MCH_ID')}"`,
+    `nonce_str="${nonce}"`,
+    `signature="${signature}"`,
+    `timestamp="${timestamp}"`,
+    `serial_no="${requiredEnv('WECHAT_PAY_SERIAL_NO')}"`,
+  ].join(',');
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: 'application/json',
+      Authorization: authorization,
+      'Content-Type': 'application/json',
+      'User-Agent': 'PP-Platform-MVP/1.0',
+    },
+    body: bodyText,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || `WeChat Pay request failed with ${response.status}`);
+  return data;
+}
+
+function wechatPaymentNotify(store, body = {}) {
+  if (!process.env.WECHAT_PAY_API_V3_KEY) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
+  const transaction = decryptWechatPayResource(body.resource || {});
+  const payment = store.payments.find((item) => item.paymentNo === transaction.out_trade_no || item.transactionId === transaction.transaction_id);
+  if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
+  payment.transactionId = transaction.transaction_id;
+  payment.wechatTradeState = transaction.trade_state;
+  if (transaction.trade_state === 'SUCCESS') return markPaymentPaid(store, payment, 'WeChat Pay callback succeeded');
+  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+}
+
+function markPaymentPaid(store, payment, note) {
+  if (payment.status === 'paid') return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+  const order = store.orders.find((item) => item.id === payment.orderId);
+  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  payment.status = 'paid';
+  payment.paidAt = now();
+  Object.assign(order, viewOrder({ ...order, status: 'paid_pending_confirm', paidAt: now() }));
+  order.statusLogs = [...(order.statusLogs || []), statusLog('paid_pending_confirm', note)];
+  const companion = store.companions.find((item) => item.id === order.companionId);
+  const slot = companion?.slots.find((item) => item.id === order.slotId);
+  if (slot) {
+    slot.status = 'booked';
+    slot.lockedOrderId = order.id;
+  }
+  store.conversations[order.id] ||= createConversation(order);
+  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+}
+
+function decryptWechatPayResource(resource) {
+  const key = Buffer.from(requiredEnv('WECHAT_PAY_API_V3_KEY'), 'utf8');
+  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(resource.nonce || '', 'utf8'));
+  decipher.setAuthTag(Buffer.from(resource.tag || '', 'base64'));
+  decipher.setAAD(Buffer.from(resource.associated_data || '', 'utf8'));
+  const plaintext = Buffer.concat([decipher.update(Buffer.from(resource.ciphertext || '', 'base64')), decipher.final()]);
+  return JSON.parse(plaintext.toString('utf8'));
+}
+
+function signWechatPayMessage(message, privateKey) {
+  return sign('RSA-SHA256', Buffer.from(message, 'utf8'), privateKey).toString('base64');
+}
+
+function getWechatPayPrivateKey() {
+  if (process.env.WECHAT_PAY_PRIVATE_KEY) return process.env.WECHAT_PAY_PRIVATE_KEY.replace(/\\n/g, '\n');
+  if (process.env.WECHAT_PAY_PRIVATE_KEY_PATH) return readFileSync(resolve(process.env.WECHAT_PAY_PRIVATE_KEY_PATH), 'utf8');
+  throw new Error('WECHAT_PAY_PRIVATE_KEY or WECHAT_PAY_PRIVATE_KEY_PATH is required');
+}
+
+function useLiveWechatPay() {
+  return process.env.WECHAT_PAY_MODE === 'live';
+}
+
+function hasWechatAuthConfig() {
+  return Boolean(process.env.WECHAT_MINI_PROGRAM_APP_ID && process.env.WECHAT_MINI_PROGRAM_APP_SECRET);
+}
+
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+function randomString(length) {
+  return randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length);
+}
+
+function launchCheck() {
+  const requiredForProduction = [
+    'STORE_DRIVER',
+    'DATABASE_URL',
+    'WECHAT_MINI_PROGRAM_APP_ID',
+    'WECHAT_MINI_PROGRAM_APP_SECRET',
+    'WECHAT_PAY_MODE',
+    'WECHAT_PAY_MCH_ID',
+    'WECHAT_PAY_SERIAL_NO',
+    'WECHAT_PAY_PRIVATE_KEY',
+    'WECHAT_PAY_NOTIFY_URL',
+    'WECHAT_PAY_API_V3_KEY',
+    'COS_BUCKET',
+    'COS_REGION',
+    'COS_PUBLIC_BASE_URL',
+  ];
+  const missing = requiredForProduction.filter((name) => !process.env[name] && !(name === 'WECHAT_PAY_PRIVATE_KEY' && process.env.WECHAT_PAY_PRIVATE_KEY_PATH));
+  return json({
+    ready: missing.length === 0,
+    missing,
+    current: {
+      storeDriver: dataStore.kind,
+      wechatAuth: hasWechatAuthConfig() ? 'configured' : 'mock',
+      wechatPay: useLiveWechatPay() ? 'live' : 'mock',
+      media: process.env.COS_PUBLIC_BASE_URL ? 'cos-configured' : 'mock',
+    },
+  });
+}
+
+function actionLabel(actionType) {
+  const labels = {
+    release_message: 'Release message',
+    confirm_violation: 'Confirm violation',
+    warn_user: 'Warn user',
+    warn_companion: 'Warn companion',
+    restrict_chat: 'Restrict chat',
+    freeze_order: 'Freeze order',
+    suspend_companion: 'Suspend companion',
+    resolve_report: 'Resolve report',
+  };
+  return labels[actionType] || 'Record action';
+}
+
+function nextMessageCaseStatus(actionType, currentStatus) {
+  if (actionType === 'release_message') return 'released';
+  if (actionType === 'confirm_violation') return 'violation';
+  if (actionType === 'restrict_chat') return 'restricted';
+  return currentStatus;
+}
+
+function nextReportCaseStatus(actionType, currentStatus) {
+  if (actionType === 'resolve_report') return 'resolved';
+  if (actionType === 'confirm_violation' || actionType === 'freeze_order') return 'investigating';
+  return currentStatus;
 }
 
 function slot(id, label, dateLabel, timeLabel, startAt, endAt) {
@@ -373,176 +1804,72 @@ function extra(id, name, unit, unitLabel, priceCents) {
   return { id, name, unit, unitLabel, priceCents, priceText: formatMoney(priceCents) };
 }
 
-function createConversation(order) {
-  return {
-    id: 'conversation-' + order.id,
-    orderId: order.id,
-    orderNo: order.orderNo,
-    status: 'active',
-    safetyNotice: '请勿交换联系方式或私下付款。',
-    messages: [
-      { id: 'message-' + order.id + '-1', from: 'companion', text: '我看了你收藏的风格，可以先确认集合点和拍摄路线。', sentAt: now(), riskStatus: 'clean' },
-      { id: 'message-' + order.id + '-2', from: 'user', text: '好呀，我想要自然一点的照片。', sentAt: now(), riskStatus: 'clean' },
-    ],
-  };
+function findOrder(store, idValue) {
+  return store.orders.find((order) => order.id === idValue);
 }
 
-function viewOrder(order) {
-  const map = { pending_payment: '待支付', paid_pending_confirm: '待确认', confirmed: '已确认', in_service: '服务中', completed: '已完成', cancelled: '已取消', refunding: '退款中', refunded: '已退款', disputed: '争议处理中' };
-  const stepMap = { pending_payment: 0, paid_pending_confirm: 1, confirmed: 2, in_service: 2, completed: 3 };
-  return { ...order, statusText: map[order.status] || order.status, amountText: formatMoney(order.amountCents), steps: ['已下单', '已支付', '已确认', '已完成'], currentStep: stepMap[order.status] ?? 0 };
+function statusLog(status, note) {
+  return { id: id('status-log'), status, note, createdAt: now() };
 }
 
-function evaluateRisk(content) {
-  const compact = String(content || '').normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}_]+/gu, '');
-  const hits = ['微信', 'vx', 'v信', '电话', '手机号', '加我', '私下付', '线下付', '转账', '收款码']
-    .filter((keyword) => compact.includes(keyword))
-    .map((keyword) => ({ keyword, label: '风险词', level: 'high' }));
-  return { level: hits.length ? 'high' : 'clean', hits, shouldBlock: hits.length > 0 };
+function id(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
-function findOrder(store, id) {
-  return store.orders.find((order) => order.id === id);
+function orderNo() {
+  return `PP${new Date().toISOString().slice(2, 10).replaceAll('-', '')}${String(Date.now()).slice(-4)}`;
 }
 
-function jsonOr404(data, name) {
-  return data ? json(data) : error(404, 'NOT_FOUND', name + ' not found');
-}
-
-function last(path) {
-  return decodeURIComponent(path.split('/').pop() || '');
+function paymentNo() {
+  return `PAY${new Date().toISOString().slice(2, 10).replaceAll('-', '')}${String(Date.now()).slice(-4)}`;
 }
 
 function isNestedRoute(path, prefix, suffix) {
   return path.startsWith(prefix) && path.endsWith(suffix) && path.length > prefix.length + suffix.length;
 }
 
+function last(path) {
+  return decodeURIComponent(path.split('/').pop() || '');
+}
+
 function formatMoney(cents) {
   const yuan = Math.round(Number(cents || 0)) / 100;
-  return '¥' + (Number.isInteger(yuan) ? yuan : yuan.toFixed(2));
+  return `¥${Number.isInteger(yuan) ? yuan : yuan.toFixed(2)}`;
 }
 
-async function loadStore() {
-  let store;
-  try {
-    store = JSON.parse(await readFile(storePath, 'utf8'));
-  } catch {
-    store = initialStore();
-    const normalizedStore = normalizeStore(store);
-    await saveStore(normalizedStore);
-    return normalizedStore;
-  }
-  return normalizeStore(store);
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const earthRadiusMeters = 6371000;
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) ** 2;
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function normalizeStore(store) {
-  store.riskCases ||= [];
-  store.reports ||= [];
-  store.settlements ||= [];
-  store.conversations ||= {};
-  injectVirtualSeeds(store);
-  for (const order of store.orders || []) {
-    Object.assign(order, viewOrder(order));
-    const companion = store.companions?.find((item) => item.id === order.companionId);
-    const slot = companion?.slots?.find((item) => item.id === order.slotId);
-    if (slot && order.status !== 'cancelled' && order.status !== 'refunded') slot.status = 'booked';
-  }
-  return store;
+function toRadians(value) {
+  return (value * Math.PI) / 180;
 }
 
-function injectVirtualSeeds(store) {
-  store.companions ||= [];
-  store.posts ||= [];
-  const existingCompanionIds = new Set(store.companions.map((item) => item.id));
-  const existingPostIds = new Set(store.posts.map((item) => item.id));
-
-  virtualProfiles.forEach((profile, index) => {
-    const companion = createVirtualCompanion(profile, index);
-    const post = createVirtualPost(profile, companion, index);
-    if (!existingCompanionIds.has(companion.id)) store.companions.push(companion);
-    if (!existingPostIds.has(post.id)) store.posts.push(post);
-  });
-}
-
-function createVirtualPost(profile, companion, index) {
-  const [, , area, , activityName, , styleTags, bio, , , image, avatar] = profile;
+function offsetPoint(point, index) {
   return {
-    id: 'virtual-post-' + (index + 1),
-    location: '上海 · ' + area,
-    timeLabel: (index % 2 === 0 ? '下午' : '傍晚') + ' / 虚拟样例 / 可替换资料',
-    caption: bio + ' 这是一条虚拟陪拍者样例资料，用于填充页面和调试预约流程。',
-    styleTags: [...styleTags, '虚拟样例'],
-    activity: activityName,
-    images: [
-      { id: 'virtual-post-' + (index + 1) + '-image-1', url: image, width: 900, height: 1200, sortOrder: 1 },
-      { id: 'virtual-post-' + (index + 1) + '-image-2', url: avatar, width: 900, height: 1200, sortOrder: 2 },
-    ],
-    companion,
+    lat: Number((point.lat + index * 0.002).toFixed(7)),
+    lng: Number((point.lng - index * 0.002).toFixed(7)),
   };
 }
 
-function createVirtualCompanion(profile, index) {
-  const [name, gender, , areas, activityName, tags, , bio, priceCents, durationMinutes, image, avatar] = profile;
-  return {
-    id: 'virtual-companion-' + (index + 1),
-    userId: 'virtual-user-' + (index + 1),
-    name,
-    isVirtual: true,
-    avatar,
-    photo: image,
-    bio,
-    gender,
-    baseCity: '上海',
-    status: 'approved',
-    serviceEnabled: true,
-    ratingAvg: 4.6 + (index % 4) / 10,
-    ratingCount: 8 + index * 3,
-    tags,
-    safetyBadges: ['虚拟样例', '资料待替换', '流程演示'],
-    areas,
-    slots: createVirtualSlots(index),
-    activities: [
-      activity('virtual-activity-' + (index + 1) + '-main', activityName, durationMinutes, durationLabel(durationMinutes), priceCents),
-      activity('virtual-activity-' + (index + 1) + '-light', '轻量头像快拍', 60, '1小时', Math.max(priceCents - 12000, 19900)),
-    ],
-    extras: [
-      extra('virtual-extra-' + (index + 1) + '-retouch', '精修', 'per_photo', '张', 3000),
-      extra('virtual-extra-' + (index + 1) + '-rush', '加急出图', 'per_order', '单', 8000),
-      extra('virtual-extra-' + (index + 1) + '-video', '短视频花絮', 'per_order', '单', 12000),
-    ],
-  };
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
 }
 
-function createVirtualSlots(index) {
-  const day = 28 + (index % 5);
-  const hour = 10 + (index % 7);
-  return [
-    virtualSlot(index, 1, '明天 ' + hour + ':00', '2026-05-' + pad(day) + 'T' + pad(hour - 8) + ':00:00.000Z', '2026-05-' + pad(day) + 'T' + pad(hour - 6) + ':00:00.000Z'),
-    virtualSlot(index, 2, '周五 ' + (hour + 2) + ':30', '2026-05-' + pad(day + 1) + 'T' + pad(hour - 6) + ':30:00.000Z', '2026-05-' + pad(day + 1) + 'T' + pad(hour - 4) + ':30:00.000Z'),
-    virtualSlot(index, 3, '周末 ' + (hour + 4) + ':00', '2026-06-' + pad((index % 3) + 1) + 'T' + pad(hour - 4) + ':00:00.000Z', '2026-06-' + pad((index % 3) + 1) + 'T' + pad(hour - 2) + ':00:00.000Z'),
-  ];
+function clampNumber(value, min, max) {
+  return Math.min(Math.max(Math.round(value), min), max);
 }
 
-function virtualSlot(index, sort, label, startAt, endAt) {
-  const [dateLabel, timeLabel] = label.split(' ');
-  return { id: 'virtual-slot-' + (index + 1) + '-' + sort, label, dateLabel, timeLabel, startAt, endAt, status: 'available' };
+function normalize(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
-function durationLabel(minutes) {
-  if (minutes === 60) return '1小时';
-  if (minutes === 90) return '1.5小时';
-  if (minutes === 240) return '4小时';
-  return '2小时';
-}
-
-function pad(value) {
-  return String(value).padStart(2, '0');
-}
-
-async function saveStore(store) {
-  await mkdir(dirname(storePath), { recursive: true });
-  await writeFile(storePath, JSON.stringify(store, null, 2), 'utf8');
-}
 
 async function readBody(req) {
   if (!['POST', 'PUT', 'PATCH'].includes(req.method || '')) return {};
@@ -554,6 +1881,10 @@ async function readBody(req) {
 
 function json(data, status = 200, changed = false) {
   return { status, changed, payload: ok(data) };
+}
+
+function rawJson(data, status = 200, changed = false) {
+  return { status, changed, payload: data };
 }
 
 function error(status, code, message, changed = false) {

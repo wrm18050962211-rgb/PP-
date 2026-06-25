@@ -1,125 +1,145 @@
-import { BadgeCheck, Banknote, Calendar, Camera, ClipboardList, MapPinned, UserCheck, UserRoundPen } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import {
+  Banknote,
+  Calendar,
+  ChevronRight,
+  ClipboardList,
+  ImagePlus,
+  MapPinned,
+  Settings,
+  UserRound,
+  UserRoundPen,
+} from 'lucide-react';
+import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
-import { fetchCompanionDashboard, getCompanionDashboard } from '../../services/companionService';
-import type { CompanionDashboard } from '../../types/api';
-import { formatMoney } from '../../utils/money';
+import { applyCompanionProfile, readCompanionProfile } from '../../services/companionProfileService';
+import { listConsultations } from '../../services/consultationService';
+import { listFeedPosts } from '../../services/feedService';
+import type { FeedPost } from '../../types/api';
+import { getCollectionSummary } from '../user/UserCollectionPage';
 
-const setup = [
-  {
-    icon: UserRoundPen,
-    title: '资料编辑',
-    desc: '昵称、真人照片、介绍、性格与互动标签',
-    to: '/companion/profile',
-  },
-  {
-    icon: UserCheck,
-    title: '入驻审核',
-    desc: '实名、人脸、视频、生活照、紧急联系人',
-    to: '/companion/onboarding',
-  },
-  {
-    icon: MapPinned,
-    title: '服务范围',
-    desc: 'Base 城市 + 商圈/街区/景点/地铁站',
-    to: '/companion/service-range',
-  },
-  {
-    icon: Calendar,
-    title: '时间价格',
-    desc: '日期、时间段、活动形式、时长和加购项',
-    to: '/companion/booking-settings',
-  },
-  {
-    icon: Camera,
-    title: '作品发布',
-    desc: '像发图片帖一样上传地点、时间和风格',
-    to: '/companion/publish',
-  },
-  {
-    icon: ClipboardList,
-    title: '订单管理',
-    desc: '待确认、今日行程、完成确认和取消申请',
-    to: '/companion/orders',
-  },
+type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: string; badge?: string };
+
+const photographerMenuItems: MenuItem[] = [
+  { icon: Banknote, label: '咨询报价', desc: '查看需求卡并调整报价', to: '/companion/consultations' },
+  { icon: ClipboardList, label: '我的订单', desc: '待确认、已确认、已完成', to: '/companion/orders' },
+  { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/companion/orders?tab=completed&work=1' },
+];
+
+const setupItems: MenuItem[] = [
+  { icon: UserRoundPen, label: '资料编辑', desc: '昵称、照片、介绍与互动标签', to: '/companion/profile' },
+  { icon: Banknote, label: '套餐与报价', desc: '定金、尾款、加价项和取消规则', to: '/companion/packages' },
+  { icon: Calendar, label: '档期设置', desc: '空闲时间、订单占用和路线提醒', to: '/companion/booking-settings' },
+  { icon: MapPinned, label: '服务范围', desc: '城市、可接地点和最大公里数', to: '/companion/service-range' },
+  { icon: Banknote, label: '收入与提现', desc: '本周收入、待结算和提现', to: '/companion/income' },
+  { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/settings' },
 ];
 
 export function CompanionStudio() {
-  const { application, workDraft } = useAppData();
-  const [dashboard, setDashboard] = useState<CompanionDashboard>(() => getCompanionDashboard());
+  const navigate = useNavigate();
+  const { session } = useAppData();
+  const posts = listFeedPosts();
+  const ownProfile = buildPhotographerProfileSummary(posts.find((post) => post.companion.id === session?.companionId), session, posts[0]);
+  const collectionSummary = getCollectionSummary(posts, '/companion');
+  const newConsultationCount = session ? listConsultations(session).filter((item) => item.status === 'consulting').length : 0;
+  const visiblePhotographerMenuItems = photographerMenuItems.map((item) => {
+    if (item.label !== '咨询报价' || newConsultationCount <= 0) return item;
+    return {
+      ...item,
+      desc: `${item.desc} · ${newConsultationCount} 个新询价`,
+      badge: `${newConsultationCount}`,
+    };
+  });
 
   useEffect(() => {
-    let mounted = true;
-    fetchCompanionDashboard().then((nextDashboard) => {
-      if (mounted) setDashboard(nextDashboard);
-    });
+    if (!session) return;
+    if (session.role !== 'companion') navigate('/consumer/mine', { replace: true });
+  }, [navigate, session]);
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  if (!session || session.role !== 'companion') {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-[#f7f7f5] px-6 text-center text-sm font-bold text-zinc-500">
+        正在确认摄影师身份...
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-dvh pp-page px-4 py-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#3f302c]">陪拍者端</h1>
-          <p className="mt-1 text-sm text-[#7a6b64]">轻量创作者工具</p>
+    <div className="min-h-dvh bg-[#f7f7f5] px-4 pb-24 pt-3 text-zinc-950">
+      <section className="rounded-[10px] bg-zinc-950 p-4 text-white">
+        <Link to={ownProfile.to} className="flex items-center gap-3 active:scale-[0.99]">
+          <img className="h-14 w-14 shrink-0 rounded-full object-cover ring-1 ring-white/20" src={ownProfile.avatar} alt={ownProfile.name} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-black text-white/44">摄影师主页</span>
+            <span className="mt-0.5 block truncate text-xl font-black">{ownProfile.name}</span>
+            <span className="mt-1 block truncate text-xs font-semibold text-white/54">{ownProfile.handle}</span>
+          </span>
+          <ChevronRight size={22} className="shrink-0 text-white/42" />
+        </Link>
+
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {collectionSummary.map(({ icon: Icon, label, value, to }) => (
+            <Link key={label} to={to} className="rounded-[8px] bg-white/[0.07] px-2 py-3 text-center active:bg-white/[0.11]">
+              <Icon size={16} className="mx-auto text-white/58" />
+              <p className="mt-1 text-sm font-black leading-5">{label}</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-white/42">{value} 项</p>
+            </Link>
+          ))}
         </div>
-        <BadgeCheck className="text-emerald-600" size={28} />
-      </div>
-
-      <section className="mt-5 rounded-[24px] bg-[#e85d75] p-5 text-white shadow-[0_18px_40px_rgba(232,93,117,0.2)]">
-        <p className="text-sm text-white/80">本周预估收入</p>
-        <div className="mt-2 flex items-end gap-2">
-          <span className="text-4xl font-bold">{formatMoney(dashboard.weeklyEstimatedCents)}</span>
-          <span className="pb-1 text-sm text-white/80">待结算 {formatMoney(dashboard.pendingCents)}</span>
-        </div>
       </section>
 
-      <section className="mt-5 grid grid-cols-2 gap-3">
-        <StatusCard label="入驻资料" value={application.reviewStatus} active={application.reviewStatus === '已通过'} />
-        <StatusCard label="作品审核" value={workDraft.reviewStatus === '草稿' ? '待发布' : workDraft.reviewStatus} active={workDraft.reviewStatus === '已通过'} />
-      </section>
+      <MenuSection className="mt-5" items={visiblePhotographerMenuItems} />
 
-      <section className="mt-3 grid grid-cols-2 gap-3">
-        {dashboard.orderStats.map((item) => (
-          <div key={item} className="rounded-[18px] pp-surface p-4">
-            <p className="text-sm font-bold text-[#3f302c]">{item}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="mt-6 space-y-3">
-        <h2 className="text-base font-bold text-[#3f302c]">接单配置</h2>
-        {setup.map(({ icon: Icon, title, desc, to }) => (
-          <Link key={title} to={to} className="flex w-full items-center gap-3 rounded-[20px] pp-surface p-4 text-left">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#f4ebe6] text-[#6f625d]">
-              <Icon size={19} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-bold text-[#3f302c]">{title}</span>
-              <span className="mt-0.5 block truncate text-xs text-[#8f8078]">{desc}</span>
-            </span>
-          </Link>
-        ))}
-      </section>
-
-      <Link to="/companion/income" className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white">
-        <Banknote size={18} />
-        查看收入与提现
-      </Link>
+      <MenuSection className="mt-4" items={setupItems} />
     </div>
   );
 }
 
-function StatusCard({ label, value, active }: { label: string; value: string; active: boolean }) {
-  const needsWork = value === '需修改';
+function MenuSection({ items, className = '' }: { items: MenuItem[]; className?: string }) {
   return (
-    <div className={`rounded-[18px] p-4 ${active ? 'bg-[#eef8f1] text-[#23724a]' : needsWork ? 'bg-[#fff1f2] text-[#be3450]' : 'bg-[#f2e8e1] text-[#6f625d]'}`}>
-      <p className="text-xs font-medium">{label}</p>
-      <p className="mt-1 text-sm font-bold">{value}</p>
-    </div>
+    <section className={`${className} divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white`}>
+      {items.map(({ icon: Icon, label, desc, to, badge }) => (
+        <Link key={label} to={to} className="flex min-h-16 w-full items-center gap-3 px-4 text-left">
+          <Icon size={19} />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <span>{label}</span>
+              {badge ? <span className="rounded-full bg-[#e85d75] px-2 py-0.5 text-[10px] font-black leading-4 text-white">{badge}</span> : null}
+            </span>
+            <span className="mt-0.5 block truncate text-xs text-zinc-400">{desc}</span>
+          </span>
+          <ChevronRight className="text-zinc-300" size={18} />
+        </Link>
+      ))}
+    </section>
   );
+}
+
+function buildPhotographerProfileSummary(post: FeedPost | undefined, session: ReturnType<typeof useAppData>['session'], fallbackPost: FeedPost) {
+  const phoneHandle = formatPhoneHandle(session?.user.phone);
+
+  if (!post && session?.companionId) {
+    return {
+      to: `/companion/photographer/${session.companionId}`,
+      name: session.user.nickname || '本地摄影师',
+      handle: phoneHandle || `@${session.companionId.replace(/^companion-/, '').replace(/-/g, '')}`,
+      avatar: session.user.avatarUrl || fallbackPost.companion.avatar || fallbackPost.images[0]?.url,
+      bio: '本地注册的摄影师身份',
+    };
+  }
+
+  const profilePost = post ?? fallbackPost;
+  const photographer = applyCompanionProfile(profilePost.companion, readCompanionProfile(profilePost.companion.id, 'companion'));
+  return {
+    to: `/companion/photographer/${photographer.id}`,
+    name: photographer.name,
+    handle: phoneHandle || `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`,
+    avatar: photographer.avatar || photographer.photo || profilePost.images[0]?.url,
+    bio: photographer.bio || `${photographer.areas.slice(0, 2).join(' / ')} · ${photographer.activities[0]?.name || '摄影服务'}`,
+  };
+}
+
+function formatPhoneHandle(phone?: string) {
+  const normalizedPhone = phone?.replace(/\D/g, '');
+  return normalizedPhone ? `@${normalizedPhone}` : '';
 }

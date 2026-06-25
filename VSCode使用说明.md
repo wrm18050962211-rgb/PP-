@@ -29,9 +29,9 @@ PP平台.code-workspace
 
 前端地址：
 
-- 用户端：http://127.0.0.1:5173/consumer
-- 陪拍者端：http://127.0.0.1:5173/companion
-- 运营后台：http://127.0.0.1:5173/admin
+- 用户端：http://127.0.0.1:5174/consumer
+- 陪拍者端：http://127.0.0.1:5174/companion
+- 运营后台：http://127.0.0.1:5174/admin
 
 后端健康检查：
 
@@ -43,7 +43,7 @@ PP平台.code-workspace
 
 ```powershell
 cd pp-app
-npm.cmd run dev -- --port 5173
+npm.cmd run dev -- --host 127.0.0.1 --port 5174
 npm.cmd run build
 npm.cmd run lint
 ```
@@ -63,4 +63,13 @@ npm.cmd run dev
 - `pp-app/src/services`：前端 API 服务层
 - `server/server.mjs`：第二版本地后端 API
 - `database`：数据库 schema、API 契约和后端计划
-- `APP_STORE_IPHONE_LAUNCH_PLAN.md`：iPhone 封装和 App Store 上线逐步计划
+
+## iPhone 封装与上架计划
+
+当前分支的 App Store 推进主文档是：
+
+```text
+docs/APP_STORE_LAUNCH.md
+```
+
+里面已经按 iPhone 适配、Xcode 封装、生产环境、真实账号、预约订单、支付、TestFlight、App Store 审核拆成一步一步执行的计划。继续修改时先看这份文档，再按当前阶段推进。

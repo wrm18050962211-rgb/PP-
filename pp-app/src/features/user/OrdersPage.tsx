@@ -1,26 +1,65 @@
 import {
+  ArrowLeft,
   CalendarDays,
   Camera,
+  ChevronDown,
   CheckCircle2,
   Clock3,
+  ImagePlus,
   MapPin,
   MessageCircle,
   ReceiptText,
-  RotateCcw,
   Star,
+  UploadCloud,
+  Users,
   XCircle,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
+import {
+  closeConsultation,
+  consultationToOrderInput,
+  estimateConsultationQuote,
+  listConsultations,
+  type ConsultationQuoteEstimate,
+  type ConsultationRecord,
+} from '../../services/consultationService';
+import { listFeedPosts } from '../../services/feedService';
+import {
+  appendOrderWorkActivity,
+  canActorConfirmOrderWork,
+  canActorEditOrderWork,
+  completeOrderWork,
+  createWatermarkText,
+  createOrderWorkRecord,
+  getOrderWorkDisplayUrls,
+  getOrderWorkPreviewUrls,
+  getOrderWorkStage,
+  hasDeliveredRequiredWork,
+  isOrderWorkConfirmed,
+  isOriginalReleased,
+  listOrderWorkRecords,
+  markOrderWorkDisputed,
+  saveOrderWorkRecord,
+  shouldAutoCompleteOrderWork,
+  type OrderWorkRecord,
+  type WorkActor,
+} from '../../services/orderWorkService';
+import { readDomainJson, writeDomainJson } from '../../services/scopedStorage';
+import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import type { AppOrder, OrderStatus } from '../../types/domain';
+import type { FeedPost } from '../../types/api';
 import { formatMoney } from '../../utils/money';
 
+type QuotedConsultation = ConsultationRecord & { quote: NonNullable<ConsultationRecord['quote']> };
 type OrderAction =
   | { type: 'cancel'; order: AppOrder }
   | { type: 'review'; order: AppOrder }
-  | { type: 'refund'; order: AppOrder }
+  | { type: 'work'; order: AppOrder }
   | null;
+type WorkEditTab = 'not_started' | 'editing' | 'done';
 
 const statusTabs: Array<{ key: OrderStatus | 'all'; label: string }> = [
   { key: 'all', label: '全部' },
@@ -28,76 +67,236 @@ const statusTabs: Array<{ key: OrderStatus | 'all'; label: string }> = [
   { key: 'confirmed', label: '已确认' },
   { key: 'completed', label: '已完成' },
   { key: 'cancelled', label: '已取消' },
-  { key: 'refunding', label: '退款中' },
+];
+
+const workTabs: Array<{ key: WorkEditTab; label: string; desc: string }> = [
+  { key: 'not_started', label: '未编辑', desc: '已完成订单，还没有上传或填写成片信息' },
+  { key: 'editing', label: '正在编辑', desc: '已进入成片协作，等待补充内容或双方确认' },
+  { key: 'done', label: '已完成编辑', desc: '创作者和摄影师已确认，可选择同步主页' },
 ];
 
 const statusMeta: Record<string, { label: string; tone: string }> = {
   paid_pending_confirm: { label: '待确认', tone: 'bg-amber-50 text-amber-700 ring-amber-100' },
   confirmed: { label: '已确认', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
+  in_service: { label: '已确认', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-100' },
   completed: { label: '已完成', tone: 'bg-blue-50 text-blue-700 ring-blue-100' },
   cancelled: { label: '已取消', tone: 'bg-zinc-100 text-zinc-500 ring-zinc-200' },
-  refunding: { label: '退款中', tone: 'bg-rose-50 text-rose-700 ring-rose-100' },
+  refunding: { label: '已取消', tone: 'bg-zinc-100 text-zinc-500 ring-zinc-200' },
+  refunded: { label: '已取消', tone: 'bg-zinc-100 text-zinc-500 ring-zinc-200' },
+  disputed: { label: '已取消', tone: 'bg-rose-50 text-rose-700 ring-rose-100' },
 };
 
-const reviewStorageKey = 'pp-reviewed-orders';
+const reviewStorageKey = 'reviewed-orders-v1';
+const workVenueTypeOptions = ['不限', '室外', '室内'];
+const workShootTimeOptions = ['不限', '早上', '中午', '下午', '晚上'];
+const workActivityCategoryOptions = ['景点游客照', '网红餐厅拍照', '城市街拍', '旅行跟拍', '节日纪念', '情侣/婚纱', '亲子/宠物', '商业形象'];
+const workDurationOptions = [
+  { label: '30分钟', value: 30 },
+  { label: '1小时', value: 60 },
+  { label: '1.5小时', value: 90 },
+  { label: '2小时', value: 120 },
+  { label: '3小时', value: 180 },
+  { label: '4小时', value: 240 },
+  { label: '8小时', value: 480 },
+];
 
 export function OrdersPage() {
-  const { orders, updateOrderStatus } = useAppData();
-  const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>('all');
+  const { orders, session, createOrder, updateOrderFunding, updateOrderStatus } = useAppData();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const workMode = searchParams.get('work') === '1';
+  const backTo = searchParams.get('from') === 'companion' ? '/companion/mine' : '/consumer/mine';
+  const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>(() => parseOrderStatusTab(searchParams.get('tab')));
+  const [activeWorkTab, setActiveWorkTab] = useState<WorkEditTab>('not_started');
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
+  const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
+  const [consultationVersion, setConsultationVersion] = useState(0);
+  const posts = useMemo(() => listFeedPosts(), []);
 
   const filteredOrders = useMemo(
-    () => orders.filter((order) => activeStatus === 'all' || order.status === activeStatus),
+    () => orders.filter((order) => activeStatus === 'all' || getDisplayOrderStatus(order.status) === activeStatus),
     [activeStatus, orders],
   );
+  const quotedConsultations = useMemo(
+    () => (session && !workMode ? listConsultations(session).filter(isQuotedConsultation) : []),
+    [consultationVersion, session, workMode],
+  );
+  const showQuotedConsultations = !workMode && quotedConsultations.length > 0 && (activeStatus === 'all' || activeStatus === 'paid_pending_confirm');
+  const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
+  const completedWorkOrders = useMemo(() => orders.filter((order) => getDisplayOrderStatus(order.status) === 'completed'), [orders]);
+  const workCounts = useMemo(() => {
+    return workTabs.reduce<Record<WorkEditTab, number>>((next, tab) => {
+      next[tab.key] = completedWorkOrders.filter((order) => getWorkEditStatus(workByOrderId.get(order.id)) === tab.key).length;
+      return next;
+    }, { not_started: 0, editing: 0, done: 0 });
+  }, [completedWorkOrders, workByOrderId]);
+  const filteredWorkOrders = useMemo(
+    () => completedWorkOrders.filter((order) => getWorkEditStatus(workByOrderId.get(order.id)) === activeWorkTab),
+    [activeWorkTab, completedWorkOrders, workByOrderId],
+  );
+
+  useEffect(() => {
+    const autoCompletedRecords: OrderWorkRecord[] = [];
+    completedWorkOrders.forEach((order) => {
+      const record = workByOrderId.get(order.id);
+      if (!record || !shouldAutoCompleteOrderWork(record) || order.settlementStatus === 'settled') return;
+      const completedRecord = completeOrderWork(record, 'auto');
+      saveOrderWorkRecord(completedRecord);
+      updateOrderFunding(order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
+      autoCompletedRecords.push(completedRecord);
+    });
+    if (autoCompletedRecords.length) setWorkRecords(listOrderWorkRecords());
+  }, [completedWorkOrders, updateOrderFunding, workByOrderId]);
+
+  useEffect(() => {
+    setActiveStatus(parseOrderStatusTab(searchParams.get('tab')));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const refreshWorkRecords = () => setWorkRecords(listOrderWorkRecords());
+    window.addEventListener('focus', refreshWorkRecords);
+    window.addEventListener('storage', refreshWorkRecords);
+    document.addEventListener('visibilitychange', refreshWorkRecords);
+    return () => {
+      window.removeEventListener('focus', refreshWorkRecords);
+      window.removeEventListener('storage', refreshWorkRecords);
+      document.removeEventListener('visibilitychange', refreshWorkRecords);
+    };
+  }, []);
 
   function submitReview(orderId: string) {
     const nextIds = Array.from(new Set([...reviewedOrderIds, orderId]));
     setReviewedOrderIds(nextIds);
-    localStorage.setItem(reviewStorageKey, JSON.stringify(nextIds));
+    writeDomainJson(reviewStorageKey, nextIds);
     setActiveAction(null);
+  }
+
+  function syncWorkRecord(record: OrderWorkRecord) {
+    setWorkRecords(saveOrderWorkRecord(record));
+  }
+
+  function submitWorkRecord(record: OrderWorkRecord) {
+    syncWorkRecord(record);
+    setActiveAction(null);
+  }
+
+  function acceptConsultationQuote(consultation: ConsultationRecord) {
+    const input = consultationToOrderInput(consultation);
+    if (!input) return;
+    createOrder(input, 'confirmed');
+    closeConsultation(consultation.id);
+    setConsultationVersion((value) => value + 1);
+    setActiveStatus('confirmed');
+    navigate('/consumer/orders?tab=confirmed');
   }
 
   return (
     <div className="min-h-dvh pp-page px-4 py-5">
-      <header>
-        <p className="text-xs font-semibold text-[#e85d75]">我的预约</p>
-        <h1 className="mt-1 text-2xl font-bold text-[#3f302c]">订单</h1>
+      <header className="flex items-start gap-3">
+        <Link className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/82 text-[#3f302c] ring-1 ring-[#eadfd8]" to={backTo} aria-label="返回我的">
+          <ArrowLeft size={20} />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-[#e85d75]">我的预约</p>
+          <h1 className="mt-1 text-2xl font-bold text-[#3f302c]">{workMode ? '编辑作品' : '订单'}</h1>
+        </div>
       </header>
 
-      <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4">
-        {statusTabs.map((tab) => (
-          <button
-            key={tab.key}
-            className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
-              activeStatus === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
-            }`}
-            onClick={() => setActiveStatus(tab.key)}
-            type="button"
-          >
-            {tab.label}
-          </button>
-        ))}
+      {workMode ? (
+        <section className="mt-4 rounded-[16px] bg-zinc-950 p-4 text-white">
+          <p className="text-sm font-black">已完成订单可以提交共同成片</p>
+          <p className="mt-1 text-xs leading-5 text-white/58">创作者和摄影师都可编辑，双方确认后可分别选择是否同步到自己的主页。</p>
+        </section>
+      ) : (
+        <section className="mt-4 rounded-[16px] bg-white/78 p-3 text-[#3f302c] ring-1 ring-[#eadfd8]">
+          <p className="text-xs font-black text-[#e85d75]">订单分为 4 个主状态</p>
+          <p className="mt-1 text-xs leading-5 text-[#8f8078]">
+            待确认先沟通，摄影师确认后进入已确认并托管款项；拍摄后创作者确认完成；取消按阶段进入平台违约/退款处理。
+          </p>
+        </section>
+      )}
+
+      <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1">
+        {workMode
+          ? workTabs.map((tab) => (
+              <button
+                key={tab.key}
+                className={`h-11 shrink-0 rounded-full px-4 text-sm font-bold ${
+                  activeWorkTab === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
+                }`}
+                onClick={() => setActiveWorkTab(tab.key)}
+                type="button"
+              >
+                {tab.label}
+                <span className="ml-1 text-xs opacity-70">{workCounts[tab.key]}</span>
+              </button>
+            ))
+          : statusTabs.map((tab) => (
+              <button
+                key={tab.key}
+                className={`h-11 shrink-0 rounded-full px-4 text-sm font-bold ${
+                  activeStatus === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
+                }`}
+                onClick={() => setActiveStatus(tab.key)}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
       </div>
 
+      {workMode ? <p className="mt-3 text-xs font-semibold leading-5 text-[#8f8078]">{workTabs.find((tab) => tab.key === activeWorkTab)?.desc}</p> : null}
+
       <div className="mt-4 space-y-4">
-        {filteredOrders.map((order) => (
+        {workMode
+          ? filteredWorkOrders.map((order) => (
+              <WorkEditOrderCard
+                key={order.id}
+                order={order}
+                record={workByOrderId.get(order.id)}
+                onManage={() => {
+                  setWorkRecords(listOrderWorkRecords());
+                  setActiveAction({ type: 'work', order });
+                }}
+              />
+            ))
+          : null}
+        {!workMode && showQuotedConsultations
+          ? quotedConsultations.map((consultation) => {
+              const companion = posts.find((post) => post.companion.id === consultation.photographerId)?.companion;
+              const estimate = estimateConsultationQuote(consultation, companion);
+              return (
+                <ConsultationQuoteCard
+                  key={consultation.id}
+                  consultation={consultation}
+                  estimate={estimate}
+                  onAccept={() => acceptConsultationQuote(consultation)}
+                />
+              );
+            })
+          : null}
+        {!workMode && filteredOrders.map((order) => (
           <OrderCard
             key={order.id}
             order={order}
             reviewed={reviewedOrderIds.includes(order.id)}
+            workRecord={workByOrderId.get(order.id)}
             onCancel={() => setActiveAction({ type: 'cancel', order })}
             onReview={() => setActiveAction({ type: 'review', order })}
-            onRefund={() => setActiveAction({ type: 'refund', order })}
+            onManageWork={() => {
+              setWorkRecords(listOrderWorkRecords());
+              setActiveAction({ type: 'work', order });
+            }}
+            onPayBalance={() => updateOrderFunding(order.id, { balanceStatus: 'paid', fundsStatus: 'full_escrowed' })}
           />
         ))}
       </div>
 
-      {!filteredOrders.length && (
+      {((workMode && !filteredWorkOrders.length) || (!workMode && !filteredOrders.length && !showQuotedConsultations)) && (
         <div className="mt-16 text-center">
           <ReceiptText className="mx-auto text-zinc-300" size={48} />
-          <p className="mt-4 text-sm font-semibold text-[#8f8078]">当前没有这个状态的订单</p>
+          <p className="mt-4 text-sm font-semibold text-[#8f8078]">{workMode ? '当前没有这个编辑状态的作品' : '当前没有这个状态的订单'}</p>
         </div>
       )}
 
@@ -106,6 +305,7 @@ export function OrdersPage() {
           order={activeAction.order}
           onClose={() => setActiveAction(null)}
           onConfirm={() => {
+            updateOrderFunding(activeAction.order.id, calculateCancellationSettlement(activeAction.order, 'creator'));
             updateOrderStatus(activeAction.order.id, 'cancelled');
             setActiveAction(null);
           }}
@@ -114,7 +314,25 @@ export function OrdersPage() {
       {activeAction?.type === 'review' && (
         <ReviewDialog order={activeAction.order} onClose={() => setActiveAction(null)} onSubmit={() => submitReview(activeAction.order.id)} />
       )}
-      {activeAction?.type === 'refund' && <RefundDialog order={activeAction.order} onClose={() => setActiveAction(null)} />}
+      {activeAction?.type === 'work' && (
+        <OrderWorkDialog
+          actor="creator"
+          order={activeAction.order}
+          post={posts.find((post) => post.id === activeAction.order.postId)}
+          record={workByOrderId.get(activeAction.order.id)}
+          onClose={() => setActiveAction(null)}
+          onDraftChange={syncWorkRecord}
+          onSubmit={submitWorkRecord}
+          onCompleteOrder={(record) => {
+            submitWorkRecord(completeOrderWork(record, 'creator'));
+            updateOrderFunding(activeAction.order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
+          }}
+          onDispute={(record, reason) => {
+            submitWorkRecord(markOrderWorkDisputed(record, reason));
+            updateOrderFunding(activeAction.order.id, { fundsStatus: 'frozen', settlementStatus: 'frozen' });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -122,20 +340,25 @@ export function OrdersPage() {
 function OrderCard({
   order,
   reviewed,
+  workRecord,
   onCancel,
   onReview,
-  onRefund,
+  onManageWork,
+  onPayBalance,
 }: {
   order: AppOrder;
   reviewed: boolean;
+  workRecord?: OrderWorkRecord;
   onCancel: () => void;
   onReview: () => void;
-  onRefund: () => void;
+  onManageWork: () => void;
+  onPayBalance: () => void;
 }) {
   const addOnTotal = order.addOns?.reduce((total, item) => total + item.amountCents, 0) ?? 0;
   const basePrice = Math.max(order.amountCents - addOnTotal, 0);
   const canCancel = order.status === 'paid_pending_confirm' || order.status === 'confirmed';
   const canReview = order.status === 'completed';
+  const needsBalance = order.status === 'confirmed' && order.balanceCents && order.balanceStatus !== 'paid';
   const meta = statusMeta[order.status] ?? { label: order.statusText, tone: 'bg-zinc-100 text-zinc-600 ring-zinc-200' };
 
   return (
@@ -178,6 +401,17 @@ function OrderCard({
         </div>
       </div>
 
+      {order.status === 'completed' && <ProtectedCompletedWorkPanel record={workRecord} onManage={onManageWork} />}
+      {needsBalance ? (
+        <section className="mt-4 rounded-[18px] bg-[#fff7df] p-3 text-[#8a5a12] ring-1 ring-[#f2dfaa]">
+          <p className="text-sm font-black">尾款待托管</p>
+          <p className="mt-1 text-xs leading-5">拍摄前需将尾款 {formatMoney(order.balanceCents ?? 0)} 托管到平台。未托管尾款时，摄影师可拒绝开始拍摄，不交付底片。</p>
+          <button className="mt-3 h-10 w-full rounded-full bg-[#3f302c] text-sm font-black text-white" onClick={onPayBalance} type="button">
+            支付尾款
+          </button>
+        </section>
+      ) : null}
+
       <div className="mt-4 flex gap-2">
         <Link
           to={`/consumer/messages/${order.id}`}
@@ -209,13 +443,7 @@ function OrderCard({
             {reviewed ? '已评价' : '去评价'}
           </button>
         )}
-        {order.status === 'refunding' && (
-          <button className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#fff1f2] text-sm font-bold text-[#e85d75]" onClick={onRefund} type="button">
-            <RotateCcw size={17} />
-            退款进度
-          </button>
-        )}
-        {order.status === 'cancelled' && (
+        {['cancelled', 'refunding', 'refunded', 'disputed'].includes(order.status) && (
           <span className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#a99b94]">
             <CheckCircle2 size={17} />
             已取消
@@ -226,11 +454,823 @@ function OrderCard({
   );
 }
 
+function ConsultationQuoteCard({
+  consultation,
+  estimate,
+  onAccept,
+}: {
+  consultation: QuotedConsultation;
+  estimate: ConsultationQuoteEstimate;
+  onAccept: () => void;
+}) {
+  const quote = consultation.quote;
+  const adjusted = quote.totalCents !== estimate.totalCents || quote.depositCents !== estimate.depositCents;
+
+  return (
+    <article className="rounded-[22px] border border-[#eadfd8] bg-white p-4 shadow-[0_12px_30px_rgba(63,48,44,0.05)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-[#a99b94]">{consultation.id}</p>
+          <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{consultation.requestCard.packageName}</h2>
+          <p className="mt-1 truncate text-xs font-semibold text-[#8f8078]">{consultation.photographerName} · 咨询报价</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-[#fff1f3] px-3 py-1 text-xs font-bold text-[#e85d75] ring-1 ring-[#ffdce4]">摄影师已报价</span>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm">
+        <DetailLine icon={<Camera size={17} />} label="摄影师" value={consultation.photographerName} />
+        <DetailLine icon={<MapPin size={17} />} label="地点" value={consultation.requestCard.place} />
+        <DetailLine icon={<CalendarDays size={17} />} label="时间" value={`${consultation.requestCard.date} ${consultation.requestCard.timeRange}`} />
+        <DetailLine icon={<Users size={17} />} label="人数" value={`${consultation.requestCard.peopleCount} 人 · ${consultation.requestCard.sceneType === 'outdoor' ? '室外' : '室内'}`} />
+        <DetailLine icon={<ImagePlus size={17} />} label="图片数量" value={formatConsultationImageQuantity(consultation)} />
+      </div>
+
+      <div className="mt-4 rounded-[18px] bg-[#fff5f1] p-3 text-sm font-semibold leading-6 text-[#6f625d]">
+        <PriceLine label="订单原报价" value={formatMoney(estimate.totalCents)} muted={adjusted} />
+        <PriceLine label="摄影师调整价" value={formatMoney(quote.totalCents)} strong />
+        <PriceLine label="定金托管" value={formatMoney(quote.depositCents)} />
+        <PriceLine label="拍摄前尾款" value={formatMoney(quote.balanceCents)} />
+        {adjusted ? <p className="mt-2 text-xs text-[#a99b94]">摄影师已基于需求卡调整价格，请确认后支付定金。</p> : null}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Link
+          to={`/consumer/messages/${consultation.id}`}
+          className="flex h-10 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#6f625d]"
+        >
+          <MessageCircle size={17} />
+          进入沟通
+        </Link>
+        <button
+          className="flex h-10 items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white disabled:bg-zinc-200 disabled:text-zinc-400"
+          onClick={onAccept}
+          type="button"
+        >
+          <CheckCircle2 size={17} />
+          确认并付定金
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function isQuotedConsultation(consultation: ConsultationRecord): consultation is QuotedConsultation {
+  return consultation.status === 'quoted' && Boolean(consultation.quote);
+}
+
+function formatConsultationImageQuantity(consultation: ConsultationRecord) {
+  const { imageQuantityMode, customImageQuantity } = consultation.requestCard;
+  if (imageQuantityMode === 'unlimited') return '数量不限';
+  if (imageQuantityMode === 'custom') return `${customImageQuantity ?? 12} 张`;
+  return `${imageQuantityMode ?? '9'} 张`;
+}
+
+function parseOrderStatusTab(tab: string | null): OrderStatus | 'all' {
+  if (!tab) return 'all';
+  return statusTabs.some((item) => item.key === tab) ? (tab as OrderStatus | 'all') : 'all';
+}
+
+function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; record?: OrderWorkRecord; onManage: () => void }) {
+  const status = getWorkEditStatus(record);
+  const statusLabel = workTabs.find((tab) => tab.key === status)?.label ?? '未编辑';
+  const actionText = status === 'not_started' ? '开始编辑' : status === 'editing' ? '继续编辑' : '查看成片';
+  const imageCount = record?.imageUrls.length ?? 0;
+  const imageLimit = getOrderImageLimit(order);
+  const imageLimitText = imageLimit.limit === null ? '不限' : String(imageLimit.limit);
+
+  return (
+    <article className="rounded-[22px] pp-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-[#a99b94]">{order.orderNo}</p>
+          <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{order.activityName ?? order.title}</h2>
+        </div>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${getWorkEditTone(status)}`}>{statusLabel}</span>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm">
+        <DetailLine icon={<Camera size={17} />} label="项目" value={order.activityName ?? order.title} />
+        <DetailLine icon={<MapPin size={17} />} label="地点" value={order.place} />
+        <DetailLine icon={<CalendarDays size={17} />} label="时间" value={`${order.dateLabel ?? ''} ${order.timeLabel ?? order.time}`.trim()} />
+        <DetailLine icon={<Clock3 size={17} />} label="时长" value={order.durationLabel ?? `${order.durationMinutes ?? 0}分钟`} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2 rounded-[18px] bg-[#fff5f1] p-3 text-center">
+        <WorkMetric label="照片/Live" value={`${imageCount}/${imageLimitText}`} />
+        <WorkMetric label="创作者确认" value={record?.creatorConfirmed ? '已确认' : '未确认'} />
+        <WorkMetric label="摄影师确认" value={record?.photographerConfirmed ? '已确认' : '未确认'} />
+      </div>
+
+      <button className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white" onClick={onManage} type="button">
+        <ImagePlus size={17} />
+        {actionText}
+      </button>
+    </article>
+  );
+}
+
+function WorkMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-[#a99b94]">{label}</p>
+      <p className="mt-1 text-xs font-black text-[#3f302c]">{value}</p>
+    </div>
+  );
+}
+
+function ProtectedCompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; onManage: () => void }) {
+  const confirmed = record ? isOrderWorkConfirmed(record) : false;
+  const originalReleased = record ? isOriginalReleased(record) : false;
+  const displayUrls = record ? getOrderWorkDisplayUrls(record) : [];
+  const statusText = !record
+    ? '还未上传成片'
+    : record.deliveryStatus === 'disputed'
+      ? '预览争议处理中'
+      : record.changeRequestBy && !record.changeAccepted
+        ? '修改待另一方确认'
+        : confirmed
+          ? '双方已确认'
+          : '等待双方确认';
+  const publishText =
+    confirmed && (record?.publishToCreator || record?.publishToPhotographer)
+      ? [record.publishToCreator ? '创作者主页' : '', record.publishToPhotographer ? '摄影师主页' : ''].filter(Boolean).join(' / ')
+      : '确认后可选择同步主页';
+
+  return (
+    <section className="mt-4 rounded-[18px] bg-zinc-950 p-3 text-white">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 text-xs font-black text-white/46">
+            <Users size={14} />
+            成片协作
+          </p>
+          <h3 className="mt-1 text-sm font-black">{statusText}</h3>
+          <p className="mt-1 truncate text-xs font-semibold text-white/48">{publishText}</p>
+        </div>
+        <button className="h-9 shrink-0 rounded-full bg-white px-3 text-xs font-black text-zinc-950" onClick={onManage} type="button">
+          {record ? '管理成片' : '上传照片'}
+        </button>
+      </div>
+
+      {record ? (
+        <p className="mt-3 rounded-[10px] bg-white/8 px-3 py-2 text-[11px] font-semibold leading-5 text-white/58">
+          {originalReleased ? '双方确认后已开放原图/无水印图。' : '当前仅展示低清/动态水印预览，原图会在确认完成或平台裁定后开放。'}
+        </p>
+      ) : null}
+
+      {displayUrls.length ? (
+        <div className="mt-3 grid grid-cols-4 gap-1">
+          {displayUrls.slice(0, 4).map((url, index) => (
+            <WatermarkedMedia
+              key={`${url}-${index}`}
+              url={url}
+              index={index}
+              active={!originalReleased}
+              watermarkText={record?.watermarkText ?? 'PP preview'}
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; onManage: () => void }) {
+  const confirmed = record ? isOrderWorkConfirmed(record) : false;
+  const statusText = !record
+    ? '还未上传成片'
+    : record.changeRequestBy && !record.changeAccepted
+      ? '修改待另一方确认'
+      : confirmed
+        ? '双方已确认'
+        : '等待双方确认';
+  const publishText =
+    confirmed && (record?.publishToCreator || record?.publishToPhotographer)
+      ? [record.publishToCreator ? '创作者主页' : '', record.publishToPhotographer ? '摄影师主页' : ''].filter(Boolean).join(' / ')
+      : '确认后可选择同步主页';
+
+  return (
+    <section className="mt-4 rounded-[18px] bg-zinc-950 p-3 text-white">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 text-xs font-black text-white/46">
+            <Users size={14} />
+            成片协作
+          </p>
+          <h3 className="mt-1 text-sm font-black">{statusText}</h3>
+          <p className="mt-1 truncate text-xs font-semibold text-white/48">{publishText}</p>
+        </div>
+        <button className="h-9 shrink-0 rounded-full bg-white px-3 text-xs font-black text-zinc-950" onClick={onManage} type="button">
+          {record ? '管理成片' : '上传照片'}
+        </button>
+      </div>
+
+      {record?.imageUrls.length ? (
+        <div className="mt-3 grid grid-cols-4 gap-1">
+          {record.imageUrls.slice(0, 4).map((url, index) => (
+            <div key={`${url}-${index}`} className="aspect-square w-full overflow-hidden rounded-[6px]">
+              <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+export function OrderWorkDialog({
+  actor,
+  order,
+  post,
+  record,
+  onClose,
+  onDraftChange,
+  onSubmit,
+  onCompleteOrder,
+  onDispute,
+}: {
+  actor: WorkActor;
+  order: AppOrder;
+  post?: FeedPost;
+  record?: OrderWorkRecord;
+  onClose: () => void;
+  onDraftChange?: (record: OrderWorkRecord) => void;
+  onSubmit: (record: OrderWorkRecord) => void;
+  onCompleteOrder?: (record: OrderWorkRecord) => void;
+  onDispute: (record: OrderWorkRecord, reason: string) => void;
+}) {
+  const [draft, setDraft] = useState<OrderWorkRecord>(() => record ?? createOrderWorkRecord(order, post));
+  const [disputeReason, setDisputeReason] = useState('');
+  const [syncRevision, setSyncRevision] = useState(0);
+  const confirmed = isOrderWorkConfirmed(draft);
+  const stage = getOrderWorkStage(draft);
+  const editable = canActorEditOrderWork(draft, actor);
+  const originalReleased = isOriginalReleased(draft);
+  const previewUrls = getOrderWorkPreviewUrls(draft);
+  const imageLimit = getOrderImageLimit(order);
+  const requiredImageCount = imageLimit.limit;
+  const imageLimitText = imageLimit.limit === null ? '不限' : String(imageLimit.limit);
+  const deliveryReady = hasDeliveredRequiredWork(draft, requiredImageCount);
+  const canUploadOriginals = actor === 'photographer' && editable;
+
+  const actorLabel = actor === 'creator' ? '创作者' : '摄影师';
+  const canCompleteOrder = actor === 'creator' && confirmed && !draft.orderCompletedAt && order.settlementStatus !== 'settled';
+  const canConfirmAsCreator = actor === 'creator' && canActorConfirmOrderWork(draft, 'creator', requiredImageCount);
+  const canConfirmAsPhotographer = actor === 'photographer' && canActorConfirmOrderWork(draft, 'photographer', requiredImageCount);
+
+  useEffect(() => {
+    if (!record || record.updatedAt === draft.updatedAt) return;
+    setDraft(record);
+  }, [record?.orderId, record?.updatedAt]);
+
+  useEffect(() => {
+    if (!syncRevision) return;
+    onDraftChange?.(buildSubmitRecord(draft));
+  }, [syncRevision]);
+
+  function queueDraftSync() {
+    setSyncRevision((value) => value + 1);
+  }
+
+  function updateEditableDraft(patch: Partial<OrderWorkRecord> | ((current: OrderWorkRecord) => Partial<OrderWorkRecord>), summary = `${actorLabel}更新了成片信息`) {
+    const now = new Date().toISOString();
+    setDraft((current) => {
+      const nextPatch = typeof patch === 'function' ? patch(current) : patch;
+      return appendOrderWorkActivity(
+        {
+          ...current,
+          ...nextPatch,
+          creatorConfirmed: false,
+          photographerConfirmed: false,
+          creatorConfirmedAt: undefined,
+          photographerConfirmedAt: undefined,
+          bothConfirmedAt: undefined,
+          publishToCreator: false,
+          publishToPhotographer: false,
+          publishToCreatorAt: undefined,
+          publishToPhotographerAt: undefined,
+          changeRequestBy: undefined,
+          changeAccepted: true,
+          collaborationStage: actor === 'creator' ? 'creator_review' : 'photographer_delivery',
+          lastEditedBy: actor,
+          lastEditedAt: now,
+          updatedAt: now,
+        },
+        actor,
+        'edited',
+        summary,
+        now,
+      );
+    });
+    queueDraftSync();
+  }
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length || !canUploadOriginals) return;
+    const selectedFiles = Array.from(files).filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'));
+    const remainingSlots = imageLimit.limit === null ? selectedFiles.length : Math.max(imageLimit.limit - draft.imageUrls.length, 0);
+    if (remainingSlots <= 0) return;
+    const limitedFiles = selectedFiles.slice(0, remainingSlots);
+    const uploadedUrls = await readFilesAsStoredDataUrls(limitedFiles);
+    updateEditableDraft(
+      (current) => {
+        const currentUrls = current.originalUrls?.length ? current.originalUrls : current.imageUrls;
+        const imageUrls = imageLimit.limit === null ? [...currentUrls, ...uploadedUrls] : [...currentUrls, ...uploadedUrls].slice(0, imageLimit.limit);
+        return {
+          imageUrls,
+          originalUrls: imageUrls,
+          previewUrls: imageUrls,
+          watermarkText: createWatermarkText(order),
+          previewMode: 'low_res_watermarked',
+          deliveryStatus: 'preview_ready',
+          disputeReason: undefined,
+        };
+      },
+      `${actorLabel}追加上传了 ${uploadedUrls.length} 张照片/Live`,
+    );
+  }
+
+  function confirm(targetActor: WorkActor) {
+    if (targetActor !== actor || !canActorConfirmOrderWork(draft, targetActor, requiredImageCount)) return;
+    const now = new Date().toISOString();
+    setDraft((current) => {
+      const creatorConfirmed = targetActor === 'creator' ? true : current.creatorConfirmed;
+      const photographerConfirmed = targetActor === 'photographer' ? true : current.photographerConfirmed;
+      const nextConfirmed = creatorConfirmed && photographerConfirmed;
+      return appendOrderWorkActivity(
+        {
+          ...current,
+          creatorConfirmed,
+          photographerConfirmed,
+          creatorConfirmedAt: targetActor === 'creator' ? now : current.creatorConfirmedAt,
+          photographerConfirmedAt: targetActor === 'photographer' ? now : current.photographerConfirmedAt,
+          bothConfirmedAt: nextConfirmed ? current.bothConfirmedAt ?? now : undefined,
+          collaborationStage: nextConfirmed ? 'locked' : targetActor === 'photographer' ? 'creator_review' : 'photographer_review',
+          changeRequestBy: undefined,
+          changeAccepted: true,
+          updatedAt: now,
+        },
+        targetActor,
+        'confirmed',
+        `${targetActor === 'creator' ? '创作者' : '摄影师'}确认了当前成片版本`,
+        now,
+      );
+    });
+    queueDraftSync();
+  }
+
+  function buildSubmitRecord(recordToSave = draft) {
+    const nextConfirmed = recordToSave.creatorConfirmed && recordToSave.photographerConfirmed;
+    const completed = Boolean(recordToSave.orderCompletedAt) || recordToSave.deliveryStatus === 'released';
+    const previewMode: OrderWorkRecord['previewMode'] = completed ? 'original_released' : 'low_res_watermarked';
+    const deliveryStatus: OrderWorkRecord['deliveryStatus'] = completed
+      ? 'released'
+      : nextConfirmed
+        ? 'confirmed'
+        : recordToSave.deliveryStatus ?? (recordToSave.imageUrls.length ? 'preview_ready' : 'draft');
+    return {
+      ...recordToSave,
+      previewMode,
+      deliveryStatus,
+      publishToCreator: nextConfirmed ? recordToSave.publishToCreator : false,
+      publishToPhotographer: nextConfirmed ? recordToSave.publishToPhotographer : false,
+      bothConfirmedAt: nextConfirmed ? recordToSave.bothConfirmedAt ?? new Date().toISOString() : undefined,
+      collaborationStage: nextConfirmed ? 'locked' : getOrderWorkStage(recordToSave),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function submit() {
+    onSubmit(buildSubmitRecord());
+  }
+
+  function completeAndSettle() {
+    onCompleteOrder?.(buildSubmitRecord());
+  }
+
+  function togglePublish(target: WorkActor, checked: boolean) {
+    if (target !== actor || !confirmed) return;
+    const now = new Date().toISOString();
+    setDraft((current) =>
+      appendOrderWorkActivity(
+        {
+          ...current,
+          publishToCreator: target === 'creator' ? checked : current.publishToCreator,
+          publishToPhotographer: target === 'photographer' ? checked : current.publishToPhotographer,
+          publishToCreatorAt: target === 'creator' && checked ? now : target === 'creator' ? undefined : current.publishToCreatorAt,
+          publishToPhotographerAt: target === 'photographer' && checked ? now : target === 'photographer' ? undefined : current.publishToPhotographerAt,
+          updatedAt: now,
+        },
+        actor,
+        'publish_toggle',
+        `${actorLabel}${checked ? '选择' : '取消'}同步到自己的主页`,
+        now,
+      ),
+    );
+    queueDraftSync();
+  }
+
+  function dispute() {
+    onDispute(draft, disputeReason);
+  }
+
+  return (
+    <ActionSheet title="成片协作发布" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="rounded-[14px] bg-zinc-950 p-3 text-white">
+          <p className="text-xs font-bold text-white/48">{order.orderNo}</p>
+          <h3 className="mt-1 text-base font-black">{order.title}</h3>
+          <p className="mt-1 text-xs font-semibold text-white/54">{order.companion} · {order.place}</p>
+        </div>
+
+        <div className="space-y-3 rounded-[14px] bg-white p-3 ring-1 ring-zinc-100">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black text-zinc-400">共享协作空间</p>
+              <p className="mt-1 text-[11px] font-semibold leading-5 text-zinc-400">
+                当前以{actorLabel}身份编辑；双方会看到同一份成片、修改记录和确认状态。
+              </p>
+            </div>
+            <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-black text-zinc-500">{confirmed ? '双方已确认' : '协作中'}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <WorkStatusPill label="创作者确认" active={draft.creatorConfirmed} time={draft.creatorConfirmedAt} />
+            <WorkStatusPill label="摄影师确认" active={draft.photographerConfirmed} time={draft.photographerConfirmedAt} />
+          </div>
+          <p className="rounded-[10px] bg-zinc-50 px-3 py-2 text-[11px] font-semibold leading-5 text-zinc-500">
+            {getWorkStageDescription(stage, draft.lastEditedBy)}
+          </p>
+          {confirmed ? (
+            <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-[11px] font-semibold leading-5 text-emerald-700">
+              双方已确认。创作者可以点击下方完成订单并结算尾款；若 24 小时未操作，平台会自动确认完成。
+            </p>
+          ) : null}
+          <OrderWorkActivityList events={draft.collaborationEvents ?? []} />
+        </div>
+
+        <div className="space-y-3 rounded-[14px] bg-white p-3 ring-1 ring-zinc-100">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-black text-zinc-400">上传照片/Live</p>
+              <p className="mt-1 text-[11px] font-semibold leading-5 text-zinc-400">
+                {imageLimit.limit === null ? '需求卡为数量不限，上传后生成低清/水印预览。' : `需求卡要求最多 ${imageLimit.limit} 张，超出会只保留前 ${imageLimit.limit} 张。`}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-black text-zinc-400">{draft.imageUrls.length}/{imageLimitText}</span>
+          </div>
+          {!deliveryReady ? (
+            <p className="rounded-[10px] bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-5 text-amber-800">
+              {imageLimit.limit === null
+                ? '摄影师需要先至少交付 1 张底片；创作者看到预览后可以先确认当前版本。'
+                : `摄影师仍需补齐约定 ${imageLimit.limit} 张底片，当前 ${draft.imageUrls.length} 张；创作者可先确认当前预览版本。`}
+            </p>
+          ) : null}
+
+          <div className="grid grid-cols-3 gap-1">
+            {previewUrls.map((url, index) => (
+              <div key={`${url}-${index}`} className="relative aspect-square w-full overflow-hidden rounded-[8px]">
+                <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
+                {!originalReleased ? (
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/10 px-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
+                    {draft.watermarkText ?? 'PP preview'}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+            {!previewUrls.length ? (
+              <div className="col-span-3 grid min-h-28 place-items-center rounded-[10px] bg-zinc-100 px-4 text-center text-sm font-bold text-zinc-400">
+                <span className="grid place-items-center gap-2">
+                  <ImagePlus size={24} />
+                  暂无照片，先上传照片/Live 后双方再确认发布
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          <label className={`flex h-11 items-center justify-center gap-2 rounded-full text-sm font-black ${canUploadOriginals ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
+            <UploadCloud size={17} />
+            {actor === 'photographer' ? '选择上传照片/Live' : '等待摄影师交付底片'}
+            <input className="hidden" type="file" accept="image/*,video/*" multiple disabled={!canUploadOriginals} onChange={(event) => void handleFiles(event.target.files)} />
+          </label>
+        </div>
+
+        <div className="rounded-[12px] bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800">
+          摄影师上传原图后，平台先给创作者展示低清/动态水印预览。原图/无水印图只在双方确认完成或管理员裁定后开放；发起争议会冻结托管款。
+        </div>
+
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-xs font-black text-zinc-400">作品标题</span>
+            <input
+              className="mt-1 h-11 w-full rounded-[10px] bg-zinc-100 px-3 text-sm font-bold outline-none disabled:text-zinc-400"
+              disabled={!editable}
+              value={draft.title}
+              onChange={(event) => updateEditableDraft({ title: event.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-black text-zinc-400">作品文案</span>
+            <textarea
+              className="mt-1 min-h-24 w-full resize-none rounded-[10px] bg-zinc-100 p-3 text-sm leading-6 outline-none disabled:text-zinc-400"
+              disabled={!editable}
+              value={draft.caption}
+              onChange={(event) => updateEditableDraft({ caption: event.target.value })}
+            />
+          </label>
+        </div>
+
+        <div className="space-y-3 rounded-[14px] bg-white p-3 ring-1 ring-zinc-100">
+          <div>
+            <p className="text-xs font-black text-zinc-400">筛选匹配信息</p>
+            <p className="mt-1 text-[11px] font-semibold leading-5 text-zinc-400">这些字段会写入作品信息，决定作品能否被发现页筛选命中。</p>
+          </div>
+          <WorkOptionGroup
+            label="拍摄环境"
+            options={workVenueTypeOptions}
+            value={draft.venueType}
+            disabled={!editable}
+            onChange={(venueType) => updateEditableDraft({ venueType })}
+          />
+          <WorkOptionGroup
+            label="拍摄时间"
+            options={workShootTimeOptions}
+            value={draft.shootTime}
+            disabled={!editable}
+            onChange={(shootTime) => updateEditableDraft({ shootTime })}
+          />
+          <WorkSelectField
+            label="活动类型"
+            options={workActivityCategoryOptions}
+            value={draft.activityCategory}
+            disabled={!editable}
+            onChange={(activityCategory) => updateEditableDraft({ activityCategory })}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="text-xs font-black text-zinc-400">拍摄时长</span>
+              <select
+                className="mt-1 h-11 w-full rounded-[10px] bg-zinc-100 px-3 text-sm font-bold outline-none disabled:text-zinc-400"
+                disabled={!editable}
+                value={draft.durationMinutes}
+                onChange={(event) => updateEditableDraft({ durationMinutes: Number(event.target.value) })}
+              >
+                {workDurationOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-black text-zinc-400">预算/成交价</span>
+              <input
+                className="mt-1 h-11 w-full rounded-[10px] bg-zinc-100 px-3 text-sm font-bold outline-none disabled:text-zinc-400"
+                disabled={!editable}
+                min={0}
+                step={10}
+                type="number"
+                value={Math.round(draft.budgetCents / 100)}
+                onChange={(event) => updateEditableDraft({ budgetCents: Math.max(0, Number(event.target.value) || 0) * 100 })}
+              />
+            </label>
+          </div>
+        </div>
+
+        <button className="h-11 w-full rounded-full bg-zinc-950 text-sm font-black text-white" onClick={submit} type="button">
+          保存协作状态
+        </button>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className={`h-11 rounded-full text-sm font-black ${
+              draft.creatorConfirmed ? 'bg-emerald-600 text-white' : canConfirmAsCreator ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'
+            }`}
+            onClick={() => confirm('creator')}
+            type="button"
+            disabled={!canConfirmAsCreator}
+          >
+            创作者确认当前版本
+          </button>
+          <button
+            className={`h-11 rounded-full text-sm font-black ${
+              draft.photographerConfirmed ? 'bg-emerald-600 text-white' : canConfirmAsPhotographer ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-400'
+            }`}
+            onClick={() => confirm('photographer')}
+            type="button"
+            disabled={!canConfirmAsPhotographer}
+          >
+            {stage === 'photographer_delivery' ? '摄影师交付确认' : '摄影师确认当前版本'}
+          </button>
+        </div>
+
+        <div className="rounded-[12px] bg-zinc-100 p-3">
+          <p className="text-xs font-black text-zinc-400">双方确认后选择同步主页</p>
+          <div className="mt-3 grid gap-2">
+            <PublishToggle
+              label="同步到创作者主页"
+              checked={confirmed && draft.publishToCreator}
+              disabled={!confirmed || actor !== 'creator'}
+              onChange={(checked) => togglePublish('creator', checked)}
+            />
+            <PublishToggle
+              label="同步到摄影师主页"
+              checked={confirmed && draft.publishToPhotographer}
+              disabled={!confirmed || actor !== 'photographer'}
+              onChange={(checked) => togglePublish('photographer', checked)}
+            />
+          </div>
+        </div>
+
+        {confirmed && !draft.orderCompletedAt ? (
+          actor === 'creator' ? (
+            <button
+              className={`h-11 w-full rounded-full text-sm font-black ${
+                canCompleteOrder ? 'bg-emerald-600 text-white' : 'bg-zinc-100 text-zinc-400'
+              }`}
+              disabled={!canCompleteOrder}
+              onClick={completeAndSettle}
+              type="button"
+            >
+              完成订单并结算尾款
+            </button>
+          ) : (
+            <p className="rounded-[12px] bg-zinc-100 p-3 text-xs font-semibold leading-5 text-zinc-500">
+              双方已确认，等待创作者点击完成订单；超过 24 小时平台会自动确认完成并结算托管尾款。
+            </p>
+          )
+        ) : null}
+
+        {draft.orderCompletedAt ? (
+          <p className="rounded-[12px] bg-emerald-50 p-3 text-xs font-semibold leading-5 text-emerald-700">
+            订单已完成，托管尾款已结算给摄影师。
+          </p>
+        ) : null}
+
+        {!originalReleased ? (
+          <div className="rounded-[12px] bg-rose-50 p-3">
+            <label className="block">
+              <span className="text-xs font-black text-rose-500">争议说明</span>
+              <textarea
+                className="mt-1 min-h-20 w-full resize-none rounded-[10px] bg-white p-3 text-sm leading-6 outline-none"
+                value={disputeReason}
+                onChange={(event) => setDisputeReason(event.target.value)}
+                placeholder="例如：成片与报价沟通不符、缺少原定场景、质量需要管理员介入。"
+              />
+            </label>
+            <button className="mt-3 h-10 w-full rounded-full bg-rose-600 text-sm font-black text-white" onClick={dispute} type="button">
+              发起争议并冻结托管款
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </ActionSheet>
+  );
+}
+
+function WorkStatusPill({ label, active, time }: { label: string; active: boolean; time?: string }) {
+  return (
+    <div className={`rounded-[10px] px-3 py-2 ring-1 ${active ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-zinc-50 text-zinc-400 ring-zinc-100'}`}>
+      <p className="text-xs font-black">{label}</p>
+      <p className="mt-1 text-[11px] font-semibold">{active ? `已确认${time ? ` · ${formatWorkEventTime(time)}` : ''}` : '等待确认'}</p>
+    </div>
+  );
+}
+
+function OrderWorkActivityList({ events }: { events: OrderWorkRecord['collaborationEvents'] }) {
+  const visibleEvents = (events ?? []).slice(0, 4);
+  return (
+    <div className="rounded-[10px] bg-zinc-50 p-3">
+      <p className="text-xs font-black text-zinc-400">修改记录</p>
+      <div className="mt-2 space-y-2">
+        {visibleEvents.length ? (
+          visibleEvents.map((event) => (
+            <div key={event.id} className="flex items-start gap-2 text-[11px] font-semibold leading-5 text-zinc-500">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-300" />
+              <p className="min-w-0 flex-1">
+                <span className="font-black text-zinc-700">{event.actor === 'system' ? '平台' : getWorkActorLabel(event.actor)}</span>
+                <span className="mx-1 text-zinc-300">·</span>
+                {event.summary}
+                <span className="ml-1 text-zinc-300">{formatWorkEventTime(event.at)}</span>
+              </p>
+            </div>
+          ))
+        ) : (
+          <p className="text-[11px] font-semibold text-zinc-400">暂无修改记录</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function getWorkStageDescription(stage: ReturnType<typeof getOrderWorkStage>, lastEditedBy?: WorkActor) {
+  if (stage === 'locked') return '当前版本已由双方确认并锁定，作品内容不可再改，双方可分别选择是否同步到自己的主页。';
+  if (stage === 'photographer_delivery') return '流程第一步：摄影师先交付约定数量底片，并编辑作品标题、文案和筛选信息后确认。';
+  if (stage === 'creator_review') {
+    return lastEditedBy === 'creator'
+      ? '创作者正在调整当前版本。创作者确认后，摄影师不再修改并确认即可锁定作品。'
+      : '摄影师已确认交付，创作者可以检查低清/水印预览并调整文案，确认后锁定或等待摄影师复核。';
+  }
+  return '创作者已确认自己的调整，等待摄影师不再修改并确认；摄影师若继续修改，会生成新版本并重置双方确认。';
+}
+
+function getWorkActorLabel(actor: WorkActor) {
+  return actor === 'creator' ? '创作者' : '摄影师';
+}
+
+function formatWorkEventTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function WorkOptionGroup({
+  label,
+  options,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-black text-zinc-400">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            className={`h-9 rounded-full px-3 text-xs font-black ring-1 transition ${
+              value === option ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-zinc-50 text-zinc-500 ring-zinc-200'
+            } ${disabled ? 'opacity-50' : ''}`}
+            disabled={disabled}
+            onClick={() => onChange(option)}
+            type="button"
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WorkSelectField({
+  label,
+  options,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-black text-zinc-400">{label}</span>
+      <span className="relative mt-1 block">
+        <select
+          className="h-11 w-full appearance-none rounded-[10px] bg-zinc-100 px-3 pr-10 text-sm font-bold outline-none disabled:text-zinc-400"
+          disabled={disabled}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400" size={17} />
+      </span>
+    </label>
+  );
+}
+
+function PublishToggle({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className={`flex items-center justify-between gap-3 rounded-[10px] bg-white px-3 py-3 text-sm font-bold ${disabled ? 'text-zinc-400' : 'text-zinc-900'}`}>
+      <span>{label}</span>
+      <input type="checkbox" className="h-5 w-5 accent-zinc-950" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+    </label>
+  );
+}
+
 function ConfirmCancelDialog({ order, onClose, onConfirm }: { order: AppOrder; onClose: () => void; onConfirm: () => void }) {
+  const isConfirmed = order.status === 'confirmed' || order.status === 'in_service';
   return (
     <ActionSheet title="取消订单" onClose={onClose}>
       <p className="text-sm leading-6 text-zinc-500">
-        确认取消 {order.companion} 的「{order.activityName ?? order.title}」订单吗？MVP 版本会直接将订单标记为已取消。
+        确认取消 {order.companion} 的「{order.activityName ?? order.title}」订单吗？
+        {isConfirmed
+          ? '已确认订单取消会进入违约处理：创作者从托管款中扣除违约金，平台抽点后赔付给摄影师。'
+          : '待确认订单可取消，摄影师未接单前不产生违约金。'}
       </p>
       <div className="mt-5 grid grid-cols-2 gap-3">
         <button className="h-11 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onClose} type="button">
@@ -278,48 +1318,18 @@ function ReviewDialog({ order, onClose, onSubmit }: { order: AppOrder; onClose: 
   );
 }
 
-function RefundDialog({ order, onClose }: { order: AppOrder; onClose: () => void }) {
-  return (
-    <ActionSheet title="退款进度" onClose={onClose}>
-      <div className="rounded-[10px] bg-rose-50 p-3">
-        <p className="text-sm font-bold text-rose-700">预计退款 {formatMoney(order.amountCents)}</p>
-        <p className="mt-1 text-xs text-rose-600">平台正在核对服务状态，退款成功后会原路返回。</p>
-      </div>
-      <div className="mt-4 space-y-3">
-        <RefundStep title="已提交退款申请" desc="用户发起取消或退款申请" done />
-        <RefundStep title="平台处理中" desc="核对订单与托管款项" done />
-        <RefundStep title="退款到账" desc="到账时间以支付渠道为准" />
-      </div>
-    </ActionSheet>
-  );
-}
-
 function ActionSheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#3f302c]/30 px-4 pb-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-[22px] bg-[#fffaf6] p-4 shadow-xl">
-        <div className="flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#3f302c]/30 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 sm:pb-4" role="dialog" aria-modal="true">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-[22px] bg-[#fffaf6] shadow-xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#eadfd8] bg-[#fffaf6]/95 px-4 py-3 backdrop-blur">
           <h2 className="text-lg font-bold text-[#3f302c]">{title}</h2>
           <button className="grid h-9 w-9 place-items-center rounded-full bg-[#f2e8e1] text-[#7a6b64]" onClick={onClose} type="button" aria-label="关闭">
             <XCircle size={18} />
           </button>
         </div>
-        <div className="mt-4">{children}</div>
+        <div className="overflow-y-auto px-4 pb-4 pt-4">{children}</div>
       </div>
-    </div>
-  );
-}
-
-function RefundStep({ title, desc, done }: { title: string; desc: string; done?: boolean }) {
-  return (
-    <div className="flex gap-3">
-      <span className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full ${done ? 'bg-rose-500 text-white' : 'bg-zinc-100 text-zinc-300'}`}>
-        <CheckCircle2 size={15} />
-      </span>
-      <span>
-        <span className="block text-sm font-bold text-zinc-900">{title}</span>
-        <span className="mt-0.5 block text-xs text-zinc-500">{desc}</span>
-      </span>
     </div>
   );
 }
@@ -350,11 +1360,125 @@ function formatAddOns(order: AppOrder) {
   return `${count}张 ${formatMoney(amount)}`;
 }
 
-function loadReviewedOrderIds() {
-  try {
-    const raw = localStorage.getItem(reviewStorageKey);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
+function readFilesAsStoredDataUrls(files: File[]) {
+  return Promise.all(files.map((file) => (file.type.startsWith('image/') ? readImageAsCompressedDataUrl(file) : readFileAsDataUrl(file))));
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function readImageAsCompressedDataUrl(file: File) {
+  const originalUrl = await readFileAsDataUrl(file);
+  return new Promise<string>((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const maxSide = 900;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        resolve(originalUrl);
+        return;
+      }
+      context.drawImage(image, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(originalUrl);
+            return;
+          }
+          resolve(readFileAsDataUrl(new File([blob], file.name, { type: 'image/jpeg' })));
+        },
+        'image/jpeg',
+        0.68,
+      );
+    };
+    image.onerror = () => resolve(originalUrl);
+    image.src = originalUrl;
+  });
+}
+
+function WatermarkedMedia({
+  url,
+  index,
+  active,
+  watermarkText,
+  roundedClassName = 'rounded-[6px]',
+}: {
+  url: string;
+  index: number;
+  active: boolean;
+  watermarkText: string;
+  roundedClassName?: string;
+}) {
+  return (
+    <div className={`relative aspect-square w-full overflow-hidden ${roundedClassName}`}>
+      <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
+      {active ? (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/10 px-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
+          {watermarkText}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function mediaFromWorkUrl(url: string, index: number) {
+  const contentType = parseDataUrlContentType(url);
+  const isVideo = contentType.startsWith('video/');
+  return {
+    id: `order-work-preview-${index + 1}`,
+    url,
+    mediaKind: isVideo ? 'live' : 'image',
+    videoUrl: isVideo ? url : undefined,
+    contentType,
+    sortOrder: index + 1,
+  };
+}
+
+function parseDataUrlContentType(url: string) {
+  const match = url.match(/^data:([^;,]+)/);
+  return match?.[1] ?? '';
+}
+
+export function getOrderImageLimit(order: Pick<AppOrder, 'imageQuantityMode' | 'customImageQuantity'>) {
+  const mode = order.imageQuantityMode ?? '9';
+  if (mode === 'unlimited') return { limit: null as number | null, label: '不限' };
+  if (mode === 'custom') {
+    const customLimit = Math.max(1, Math.floor(order.customImageQuantity ?? 9));
+    return { limit: customLimit, label: `${customLimit}张` };
   }
+  const limit = Number(mode);
+  return { limit, label: `${limit}张` };
+}
+
+function getWorkEditStatus(record?: OrderWorkRecord): WorkEditTab {
+  if (!record) return 'not_started';
+  return isOrderWorkConfirmed(record) ? 'done' : 'editing';
+}
+
+function getWorkEditTone(status: WorkEditTab) {
+  if (status === 'done') return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+  if (status === 'editing') return 'bg-blue-50 text-blue-700 ring-blue-100';
+  return 'bg-zinc-100 text-zinc-500 ring-zinc-200';
+}
+
+function getDisplayOrderStatus(status: OrderStatus): OrderStatus {
+  if (status === 'in_service') return 'confirmed';
+  if (status === 'refunding' || status === 'refunded' || status === 'disputed') return 'cancelled';
+  return status;
+}
+
+function loadReviewedOrderIds() {
+  return readDomainJson<string[]>(reviewStorageKey, []);
 }

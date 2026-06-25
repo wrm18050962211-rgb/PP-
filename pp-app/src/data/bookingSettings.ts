@@ -30,14 +30,28 @@ const defaultCompanionId = '00000000-0000-0000-0000-000000000301';
 
 export const defaultBookingSettings: CompanionBookingSettings = {
   companionId: defaultCompanionId,
-  availableDates: ['2026-05-26', '2026-05-27', '2026-05-30'],
+  availableDates: ['2026-06-14', '2026-06-15', '2026-06-16'],
   timeRanges: [
     { id: 'range-morning', startTime: '10:00', endTime: '12:00' },
     { id: 'range-afternoon', startTime: '14:00', endTime: '16:00' },
     { id: 'range-evening', startTime: '19:00', endTime: '21:00' },
   ],
+  weeklyTimeRanges: {
+    1: [{ id: 'mon-afternoon', startTime: '14:00', endTime: '18:00' }],
+    2: [{ id: 'tue-morning', startTime: '10:00', endTime: '12:00' }],
+    3: [{ id: 'wed-afternoon', startTime: '14:00', endTime: '18:00' }],
+    4: [{ id: 'thu-evening', startTime: '19:00', endTime: '21:00' }],
+    5: [{ id: 'fri-afternoon', startTime: '14:00', endTime: '18:00' }],
+    6: [
+      { id: 'sat-morning', startTime: '10:00', endTime: '12:00' },
+      { id: 'sat-afternoon', startTime: '14:00', endTime: '18:00' },
+    ],
+    0: [{ id: 'sun-afternoon', startTime: '14:00', endTime: '18:00' }],
+  },
+  scheduleApplyMode: 'weekly',
+  weekOverrides: {},
   repeatEnabled: true,
-  repeatWeekdays: [5, 6],
+  repeatWeekdays: [0, 1, 2, 3, 4, 5, 6],
   temporaryAccepting: true,
   activities: companionBookingActivityNames.map((name, index) => ({
     id: `activity-setting-${index + 1}`,
@@ -68,22 +82,47 @@ export function applyBookingSettingsToCompanion(companion: Companion, settings?:
 export function buildAvailabilitySlots(settings: CompanionBookingSettings): AvailabilitySlot[] {
   if (!settings.temporaryAccepting) return [];
 
-  const dateSet = new Set(settings.availableDates);
+  const today = new Date();
+  const todayValue = toDateInputValue(today);
+  const dateSet = new Set<string>();
+  const weekOverrides = settings.weekOverrides ?? {};
+  const applyMode = settings.scheduleApplyMode ?? (settings.repeatEnabled ? 'weekly' : 'single_week');
 
-  if (settings.repeatEnabled) {
+  if (settings.repeatEnabled || applyMode === 'weekly') {
     getNextDates(14)
       .filter((date) => settings.repeatWeekdays.includes(date.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6))
       .forEach((date) => dateSet.add(toDateInputValue(date)));
+  } else {
+    settings.availableDates.filter((date) => date >= todayValue).forEach((date) => dateSet.add(date));
   }
+
+  Object.keys(weekOverrides).forEach((weekStart) => {
+    const weekStartDate = new Date(`${weekStart}T00:00:00+08:00`);
+    if (Number.isNaN(weekStartDate.getTime())) return;
+    Object.entries(weekOverrides[weekStart]).forEach(([weekday, ranges]) => {
+      if (!ranges?.length) return;
+      const dayOffset = Number(weekday) === 0 ? 6 : Number(weekday) - 1;
+      const date = new Date(weekStartDate);
+      date.setDate(weekStartDate.getDate() + dayOffset);
+      const dateValue = toDateInputValue(date);
+      if (dateValue >= todayValue) dateSet.add(dateValue);
+    });
+  });
 
   return Array.from(dateSet)
     .sort()
-    .flatMap((date) =>
-      settings.timeRanges.map((range) => {
+    .filter((date) => date >= todayValue)
+    .flatMap((date) => {
+      const weekday = new Date(`${date}T00:00:00+08:00`).getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6;
+      const weekStart = toDateInputValue(getWeekStart(new Date(`${date}T00:00:00+08:00`)));
+      const dateOverrideRanges = weekOverrides[weekStart]?.[weekday];
+      const ranges = dateOverrideRanges ?? settings.weeklyTimeRanges?.[weekday] ?? (settings.repeatWeekdays.includes(weekday) ? settings.timeRanges : []);
+      return ranges.flatMap((range) => {
         const startAt = new Date(`${date}T${range.startTime}:00+08:00`).toISOString();
         const endAt = new Date(`${date}T${range.endTime}:00+08:00`).toISOString();
+        if (new Date(endAt).getTime() <= today.getTime()) return [];
         const dateLabel = formatDateLabel(date);
-        return {
+        return [{
           id: `settings-${date}-${range.id}`,
           label: `${dateLabel} ${range.startTime}`,
           dateLabel,
@@ -91,9 +130,9 @@ export function buildAvailabilitySlots(settings: CompanionBookingSettings): Avai
           startAt,
           endAt,
           status: 'available' as const,
-        };
-      }),
-    );
+        }];
+      });
+    });
 }
 
 export function buildActivityPricing(settings: CompanionBookingSettings): ActivityPricing[] {
@@ -151,12 +190,22 @@ export function formatDateLabel(dateValue: string) {
 }
 
 function getNextDates(days: number) {
-  const start = new Date('2026-05-25T00:00:00+08:00');
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
   return Array.from({ length: days }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     return date;
   });
+}
+
+function getWeekStart(date: Date) {
+  const start = new Date(date);
+  const day = start.getDay();
+  const delta = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + delta);
+  start.setHours(0, 0, 0, 0);
+  return start;
 }
 
 function toDateInputValue(date: Date) {

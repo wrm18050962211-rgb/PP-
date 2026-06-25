@@ -1,7 +1,7 @@
 interface:
   display_name: "GitHub Version Checkpoint"
-  short_description: "Verify, commit, and push GitHub checkpoints."
-  default_prompt: "Use $github-version-checkpoint to verify changes, commit them, and push a recoverable version to GitHub."
+  short_description: "Save local checkpoints, then push good versions."
+  default_prompt: "Use $github-version-checkpoint to save local Git checkpoints for VS Code review, then push to GitHub when I approve."
 
 policy:
   allow_implicit_invocation: true

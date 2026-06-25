@@ -1,8 +1,10 @@
 {
   "meta": {
-    "version": 2,
-    "createdAt": "2026-05-26T23:57:16.291Z"
+    "version": 3,
+    "createdAt": "2026-06-11T00:00:00.000Z"
   },
+  "users": [],
+  "activeSession": null,
   "companions": [
     {
       "id": "companion-mori",
@@ -36,20 +38,21 @@
       "slots": [
         {
           "id": "slot-mori-1",
-          "label": "5月26日 周二 10:00-12:00",
-          "dateLabel": "5月26日 周二",
+          "label": "今天 10:00-12:00",
+          "dateLabel": "今天",
           "timeLabel": "10:00-12:00",
-          "startAt": "2026-05-26T02:00:00.000Z",
-          "endAt": "2026-05-26T04:00:00.000Z",
-          "status": "available"
+          "startAt": "2026-06-11T02:00:00.000Z",
+          "endAt": "2026-06-11T04:00:00.000Z",
+          "status": "booked",
+          "lockedOrderId": "order-seed-1"
         },
         {
           "id": "slot-mori-2",
-          "label": "5月27日 周三 14:00-16:00",
-          "dateLabel": "5月27日 周三",
+          "label": "今天 14:00-16:00",
+          "dateLabel": "今天",
           "timeLabel": "14:00-16:00",
-          "startAt": "2026-05-27T06:00:00.000Z",
-          "endAt": "2026-05-27T08:00:00.000Z",
+          "startAt": "2026-06-11T06:00:00.000Z",
+          "endAt": "2026-06-11T08:00:00.000Z",
           "status": "available"
         }
       ],
@@ -64,7 +67,7 @@
         },
         {
           "id": "activity-cafe",
-          "name": "探店吃饭",
+          "name": "探店",
           "durationMinutes": 90,
           "durationLabel": "1.5小时",
           "priceCents": 29900,
@@ -88,21 +91,2481 @@
           "priceCents": 8000,
           "priceText": "¥80"
         }
+      ],
+      "serviceAreas": [
+        {
+          "id": "companion-mori-area-1",
+          "city": "上海",
+          "areaName": "武康路",
+          "areaType": "business_area",
+          "lat": 31.2109,
+          "lng": 121.4457,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "companion-mori-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2129,
+          "lng": 121.4437,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "companion-mori-area-3",
+          "city": "上海",
+          "areaName": "衡山路",
+          "areaType": "business_area",
+          "lat": 31.2149,
+          "lng": 121.4417,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "companion-mori-area-4",
+          "city": "上海",
+          "areaName": "徐家汇",
+          "areaType": "business_area",
+          "lat": 31.2169,
+          "lng": 121.4397,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-1",
+      "userId": "virtual-user-1",
+      "name": "Luna",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80",
+      "bio": "温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 4.6,
+      "ratingCount": 8,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "武康路",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-1-area-1",
+          "city": "上海",
+          "areaName": "武康路",
+          "areaType": "business_area",
+          "lat": 31.2197,
+          "lng": 121.4544,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-1-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2217,
+          "lng": 121.4524,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-1-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2237,
+          "lng": 121.4504,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-1-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-1-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-1-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-1",
+          "name": "Citywalk",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 39900,
+          "priceText": "¥399"
+        },
+        {
+          "id": "virtual-activity-1-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 27900,
+          "priceText": "¥279"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-1-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-1-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-2",
+      "userId": "virtual-user-2",
+      "name": "Aki",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80",
+      "bio": "熟悉咖啡店和街角光线，适合轻松日常头像和朋友圈照片。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 4.699999999999999,
+      "ratingCount": 9,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "巨鹿路",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-2-area-1",
+          "city": "上海",
+          "areaName": "巨鹿路",
+          "areaType": "business_area",
+          "lat": 31.2221,
+          "lng": 121.4755,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-2-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2241,
+          "lng": 121.4735,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-2-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2261,
+          "lng": 121.4715,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-2-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-2-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-2-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-2",
+          "name": "探店",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 32900,
+          "priceText": "¥329"
+        },
+        {
+          "id": "virtual-activity-2-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 20900,
+          "priceText": "¥209"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-2-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-2-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-3",
+      "userId": "virtual-user-3",
+      "name": "Mika",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80",
+      "bio": "熟悉夜景人流和安全路线，会提醒集合点、动线和收尾时间。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 4.8,
+      "ratingCount": 10,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "苏州河",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-3-area-1",
+          "city": "上海",
+          "areaName": "苏州河",
+          "areaType": "business_area",
+          "lat": 31.2442,
+          "lng": 121.4891,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-3-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2462,
+          "lng": 121.4871,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-3-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2482,
+          "lng": 121.4851,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-3-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-3-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-3-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-3",
+          "name": "夜景",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 29900,
+          "priceText": "¥299"
+        },
+        {
+          "id": "virtual-activity-3-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 19900,
+          "priceText": "¥199"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-3-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-3-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-4",
+      "userId": "virtual-user-4",
+      "name": "Rin",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1526510747491-58f928ec870f?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80",
+      "bio": "擅长红砖、玻璃、街巷背景，适合利落一点的城市人像。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 4.8999999999999995,
+      "ratingCount": 11,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "新天地",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-4-area-1",
+          "city": "上海",
+          "areaName": "新天地",
+          "areaType": "business_area",
+          "lat": 31.2109,
+          "lng": 121.4457,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-4-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2129,
+          "lng": 121.4437,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-4-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2149,
+          "lng": 121.4417,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-4-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-4-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-4-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-4",
+          "name": "城市街拍",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 42900,
+          "priceText": "¥429"
+        },
+        {
+          "id": "virtual-activity-4-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 30900,
+          "priceText": "¥309"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-4-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-4-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-5",
+      "userId": "virtual-user-5",
+      "name": "Yoyo",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80",
+      "bio": "偏清爽自然的照片，会帮助缓解镜头尴尬，适合学生和毕业季。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5,
+      "ratingCount": 12,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "徐家汇",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-5-area-1",
+          "city": "上海",
+          "areaName": "徐家汇",
+          "areaType": "business_area",
+          "lat": 31.2197,
+          "lng": 121.4544,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-5-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2217,
+          "lng": 121.4524,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-5-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2237,
+          "lng": 121.4504,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-5-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-5-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-5-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-5",
+          "name": "校园感写真",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 26900,
+          "priceText": "¥269"
+        },
+        {
+          "id": "virtual-activity-5-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 19900,
+          "priceText": "¥199"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-5-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-5-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-6",
+      "userId": "virtual-user-6",
+      "name": "Cici",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80",
+      "bio": "适合来上海短暂停留的游客，路线紧凑，优先保证地标合影和自然抓拍。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5.1,
+      "ratingCount": 13,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "外滩",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-6-area-1",
+          "city": "上海",
+          "areaName": "外滩",
+          "areaType": "business_area",
+          "lat": 31.2221,
+          "lng": 121.4755,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-6-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2241,
+          "lng": 121.4735,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-6-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2261,
+          "lng": 121.4715,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-6-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-6-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-6-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-6",
+          "name": "旅行跟拍",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 69900,
+          "priceText": "¥699"
+        },
+        {
+          "id": "virtual-activity-6-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 57900,
+          "priceText": "¥579"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-6-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-6-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-7",
+      "userId": "virtual-user-7",
+      "name": "Niko",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80",
+      "bio": "适合男生头像、社交主页照片，会用简单指令减少摆拍感。",
+      "gender": "male",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5.199999999999999,
+      "ratingCount": 14,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "愚园路",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-7-area-1",
+          "city": "上海",
+          "areaName": "愚园路",
+          "areaType": "business_area",
+          "lat": 31.2442,
+          "lng": 121.4891,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-7-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2462,
+          "lng": 121.4871,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-7-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2482,
+          "lng": 121.4851,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-7-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-7-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-7-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-7",
+          "name": "男生头像",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 29900,
+          "priceText": "¥299"
+        },
+        {
+          "id": "virtual-activity-7-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 19900,
+          "priceText": "¥199"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-7-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-7-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-8",
+      "userId": "virtual-user-8",
+      "name": "Sora",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80",
+      "bio": "适合商务社交头像，路线会避开过度游客化背景，画面更像杂志专访。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5.3,
+      "ratingCount": 15,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "静安寺",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-8-area-1",
+          "city": "上海",
+          "areaName": "静安寺",
+          "areaType": "business_area",
+          "lat": 31.2109,
+          "lng": 121.4457,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-8-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2129,
+          "lng": 121.4437,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-8-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2149,
+          "lng": 121.4417,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-8-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-8-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-8-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-8",
+          "name": "通勤形象照",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 45900,
+          "priceText": "¥459"
+        },
+        {
+          "id": "virtual-activity-8-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 33900,
+          "priceText": "¥339"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-8-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-8-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-9",
+      "userId": "virtual-user-9",
+      "name": "Peach",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?auto=format&fit=crop&w=900&q=80",
+      "bio": "可以陪同宠物出镜，节奏会留出休息和互动时间，适合轻松户外照。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5.3999999999999995,
+      "ratingCount": 16,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "徐汇滨江",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-9-area-1",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2197,
+          "lng": 121.4544,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-9-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2217,
+          "lng": 121.4524,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-9-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2237,
+          "lng": 121.4504,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-9-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-9-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-9-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-9",
+          "name": "宠物友好陪拍",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 36900,
+          "priceText": "¥369"
+        },
+        {
+          "id": "virtual-activity-9-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 24900,
+          "priceText": "¥249"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-9-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-9-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-10",
+      "userId": "virtual-user-10",
+      "name": "Bean",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80",
+      "bio": "偏复古和情绪表达，会选择老街、门窗、墙面做背景，适合安静风格。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5.5,
+      "ratingCount": 17,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "田子坊",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-10-area-1",
+          "city": "上海",
+          "areaName": "田子坊",
+          "areaType": "business_area",
+          "lat": 31.2221,
+          "lng": 121.4755,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-10-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2241,
+          "lng": 121.4735,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-10-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2261,
+          "lng": 121.4715,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-10-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-10-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-10-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-10",
+          "name": "复古胶片感",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 39900,
+          "priceText": "¥399"
+        },
+        {
+          "id": "virtual-activity-10-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 27900,
+          "priceText": "¥279"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-10-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-10-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-11",
+      "userId": "virtual-user-11",
+      "name": "Noir",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80",
+      "bio": "偏广告大片和黑白情绪，会把建筑线条、人物姿态和留白一起设计。",
+      "gender": "male",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5.6,
+      "ratingCount": 18,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "西岸",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-11-area-1",
+          "city": "上海",
+          "areaName": "西岸",
+          "areaType": "business_area",
+          "lat": 31.2442,
+          "lng": 121.4891,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-11-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2462,
+          "lng": 121.4871,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-11-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2482,
+          "lng": 121.4851,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-11-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-11-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-11-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-11",
+          "name": "黑白大片",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 52900,
+          "priceText": "¥529"
+        },
+        {
+          "id": "virtual-activity-11-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 40900,
+          "priceText": "¥409"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-11-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-11-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-12",
+      "userId": "virtual-user-12",
+      "name": "Iris",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80",
+      "bio": "适合穿搭记录和主理人形象照，会控制背景干净度和人物比例。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5.699999999999999,
+      "ratingCount": 19,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "安福路",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-12-area-1",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2109,
+          "lng": 121.4457,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-12-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2129,
+          "lng": 121.4437,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-12-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2149,
+          "lng": 121.4417,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-12-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-12-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-12-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-12",
+          "name": "时装街拍",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 48900,
+          "priceText": "¥489"
+        },
+        {
+          "id": "virtual-activity-12-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 36900,
+          "priceText": "¥369"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-12-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-12-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-13",
+      "userId": "virtual-user-13",
+      "name": "June",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=900&q=80",
+      "bio": "偏极简展馆和大面积留白，适合冷静、干净、像广告图的作品。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5.8,
+      "ratingCount": 20,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "龙美术馆",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-13-area-1",
+          "city": "上海",
+          "areaName": "龙美术馆",
+          "areaType": "business_area",
+          "lat": 31.2197,
+          "lng": 121.4544,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-13-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2217,
+          "lng": 121.4524,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-13-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2237,
+          "lng": 121.4504,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-13-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-13-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-13-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-13",
+          "name": "艺术馆大片",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 55900,
+          "priceText": "¥559"
+        },
+        {
+          "id": "virtual-activity-13-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 43900,
+          "priceText": "¥439"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-13-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-13-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-14",
+      "userId": "virtual-user-14",
+      "name": "Vera",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80",
+      "bio": "用玻璃幕墙、台阶和光影做画面，适合想要更成熟质感的用户。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 5.8999999999999995,
+      "ratingCount": 21,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "前滩",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-14-area-1",
+          "city": "上海",
+          "areaName": "前滩",
+          "areaType": "business_area",
+          "lat": 31.2221,
+          "lng": 121.4755,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-14-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2241,
+          "lng": 121.4735,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-14-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2261,
+          "lng": 121.4715,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-14-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-14-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-14-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-14",
+          "name": "都市广告感",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 49900,
+          "priceText": "¥499"
+        },
+        {
+          "id": "virtual-activity-14-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 37900,
+          "priceText": "¥379"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-14-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-14-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-15",
+      "userId": "virtual-user-15",
+      "name": "Kiko",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
+      "bio": "适合更年轻、更有街头感的照片，会避开杂乱背景，保留城市纹理。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 6,
+      "ratingCount": 22,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "M50",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-15-area-1",
+          "city": "上海",
+          "areaName": "M50",
+          "areaType": "business_area",
+          "lat": 31.2442,
+          "lng": 121.4891,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-15-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2462,
+          "lng": 121.4871,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-15-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2482,
+          "lng": 121.4851,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-15-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-15-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-15-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-15",
+          "name": "创意园街拍",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 38900,
+          "priceText": "¥389"
+        },
+        {
+          "id": "virtual-activity-15-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 26900,
+          "priceText": "¥269"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-15-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-15-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-16",
+      "userId": "virtual-user-16",
+      "name": "Tao",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80",
+      "bio": "偏建筑空间和线条构图，适合男生、情侣或偏冷感的城市人像。",
+      "gender": "male",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 6.1,
+      "ratingCount": 23,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "北外滩",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-16-area-1",
+          "city": "上海",
+          "areaName": "北外滩",
+          "areaType": "business_area",
+          "lat": 31.2109,
+          "lng": 121.4457,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-16-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2129,
+          "lng": 121.4437,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-16-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2149,
+          "lng": 121.4417,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-16-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-16-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-16-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-16",
+          "name": "建筑线条人像",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 46900,
+          "priceText": "¥469"
+        },
+        {
+          "id": "virtual-activity-16-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 34900,
+          "priceText": "¥349"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-16-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-16-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-17",
+      "userId": "virtual-user-17",
+      "name": "Mina",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80",
+      "bio": "适合裙装、情侣和轻复古风格，会用街角、门廊和树影组织画面。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 6.199999999999999,
+      "ratingCount": 24,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "思南路",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-17-area-1",
+          "city": "上海",
+          "areaName": "思南路",
+          "areaType": "business_area",
+          "lat": 31.2197,
+          "lng": 121.4544,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-17-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2217,
+          "lng": 121.4524,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-17-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2237,
+          "lng": 121.4504,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-17-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-17-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-17-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-17",
+          "name": "法式街区",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 43900,
+          "priceText": "¥439"
+        },
+        {
+          "id": "virtual-activity-17-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 31900,
+          "priceText": "¥319"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-17-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-17-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-18",
+      "userId": "virtual-user-18",
+      "name": "Haru",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=900&q=80",
+      "bio": "适合更生活方式的照片，边走边拍，画面干净但不强摆拍。",
+      "gender": "male",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 6.3,
+      "ratingCount": 25,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "大学路",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-18-area-1",
+          "city": "上海",
+          "areaName": "大学路",
+          "areaType": "business_area",
+          "lat": 31.2221,
+          "lng": 121.4755,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-18-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2241,
+          "lng": 121.4735,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-18-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2261,
+          "lng": 121.4715,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-18-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-18-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-18-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-18",
+          "name": "咖啡街区",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 33900,
+          "priceText": "¥339"
+        },
+        {
+          "id": "virtual-activity-18-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 21900,
+          "priceText": "¥219"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-18-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-18-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
+      ]
+    },
+    {
+      "id": "virtual-companion-19",
+      "userId": "virtual-user-19",
+      "name": "Leia",
+      "isVirtual": true,
+      "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80",
+      "photo": "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80",
+      "bio": "适合主题乐园和游客路线，节奏快，会优先抓情绪和地标记忆点。",
+      "gender": "female",
+      "baseCity": "上海",
+      "status": "approved",
+      "serviceEnabled": true,
+      "ratingAvg": 6.3999999999999995,
+      "ratingCount": 26,
+      "tags": [
+        "虚拟摄影师",
+        "路线规划",
+        "会指导动作"
+      ],
+      "safetyBadges": [
+        "虚拟样例",
+        "平台托管",
+        "可测试预约"
+      ],
+      "areas": [
+        "迪士尼小镇",
+        "安福路",
+        "徐汇滨江"
+      ],
+      "serviceAreas": [
+        {
+          "id": "virtual-companion-19-area-1",
+          "city": "上海",
+          "areaName": "迪士尼小镇",
+          "areaType": "business_area",
+          "lat": 31.2442,
+          "lng": 121.4891,
+          "radiusMeters": 4000,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-19-area-2",
+          "city": "上海",
+          "areaName": "安福路",
+          "areaType": "business_area",
+          "lat": 31.2462,
+          "lng": 121.4871,
+          "radiusMeters": 2500,
+          "enabled": true
+        },
+        {
+          "id": "virtual-companion-19-area-3",
+          "city": "上海",
+          "areaName": "徐汇滨江",
+          "areaType": "business_area",
+          "lat": 31.2482,
+          "lng": 121.4851,
+          "radiusMeters": 2500,
+          "enabled": true
+        }
+      ],
+      "slots": [
+        {
+          "id": "virtual-slot-19-1",
+          "label": "今天 15:00",
+          "dateLabel": "今天",
+          "timeLabel": "15:00",
+          "startAt": "2026-06-11T07:00:00.000Z",
+          "endAt": "2026-06-11T09:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-19-2",
+          "label": "今天 19:00",
+          "dateLabel": "今天",
+          "timeLabel": "19:00",
+          "startAt": "2026-06-11T11:00:00.000Z",
+          "endAt": "2026-06-11T13:00:00.000Z",
+          "status": "available"
+        },
+        {
+          "id": "virtual-slot-19-3",
+          "label": "周末 10:00",
+          "dateLabel": "周末",
+          "timeLabel": "10:00",
+          "startAt": "2026-06-14T02:00:00.000Z",
+          "endAt": "2026-06-14T04:00:00.000Z",
+          "status": "available"
+        }
+      ],
+      "activities": [
+        {
+          "id": "virtual-activity-19",
+          "name": "主题旅行跟拍",
+          "durationMinutes": 120,
+          "durationLabel": "2小时",
+          "priceCents": 69900,
+          "priceText": "¥699"
+        },
+        {
+          "id": "virtual-activity-19-light",
+          "name": "轻量头像快拍",
+          "durationMinutes": 60,
+          "durationLabel": "1小时",
+          "priceCents": 57900,
+          "priceText": "¥579"
+        }
+      ],
+      "extras": [
+        {
+          "id": "virtual-extra-19-retouch",
+          "name": "精修",
+          "unit": "per_photo",
+          "unitLabel": "张",
+          "priceCents": 3000,
+          "priceText": "¥30"
+        },
+        {
+          "id": "virtual-extra-19-rush",
+          "name": "加急出图",
+          "unit": "per_order",
+          "unitLabel": "单",
+          "priceCents": 8000,
+          "priceText": "¥80"
+        }
       ]
     }
   ],
   "posts": [
     {
       "id": "post-wukang",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "武康路",
       "location": "上海 · 武康路",
-      "timeLabel": "傍晚 / 春季 / 2026年5月",
+      "timeLabel": "今天可拍 / 傍晚 / 2026年6月",
       "caption": "黄昏的梧桐树影很温柔，适合边散步边拍松弛感街拍。",
       "styleTags": [
         "Citywalk",
         "自然光",
-        "松弛感"
+        "松弛感",
+        "今天可拍"
       ],
-      "activity": "Citywalk 陪拍",
+      "activity": "Citywalk",
       "images": [
         {
           "id": "img-wukang-1",
@@ -151,20 +2614,21 @@
         "slots": [
           {
             "id": "slot-mori-1",
-            "label": "5月26日 周二 10:00-12:00",
-            "dateLabel": "5月26日 周二",
+            "label": "今天 10:00-12:00",
+            "dateLabel": "今天",
             "timeLabel": "10:00-12:00",
-            "startAt": "2026-05-26T02:00:00.000Z",
-            "endAt": "2026-05-26T04:00:00.000Z",
-            "status": "available"
+            "startAt": "2026-06-11T02:00:00.000Z",
+            "endAt": "2026-06-11T04:00:00.000Z",
+            "status": "booked",
+            "lockedOrderId": "order-seed-1"
           },
           {
             "id": "slot-mori-2",
-            "label": "5月27日 周三 14:00-16:00",
-            "dateLabel": "5月27日 周三",
+            "label": "今天 14:00-16:00",
+            "dateLabel": "今天",
             "timeLabel": "14:00-16:00",
-            "startAt": "2026-05-27T06:00:00.000Z",
-            "endAt": "2026-05-27T08:00:00.000Z",
+            "startAt": "2026-06-11T06:00:00.000Z",
+            "endAt": "2026-06-11T08:00:00.000Z",
             "status": "available"
           }
         ],
@@ -179,7 +2643,7 @@
           },
           {
             "id": "activity-cafe",
-            "name": "探店吃饭",
+            "name": "探店",
             "durationMinutes": 90,
             "durationLabel": "1.5小时",
             "priceCents": 29900,
@@ -203,6 +2667,3088 @@
             "priceCents": 8000,
             "priceText": "¥80"
           }
+        ],
+        "serviceAreas": [
+          {
+            "id": "companion-mori-area-1",
+            "city": "上海",
+            "areaName": "武康路",
+            "areaType": "business_area",
+            "lat": 31.2109,
+            "lng": 121.4457,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "companion-mori-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2129,
+            "lng": 121.4437,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "companion-mori-area-3",
+            "city": "上海",
+            "areaName": "衡山路",
+            "areaType": "business_area",
+            "lat": 31.2149,
+            "lng": 121.4417,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "companion-mori-area-4",
+            "city": "上海",
+            "areaName": "徐家汇",
+            "areaType": "business_area",
+            "lat": 31.2169,
+            "lng": 121.4397,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-1",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "武康路",
+      "location": "上海 · 武康路",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "Citywalk",
+        "自然光",
+        "松弛感",
+        "今天可拍"
+      ],
+      "activity": "Citywalk",
+      "images": [
+        {
+          "id": "virtual-post-1-image-1",
+          "url": "https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-1-image-2",
+          "url": "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-1",
+        "userId": "virtual-user-1",
+        "name": "Luna",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80",
+        "bio": "温柔沟通，会先帮你确认穿搭和路线，现场以自然走动抓拍为主。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 4.6,
+        "ratingCount": 8,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "武康路",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-1-area-1",
+            "city": "上海",
+            "areaName": "武康路",
+            "areaType": "business_area",
+            "lat": 31.2197,
+            "lng": 121.4544,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-1-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2217,
+            "lng": 121.4524,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-1-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2237,
+            "lng": 121.4504,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-1-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-1-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-1-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-1",
+            "name": "Citywalk",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 39900,
+            "priceText": "¥399"
+          },
+          {
+            "id": "virtual-activity-1-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 27900,
+            "priceText": "¥279"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-1-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-1-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-2",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "巨鹿路",
+      "location": "上海 · 巨鹿路",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "熟悉咖啡店和街角光线，适合轻松日常头像和朋友圈照片。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "探店",
+        "日常感",
+        "咖啡店",
+        "今天可拍"
+      ],
+      "activity": "探店",
+      "images": [
+        {
+          "id": "virtual-post-2-image-1",
+          "url": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
+          "width": 1200,
+          "height": 800,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-2-image-2",
+          "url": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-2",
+        "userId": "virtual-user-2",
+        "name": "Aki",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80",
+        "bio": "熟悉咖啡店和街角光线，适合轻松日常头像和朋友圈照片。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 4.699999999999999,
+        "ratingCount": 9,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "巨鹿路",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-2-area-1",
+            "city": "上海",
+            "areaName": "巨鹿路",
+            "areaType": "business_area",
+            "lat": 31.2221,
+            "lng": 121.4755,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-2-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2241,
+            "lng": 121.4735,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-2-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2261,
+            "lng": 121.4715,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-2-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-2-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-2-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-2",
+            "name": "探店",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 32900,
+            "priceText": "¥329"
+          },
+          {
+            "id": "virtual-activity-2-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 20900,
+            "priceText": "¥209"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-2-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-2-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-3",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "苏州河",
+      "location": "上海 · 苏州河",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "熟悉夜景人流和安全路线，会提醒集合点、动线和收尾时间。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "夜景",
+        "蓝调",
+        "散步",
+        "今天可拍"
+      ],
+      "activity": "夜景",
+      "images": [
+        {
+          "id": "virtual-post-3-image-1",
+          "url": "https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-3-image-2",
+          "url": "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-3",
+        "userId": "virtual-user-3",
+        "name": "Mika",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=900&q=80",
+        "bio": "熟悉夜景人流和安全路线，会提醒集合点、动线和收尾时间。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 4.8,
+        "ratingCount": 10,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "苏州河",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-3-area-1",
+            "city": "上海",
+            "areaName": "苏州河",
+            "areaType": "business_area",
+            "lat": 31.2442,
+            "lng": 121.4891,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-3-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2462,
+            "lng": 121.4871,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-3-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2482,
+            "lng": 121.4851,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-3-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-3-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-3-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-3",
+            "name": "夜景",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 29900,
+            "priceText": "¥299"
+          },
+          {
+            "id": "virtual-activity-3-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 19900,
+            "priceText": "¥199"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-3-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-3-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-4",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "新天地",
+      "location": "上海 · 新天地",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "擅长红砖、玻璃、街巷背景，适合利落一点的城市人像。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "城市感",
+        "街拍",
+        "杂志感",
+        "今天可拍"
+      ],
+      "activity": "城市街拍",
+      "images": [
+        {
+          "id": "virtual-post-4-image-1",
+          "url": "https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-4-image-2",
+          "url": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-4",
+        "userId": "virtual-user-4",
+        "name": "Rin",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1526510747491-58f928ec870f?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80",
+        "bio": "擅长红砖、玻璃、街巷背景，适合利落一点的城市人像。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 4.8999999999999995,
+        "ratingCount": 11,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "新天地",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-4-area-1",
+            "city": "上海",
+            "areaName": "新天地",
+            "areaType": "business_area",
+            "lat": 31.2109,
+            "lng": 121.4457,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-4-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2129,
+            "lng": 121.4437,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-4-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2149,
+            "lng": 121.4417,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-4-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-4-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-4-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-4",
+            "name": "城市街拍",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 42900,
+            "priceText": "¥429"
+          },
+          {
+            "id": "virtual-activity-4-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 30900,
+            "priceText": "¥309"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-4-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-4-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-5",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "徐家汇",
+      "location": "上海 · 徐家汇",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "偏清爽自然的照片，会帮助缓解镜头尴尬，适合学生和毕业季。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "清新",
+        "校园感",
+        "自然光",
+        "今天可拍"
+      ],
+      "activity": "校园感写真",
+      "images": [
+        {
+          "id": "virtual-post-5-image-1",
+          "url": "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=80",
+          "width": 1200,
+          "height": 800,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-5-image-2",
+          "url": "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-5",
+        "userId": "virtual-user-5",
+        "name": "Yoyo",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80",
+        "bio": "偏清爽自然的照片，会帮助缓解镜头尴尬，适合学生和毕业季。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5,
+        "ratingCount": 12,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "徐家汇",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-5-area-1",
+            "city": "上海",
+            "areaName": "徐家汇",
+            "areaType": "business_area",
+            "lat": 31.2197,
+            "lng": 121.4544,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-5-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2217,
+            "lng": 121.4524,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-5-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2237,
+            "lng": 121.4504,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-5-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-5-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-5-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-5",
+            "name": "校园感写真",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 26900,
+            "priceText": "¥269"
+          },
+          {
+            "id": "virtual-activity-5-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 19900,
+            "priceText": "¥199"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-5-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-5-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-6",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "外滩",
+      "location": "上海 · 外滩",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "适合来上海短暂停留的游客，路线紧凑，优先保证地标合影和自然抓拍。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "旅行",
+        "地标",
+        "明亮",
+        "今天可拍"
+      ],
+      "activity": "旅行跟拍",
+      "images": [
+        {
+          "id": "virtual-post-6-image-1",
+          "url": "https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-6-image-2",
+          "url": "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-6",
+        "userId": "virtual-user-6",
+        "name": "Cici",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80",
+        "bio": "适合来上海短暂停留的游客，路线紧凑，优先保证地标合影和自然抓拍。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5.1,
+        "ratingCount": 13,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "外滩",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-6-area-1",
+            "city": "上海",
+            "areaName": "外滩",
+            "areaType": "business_area",
+            "lat": 31.2221,
+            "lng": 121.4755,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-6-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2241,
+            "lng": 121.4735,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-6-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2261,
+            "lng": 121.4715,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-6-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-6-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-6-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-6",
+            "name": "旅行跟拍",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 69900,
+            "priceText": "¥699"
+          },
+          {
+            "id": "virtual-activity-6-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 57900,
+            "priceText": "¥579"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-6-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-6-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-7",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "愚园路",
+      "location": "上海 · 愚园路",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "适合男生头像、社交主页照片，会用简单指令减少摆拍感。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "街头",
+        "头像",
+        "松弛",
+        "黑白"
+      ],
+      "activity": "男生头像",
+      "images": [
+        {
+          "id": "virtual-post-7-image-1",
+          "url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-7-image-2",
+          "url": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-7",
+        "userId": "virtual-user-7",
+        "name": "Niko",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80",
+        "bio": "适合男生头像、社交主页照片，会用简单指令减少摆拍感。",
+        "gender": "male",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5.199999999999999,
+        "ratingCount": 14,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "愚园路",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-7-area-1",
+            "city": "上海",
+            "areaName": "愚园路",
+            "areaType": "business_area",
+            "lat": 31.2442,
+            "lng": 121.4891,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-7-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2462,
+            "lng": 121.4871,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-7-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2482,
+            "lng": 121.4851,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-7-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-7-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-7-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-7",
+            "name": "男生头像",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 29900,
+            "priceText": "¥299"
+          },
+          {
+            "id": "virtual-activity-7-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 19900,
+            "priceText": "¥199"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-7-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-7-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-8",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "静安寺",
+      "location": "上海 · 静安寺",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "适合商务社交头像，路线会避开过度游客化背景，画面更像杂志专访。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "通勤",
+        "简洁",
+        "职业感",
+        "黑白"
+      ],
+      "activity": "通勤形象照",
+      "images": [
+        {
+          "id": "virtual-post-8-image-1",
+          "url": "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
+          "width": 1200,
+          "height": 800,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-8-image-2",
+          "url": "https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-8",
+        "userId": "virtual-user-8",
+        "name": "Sora",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80",
+        "bio": "适合商务社交头像，路线会避开过度游客化背景，画面更像杂志专访。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5.3,
+        "ratingCount": 15,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "静安寺",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-8-area-1",
+            "city": "上海",
+            "areaName": "静安寺",
+            "areaType": "business_area",
+            "lat": 31.2109,
+            "lng": 121.4457,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-8-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2129,
+            "lng": 121.4437,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-8-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2149,
+            "lng": 121.4417,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-8-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-8-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-8-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-8",
+            "name": "通勤形象照",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 45900,
+            "priceText": "¥459"
+          },
+          {
+            "id": "virtual-activity-8-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 33900,
+            "priceText": "¥339"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-8-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-8-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-9",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "徐汇滨江",
+      "location": "上海 · 徐汇滨江",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "可以陪同宠物出镜，节奏会留出休息和互动时间，适合轻松户外照。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "宠物",
+        "户外",
+        "自然",
+        "今天可拍"
+      ],
+      "activity": "宠物友好陪拍",
+      "images": [
+        {
+          "id": "virtual-post-9-image-1",
+          "url": "https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-9-image-2",
+          "url": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-9",
+        "userId": "virtual-user-9",
+        "name": "Peach",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?auto=format&fit=crop&w=900&q=80",
+        "bio": "可以陪同宠物出镜，节奏会留出休息和互动时间，适合轻松户外照。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5.3999999999999995,
+        "ratingCount": 16,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "徐汇滨江",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-9-area-1",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2197,
+            "lng": 121.4544,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-9-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2217,
+            "lng": 121.4524,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-9-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2237,
+            "lng": 121.4504,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-9-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-9-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-9-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-9",
+            "name": "宠物友好陪拍",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 36900,
+            "priceText": "¥369"
+          },
+          {
+            "id": "virtual-activity-9-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 24900,
+            "priceText": "¥249"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-9-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-9-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-10",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "田子坊",
+      "location": "上海 · 田子坊",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "偏复古和情绪表达，会选择老街、门窗、墙面做背景，适合安静风格。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "复古",
+        "胶片感",
+        "老街",
+        "情绪"
+      ],
+      "activity": "复古胶片感",
+      "images": [
+        {
+          "id": "virtual-post-10-image-1",
+          "url": "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-10-image-2",
+          "url": "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-10",
+        "userId": "virtual-user-10",
+        "name": "Bean",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80",
+        "bio": "偏复古和情绪表达，会选择老街、门窗、墙面做背景，适合安静风格。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5.5,
+        "ratingCount": 17,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "田子坊",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-10-area-1",
+            "city": "上海",
+            "areaName": "田子坊",
+            "areaType": "business_area",
+            "lat": 31.2221,
+            "lng": 121.4755,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-10-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2241,
+            "lng": 121.4735,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-10-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2261,
+            "lng": 121.4715,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-10-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-10-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-10-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-10",
+            "name": "复古胶片感",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 39900,
+            "priceText": "¥399"
+          },
+          {
+            "id": "virtual-activity-10-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 27900,
+            "priceText": "¥279"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-10-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-10-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-11",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "西岸",
+      "location": "上海 · 西岸",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "偏广告大片和黑白情绪，会把建筑线条、人物姿态和留白一起设计。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "黑白",
+        "杂志感",
+        "艺术馆",
+        "大片"
+      ],
+      "activity": "黑白大片",
+      "images": [
+        {
+          "id": "virtual-post-11-image-1",
+          "url": "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80",
+          "width": 1200,
+          "height": 800,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-11-image-2",
+          "url": "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-11",
+        "userId": "virtual-user-11",
+        "name": "Noir",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80",
+        "bio": "偏广告大片和黑白情绪，会把建筑线条、人物姿态和留白一起设计。",
+        "gender": "male",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5.6,
+        "ratingCount": 18,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "西岸",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-11-area-1",
+            "city": "上海",
+            "areaName": "西岸",
+            "areaType": "business_area",
+            "lat": 31.2442,
+            "lng": 121.4891,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-11-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2462,
+            "lng": 121.4871,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-11-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2482,
+            "lng": 121.4851,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-11-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-11-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-11-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-11",
+            "name": "黑白大片",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 52900,
+            "priceText": "¥529"
+          },
+          {
+            "id": "virtual-activity-11-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 40900,
+            "priceText": "¥409"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-11-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-11-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-12",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "安福路",
+      "location": "上海 · 安福路",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "适合穿搭记录和主理人形象照，会控制背景干净度和人物比例。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "时装",
+        "街拍",
+        "黑白",
+        "今天可拍"
+      ],
+      "activity": "时装街拍",
+      "images": [
+        {
+          "id": "virtual-post-12-image-1",
+          "url": "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-12-image-2",
+          "url": "https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-12",
+        "userId": "virtual-user-12",
+        "name": "Iris",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80",
+        "bio": "适合穿搭记录和主理人形象照，会控制背景干净度和人物比例。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5.699999999999999,
+        "ratingCount": 19,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "安福路",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-12-area-1",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2109,
+            "lng": 121.4457,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-12-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2129,
+            "lng": 121.4437,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-12-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2149,
+            "lng": 121.4417,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-12-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-12-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-12-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-12",
+            "name": "时装街拍",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 48900,
+            "priceText": "¥489"
+          },
+          {
+            "id": "virtual-activity-12-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 36900,
+            "priceText": "¥369"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-12-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-12-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-13",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "龙美术馆",
+      "location": "上海 · 龙美术馆",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "偏极简展馆和大面积留白，适合冷静、干净、像广告图的作品。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "艺术馆",
+        "大片",
+        "极简",
+        "黑白"
+      ],
+      "activity": "艺术馆大片",
+      "images": [
+        {
+          "id": "virtual-post-13-image-1",
+          "url": "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-13-image-2",
+          "url": "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-13",
+        "userId": "virtual-user-13",
+        "name": "June",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=900&q=80",
+        "bio": "偏极简展馆和大面积留白，适合冷静、干净、像广告图的作品。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5.8,
+        "ratingCount": 20,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "龙美术馆",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-13-area-1",
+            "city": "上海",
+            "areaName": "龙美术馆",
+            "areaType": "business_area",
+            "lat": 31.2197,
+            "lng": 121.4544,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-13-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2217,
+            "lng": 121.4524,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-13-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2237,
+            "lng": 121.4504,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-13-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-13-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-13-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-13",
+            "name": "艺术馆大片",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 55900,
+            "priceText": "¥559"
+          },
+          {
+            "id": "virtual-activity-13-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 43900,
+            "priceText": "¥439"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-13-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-13-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-14",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "前滩",
+      "location": "上海 · 前滩",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "用玻璃幕墙、台阶和光影做画面，适合想要更成熟质感的用户。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "广告感",
+        "都市",
+        "干净",
+        "今天可拍"
+      ],
+      "activity": "都市广告感",
+      "images": [
+        {
+          "id": "virtual-post-14-image-1",
+          "url": "https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=80",
+          "width": 1200,
+          "height": 800,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-14-image-2",
+          "url": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-14",
+        "userId": "virtual-user-14",
+        "name": "Vera",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80",
+        "bio": "用玻璃幕墙、台阶和光影做画面，适合想要更成熟质感的用户。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 5.8999999999999995,
+        "ratingCount": 21,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "前滩",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-14-area-1",
+            "city": "上海",
+            "areaName": "前滩",
+            "areaType": "business_area",
+            "lat": 31.2221,
+            "lng": 121.4755,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-14-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2241,
+            "lng": 121.4735,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-14-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2261,
+            "lng": 121.4715,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-14-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-14-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-14-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-14",
+            "name": "都市广告感",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 49900,
+            "priceText": "¥499"
+          },
+          {
+            "id": "virtual-activity-14-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 37900,
+            "priceText": "¥379"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-14-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-14-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-15",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "M50",
+      "location": "上海 · M50",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "适合更年轻、更有街头感的照片，会避开杂乱背景，保留城市纹理。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "创意园",
+        "街拍",
+        "涂鸦",
+        "松弛"
+      ],
+      "activity": "创意园街拍",
+      "images": [
+        {
+          "id": "virtual-post-15-image-1",
+          "url": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-15-image-2",
+          "url": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-15",
+        "userId": "virtual-user-15",
+        "name": "Kiko",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
+        "bio": "适合更年轻、更有街头感的照片，会避开杂乱背景，保留城市纹理。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 6,
+        "ratingCount": 22,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "M50",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-15-area-1",
+            "city": "上海",
+            "areaName": "M50",
+            "areaType": "business_area",
+            "lat": 31.2442,
+            "lng": 121.4891,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-15-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2462,
+            "lng": 121.4871,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-15-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2482,
+            "lng": 121.4851,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-15-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-15-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-15-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-15",
+            "name": "创意园街拍",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 38900,
+            "priceText": "¥389"
+          },
+          {
+            "id": "virtual-activity-15-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 26900,
+            "priceText": "¥269"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-15-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-15-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-16",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "北外滩",
+      "location": "上海 · 北外滩",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "偏建筑空间和线条构图，适合男生、情侣或偏冷感的城市人像。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "建筑",
+        "线条",
+        "黑白",
+        "男生友好"
+      ],
+      "activity": "建筑线条人像",
+      "images": [
+        {
+          "id": "virtual-post-16-image-1",
+          "url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-16-image-2",
+          "url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-16",
+        "userId": "virtual-user-16",
+        "name": "Tao",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=900&q=80",
+        "bio": "偏建筑空间和线条构图，适合男生、情侣或偏冷感的城市人像。",
+        "gender": "male",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 6.1,
+        "ratingCount": 23,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "北外滩",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-16-area-1",
+            "city": "上海",
+            "areaName": "北外滩",
+            "areaType": "business_area",
+            "lat": 31.2109,
+            "lng": 121.4457,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-16-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2129,
+            "lng": 121.4437,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-16-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2149,
+            "lng": 121.4417,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-16-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-16-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-16-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-16",
+            "name": "建筑线条人像",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 46900,
+            "priceText": "¥469"
+          },
+          {
+            "id": "virtual-activity-16-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 34900,
+            "priceText": "¥349"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-16-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-16-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-17",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "思南路",
+      "location": "上海 · 思南路",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "适合裙装、情侣和轻复古风格，会用街角、门廊和树影组织画面。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "法式",
+        "街区",
+        "自然光",
+        "今天可拍"
+      ],
+      "activity": "法式街区",
+      "images": [
+        {
+          "id": "virtual-post-17-image-1",
+          "url": "https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1200&q=80",
+          "width": 1200,
+          "height": 800,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-17-image-2",
+          "url": "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-17",
+        "userId": "virtual-user-17",
+        "name": "Mina",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80",
+        "bio": "适合裙装、情侣和轻复古风格，会用街角、门廊和树影组织画面。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 6.199999999999999,
+        "ratingCount": 24,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "思南路",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-17-area-1",
+            "city": "上海",
+            "areaName": "思南路",
+            "areaType": "business_area",
+            "lat": 31.2197,
+            "lng": 121.4544,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-17-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2217,
+            "lng": 121.4524,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-17-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2237,
+            "lng": 121.4504,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-17-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-17-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-17-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-17",
+            "name": "法式街区",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 43900,
+            "priceText": "¥439"
+          },
+          {
+            "id": "virtual-activity-17-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 31900,
+            "priceText": "¥319"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-17-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-17-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-18",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "大学路",
+      "location": "上海 · 大学路",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "适合更生活方式的照片，边走边拍，画面干净但不强摆拍。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "咖啡",
+        "街区",
+        "生活方式",
+        "今天可拍"
+      ],
+      "activity": "咖啡街区",
+      "images": [
+        {
+          "id": "virtual-post-18-image-1",
+          "url": "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-18-image-2",
+          "url": "https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-18",
+        "userId": "virtual-user-18",
+        "name": "Haru",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=900&q=80",
+        "bio": "适合更生活方式的照片，边走边拍，画面干净但不强摆拍。",
+        "gender": "male",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 6.3,
+        "ratingCount": 25,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "大学路",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-18-area-1",
+            "city": "上海",
+            "areaName": "大学路",
+            "areaType": "business_area",
+            "lat": 31.2221,
+            "lng": 121.4755,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-18-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2241,
+            "lng": 121.4735,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-18-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2261,
+            "lng": 121.4715,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-18-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-18-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-18-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-18",
+            "name": "咖啡街区",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 33900,
+            "priceText": "¥339"
+          },
+          {
+            "id": "virtual-activity-18-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 21900,
+            "priceText": "¥219"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-18-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-18-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
+        ]
+      }
+    },
+    {
+      "id": "virtual-post-19",
+      "status": "approved",
+      "isFeedVisible": true,
+      "city": "上海",
+      "locationName": "迪士尼小镇",
+      "location": "上海 · 迪士尼小镇",
+      "timeLabel": "今天可拍 / 虚拟样例 / 可替换资料",
+      "caption": "适合主题乐园和游客路线，节奏快，会优先抓情绪和地标记忆点。 这是一条虚拟摄影师样例资料，用于测试图片流、详情、预约和下单流程。",
+      "styleTags": [
+        "旅行",
+        "主题",
+        "明亮",
+        "游客友好"
+      ],
+      "activity": "主题旅行跟拍",
+      "images": [
+        {
+          "id": "virtual-post-19-image-1",
+          "url": "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 1
+        },
+        {
+          "id": "virtual-post-19-image-2",
+          "url": "https://images.unsplash.com/photo-1502325966718-85a90488dc29?auto=format&fit=crop&w=900&q=80",
+          "width": 900,
+          "height": 1200,
+          "sortOrder": 2
+        }
+      ],
+      "companion": {
+        "id": "virtual-companion-19",
+        "userId": "virtual-user-19",
+        "name": "Leia",
+        "isVirtual": true,
+        "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80",
+        "photo": "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80",
+        "bio": "适合主题乐园和游客路线，节奏快，会优先抓情绪和地标记忆点。",
+        "gender": "female",
+        "baseCity": "上海",
+        "status": "approved",
+        "serviceEnabled": true,
+        "ratingAvg": 6.3999999999999995,
+        "ratingCount": 26,
+        "tags": [
+          "虚拟摄影师",
+          "路线规划",
+          "会指导动作"
+        ],
+        "safetyBadges": [
+          "虚拟样例",
+          "平台托管",
+          "可测试预约"
+        ],
+        "areas": [
+          "迪士尼小镇",
+          "安福路",
+          "徐汇滨江"
+        ],
+        "serviceAreas": [
+          {
+            "id": "virtual-companion-19-area-1",
+            "city": "上海",
+            "areaName": "迪士尼小镇",
+            "areaType": "business_area",
+            "lat": 31.2442,
+            "lng": 121.4891,
+            "radiusMeters": 4000,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-19-area-2",
+            "city": "上海",
+            "areaName": "安福路",
+            "areaType": "business_area",
+            "lat": 31.2462,
+            "lng": 121.4871,
+            "radiusMeters": 2500,
+            "enabled": true
+          },
+          {
+            "id": "virtual-companion-19-area-3",
+            "city": "上海",
+            "areaName": "徐汇滨江",
+            "areaType": "business_area",
+            "lat": 31.2482,
+            "lng": 121.4851,
+            "radiusMeters": 2500,
+            "enabled": true
+          }
+        ],
+        "slots": [
+          {
+            "id": "virtual-slot-19-1",
+            "label": "今天 15:00",
+            "dateLabel": "今天",
+            "timeLabel": "15:00",
+            "startAt": "2026-06-11T07:00:00.000Z",
+            "endAt": "2026-06-11T09:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-19-2",
+            "label": "今天 19:00",
+            "dateLabel": "今天",
+            "timeLabel": "19:00",
+            "startAt": "2026-06-11T11:00:00.000Z",
+            "endAt": "2026-06-11T13:00:00.000Z",
+            "status": "available"
+          },
+          {
+            "id": "virtual-slot-19-3",
+            "label": "周末 10:00",
+            "dateLabel": "周末",
+            "timeLabel": "10:00",
+            "startAt": "2026-06-14T02:00:00.000Z",
+            "endAt": "2026-06-14T04:00:00.000Z",
+            "status": "available"
+          }
+        ],
+        "activities": [
+          {
+            "id": "virtual-activity-19",
+            "name": "主题旅行跟拍",
+            "durationMinutes": 120,
+            "durationLabel": "2小时",
+            "priceCents": 69900,
+            "priceText": "¥699"
+          },
+          {
+            "id": "virtual-activity-19-light",
+            "name": "轻量头像快拍",
+            "durationMinutes": 60,
+            "durationLabel": "1小时",
+            "priceCents": 57900,
+            "priceText": "¥579"
+          }
+        ],
+        "extras": [
+          {
+            "id": "virtual-extra-19-retouch",
+            "name": "精修",
+            "unit": "per_photo",
+            "unitLabel": "张",
+            "priceCents": 3000,
+            "priceText": "¥30"
+          },
+          {
+            "id": "virtual-extra-19-rush",
+            "name": "加急出图",
+            "unit": "per_order",
+            "unitLabel": "单",
+            "priceCents": 8000,
+            "priceText": "¥80"
+          }
         ]
       }
     }
@@ -213,7 +5759,7 @@
       "orderNo": "PP26052401",
       "status": "paid_pending_confirm",
       "title": "Citywalk 陪拍",
-      "time": "5月26日 周二 10:00-12:00",
+      "time": "今天 10:00-12:00",
       "place": "武康路",
       "amountCents": 48900,
       "companion": "Mori",
@@ -222,9 +5768,9 @@
       "activityId": "activity-citywalk",
       "activityName": "Citywalk",
       "slotId": "slot-mori-1",
-      "startAt": "2026-05-26T02:00:00.000Z",
-      "endAt": "2026-05-26T04:00:00.000Z",
-      "dateLabel": "5月26日 周二",
+      "startAt": "2026-06-11T02:00:00.000Z",
+      "endAt": "2026-06-11T04:00:00.000Z",
+      "dateLabel": "今天",
       "timeLabel": "10:00-12:00",
       "durationMinutes": 120,
       "durationLabel": "2小时",
@@ -238,16 +5784,18 @@
           "amountCents": 9000
         }
       ],
-      "createdAt": "2026-05-26T23:57:16.290Z",
-      "statusText": "待确认",
+      "createdAt": "2026-06-11T00:00:00.000Z",
+      "statusText": "Pending confirmation",
       "amountText": "¥489",
       "steps": [
-        "已下单",
-        "已支付",
-        "已确认",
-        "已完成"
+        "Created",
+        "Paid",
+        "Confirmed",
+        "Completed"
       ],
-      "currentStep": 1
+      "currentStep": 1,
+      "userId": "demo-consumer-user",
+      "userName": "Demo Consumer"
     }
   ],
   "payments": [],
@@ -257,34 +5805,47 @@
       "orderId": "order-seed-1",
       "orderNo": "PP26052401",
       "status": "active",
-      "safetyNotice": "请勿交换联系方式或私下付款。",
+      "safetyNotice": "Keep all communication and payments inside PP for safety.",
       "messages": [
         {
-          "id": "message-order-seed-1-1",
-          "from": "companion",
-          "text": "我看了你收藏的风格，可以先确认集合点和拍摄路线。",
-          "sentAt": "2026-05-26T23:57:16.291Z",
-          "riskStatus": "clean"
-        },
-        {
-          "id": "message-order-seed-1-2",
-          "from": "user",
-          "text": "好呀，我想要自然一点的照片。",
-          "sentAt": "2026-05-26T23:57:16.291Z",
+          "id": "message-order-seed-1-welcome",
+          "from": "system",
+          "text": "Order PP26052401 is paid. Please confirm time, place, and shooting needs here.",
+          "sentAt": "2026-06-11T11:04:20.778Z",
           "riskStatus": "clean"
         }
       ]
     }
   },
   "riskCases": [],
+  "messageRiskEvents": [],
   "reports": [],
+  "auditCases": [
+    {
+      "id": "audit-case-demo-post",
+      "targetType": "post",
+      "targetId": "post-wukang",
+      "title": "Demo post review queue item",
+      "status": "pending",
+      "createdAt": "2026-06-11T11:04:20.778Z",
+      "payload": {
+        "note": "Seed moderation case for admin demo."
+      },
+      "logs": []
+    }
+  ],
+  "auditLogs": [],
+  "adminActionLogs": [],
   "settlements": [],
+  "ledgerEntries": [],
+  "refunds": [],
+  "wallets": [],
   "application": {
-    "reviewStatus": "草稿",
-    "updatedAt": "2026-05-26T23:57:16.291Z"
+    "reviewStatus": "draft",
+    "updatedAt": "2026-06-11T00:00:00.000Z"
   },
   "workDraft": {
-    "reviewStatus": "草稿",
-    "updatedAt": "2026-05-26T23:57:16.291Z"
+    "reviewStatus": "draft",
+    "updatedAt": "2026-06-11T00:00:00.000Z"
   }
 }

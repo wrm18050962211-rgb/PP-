@@ -1,13 +1,46 @@
 import { companions, feedPosts } from '../data/mockApi';
 import type { ActivityPricing, AvailabilitySlot, Companion, CompanionExtra, FeedPost, PublishedWorkDraft } from '../types/api';
-import { apiGet, isApiEnabled } from './apiClient';
+import { apiGet, isApiEnabled, useMockFallback } from './apiClient';
+
+export type FeedPageRequest = {
+  limit?: number;
+  cursor?: string | null;
+  city?: string;
+};
+
+export type FeedPostPage = {
+  items: FeedPost[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+const defaultFeedPageSize = 18;
+const maxFeedPageSize = 50;
 
 export function listFeedPosts(): FeedPost[] {
-  return getExtendedFeedPosts();
+  return getExtendedFeedPosts().map(withPostTitle);
+}
+
+export function listFeedPostPage(options: FeedPageRequest = {}): FeedPostPage {
+  const { limit, cursor, city } = normalizeFeedPageRequest(options);
+  const cityKeyword = city.trim().toLowerCase();
+  const source = listFeedPosts().filter((post) => {
+    if (!cityKeyword) return true;
+    return [post.city, post.location, post.locationName].filter(Boolean).join(' ').toLowerCase().includes(cityKeyword);
+  });
+  const start = parseFeedCursor(cursor);
+  const items = source.slice(start, start + limit);
+  const nextOffset = start + items.length;
+
+  return {
+    items,
+    nextCursor: nextOffset < source.length ? String(nextOffset) : null,
+    hasMore: nextOffset < source.length,
+  };
 }
 
 export function getPostDetail(postId?: string): FeedPost {
-  const extendedFeedPosts = getExtendedFeedPosts();
+  const extendedFeedPosts = listFeedPosts();
   return extendedFeedPosts.find((post) => post.id === postId) ?? extendedFeedPosts[0];
 }
 
@@ -25,6 +58,12 @@ export function buildApprovedWorkPost(workDraft: PublishedWorkDraft): FeedPost |
 
   return {
     id: 'local-approved-work',
+    title: getPostTitle({
+      location: workDraft.location,
+      caption: workDraft.caption,
+      activity: workDraft.activity,
+      styleTags: workDraft.tags,
+    }),
     location: workDraft.location,
     timeLabel: workDraft.timeLabel,
     caption: workDraft.caption,
@@ -42,20 +81,91 @@ export function mergeApprovedWorkIntoFeed(posts: FeedPost[], workDraft: Publishe
   return [approvedPost, ...posts.filter((post) => post.id !== approvedPost.id)];
 }
 
-export async function fetchFeedPosts(): Promise<FeedPost[]> {
-  if (!isApiEnabled()) return listFeedPosts();
+export async function fetchFeedPostPage(options: FeedPageRequest = {}): Promise<FeedPostPage> {
+  if (!isApiEnabled()) return useMockFallback(listFeedPostPage(options), 'feed post page');
 
   try {
-    const response = await apiGet<{ items: FeedPost[] }>('/api/feed/posts');
-    return response.success ? response.data.items : listFeedPosts();
+    const response = await apiGet<FeedPostPage>(buildFeedPostsPath(options));
+    return response.success
+      ? {
+          items: response.data.items.map(withPostTitle),
+          nextCursor: response.data.nextCursor ?? null,
+          hasMore: Boolean(response.data.hasMore),
+        }
+      : useMockFallback(listFeedPostPage(options), 'feed post page');
   } catch {
-    return listFeedPosts();
+    return useMockFallback(listFeedPostPage(options), 'feed post page');
   }
+}
+
+export async function fetchFeedPosts(): Promise<FeedPost[]> {
+  const page = await fetchFeedPostPage({ limit: maxFeedPageSize });
+  return page.items;
+}
+
+export function getPostTitle(post: Partial<FeedPost>): string {
+  const explicitTitle = post.title?.trim();
+  if (explicitTitle) return explicitTitle;
+
+  const location = getShortPostLocation(post);
+  const style = post.activity || post.styleTags?.[0] || '';
+  const captionLead = getCaptionLead(post.caption);
+  return [location, style].filter(Boolean).join(' ') || captionLead || '作品样板';
+}
+
+function withPostTitle(post: FeedPost): FeedPost {
+  const title = getPostTitle(post);
+  return post.title === title ? post : { ...post, title };
+}
+
+function normalizeFeedPageRequest(options: FeedPageRequest) {
+  return {
+    limit: clampFeedLimit(options.limit),
+    cursor: options.cursor ?? null,
+    city: options.city ?? '',
+  };
+}
+
+function clampFeedLimit(limit?: number) {
+  if (!Number.isFinite(limit)) return defaultFeedPageSize;
+  return Math.max(1, Math.min(Math.floor(limit as number), maxFeedPageSize));
+}
+
+function parseFeedCursor(cursor?: string | null) {
+  const offset = Number.parseInt(cursor || '0', 10);
+  return Number.isFinite(offset) && offset > 0 ? offset : 0;
+}
+
+function buildFeedPostsPath(options: FeedPageRequest) {
+  const request = normalizeFeedPageRequest(options);
+  const params = new URLSearchParams();
+  params.set('limit', String(request.limit));
+  if (request.cursor) params.set('cursor', request.cursor);
+  if (request.city) params.set('city', request.city);
+  return `/api/feed/posts?${params.toString()}`;
+}
+
+function getShortPostLocation(post: Partial<FeedPost>) {
+  const raw = post.locationName || post.location || post.companion?.areas?.[0] || '';
+  return raw
+    .replace(/^上海\s*[·\-｜|路]\s*/, '')
+    .split(/[·\-｜|]/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .pop() || raw.trim();
+}
+
+function getCaptionLead(caption?: string) {
+  return (caption ?? '')
+    .split(/[，。,.]/)[0]
+    .trim()
+    .slice(0, 16);
 }
 
 function getExtendedFeedPosts(): FeedPost[] {
   return [
   ...feedPosts,
+  ...createVirtualTransactionPosts(),
   ...createVirtualFeedPosts(),
   {
     ...feedPosts[0],
@@ -133,6 +243,97 @@ function getExtendedFeedPosts(): FeedPost[] {
     ],
   },
   ];
+}
+
+function createVirtualTransactionPosts(): FeedPost[] {
+  const trades = [
+    {
+      id: 'virtual-trade-post-1',
+      companion: companions[0],
+      creator: {
+        id: 'creator-00000000-0000-0000-0000-000000000701',
+        name: 'Creator 1',
+        avatar: feedPosts[0].images[1]?.url || feedPosts[0].images[0]?.url,
+        phone: '13910010001',
+        source: 'order',
+      },
+      location: '上海 · 武康路',
+      timeLabel: '订单成片 / 今天 17:30',
+      activity: 'Citywalk',
+      caption: 'Creator 1 和 Mori 完成的 Citywalk 成片，保留街角自然光、走动抓拍和低干扰沟通节奏。',
+      styleTags: ['订单成片', 'Citywalk', '自然光', '共同确认'],
+      images: [
+        image('virtual-trade-post-1-image-1', 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80', 900, 1200, 1),
+        image('virtual-trade-post-1-image-2', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80', 900, 1200, 2),
+      ],
+    },
+    {
+      id: 'virtual-trade-post-2',
+      companion: companions[1],
+      creator: {
+        id: 'creator-00000000-0000-0000-0000-000000000702',
+        name: 'Creator 2',
+        avatar: feedPosts[1].images[1]?.url || feedPosts[1].images[0]?.url,
+        phone: '13910010002',
+        source: 'order',
+      },
+      location: '上海 · 巨鹿路',
+      timeLabel: '订单成片 / 昨天 15:30',
+      activity: '探店生活照',
+      caption: 'Creator 2 和 Nana 的探店订单成片，咖啡店窗边光、桌面层次和日常穿搭都已双方确认。',
+      styleTags: ['订单成片', '探店', '日常感', '共同确认'],
+      images: [
+        image('virtual-trade-post-2-image-1', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80', 900, 1200, 1),
+        image('virtual-trade-post-2-image-2', 'https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&fit=crop&w=900&q=80', 900, 1200, 2),
+      ],
+    },
+    {
+      id: 'virtual-trade-post-3',
+      companion: companions[2],
+      creator: {
+        id: 'creator-00000000-0000-0000-0000-000000000703',
+        name: 'Creator 3',
+        avatar: feedPosts[2].images[1]?.url || feedPosts[2].images[0]?.url,
+        phone: '13910010003',
+        source: 'order',
+      },
+      location: '上海 · 外滩',
+      timeLabel: '订单成片 / 6月11日 19:30',
+      activity: '夜景散步',
+      caption: 'Creator 3 和 Echo 的夜景散步订单成片，蓝调时刻、江边线条和补光人像已完成共同编辑。',
+      styleTags: ['订单成片', '夜景', '蓝调', '共同确认'],
+      images: [
+        image('virtual-trade-post-3-image-1', 'https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?auto=format&fit=crop&w=1200&q=80', 1200, 800, 1),
+        image('virtual-trade-post-3-image-2', 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=900&q=80', 900, 1200, 2),
+      ],
+    },
+    {
+      id: 'virtual-trade-post-4',
+      companion: companions[0],
+      creator: {
+        id: 'creator-00000000-0000-0000-0000-000000000704',
+        name: 'Creator 4',
+        avatar: feedPosts[0].images[0]?.url,
+        phone: '13910010004',
+        source: 'order',
+      },
+      location: '上海 · 安福路',
+      timeLabel: '订单成片 / 6月10日 10:00',
+      activity: '书店街拍',
+      caption: 'Creator 4 和 Mori 的安福路书店街拍，门窗、书店外立面和阴天柔光适合做主页作品。',
+      styleTags: ['订单成片', '街拍', '文艺', '共同确认'],
+      images: [
+        image('virtual-trade-post-4-image-1', 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=900&q=80', 900, 1200, 1),
+        image('virtual-trade-post-4-image-2', 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80', 900, 1200, 2),
+      ],
+    },
+  ] satisfies FeedPost[];
+
+  return trades.map((post) => ({ ...post, city: '上海', locationName: post.location }));
+}
+
+function image(id: string, url: string, width: number, height: number, sortOrder: number) {
+  return { id, url, width, height, sortOrder, mediaKind: 'image' };
 }
 
 const virtualProfiles = [
@@ -276,22 +477,112 @@ const virtualProfiles = [
     image: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80',
     avatar: 'https://images.unsplash.com/photo-1495385794356-15371f348c31?auto=format&fit=crop&w=240&q=80',
   },
+  {
+    name: 'Noir',
+    gender: 'male',
+    area: '西岸',
+    areas: ['西岸', '龙美术馆', '油罐艺术中心', '徐汇滨江'],
+    activity: '黑白大片',
+    tags: ['黑白构图', '广告感', '会指导姿态'],
+    styleTags: ['黑白', '杂志感', '大片'],
+    bio: '偏广告大片和黑白情绪，会把建筑线条、人物姿态和留白一起设计。',
+    priceCents: 52900,
+    durationMinutes: 120,
+    image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Iris',
+    gender: 'female',
+    area: '安福路',
+    areas: ['安福路', '武康路', '湖南路', '常熟路'],
+    activity: '时装街拍',
+    tags: ['穿搭友好', '街拍比例', '背景干净'],
+    styleTags: ['时装', '街拍', '黑白'],
+    bio: '适合穿搭记录和主理人形象照，会控制背景干净度和人物比例。',
+    priceCents: 48900,
+    durationMinutes: 120,
+    image: 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'June',
+    gender: 'female',
+    area: '龙美术馆',
+    areas: ['龙美术馆', '西岸', '徐汇滨江', '油罐艺术中心'],
+    activity: '艺术馆大片',
+    tags: ['极简空间', '大片留白', '安静引导'],
+    styleTags: ['艺术馆', '大片', '极简'],
+    bio: '偏极简展馆和大面积留白，适合冷静、干净、像广告图的作品。',
+    priceCents: 55900,
+    durationMinutes: 120,
+    image: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1520813792240-56fc4a3765a7?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    name: 'Vera',
+    gender: 'female',
+    area: '前滩',
+    areas: ['前滩', '东方体育中心', '后滩', '世博源'],
+    activity: '都市广告感',
+    tags: ['广告感', '都市光影', '干净构图'],
+    styleTags: ['广告感', '都市', '黑白'],
+    bio: '用玻璃幕墙、台阶和光影做画面，适合想要更成熟质感的用户。',
+    priceCents: 49900,
+    durationMinutes: 120,
+    image: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80',
+    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=240&q=80',
+  },
 ] as const;
+
+const virtualLandscapeIndexes = new Set([1, 4, 7, 10, 13, 16]);
+const virtualLandscapeImages = [
+  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=80',
+  'https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1200&q=80',
+] as const;
+
+const virtualLiveVideoUrls = [
+  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+  'https://media.w3.org/2010/05/sintel/trailer.mp4',
+] as const;
+
+function createVirtualPostImages(postId: string, profile: (typeof virtualProfiles)[number], index: number) {
+  const isLandscape = virtualLandscapeIndexes.has(index);
+  const isLive = index % 4 === 1 || index % 7 === 0;
+  const landscapeImageIndex = Math.floor(index / 3) % virtualLandscapeImages.length;
+  const coverUrl = isLandscape ? virtualLandscapeImages[landscapeImageIndex] : profile.image;
+  const liveVideoUrl = virtualLiveVideoUrls[index % virtualLiveVideoUrls.length];
+  return [
+    {
+      id: `${postId}-image-1`,
+      url: coverUrl,
+      mediaKind: isLive ? 'live' : 'image',
+      videoUrl: isLive ? liveVideoUrl : undefined,
+      posterUrl: coverUrl,
+      width: isLandscape ? 1200 : 900,
+      height: isLandscape ? 800 : 1200,
+      sortOrder: 1,
+    },
+    { id: `${postId}-image-2`, url: profile.avatar, mediaKind: 'image', width: 900, height: 1200, sortOrder: 2 },
+  ];
+}
 
 function createVirtualFeedPosts(): FeedPost[] {
   return virtualProfiles.map((profile, index): FeedPost => {
     const companion = createVirtualCompanion(profile, index);
+    const postId = `virtual-post-${index + 1}`;
     return {
-      id: `virtual-post-${index + 1}`,
+      id: postId,
       location: `上海 · ${profile.area}`,
       timeLabel: `${index % 2 === 0 ? '下午' : '傍晚'} / 虚拟样例 / 可替换资料`,
       caption: `${profile.bio} 这是一条虚拟陪拍者样例资料，用于填充页面和调试预约流程。`,
       styleTags: [...profile.styleTags, '虚拟样例'],
       activity: profile.activity,
-      images: [
-        { id: `virtual-post-${index + 1}-image-1`, url: profile.image, width: 900, height: 1200, sortOrder: 1 },
-        { id: `virtual-post-${index + 1}-image-2`, url: profile.avatar, width: 900, height: 1200, sortOrder: 2 },
-      ],
+      images: createVirtualPostImages(postId, profile, index),
       companion,
     };
   });
@@ -374,12 +665,13 @@ function createVirtualExtras(index: number): CompanionExtra[] {
 }
 
 export async function fetchPostDetail(postId?: string): Promise<FeedPost> {
-  if (!isApiEnabled() || !postId) return getPostDetail(postId);
+  if (!postId) return useMockFallback(getPostDetail(postId), 'post detail');
+  if (!isApiEnabled()) return useMockFallback(getPostDetail(postId), 'post detail');
 
   try {
     const response = await apiGet<FeedPost>(`/api/posts/${postId}`);
-    return response.success ? response.data : getPostDetail(postId);
+    return response.success ? withPostTitle(response.data) : useMockFallback(getPostDetail(postId), 'post detail');
   } catch {
-    return getPostDetail(postId);
+    return useMockFallback(getPostDetail(postId), 'post detail');
   }
 }

@@ -7,10 +7,15 @@ import './styles/index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={getRouterBasename()}>
       <AppDataProvider>
         <App />
       </AppDataProvider>
     </BrowserRouter>
   </StrictMode>,
 );
+
+function getRouterBasename() {
+  const baseUrl = import.meta.env.BASE_URL;
+  return baseUrl === '/' ? undefined : baseUrl.replace(/\/$/, '');
+}
