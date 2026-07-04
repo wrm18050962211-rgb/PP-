@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronLeft, MapPin, Search, SlidersHorizontal, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
@@ -1058,6 +1058,8 @@ function FilterSheet({
   onClose: () => void;
 }) {
   const charmToneVisible = filters.look === '迷人状态';
+  const [openSection, setOpenSection] = useState('intent');
+  const toggleSection = (section: string) => setOpenSection((current) => (current === section ? '' : section));
 
   return (
     <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-end bg-black/70" onClick={onClose}>
@@ -1067,21 +1069,34 @@ function FilterSheet({
       >
         <SheetHeader title="筛选作品" onClose={onClose} />
         <p className="mt-1 text-xs font-semibold leading-5 text-zinc-500">左侧选城市和具体位置，这里选择想看的作品类型。</p>
-        <div className="mt-5 space-y-6">
-          <FilterGroup label="想拍什么" emphasis options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
-          <DescribedFilterGroup label="拍摄场景" options={placeOptions} value={filters.place} onChange={(place) => onChange({ place })} />
-          <DescribedFilterGroup
-            label="风格"
-            options={lookOptions}
-            value={filters.look}
-            onChange={(look) => onChange({ look, charmTone: look === '迷人状态' ? filters.charmTone : '不限' })}
-          />
+        <div className="mt-5 space-y-3">
+          <FilterSection title="想拍什么" value={filters.intent} open={openSection === 'intent'} onToggle={() => toggleSection('intent')}>
+            <ChipGrid options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
+          </FilterSection>
+          <FilterSection title="拍摄场景" value={filters.place} open={openSection === 'place'} onToggle={() => toggleSection('place')}>
+            <DescribedOptionList options={placeOptions} value={filters.place} onChange={(place) => onChange({ place })} />
+          </FilterSection>
+          <FilterSection title="风格" value={filters.look} open={openSection === 'look'} onToggle={() => toggleSection('look')}>
+            <DescribedOptionList
+              options={lookOptions}
+              value={filters.look}
+              onChange={(look) => onChange({ look, charmTone: look === '迷人状态' ? filters.charmTone : '不限' })}
+            />
+          </FilterSection>
           {charmToneVisible ? (
-            <FilterGroup label="更偏向" options={charmToneOptions} value={filters.charmTone} onChange={(charmTone) => onChange({ charmTone })} />
+            <FilterSection title="更偏向" value={filters.charmTone} open={openSection === 'charm'} onToggle={() => toggleSection('charm')}>
+              <ChipGrid options={charmToneOptions} value={filters.charmTone} onChange={(charmTone) => onChange({ charmTone })} />
+            </FilterSection>
           ) : null}
-          <FilterGroup label="时间" options={shootTimeOptions} value={filters.shootTime} onChange={(shootTime) => onChange({ shootTime })} />
-          <FilterGroup label="出镜人" options={subjectOptions} value={filters.subject} onChange={(subject) => onChange({ subject })} />
-          <FilterGroup label="内容形式" options={mediaOptions} value={filters.media} onChange={(media) => onChange({ media })} />
+          <FilterSection title="时间" value={filters.shootTime} open={openSection === 'time'} onToggle={() => toggleSection('time')}>
+            <ChipGrid options={shootTimeOptions} value={filters.shootTime} onChange={(shootTime) => onChange({ shootTime })} />
+          </FilterSection>
+          <FilterSection title="出镜人" value={filters.subject} open={openSection === 'subject'} onToggle={() => toggleSection('subject')}>
+            <ChipGrid options={subjectOptions} value={filters.subject} onChange={(subject) => onChange({ subject })} />
+          </FilterSection>
+          <FilterSection title="内容形式" value={filters.media} open={openSection === 'media'} onToggle={() => toggleSection('media')}>
+            <ChipGrid options={mediaOptions} value={filters.media} onChange={(media) => onChange({ media })} />
+          </FilterSection>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onReset}>
@@ -1107,59 +1122,61 @@ function SheetHeader({ title, onClose }: { title: string; onClose: () => void })
   );
 }
 
-function FilterGroup({
-  label,
-  options,
+function FilterSection({
+  title,
   value,
-  onChange,
-  emphasis = false,
+  open,
+  onToggle,
+  children,
 }: {
-  label: string;
-  options: string[];
   value: string;
-  onChange: (value: string) => void;
-  emphasis?: boolean;
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
 }) {
   return (
-    <div>
-      <p className={`${emphasis ? 'mb-3 text-[17px] text-zinc-950' : 'mb-2 text-xs text-zinc-500'} font-black`}>{label}</p>
-      <div className="flex flex-wrap gap-2">
+    <section className="overflow-hidden rounded-[20px] border border-zinc-200 bg-white shadow-[0_10px_24px_rgba(15,15,15,0.05)]">
+      <button className="flex min-h-14 w-full items-center justify-between gap-3 px-3.5 py-3 text-left" onClick={onToggle} type="button">
+        <span className="min-w-0 text-[17px] font-black text-zinc-950">{title}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="max-w-[118px] truncate rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-black text-zinc-600">{value}</span>
+          <ChevronDown className={`shrink-0 text-zinc-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} size={16} />
+        </span>
+      </button>
+      {open ? <div className="border-t border-zinc-100 px-3.5 py-3">{children}</div> : null}
+    </section>
+  );
+}
+
+function ChipGrid({ options, value, onChange }: { options: string[]; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
         {options.map((option) => (
           <button
             key={option}
-            className={`rounded-full px-3 py-2 text-xs font-bold ${option === value ? 'pp-pill-active' : 'pp-pill'}`}
+            className={`h-10 rounded-full px-3 text-xs font-bold transition ${option === value ? 'bg-black text-white' : 'bg-zinc-100 text-zinc-700'}`}
             onClick={() => onChange(option)}
+            type="button"
           >
             {option}
           </button>
         ))}
-      </div>
     </div>
   );
 }
 
-function DescribedFilterGroup({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: Array<{ label: string; description: string }>;
-  value: string;
-  onChange: (value: string) => void;
-}) {
+function DescribedOptionList({ options, value, onChange }: { options: Array<{ label: string; description: string }>; value: string; onChange: (value: string) => void }) {
   return (
-    <div>
-      <p className="mb-3 text-[17px] font-black text-zinc-950">{label}</p>
-      <div className="grid grid-cols-2 gap-2">
+    <div className="space-y-2">
         {options.map((option) => (
           <button
             key={option.label}
-            className={`min-h-[70px] rounded-[18px] border px-3 py-2 text-left transition ${
+            className={`w-full rounded-[16px] border px-3 py-2.5 text-left transition ${
               option.label === value ? 'border-black bg-black text-white' : 'border-zinc-200 bg-white text-zinc-950 shadow-[0_10px_24px_rgba(15,15,15,0.05)]'
             }`}
             onClick={() => onChange(option.label)}
+            type="button"
           >
             <span className="block text-sm font-black">{option.label}</span>
             <span className={`mt-1 block text-[10px] font-semibold leading-4 ${option.label === value ? 'text-white/70' : 'text-zinc-500'}`}>
@@ -1167,7 +1184,6 @@ function DescribedFilterGroup({
             </span>
           </button>
         ))}
-      </div>
     </div>
   );
 }
