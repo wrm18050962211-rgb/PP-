@@ -22,9 +22,7 @@ type FeedFilters = {
   nearbyOnly: boolean;
   venueType: string;
   shootTime: string;
-  intent: string;
-  placeKind: string;
-  look: string;
+  scene: string;
   minDurationMinutes: number;
   maxDurationMinutes: number;
   minBudgetCents: number;
@@ -58,9 +56,7 @@ const initialFilters: FeedFilters = {
   nearbyOnly: false,
   venueType: '不限',
   shootTime: '不限',
-  intent: '不限',
-  placeKind: '不限',
-  look: '不限',
+  scene: '不限',
   minDurationMinutes: 30,
   maxDurationMinutes: 480,
   minBudgetCents: 0,
@@ -99,27 +95,7 @@ const channels: FeedChannel[] = ['关注', '发现', '附近'];
 const idleFeedDragState: FeedDragState = { active: false, startX: 0, deltaX: 0, pointerId: null };
 const venueTypeOptions = ['不限', '室外', '室内'];
 const shootTimeOptions = ['不限', '早上', '中午', '下午', '晚上'];
-const intentOptions = ['不限', '日常社交', '记录当下', '旅行拍照', '纪念日', '重要的人', '形象照片'];
-const placeKindOptions = ['不限', '咖啡馆', '街区', '展览', '景点', '夜景', '公园', '商圈'];
-const lookOptions = ['不限', '自然光', '胶片感', '电影感', '松弛感', '干净高级', '甜酷', '清冷'];
-const placeKindAliasKeywords: Record<string, string[]> = {
-  咖啡馆: ['咖啡', '咖啡店', '探店', '餐厅', '书店', '室内'],
-  街区: ['街区', '街拍', 'citywalk', '武康路', '安福路', '巨鹿路', '苏州河'],
-  展览: ['展览', '美术馆', '艺术中心', '西岸', '书店'],
-  景点: ['景点', '旅行', '外滩', '西湖', '公园', '游客照'],
-  夜景: ['夜景', '夜间', '晚上', '外滩', '北外滩', '苏州河', '氛围感'],
-  公园: ['公园', '自然', '草地', '户外', '宠物'],
-  商圈: ['商圈', '新天地', '静安寺', '南京西路', '淮海', '太古里', '春熙路'],
-};
-const lookAliasKeywords: Record<string, string[]> = {
-  自然光: ['自然光', '清晨', '午后', '柔光', '日常感'],
-  胶片感: ['胶片', '复古', 'film', '颗粒', '暖色'],
-  电影感: ['电影', '大片', '氛围感', '夜景', '黑白'],
-  松弛感: ['松弛', '自然', '抓拍', 'citywalk', '不尴尬'],
-  干净高级: ['干净', '高级', '形象照', '通勤', '商务', '头像', '清爽'],
-  甜酷: ['甜酷', '酷', '街拍', '时髦', '个性'],
-  清冷: ['清冷', '冷调', '黑白', '极简', '干净'],
-};
+const sceneOptions = ['不限', '景点游客照', '网红餐厅拍照', '城市街拍', '旅行跟拍', '节日纪念', '情侣/婚纱', '亲子/宠物', '商业形象'];
 const genderOptions: Array<{ label: string; value: GenderPreference }> = [
   { label: '不限', value: 'any' },
   { label: '男', value: 'male' },
@@ -135,7 +111,7 @@ const feedPageSize = 18;
 const feedCacheKey = 'pp:consumer-feed-page-cache:v1';
 const feedCacheTtlMs = 1000 * 60 * 5;
 const searchHistoryKey = 'pp:consumer-search-history';
-const searchSuggestions = ['松弛街拍', '自然光', '夜景人像', '生日纪念', '城市旅行', '个人形象', '咖啡馆', '胶片感'];
+const searchSuggestions = ['黑白大片', 'Citywalk', '探店', '夜景', '武康路', '安福路', '预算300内', '女生摄影师'];
 
 const demoMapPoints = [
   { city: '上海', district: '徐汇区', name: '武康路定位点', address: '武康路 / 安福路', lat: 31.2087, lng: 121.4456, x: 34, y: 36 },
@@ -267,7 +243,7 @@ export function HomeFeed() {
         location: locationKeyword,
         locationKeywords,
         keyword: filters.query,
-        activityType: filters.intent,
+        activityType: filters.scene,
         minDurationMinutes: filters.minDurationMinutes,
         maxDurationMinutes: filters.maxDurationMinutes,
         minBudgetCents: filters.minBudgetCents || undefined,
@@ -278,8 +254,6 @@ export function HomeFeed() {
       })
         .filter((post) => matchesVenueType(post, filters.venueType))
         .filter((post) => matchesShootTime(post, filters.shootTime))
-        .filter((post) => matchesKeywordFacet(post, filters.placeKind, placeKindAliasKeywords))
-        .filter((post) => matchesKeywordFacet(post, filters.look, lookAliasKeywords))
         .filter((post) => matchesCreatorGender(post, filters.creatorGenderPreference)),
     [activeLocation?.lat, activeLocation?.lng, feedPosts, filters, locationKeyword, locationKeywords],
   );
@@ -410,7 +384,7 @@ export function HomeFeed() {
       lng: activeLocation.lng,
       location: locationKeyword,
       keyword: filters.query,
-      activityType: filters.intent,
+      activityType: filters.scene,
       minDurationMinutes: filters.minDurationMinutes,
       maxDurationMinutes: filters.maxDurationMinutes,
       minBudgetCents: filters.minBudgetCents || undefined,
@@ -1062,11 +1036,48 @@ function FilterSheet({
   return (
     <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-end bg-black/70" onClick={onClose}>
       <section className="h-full w-[84%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <SheetHeader title="Find a shoot" onClose={onClose} />
+        <SheetHeader title="筛选" onClose={onClose} />
         <div className="mt-4 space-y-4">
-          <FilterGroup label="Intent" options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
-          <FilterGroup label="Place" options={placeKindOptions} value={filters.placeKind} onChange={(placeKind) => onChange({ placeKind })} />
-          <FilterGroup label="Look" options={lookOptions} value={filters.look} onChange={(look) => onChange({ look })} />
+          <FilterGroup label="拍摄环境" options={venueTypeOptions} value={filters.venueType} onChange={(venueType) => onChange({ venueType })} />
+          <FilterGroup label="拍摄时间" options={shootTimeOptions} value={filters.shootTime} onChange={(shootTime) => onChange({ shootTime })} />
+          <SelectFilter label="活动类型" options={sceneOptions} value={filters.scene} onChange={(scene) => onChange({ scene })} />
+          <RangeSliderGroup
+            label="时长范围"
+            min={minDurationLimit}
+            max={maxDurationLimit}
+            step={durationStepMinutes}
+            minValue={filters.minDurationMinutes}
+            maxValue={filters.maxDurationMinutes}
+            formatValue={formatDurationLabel}
+            onChange={(minDurationMinutes, maxDurationMinutes) => onChange({ minDurationMinutes, maxDurationMinutes })}
+          />
+          <RangeSliderGroup
+            label="预算范围"
+            min={0}
+            max={maxBudgetLimitCents}
+            step={budgetStepCents}
+            minValue={filters.minBudgetCents}
+            maxValue={filters.maxBudgetCents ?? maxBudgetLimitCents}
+            formatValue={formatBudgetLabel}
+            onChange={(minBudgetCents, maxBudgetCents) =>
+              onChange({
+                minBudgetCents,
+                maxBudgetCents: maxBudgetCents >= maxBudgetLimitCents ? null : maxBudgetCents,
+              })
+            }
+          />
+          <OptionGroup
+            label="创作者性别"
+            options={genderOptions}
+            value={filters.creatorGenderPreference}
+            onChange={(creatorGenderPreference) => onChange({ creatorGenderPreference })}
+          />
+          <OptionGroup
+            label="摄影师性别"
+            options={genderOptions}
+            value={filters.photographerGenderPreference}
+            onChange={(photographerGenderPreference) => onChange({ photographerGenderPreference })}
+          />
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onReset}>
@@ -1370,18 +1381,16 @@ function matchesShootTime(post: FeedPost, shootTime: string) {
   return (keywords[shootTime] ?? []).some((keyword) => text.includes(keyword.toLowerCase()));
 }
 
-function matchesKeywordFacet(post: FeedPost, value: string, aliases: Record<string, string[]>) {
-  if (value === '不限') return true;
-  const text = getPostSearchText(post);
-  const keywords = [value, ...(aliases[value] ?? [])].map((keyword) => keyword.toLowerCase());
-  return keywords.some((keyword) => text.includes(keyword));
-}
-
 function getActiveFilterCount(filters: FeedFilters) {
   return [
-    filters.intent !== initialFilters.intent,
-    filters.placeKind !== initialFilters.placeKind,
-    filters.look !== initialFilters.look,
+    filters.venueType !== initialFilters.venueType,
+    filters.shootTime !== initialFilters.shootTime,
+    filters.scene !== initialFilters.scene,
+    filters.minDurationMinutes !== initialFilters.minDurationMinutes || filters.maxDurationMinutes !== initialFilters.maxDurationMinutes,
+    filters.minBudgetCents !== initialFilters.minBudgetCents,
+    filters.maxBudgetCents !== initialFilters.maxBudgetCents,
+    filters.creatorGenderPreference !== initialFilters.creatorGenderPreference,
+    filters.photographerGenderPreference !== initialFilters.photographerGenderPreference,
   ].filter(Boolean).length;
 }
 
