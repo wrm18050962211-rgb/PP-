@@ -74,7 +74,7 @@ const filterLabels: Record<FilterKey, string> = {
   equipment: '设备偏好',
 };
 
-const filterGroupOrder: FilterKey[] = ['area', 'date', 'time', 'duration', 'budget', 'photographerGender', 'need', 'style', 'media', 'interaction', 'equipment'];
+const filterGroupOrder: FilterKey[] = ['area', 'date', 'time', 'duration', 'budget', 'photographerGender', 'need', 'style', 'interaction', 'media', 'equipment'];
 
 const initialFinderFilters: FinderFilters = {
   area: AREA_ANY,
