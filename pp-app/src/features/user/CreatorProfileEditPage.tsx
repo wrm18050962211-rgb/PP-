@@ -6,6 +6,9 @@ import { createDefaultCreatorProfile, getCreatorIdentity, readCreatorProfile, sa
 import { listFeedPosts } from '../../services/feedService';
 import type { AuthSession } from '../../types/api';
 
+const editFieldClass =
+  'min-h-11 w-full rounded-[8px] bg-white px-3 text-sm font-bold text-black outline-none ring-1 ring-white/10 placeholder:text-zinc-400';
+
 export function CreatorProfileEditPage() {
   const navigate = useNavigate();
   const posts = useMemo(() => listFeedPosts(), []);
@@ -75,13 +78,13 @@ export function CreatorProfileEditPage() {
       <section className="mt-5 space-y-4">
         <FormField label="头像">
           <div className="grid gap-2">
-            <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white">
+            <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-[8px] bg-white text-sm font-black text-black ring-1 ring-white/10">
               <ImagePlus size={17} />
               选择本地图片
               <input className="hidden" type="file" accept="image/*" onChange={(event) => void handleFile(event.target.files?.[0])} />
             </label>
             <input
-              className="field"
+              className={editFieldClass}
               value={draft.avatarUrl}
               onChange={(event) => setDraft((current) => ({ ...current, avatarUrl: event.target.value }))}
               placeholder="也可以粘贴头像图片 URL"
@@ -91,7 +94,7 @@ export function CreatorProfileEditPage() {
 
         <FormField label="ID 名称">
           <input
-            className="field"
+            className={editFieldClass}
             value={draft.displayName}
             onChange={(event) => setDraft((current) => ({ ...current, displayName: event.target.value }))}
             placeholder="例如 Creator 1"
@@ -100,7 +103,7 @@ export function CreatorProfileEditPage() {
 
         <FormField label="文字简介">
           <textarea
-            className="field min-h-32 resize-none rounded-[10px] py-3"
+            className={`${editFieldClass} min-h-32 resize-none py-3 leading-6`}
             value={draft.bio}
             onChange={(event) => setDraft((current) => ({ ...current, bio: event.target.value }))}
             placeholder="写清楚你的常拍地点、喜欢的风格、成片用途或希望合作的摄影师类型"
@@ -109,8 +112,8 @@ export function CreatorProfileEditPage() {
       </section>
 
       <button
-        className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-black ${
-          canSave ? 'bg-white text-black' : 'bg-white/16 text-white/35'
+        className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-[8px] text-sm font-black ${
+          canSave ? 'bg-white text-black' : 'bg-white text-black/35'
         }`}
         disabled={!canSave}
         onClick={save}
