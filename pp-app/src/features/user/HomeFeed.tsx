@@ -89,7 +89,7 @@ const locationOptions: Record<string, Record<string, string[]>> = {
 };
 const channels: FeedChannel[] = ['关注', '发现', '附近'];
 const idleFeedDragState: FeedDragState = { active: false, startX: 0, deltaX: 0, pointerId: null };
-const intentOptions = ['不限', '日常出片', '旅行拍照', '纪念日', '多人合影'];
+const intentOptions = ['不限', '日常出片', '旅行拍照', '纪念日', '多人合照'];
 const placeOptions = [
   { label: '不限', description: '先看全部场景' },
   { label: '餐厅酒咖', description: '咖啡馆 / 早午餐 / 餐厅 / 酒吧' },
@@ -1110,11 +1110,11 @@ function FilterGroup({ label, options, value, onChange }: { label: string; optio
   return (
     <div>
       <p className="mb-2 text-xs font-bold text-zinc-500">{label}</p>
-      <div className="flex gap-2 overflow-x-auto scrollbar-none">
+      <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <button
             key={option}
-            className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold ${option === value ? 'pp-pill-active' : 'pp-pill'}`}
+            className={`rounded-full px-3 py-2 text-xs font-bold ${option === value ? 'pp-pill-active' : 'pp-pill'}`}
             onClick={() => onChange(option)}
           >
             {option}
