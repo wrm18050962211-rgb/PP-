@@ -89,7 +89,13 @@ const locationOptions: Record<string, Record<string, string[]>> = {
 };
 const channels: FeedChannel[] = ['关注', '发现', '附近'];
 const idleFeedDragState: FeedDragState = { active: false, startX: 0, deltaX: 0, pointerId: null };
-const intentOptions = ['不限', '日常出片', '旅行拍照', '纪念日', '多人合照'];
+const intentOptions = [
+  { label: '不限', description: '先看全部拍摄需求' },
+  { label: '日常出片', description: '拍一组好看的日常照片，适合发社交媒体' },
+  { label: '旅行拍照', description: '人在城市或风景里，留下旅途记忆' },
+  { label: '纪念日', description: '生日、毕业、周年等值得留住的一天' },
+  { label: '多人合照', description: '和情侣、朋友、家人一起自然合影' },
+];
 const placeOptions = [
   { label: '不限', description: '先看全部场景' },
   { label: '餐厅酒咖', description: '咖啡馆 / 早午餐 / 餐厅 / 酒吧' },
@@ -110,7 +116,7 @@ const lookOptions = [
 const charmToneOptions = ['不限', '明艳', '可爱', '少年气', '成熟感', '氛围感'];
 const shootTimeOptions = ['不限', '清晨', '上午', '午后', '傍晚', '夜晚'];
 const subjectOptions = ['不限', '女性', '男性', '情侣', '朋友', '家庭'];
-const mediaOptions = ['不限', '照片', '视频'];
+const mediaOptions = ['不限', '照片', '视频', '照片+视频'];
 const placeKeywords: Record<string, string[]> = {
   餐厅酒咖: ['餐厅', '咖啡', '咖啡馆', '早午餐', '甜品', '酒吧', '茶室', '探店', 'brunch', '吃饭'],
   室内场景: ['室内', '酒店', '民宿', '买手店', '花店', '家居', '书店', '美甲', '工作室', '影棚', '空间'],
@@ -1071,7 +1077,7 @@ function FilterSheet({
         <p className="mt-1 text-xs font-semibold leading-5 text-zinc-500">左侧选城市和具体位置，这里选择想看的作品类型。</p>
         <div className="mt-5 space-y-3">
           <FilterSection title="想拍什么" value={filters.intent} open={openSection === 'intent'} onToggle={() => toggleSection('intent')}>
-            <ChipGrid options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
+            <DescribedOptionList options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
           </FilterSection>
           <FilterSection title="拍摄场景" value={filters.place} open={openSection === 'place'} onToggle={() => toggleSection('place')}>
             <DescribedOptionList options={placeOptions} value={filters.place} onChange={(place) => onChange({ place })} />
@@ -1317,9 +1323,12 @@ function getCreatorGender(post: FeedPost): SubjectGender {
 function matchesMedia(post: FeedPost, media: string) {
   if (media === '不限') return true;
 
-  const hasVideo = post.images.some(isVideoMedia) || textMatchesKeywords(getPostSearchText(post), ['视频', '短片', 'vlog', 'reels', 'tiktok']);
+  const text = getPostSearchText(post);
+  const hasImage = post.images.some((image) => !isVideoMedia(image)) || textMatchesKeywords(text, ['照片', '图片', 'photo']);
+  const hasVideo = post.images.some(isVideoMedia) || textMatchesKeywords(text, ['视频', '短片', 'vlog', 'reels', 'tiktok']);
   if (media === '视频') return hasVideo;
-  return post.images.some((image) => !isVideoMedia(image)) || !hasVideo;
+  if (media === '照片+视频') return (hasImage && hasVideo) || textMatchesKeywords(text, ['照片+视频', '照片加视频', '图文视频', '图片视频']);
+  return hasImage || !hasVideo;
 }
 
 function isVideoMedia(image: FeedPost['images'][number]) {
