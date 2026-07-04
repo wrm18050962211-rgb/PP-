@@ -18,7 +18,7 @@ export function createLocalOrder(input: CreateOrderInput, status: OrderStatus = 
   return {
     ...input,
     id: `local-${Date.now()}`,
-    orderNo: `PP${Date.now().toString().slice(-8)}`,
+    orderNo: `ST${Date.now().toString().slice(-8)}`,
     status,
     statusText: orderStatusText[status],
     amountText: formatMoney(input.amountCents),

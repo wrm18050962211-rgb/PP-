@@ -41,14 +41,14 @@ export type RegisterInput = {
 
 export class MissingRoleRegistrationError extends Error {
   constructor(public readonly role: PublicRole) {
-    super(`该手机号尚未注册${role === 'companion' ? '摄影师' : '创作者'}身份`);
+    super(`该手机号尚未注册${getPublicRoleLabel(role)}身份`);
     this.name = 'MissingRoleRegistrationError';
   }
 }
 
 export class PendingRoleReviewError extends Error {
   constructor(public readonly role: PublicRole) {
-    super(`${role === 'companion' ? '摄影师' : '创作者'}身份正在审核中，审核通过后才能登录该身份`);
+    super(`${getPublicRoleLabel(role)}身份正在审核中，审核通过后才能登录该身份`);
     this.name = 'PendingRoleReviewError';
   }
 }
@@ -176,8 +176,8 @@ export function registerWithPhone(input: RegisterInput) {
     completedRoleRegistrations,
     pendingRoleRegistrations,
     roleReviewStatus,
-    nickname: input.role === 'companion' ? 'Demo Photographer' : 'Demo Creator',
-    creatorName: input.role === 'consumer' ? existing?.creatorName || 'Demo Creator' : existing?.creatorName,
+    nickname: input.role === 'companion' ? 'Demo Photographer' : 'Demo User',
+    creatorName: input.role === 'consumer' ? existing?.creatorName || 'Demo User' : existing?.creatorName,
     photographerName: input.role === 'companion' ? existing?.photographerName || 'Demo Photographer' : existing?.photographerName,
     creatorId: input.role === 'consumer' ? existing?.creatorId || `creator-local-${phone}` : existing?.creatorId,
     companionId: input.role === 'companion' ? existing?.companionId || `companion-local-${phone}` : existing?.companionId,
@@ -262,7 +262,7 @@ export function completeRoleRegistration(role: PublicRole, profile: Partial<Pick
     roleReviewStatus: { ...(account.roleReviewStatus ?? {}), [role]: 'approved' },
     creatorId: role === 'consumer' ? account.creatorId || `creator-local-${account.phone}` : account.creatorId,
     companionId: role === 'companion' ? account.companionId || `companion-local-${account.phone}` : account.companionId,
-    creatorName: profile.creatorName ?? (role === 'consumer' ? account.creatorName || 'Demo Creator' : account.creatorName),
+    creatorName: profile.creatorName ?? (role === 'consumer' ? account.creatorName || 'Demo User' : account.creatorName),
     photographerName: profile.photographerName ?? (role === 'companion' ? account.photographerName || 'Demo Photographer' : account.photographerName),
   };
   localStorage.setItem(accountStorageKey, JSON.stringify(nextAccount));
@@ -404,7 +404,7 @@ function readAccount(): AuthAccount | null {
       completedRoleRegistrations: normalizeOptionalRoles(account.completedRoleRegistrations),
       pendingRoleRegistrations: normalizeOptionalRoles(account.pendingRoleRegistrations),
       roleReviewStatus,
-      nickname: account.nickname || (account.role === 'companion' ? 'Demo Photographer' : 'Demo Creator'),
+      nickname: account.nickname || (account.role === 'companion' ? 'Demo Photographer' : 'Demo User'),
       creatorName: account.creatorName,
       photographerName: account.photographerName,
       creatorId: account.creatorId,
@@ -524,4 +524,8 @@ function normalizePhone(phone: string) {
 
 function isValidPhone(phone: string) {
   return /^1\d{10}$/.test(phone);
+}
+
+function getPublicRoleLabel(role: PublicRole) {
+  return role === 'companion' ? '摄影师' : '用户';
 }

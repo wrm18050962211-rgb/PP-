@@ -30,7 +30,7 @@ function getRegisterPath(role: PublicRole, phone?: string) {
 }
 
 const roleOptions: Array<{ role: PublicRole; title: string; desc: string; icon: typeof UserRound }> = [
-  { role: 'consumer', title: '创作者', desc: '发现作品、预约摄影师、管理成片', icon: UserRound },
+  { role: 'consumer', title: '用户', desc: '发现拍摄风格、预约摄影师、管理成片', icon: UserRound },
   { role: 'companion', title: '摄影师', desc: '接单报价、管理档期、发布作品', icon: Camera },
 ];
 
@@ -107,7 +107,7 @@ export function RegisterPage() {
   }
 
   return (
-    <AuthFrame eyebrow="首次使用 PP" title="选择身份并注册">
+    <AuthFrame eyebrow="首次使用 Still" title="选择身份并注册">
       <div className="grid grid-cols-2 gap-2">
         {roleOptions.map((item) => {
           const Icon = item.icon;
@@ -190,7 +190,7 @@ export function LoginPage() {
         <div className="mb-4 flex items-center gap-3 rounded-[10px] bg-zinc-950 p-3 text-white">
           <CheckCircle2 size={18} className="text-emerald-300" />
           <span className="min-w-0 flex-1 text-sm font-bold">
-            已注册 {registeredRoles.map((item) => (item === 'companion' ? '摄影师' : '创作者')).join(' / ')}
+            已注册 {registeredRoles.map(getPublicRoleLabel).join(' / ')}
           </span>
         </div>
       ) : null}
@@ -263,7 +263,7 @@ function MissingRoleRegisterDialog({
   onClose: () => void;
   onRegister: () => void;
 }) {
-  const roleLabel = role === 'companion' ? '摄影师' : '创作者';
+  const roleLabel = getPublicRoleLabel(role);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 px-5">
       <section className="w-full max-w-sm rounded-[18px] bg-white p-5 text-zinc-950 shadow-2xl">
@@ -292,7 +292,7 @@ function getRoleOnboardingPath(role: PublicRole) {
 export function AccountSettingsPage() {
   const navigate = useNavigate();
   const account = getRegisteredAccount();
-  const roleLabel = account?.role === 'companion' ? '摄影师' : '创作者';
+  const roleLabel = account?.role ? getPublicRoleLabel(account.role) : '用户';
 
   async function logout() {
     await logoutAccount();
@@ -342,7 +342,7 @@ function AuthFrame({ eyebrow, title, children }: { eyebrow: string; title: strin
         <div className="pt-8">
           <p className="text-sm font-black text-[#e85d75]">{eyebrow}</p>
           <h1 className="mt-2 text-3xl font-black tracking-normal">{title}</h1>
-          <p className="mt-3 text-sm font-semibold leading-6 text-zinc-500">用手机号验证码完成本地 MVP 登录，后续可平滑替换为微信手机号授权。</p>
+          <p className="mt-3 text-sm font-semibold leading-6 text-zinc-500">用手机号验证码进入 Still，后续可平滑替换为微信手机号授权。</p>
         </div>
         <div className="mt-7 rounded-[16px] bg-white p-4 shadow-sm ring-1 ring-zinc-200">{children}</div>
       </section>
@@ -417,4 +417,8 @@ function ErrorLine({ text }: { text: string }) {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : '操作失败，请重试';
+}
+
+function getPublicRoleLabel(role: PublicRole) {
+  return role === 'companion' ? '摄影师' : '用户';
 }
