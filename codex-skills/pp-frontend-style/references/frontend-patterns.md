@@ -34,6 +34,19 @@ Existing global helpers in `src/styles/index.css`:
 - `.pp-primary`: black primary CTA.
 - `.scrollbar-none`: hidden scrollbar for mobile horizontal tracks.
 
+## Design Tokens To Preserve
+
+Treat PP styling as a small product design system, even before adding a formal token package:
+
+- Color roles: page, surface, inverse surface, primary text, muted text, hairline border, primary action, danger/risk, safe/success.
+- Radius scale: tiny media/card corners, medium list sections, full pill controls.
+- Spacing scale: tight mobile gutters, compact row gaps, larger sheet padding only where interaction needs breathing room.
+- Type scale: dense labels, strong card titles, clear section titles; avoid hero-scale typography inside app workflows.
+- Elevation scale: flat list sections, subtle card borders, strong floating nav/sheet shadows.
+- Motion scale: fast state transitions, compact chrome transitions, no decorative motion that slows task completion.
+
+When adding a new repeated visual rule, prefer adding one named helper or local constant over scattering unrelated arbitrary values.
+
 ## Layout Patterns
 
 ### Role Shells
@@ -77,6 +90,8 @@ Use fixed overlays constrained to `max-w-md`:
 - Footer: two-button grid for reset/confirm when filters or forms need commit.
 - Stop propagation on sheet content.
 
+For modal-like components, borrow the headless component mindset: model `open`, `onOpenChange`, trigger/content/close semantics, focus return, outside dismiss, and labelled title/description. Keep the PP visual shell custom, but do not skip the interaction contract.
+
 ## Interaction Patterns
 
 - Use touch-first controls: `min-h-10`, `h-11`, `h-12`, or `h-14`.
@@ -86,6 +101,19 @@ Use fixed overlays constrained to `max-w-md`:
 - Store local UI history/cache in `localStorage` behind try/catch so private browsing does not break flows.
 - Handle browser APIs defensively: geolocation may be unsupported, denied, or fail.
 - Preserve accessibility basics: `aria-label`, `aria-expanded`, labels for inputs, and button `type="button"` when inside forms or reusable controls.
+
+## Component Contracts
+
+Reusable components should declare the states a real product will need:
+
+- Visual role: primary, secondary, subtle, danger, ghost, inverse, or media overlay.
+- Size: compact, default, large, or full-width, with stable height.
+- State: default, hover, active, selected, disabled, loading, empty, error, success.
+- Icon placement: icon-only, leading icon, trailing icon; icon-only controls require an accessible label.
+- Content constraints: truncation, line clamp, wrapping, min/max width, and image aspect ratio.
+- Behavior: controlled vs uncontrolled state, close/dismiss behavior, keyboard/focus behavior, persistence if any.
+
+Do not create a generic component unless at least two screens need it or one screen has a complex repeated pattern.
 
 ## Data And State Boundaries
 
@@ -103,6 +131,8 @@ For filter-heavy pages:
 - Keep constants for option labels, sentinel values, and keyword maps.
 - Derive `activeFilterCount`.
 - Keep normalization and matching helpers pure and named.
+- Keep matching/ranking deterministic. Use stable tie-breakers so lists do not jump unexpectedly.
+- Put expensive derived lists behind `useMemo`, but do not memoize every small expression.
 
 ## Component Extraction
 
@@ -128,6 +158,18 @@ Good shared component examples:
 - Booking selectors and summaries under `src/components/booking`.
 - Small chips or loading affordances used across multiple screens.
 
+## Quality Gates From Mature Frontend Projects
+
+Borrow these habits from high-star frontend repositories when the change is large enough:
+
+- Separate checks: lint, typecheck, unit/component tests, build, and browser/e2e checks should be separate mental gates even if PP currently has only `npm.cmd run build`.
+- Add component states before styling details are considered done: loading, empty, disabled, selected, overflow, and error.
+- Prefer composition over prop explosion for complex surfaces, but use explicit variant props for small reusable controls.
+- Use accessible primitives or copy their behavior for dialogs, popovers, dropdowns, tabs, tooltips, and icon-only actions.
+- Keep product UI code close to the domain, but move reusable IO and durable business rules into services.
+- Keep import/dependency choices boring. Do not add a new UI framework when PP's Tailwind/lucide/custom component stack is enough.
+- Use screenshot or browser checks for layout changes that involve fixed headers, bottom nav, image grids, sheets, or mobile overflow.
+
 ## Copy And Terminology
 
 Use product language consistently:
@@ -150,6 +192,8 @@ For every frontend change:
 - Confirm dark/light surfaces have enough contrast.
 - Confirm route links use the correct role base path.
 - Confirm service/data changes remain typed.
+- Confirm icon-only controls have labels/tooltips.
+- Confirm loading/empty/error states are not visually louder than the main workflow.
 
 For non-trivial frontend changes, run:
 

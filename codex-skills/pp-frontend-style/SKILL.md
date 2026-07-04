@@ -16,9 +16,11 @@ Use this skill to keep PP platform frontend work consistent with the existing pr
 5. Match the visual grammar: black/white contrast, warm off-white pages, compact typography, pill controls, dense mobile cards, photo-led content, restrained shadows, and lucide icons.
 6. Run the smallest relevant verification. For non-trivial frontend edits, run `npm.cmd run build` in `pp-app`.
 
-## Style Reference
+## References
 
 Read `references/frontend-patterns.md` when implementing or reviewing frontend UI, especially when adding a new screen, modal, filter surface, navigation entry, or reusable component.
+
+Read `references/external-frontend-research.md` only when improving this skill, benchmarking PP against high-star frontend projects, or deciding whether to introduce a new frontend engineering convention.
 
 ## Implementation Rules
 
@@ -29,6 +31,9 @@ Read `references/frontend-patterns.md` when implementing or reviewing frontend U
 - Prefer semantic product states: empty, loading, denied/failed, active filter counts, selected chips, confirmed order states.
 - Keep Chinese product copy concise and action-oriented. Preserve existing terminology for roles, orders, booking, consultation, collections, and profile setup.
 - Do not introduce a landing-page feel into app screens. Build the working product surface directly.
+- Define component variants deliberately: size, tone, state, icon position, loading, disabled, selected, and full-width behavior should be explicit when a component becomes reusable.
+- Treat accessibility as part of the component contract, especially for icon-only buttons, sheets, modals, filter drawers, and navigation.
+- Validate layout density and copy fit at mobile widths before considering desktop polish.
 
 ## Product Architecture
 
