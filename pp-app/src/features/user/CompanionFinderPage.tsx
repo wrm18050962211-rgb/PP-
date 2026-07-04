@@ -1,4 +1,4 @@
-import { ChevronDown, MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, MapPin, MessageCircle, Search, SlidersHorizontal, Star, X } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
@@ -9,10 +9,13 @@ import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
 
 type FilterKey = 'area' | 'date' | 'time' | 'duration' | 'budget' | 'photographerGender' | 'need' | 'style' | 'media' | 'interaction' | 'equipment';
-type CategoricalFilterKey = Exclude<FilterKey, 'budget' | 'duration'>;
+type CategoricalFilterKey = Exclude<FilterKey, 'budget' | 'duration' | 'time'>;
 type FinderFilters = Record<CategoricalFilterKey, string> & {
+  instantOnly: boolean;
   budgetMin: number;
   budgetMax: number;
+  timeStart: number;
+  timeEnd: number;
   durationMin: number;
   durationMax: number;
 };
@@ -34,8 +37,6 @@ type ShellContext = {
 
 const AREA_ANY = '地点不限';
 const DATE_ANY = '日期不限';
-const TIME_ANY = '时间不限';
-const NOW_AVAILABLE = '现在可拍';
 const PHOTOGRAPHER_GENDER_ANY = '不限';
 const NEED_ANY = '需求不限';
 const STYLE_ANY = '风格不限';
@@ -45,13 +46,15 @@ const EQUIPMENT_ANY = '设备不限';
 const BUDGET_MIN = 0;
 const BUDGET_MAX = 10000; // Slider sentinel: the max value is treated as unlimited.
 const BUDGET_STEP = 50;
+const TIME_MIN = 0;
+const TIME_MAX = 24 * 60;
+const TIME_STEP = 30;
 const DURATION_MIN = 30;
 const DURATION_MAX = 24 * 60;
 const DURATION_STEP = 30;
 
 const staticFilterOptions: Record<Exclude<CategoricalFilterKey, 'date'>, string[]> = {
   area: [AREA_ANY, '武康路', '安福路', '外滩', '静安寺', '徐汇滨江', '新天地'],
-  time: [TIME_ANY, NOW_AVAILABLE, '上午', '下午', '傍晚', '晚上'],
   photographerGender: [PHOTOGRAPHER_GENDER_ANY, '女', '男'],
   need: [NEED_ANY, '日常出片', '旅行拍照', '纪念日', '多人合照'],
   style: [STYLE_ANY, '松弛日常', '清冷高级', '杂志街拍', '回忆胶片', '迷人状态'],
@@ -79,15 +82,17 @@ const filterGroupOrder: FilterKey[] = ['area', 'date', 'time', 'duration', 'budg
 const initialFinderFilters: FinderFilters = {
   area: AREA_ANY,
   date: DATE_ANY,
-  time: TIME_ANY,
   photographerGender: PHOTOGRAPHER_GENDER_ANY,
   need: NEED_ANY,
   style: STYLE_ANY,
   media: MEDIA_ANY,
   interaction: INTERACTION_ANY,
   equipment: EQUIPMENT_ANY,
+  instantOnly: false,
   budgetMin: BUDGET_MIN,
   budgetMax: BUDGET_MAX,
+  timeStart: TIME_MIN,
+  timeEnd: TIME_MAX,
   durationMin: DURATION_MIN,
   durationMax: DURATION_MAX,
 };
@@ -222,6 +227,8 @@ export function CompanionFinderPage() {
           filters={filters}
           mode={filterOpen}
           onSelect={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
+          onInstantToggle={() => setFilters((current) => ({ ...current, instantOnly: !current.instantOnly }))}
+          onTimeChange={(patch) => setFilters((current) => normalizeTimeRange({ ...current, ...patch }))}
           onBudgetChange={(patch) => setFilters((current) => normalizeBudgetRange({ ...current, ...patch }))}
           onDurationChange={(patch) => setFilters((current) => normalizeDurationRange({ ...current, ...patch }))}
           onReset={() => setFilters(initialFinderFilters)}
@@ -336,6 +343,8 @@ function CompanionFilterSheet({
   filters,
   mode,
   onSelect,
+  onInstantToggle,
+  onTimeChange,
   onBudgetChange,
   onDurationChange,
   onReset,
@@ -344,6 +353,8 @@ function CompanionFilterSheet({
   filters: FinderFilters;
   mode: FilterKey | 'all';
   onSelect: (key: CategoricalFilterKey, value: string) => void;
+  onInstantToggle: () => void;
+  onTimeChange: (patch: Partial<Pick<FinderFilters, 'timeStart' | 'timeEnd'>>) => void;
   onBudgetChange: (patch: Partial<Pick<FinderFilters, 'budgetMin' | 'budgetMax'>>) => void;
   onDurationChange: (patch: Partial<Pick<FinderFilters, 'durationMin' | 'durationMax'>>) => void;
   onReset: () => void;
@@ -361,6 +372,15 @@ function CompanionFilterSheet({
             <X size={18} />
           </button>
         </div>
+        <button
+          className={`mt-4 flex h-11 w-full items-center justify-center rounded-[8px] text-sm font-black ${
+            filters.instantOnly ? 'bg-black text-white' : 'border border-zinc-200 bg-zinc-50 text-zinc-900'
+          }`}
+          onClick={onInstantToggle}
+          type="button"
+        >
+          现在可拍
+        </button>
         <div className="mt-4 space-y-2">
           {groups.map((key) => {
             const open = expandedKey === key;
@@ -376,6 +396,8 @@ function CompanionFilterSheet({
                   <BudgetRangeEditor filters={filters} onChange={onBudgetChange} />
                 ) : key === 'duration' ? (
                   <DurationRangeEditor filters={filters} onChange={onDurationChange} />
+                ) : key === 'time' ? (
+                  <TimeRangeEditor filters={filters} onChange={onTimeChange} />
                 ) : key === 'date' ? (
                   <DateOptionGroup value={filters.date} onSelect={(value) => onSelect('date', value)} />
                 ) : (
@@ -428,10 +450,34 @@ function FilterDrawerGroup({
 }
 
 function DateOptionGroup({ value, onSelect }: { value: string; onSelect: (value: string) => void }) {
-  const dates = getFilterOptions('date').filter((option) => option !== DATE_ANY);
+  const [weekStart, setWeekStart] = useState(() => getWeekStartValue(value !== DATE_ANY ? new Date(`${value}T00:00:00+08:00`) : new Date()));
+  const dates = buildWeekDateValues(weekStart);
+  const currentWeekStart = getWeekStartValue(new Date());
+  const todayValue = getTodayDateValue();
+  const canMovePrev = weekStart > currentWeekStart;
 
   return (
     <div className="space-y-3">
+      <div className="grid grid-cols-[34px_1fr_34px] items-center gap-2">
+        <button
+          className={`grid h-8 w-8 place-items-center rounded-full ${canMovePrev ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-50 text-zinc-300'}`}
+          disabled={!canMovePrev}
+          onClick={() => setWeekStart((current) => getShiftedWeekStart(current, -7))}
+          type="button"
+          aria-label="上一周"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <p className="truncate text-center text-xs font-black text-zinc-500">{formatWeekRange(dates)}</p>
+        <button
+          className="grid h-8 w-8 place-items-center rounded-full bg-zinc-100 text-zinc-900"
+          onClick={() => setWeekStart((current) => getShiftedWeekStart(current, 7))}
+          type="button"
+          aria-label="下一周"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
       <button
         className={`h-10 w-full rounded-[8px] px-3 text-left text-sm font-black ${
           value === DATE_ANY ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'
@@ -445,17 +491,19 @@ function DateOptionGroup({ value, onSelect }: { value: string; onSelect: (value:
         {dates.map((dateValue) => {
           const meta = getDateOptionMeta(dateValue);
           const selected = value === dateValue;
+          const disabled = dateValue < todayValue;
           return (
             <button
               key={dateValue}
               className={`grid min-w-0 justify-items-center gap-1 rounded-[8px] py-1.5 text-center ${
-                selected ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'
+                selected ? 'bg-black text-white' : disabled ? 'border border-zinc-100 bg-zinc-50 text-zinc-300' : 'border border-zinc-200 bg-white text-zinc-800'
               }`}
+              disabled={disabled}
               onClick={() => onSelect(dateValue)}
               type="button"
             >
-              <span className={`text-[10px] font-black ${selected ? 'text-white/70' : 'text-zinc-400'}`}>{meta.short}</span>
-              <span className={`grid h-8 w-8 place-items-center rounded-full text-sm font-black ${selected ? 'bg-white text-black' : 'bg-zinc-100 text-zinc-900'}`}>{meta.day}</span>
+              <span className={`text-[10px] font-black ${selected ? 'text-white/70' : disabled ? 'text-zinc-300' : 'text-zinc-400'}`}>{meta.short}</span>
+              <span className={`grid h-8 w-8 place-items-center rounded-full text-sm font-black ${selected ? 'bg-white text-black' : disabled ? 'bg-white text-zinc-300' : 'bg-zinc-100 text-zinc-900'}`}>{meta.day}</span>
             </button>
           );
         })}
@@ -501,6 +549,39 @@ function BudgetRangeEditor({
       <div className="space-y-4 rounded-[14px] bg-zinc-50 p-4">
         <RangeRow label="下限" value={filters.budgetMin} onChange={(value) => onChange({ budgetMin: value })} min={BUDGET_MIN} max={filters.budgetMax} />
         <RangeRow label="上限" value={filters.budgetMax} onChange={(value) => onChange({ budgetMax: value })} min={filters.budgetMin} max={BUDGET_MAX} unlimited />
+      </div>
+    </div>
+  );
+}
+
+function TimeRangeEditor({
+  filters,
+  onChange,
+}: {
+  filters: FinderFilters;
+  onChange: (patch: Partial<Pick<FinderFilters, 'timeStart' | 'timeEnd'>>) => void;
+}) {
+  return (
+    <div>
+      <div className="space-y-4 rounded-[14px] bg-zinc-50 p-4">
+        <RangeRow
+          label="开始"
+          value={filters.timeStart}
+          onChange={(value) => onChange({ timeStart: value })}
+          min={TIME_MIN}
+          max={filters.timeEnd}
+          step={TIME_STEP}
+          valueLabel={formatTimeValue}
+        />
+        <RangeRow
+          label="结束"
+          value={filters.timeEnd}
+          onChange={(value) => onChange({ timeEnd: value })}
+          min={filters.timeStart}
+          max={TIME_MAX}
+          step={TIME_STEP}
+          valueLabel={formatTimeValue}
+        />
       </div>
     </div>
   );
@@ -651,14 +732,13 @@ function matchesBudgetRange(filters: FinderFilters, priceCents: number) {
 }
 
 function matchesScheduleFilters(filters: FinderFilters, companion: PublicCompanion) {
-  if (filters.date === DATE_ANY && filters.time === TIME_ANY) return true;
-  if (filters.time === NOW_AVAILABLE) return (filters.date === DATE_ANY || filters.date === getTodayDateValue()) && isInstantBookable(companion);
+  if (filters.instantOnly) return isInstantBookable(companion);
+  if (filters.date === DATE_ANY && filters.timeStart === TIME_MIN && filters.timeEnd === TIME_MAX) return true;
 
   return companion.slots.some((slot) => {
     if (slot.status !== 'available') return false;
     if (filters.date !== DATE_ANY && getSlotDateValue(slot) !== filters.date) return false;
-    if (filters.time === TIME_ANY) return true;
-    return matchesTimeFilter(slot, filters.time);
+    return matchesTimeRange(slot, filters.timeStart, filters.timeEnd);
   });
 }
 
@@ -687,25 +767,13 @@ function isCurrentAvailableSlot(slot: FeedPost['companion']['slots'][number]) {
   return Number.isFinite(start) && Number.isFinite(end) && start <= now && now < end;
 }
 
-function matchesTimeFilter(slot: FeedPost['companion']['slots'][number], option: string) {
-  return matchesTimeBucket(slot, option);
-}
-
-function matchesTimeBucket(slot: FeedPost['companion']['slots'][number], option: string) {
-  const ranges: Record<string, [number, number]> = {
-    上午: [6 * 60, 12 * 60],
-    下午: [12 * 60, 18 * 60],
-    傍晚: [17 * 60, 20 * 60],
-    晚上: [18 * 60, 24 * 60],
-  };
-  const bucket = ranges[option];
-  if (!bucket) return true;
+function matchesTimeRange(slot: FeedPost['companion']['slots'][number], startMinute: number, endMinute: number) {
   const start = new Date(slot.startAt);
   const end = new Date(slot.endAt);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
   const startMinutes = start.getHours() * 60 + start.getMinutes();
-  const endMinutes = end.getHours() * 60 + end.getMinutes();
-  return startMinutes < bucket[1] && endMinutes > bucket[0];
+  const endMinutes = Math.min(TIME_MAX, end.getHours() * 60 + end.getMinutes());
+  return startMinutes < endMinute && endMinutes > startMinute;
 }
 
 function matchesDurationFilter(filters: FinderFilters, companion: PublicCompanion) {
@@ -769,6 +837,7 @@ function getFilterOptionLabel(key: CategoricalFilterKey, value: string) {
 function getFilterSummary(key: FilterKey, filters: FinderFilters) {
   if (key === 'budget') return formatBudgetRange(filters.budgetMin, filters.budgetMax);
   if (key === 'duration') return formatDurationRange(filters.durationMin, filters.durationMax);
+  if (key === 'time') return formatTimeRange(filters.timeStart, filters.timeEnd);
   return getFilterOptionLabel(key, filters[key]);
 }
 
@@ -776,15 +845,17 @@ function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: Ret
   return normalizeFinderRanges({
     area: matchFilterOption('area', params.get('area') ?? sameStylePost?.locationName ?? sameStylePost?.companion.areas[0]),
     date: matchFilterOption('date', params.get('date')),
-    time: matchFilterOption('time', params.get('time')),
     photographerGender: matchFilterOption('photographerGender', params.get('photographerGender') ?? params.get('gender')),
     need: matchFilterOption('need', params.get('need') ?? sameStylePost?.activityCategory ?? sameStylePost?.activity),
     style: matchFilterOption('style', params.get('style') ?? sameStylePost?.activity ?? sameStylePost?.styleTags[0]),
     media: matchFilterOption('media', params.get('media')),
     interaction: matchFilterOption('interaction', params.get('interaction')),
     equipment: matchFilterOption('equipment', params.get('equipment')),
+    instantOnly: params.get('instantOnly') === 'true',
     budgetMin: parseBudgetParam(params.get('budgetMin'), BUDGET_MIN),
     budgetMax: parseBudgetParam(params.get('budgetMax'), BUDGET_MAX),
+    timeStart: parseTimeParam(params.get('timeStart'), TIME_MIN),
+    timeEnd: parseTimeParam(params.get('timeEnd'), TIME_MAX),
     durationMin: parseDurationParam(params.get('durationMin'), DURATION_MIN),
     durationMax: parseDurationParam(params.get('durationMax'), DURATION_MAX),
   });
@@ -794,7 +865,7 @@ function matchFilterOption(key: CategoricalFilterKey, value?: string | null) {
   if (!value) return initialFinderFilters[key];
   if (key === 'date') {
     const normalizedDate = normalizeDateValue(value);
-    return normalizedDate && getFilterOptions('date').includes(normalizedDate) ? normalizedDate : DATE_ANY;
+    return normalizedDate && normalizedDate >= getTodayDateValue() ? normalizedDate : DATE_ANY;
   }
 
   const normalized = normalizeText(value);
@@ -826,18 +897,29 @@ function normalizeDurationRange(filters: FinderFilters): FinderFilters {
   };
 }
 
+function normalizeTimeRange(filters: FinderFilters): FinderFilters {
+  const timeStart = clampToTime(filters.timeStart);
+  const timeEnd = clampToTime(filters.timeEnd);
+  return {
+    ...filters,
+    timeStart: Math.min(timeStart, timeEnd),
+    timeEnd: Math.max(timeStart, timeEnd),
+  };
+}
+
 function normalizeFinderRanges(filters: FinderFilters): FinderFilters {
-  return normalizeDurationRange(normalizeBudgetRange(filters));
+  return normalizeTimeRange(normalizeDurationRange(normalizeBudgetRange(filters)));
 }
 
 function getActiveFilterCount(filters: FinderFilters) {
   const categoricalCount = (Object.keys(initialFinderFilters) as Array<keyof FinderFilters>).filter((key) => {
-    if (key === 'budgetMin' || key === 'budgetMax' || key === 'durationMin' || key === 'durationMax') return false;
+    if (key === 'budgetMin' || key === 'budgetMax' || key === 'durationMin' || key === 'durationMax' || key === 'timeStart' || key === 'timeEnd') return false;
     return filters[key] !== initialFinderFilters[key];
   }).length;
   const budgetChanged = filters.budgetMin !== BUDGET_MIN || filters.budgetMax !== BUDGET_MAX;
   const durationChanged = filters.durationMin !== DURATION_MIN || filters.durationMax !== DURATION_MAX;
-  return categoricalCount + (budgetChanged ? 1 : 0) + (durationChanged ? 1 : 0);
+  const timeChanged = filters.timeStart !== TIME_MIN || filters.timeEnd !== TIME_MAX;
+  return categoricalCount + (budgetChanged ? 1 : 0) + (durationChanged ? 1 : 0) + (timeChanged ? 1 : 0);
 }
 
 function getPortfolioAspectClass(index: number, post?: FeedPost) {
@@ -857,6 +939,42 @@ function buildUpcomingDateValues(days: number) {
     date.setDate(today.getDate() + index);
     return toDateValue(date);
   });
+}
+
+function buildWeekDateValues(weekStartValue: string) {
+  const weekStart = new Date(`${weekStartValue}T00:00:00+08:00`);
+  if (Number.isNaN(weekStart.getTime())) return [];
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    return toDateValue(date);
+  });
+}
+
+function getWeekStartValue(date: Date) {
+  const start = new Date(date);
+  const day = start.getDay();
+  const delta = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + delta);
+  start.setHours(0, 0, 0, 0);
+  return toDateValue(start);
+}
+
+function getShiftedWeekStart(weekStartValue: string, dayOffset: number) {
+  const date = new Date(`${weekStartValue}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return getWeekStartValue(new Date());
+  date.setDate(date.getDate() + dayOffset);
+  return toDateValue(date);
+}
+
+function formatWeekRange(dateValues: string[]) {
+  const first = dateValues[0];
+  const last = dateValues[dateValues.length - 1];
+  if (!first || !last) return '';
+  const firstDate = new Date(`${first}T00:00:00+08:00`);
+  const lastDate = new Date(`${last}T00:00:00+08:00`);
+  if (Number.isNaN(firstDate.getTime()) || Number.isNaN(lastDate.getTime())) return '';
+  return `${firstDate.getMonth() + 1}/${firstDate.getDate()} - ${lastDate.getMonth() + 1}/${lastDate.getDate()}`;
 }
 
 function getDateOptionMeta(value: string) {
@@ -909,6 +1027,17 @@ function formatBudgetRange(min: number, max: number) {
   return `¥${min} - ${max >= BUDGET_MAX ? '不限' : `¥${max}`}`;
 }
 
+function formatTimeRange(start: number, end: number) {
+  return start <= TIME_MIN && end >= TIME_MAX ? '全天' : `${formatTimeValue(start)} - ${formatTimeValue(end)}`;
+}
+
+function formatTimeValue(minutes: number) {
+  if (minutes >= TIME_MAX) return '24:00';
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
 function formatDurationRange(min: number, max: number) {
   return `${formatDurationValue(min)} - ${formatDurationValue(max)}`;
 }
@@ -927,6 +1056,13 @@ function parseBudgetParam(value: string | null, fallback: number) {
   return Number.isFinite(parsed) ? clampToBudget(parsed) : fallback;
 }
 
+function parseTimeParam(value: string | null, fallback: number) {
+  if (value === null || value.trim() === '') return fallback;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? clampToTime(parsed) : fallback;
+}
+
 function parseDurationParam(value: string | null, fallback: number) {
   if (value === null || value.trim() === '') return fallback;
 
@@ -936,6 +1072,10 @@ function parseDurationParam(value: string | null, fallback: number) {
 
 function clampToBudget(value: number) {
   return Math.min(BUDGET_MAX, Math.max(BUDGET_MIN, Math.round(value / BUDGET_STEP) * BUDGET_STEP));
+}
+
+function clampToTime(value: number) {
+  return Math.min(TIME_MAX, Math.max(TIME_MIN, Math.round(value / TIME_STEP) * TIME_STEP));
 }
 
 function clampToDuration(value: number) {
