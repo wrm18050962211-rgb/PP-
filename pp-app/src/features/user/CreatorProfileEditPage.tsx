@@ -51,7 +51,7 @@ export function CreatorProfileEditPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-[#050505] px-4 py-4 text-white">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#050505] px-4 py-4 text-white">
       <header className="flex items-center gap-3">
         <Link to="/consumer/mine" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/15" aria-label="返回">
           <ArrowLeft size={20} />
@@ -112,7 +112,7 @@ export function CreatorProfileEditPage() {
       </section>
 
       <button
-        className={`mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-[8px] text-sm font-black ${
+        className={`mt-auto flex h-11 w-full items-center justify-center gap-2 rounded-[8px] text-sm font-black ${
           canSave ? 'bg-white text-black' : 'bg-white text-black/35'
         }`}
         disabled={!canSave}

@@ -1076,7 +1076,7 @@ function FilterSheet({
         <SheetHeader title="筛选作品" onClose={onClose} />
         <p className="mt-1 text-xs font-semibold leading-5 text-zinc-500">左侧选城市和具体位置，这里选择想看的作品类型。</p>
         <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className={`flex min-h-full flex-col ${openSection ? 'gap-3' : 'justify-between'}`}>
+          <div className={`flex min-h-full flex-col ${openSection ? 'gap-3' : 'justify-center gap-2.5'}`}>
             <FilterSection title="想拍什么" value={filters.intent} open={openSection === 'intent'} onToggle={() => toggleSection('intent')}>
               <DescribedOptionList options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
             </FilterSection>
