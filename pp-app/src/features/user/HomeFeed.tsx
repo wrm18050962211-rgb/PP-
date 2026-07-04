@@ -1060,15 +1060,16 @@ function FilterSheet({
   const charmToneVisible = filters.look === '迷人状态';
 
   return (
-    <div className="fixed inset-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 items-end bg-black/70" onClick={onClose}>
+    <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-end bg-black/70" onClick={onClose}>
       <section
-        className="max-h-[88dvh] w-full overflow-y-auto rounded-t-[28px] bg-white p-4 pb-6 text-black shadow-2xl"
+        className="h-full w-[88%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <SheetHeader title="筛选作品" onClose={onClose} />
-        <div className="mt-4 space-y-5">
-          <FilterGroup label="想拍什么" options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
-          <DescribedFilterGroup label="地点" options={placeOptions} value={filters.place} onChange={(place) => onChange({ place })} />
+        <p className="mt-1 text-xs font-semibold leading-5 text-zinc-500">左侧选城市和具体位置，这里选择想看的作品类型。</p>
+        <div className="mt-5 space-y-6">
+          <FilterGroup label="想拍什么" emphasis options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
+          <DescribedFilterGroup label="拍摄场景" options={placeOptions} value={filters.place} onChange={(place) => onChange({ place })} />
           <DescribedFilterGroup
             label="风格"
             options={lookOptions}
@@ -1106,10 +1107,22 @@ function SheetHeader({ title, onClose }: { title: string; onClose: () => void })
   );
 }
 
-function FilterGroup({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
+function FilterGroup({
+  label,
+  options,
+  value,
+  onChange,
+  emphasis = false,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+  emphasis?: boolean;
+}) {
   return (
     <div>
-      <p className="mb-2 text-xs font-bold text-zinc-500">{label}</p>
+      <p className={`${emphasis ? 'mb-3 text-[17px] text-zinc-950' : 'mb-2 text-xs text-zinc-500'} font-black`}>{label}</p>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <button
@@ -1138,7 +1151,7 @@ function DescribedFilterGroup({
 }) {
   return (
     <div>
-      <p className="mb-2 text-xs font-bold text-zinc-500">{label}</p>
+      <p className="mb-3 text-[17px] font-black text-zinc-950">{label}</p>
       <div className="grid grid-cols-2 gap-2">
         {options.map((option) => (
           <button
