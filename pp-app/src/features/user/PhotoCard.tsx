@@ -74,7 +74,7 @@ function getFallbackImage(seed: string, variant: PhotoCardVariant) {
   const wide = variant === 'wide';
   const width = wide ? 1200 : 720;
   const height = wide ? 700 : 980;
-  const label = wide ? 'PP EDITORIAL' : 'PP PHOTO';
+  const label = wide ? 'STILL EDITORIAL' : 'STILL PHOTO';
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
       <defs>

@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.ppplatform.app',
-  appName: 'PP',
+  appId: 'com.frameyu.still',
+  appName: 'Still',
   webDir: 'dist',
   bundledWebRuntime: false,
   ios: {

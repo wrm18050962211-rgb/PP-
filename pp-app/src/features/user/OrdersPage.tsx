@@ -626,7 +626,7 @@ function ProtectedCompletedWorkPanel({ record, onManage }: { record?: OrderWorkR
               url={url}
               index={index}
               active={!originalReleased}
-              watermarkText={record?.watermarkText ?? 'PP preview'}
+              watermarkText={record?.watermarkText ?? 'Still preview'}
             />
           ))}
         </div>
@@ -932,7 +932,7 @@ export function OrderWorkDialog({
                 <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
                 {!originalReleased ? (
                   <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/10 px-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-white/70">
-                    {draft.watermarkText ?? 'PP preview'}
+                    {draft.watermarkText ?? 'Still preview'}
                   </span>
                 ) : null}
               </div>
