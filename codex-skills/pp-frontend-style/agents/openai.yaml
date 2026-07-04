@@ -1,0 +1,4 @@
+interface:
+  display_name: "PP Frontend Style"
+  short_description: "Apply PP app frontend style and UX patterns."
+  default_prompt: "Use $pp-frontend-style to design or modify PP platform frontend screens in the existing product style."
