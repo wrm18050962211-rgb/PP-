@@ -8,7 +8,7 @@ import { applyCompanionProfile, readCompanionProfile } from '../../services/comp
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
 
-type FilterKey = 'area' | 'time' | 'budget' | 'duration' | 'photographerGender' | 'need' | 'style' | 'media' | 'interaction' | 'equipment';
+type FilterKey = 'area' | 'date' | 'time' | 'duration' | 'budget' | 'photographerGender' | 'need' | 'style' | 'media' | 'interaction' | 'equipment';
 type CategoricalFilterKey = Exclude<FilterKey, 'budget' | 'duration'>;
 type FinderFilters = Record<CategoricalFilterKey, string> & {
   budgetMin: number;
@@ -33,6 +33,7 @@ type ShellContext = {
 };
 
 const AREA_ANY = '地点不限';
+const DATE_ANY = '日期不限';
 const TIME_ANY = '时间不限';
 const NOW_AVAILABLE = '现在可拍';
 const PHOTOGRAPHER_GENDER_ANY = '不限';
@@ -48,7 +49,7 @@ const DURATION_MIN = 30;
 const DURATION_MAX = 24 * 60;
 const DURATION_STEP = 30;
 
-const staticFilterOptions: Record<CategoricalFilterKey, string[]> = {
+const staticFilterOptions: Record<Exclude<CategoricalFilterKey, 'date'>, string[]> = {
   area: [AREA_ANY, '武康路', '安福路', '外滩', '静安寺', '徐汇滨江', '新天地'],
   time: [TIME_ANY, NOW_AVAILABLE, '上午', '下午', '傍晚', '晚上'],
   photographerGender: [PHOTOGRAPHER_GENDER_ANY, '女', '男'],
@@ -61,9 +62,10 @@ const staticFilterOptions: Record<CategoricalFilterKey, string[]> = {
 
 const filterLabels: Record<FilterKey, string> = {
   area: '地点',
+  date: '日期',
   time: '时间',
-  budget: '预算范围',
   duration: '时长',
+  budget: '预算范围',
   photographerGender: '摄影师性别',
   need: '拍摄需求',
   style: '风格偏好',
@@ -72,10 +74,11 @@ const filterLabels: Record<FilterKey, string> = {
   equipment: '设备偏好',
 };
 
-const filterGroupOrder: FilterKey[] = ['area', 'time', 'budget', 'duration', 'photographerGender', 'need', 'style', 'media', 'interaction', 'equipment'];
+const filterGroupOrder: FilterKey[] = ['area', 'date', 'time', 'duration', 'budget', 'photographerGender', 'need', 'style', 'media', 'interaction', 'equipment'];
 
 const initialFinderFilters: FinderFilters = {
   area: AREA_ANY,
+  date: DATE_ANY,
   time: TIME_ANY,
   photographerGender: PHOTOGRAPHER_GENDER_ANY,
   need: NEED_ANY,
@@ -373,6 +376,8 @@ function CompanionFilterSheet({
                   <BudgetRangeEditor filters={filters} onChange={onBudgetChange} />
                 ) : key === 'duration' ? (
                   <DurationRangeEditor filters={filters} onChange={onDurationChange} />
+                ) : key === 'date' ? (
+                  <DateOptionGroup value={filters.date} onSelect={(value) => onSelect('date', value)} />
                 ) : (
                   <FilterOptionGroup filterKey={key} value={filters[key]} onSelect={(value) => onSelect(key, value)} />
                 )}
@@ -419,6 +424,43 @@ function FilterDrawerGroup({
       </button>
       {open ? <div className="border-t border-zinc-100 px-4 pb-4 pt-3">{children}</div> : null}
     </section>
+  );
+}
+
+function DateOptionGroup({ value, onSelect }: { value: string; onSelect: (value: string) => void }) {
+  const dates = getFilterOptions('date').filter((option) => option !== DATE_ANY);
+
+  return (
+    <div className="space-y-3">
+      <button
+        className={`h-10 w-full rounded-[8px] px-3 text-left text-sm font-black ${
+          value === DATE_ANY ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'
+        }`}
+        onClick={() => onSelect(DATE_ANY)}
+        type="button"
+      >
+        {DATE_ANY}
+      </button>
+      <div className="grid grid-cols-7 gap-1">
+        {dates.map((dateValue) => {
+          const meta = getDateOptionMeta(dateValue);
+          const selected = value === dateValue;
+          return (
+            <button
+              key={dateValue}
+              className={`grid min-w-0 justify-items-center gap-1 rounded-[8px] py-1.5 text-center ${
+                selected ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'
+              }`}
+              onClick={() => onSelect(dateValue)}
+              type="button"
+            >
+              <span className={`text-[10px] font-black ${selected ? 'text-white/70' : 'text-zinc-400'}`}>{meta.short}</span>
+              <span className={`grid h-8 w-8 place-items-center rounded-full text-sm font-black ${selected ? 'bg-white text-black' : 'bg-zinc-100 text-zinc-900'}`}>{meta.day}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -609,11 +651,13 @@ function matchesBudgetRange(filters: FinderFilters, priceCents: number) {
 }
 
 function matchesScheduleFilters(filters: FinderFilters, companion: PublicCompanion) {
-  if (filters.time === TIME_ANY) return true;
-  if (filters.time === NOW_AVAILABLE) return isInstantBookable(companion);
+  if (filters.date === DATE_ANY && filters.time === TIME_ANY) return true;
+  if (filters.time === NOW_AVAILABLE) return (filters.date === DATE_ANY || filters.date === getTodayDateValue()) && isInstantBookable(companion);
 
   return companion.slots.some((slot) => {
     if (slot.status !== 'available') return false;
+    if (filters.date !== DATE_ANY && getSlotDateValue(slot) !== filters.date) return false;
+    if (filters.time === TIME_ANY) return true;
     return matchesTimeFilter(slot, filters.time);
   });
 }
@@ -713,10 +757,12 @@ function getProfileTags(companion: PublicCompanion, kind: 'style' | 'interaction
 }
 
 function getFilterOptions(key: CategoricalFilterKey) {
+  if (key === 'date') return [DATE_ANY, ...buildUpcomingDateValues(7)];
   return staticFilterOptions[key];
 }
 
 function getFilterOptionLabel(key: CategoricalFilterKey, value: string) {
+  if (key === 'date' && value !== DATE_ANY) return formatDatePill(value);
   return value;
 }
 
@@ -729,6 +775,7 @@ function getFilterSummary(key: FilterKey, filters: FinderFilters) {
 function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: ReturnType<typeof listFeedPosts>[number]): FinderFilters {
   return normalizeFinderRanges({
     area: matchFilterOption('area', params.get('area') ?? sameStylePost?.locationName ?? sameStylePost?.companion.areas[0]),
+    date: matchFilterOption('date', params.get('date')),
     time: matchFilterOption('time', params.get('time')),
     photographerGender: matchFilterOption('photographerGender', params.get('photographerGender') ?? params.get('gender')),
     need: matchFilterOption('need', params.get('need') ?? sameStylePost?.activityCategory ?? sameStylePost?.activity),
@@ -745,6 +792,11 @@ function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: Ret
 
 function matchFilterOption(key: CategoricalFilterKey, value?: string | null) {
   if (!value) return initialFinderFilters[key];
+  if (key === 'date') {
+    const normalizedDate = normalizeDateValue(value);
+    return normalizedDate && getFilterOptions('date').includes(normalizedDate) ? normalizedDate : DATE_ANY;
+  }
+
   const normalized = normalizeText(value);
   const options = getFilterOptions(key);
   return (
@@ -795,6 +847,57 @@ function getPortfolioAspectClass(index: number, post?: FeedPost) {
 
   const cycle = ['aspect-[0.74]', 'aspect-[0.88]', 'aspect-[0.8]', 'aspect-[0.96]'];
   return cycle[index % cycle.length];
+}
+
+function buildUpcomingDateValues(days: number) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + index);
+    return toDateValue(date);
+  });
+}
+
+function getDateOptionMeta(value: string) {
+  const date = new Date(`${value}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return { short: '', day: '' };
+  return {
+    short: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()],
+    day: String(date.getDate()),
+  };
+}
+
+function formatDatePill(value: string) {
+  const date = new Date(`${value}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((date.getTime() - today.getTime()) / 86400000);
+  const prefix = diffDays === 0 ? '今天' : diffDays === 1 ? '明天' : ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()];
+  return `${prefix} ${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function getTodayDateValue() {
+  return toDateValue(new Date());
+}
+
+function getSlotDateValue(slot: FeedPost['companion']['slots'][number]) {
+  return toDateValue(new Date(slot.startAt));
+}
+
+function toDateValue(date: Date) {
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDateValue(value: string) {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  return '';
 }
 
 function formatSlotSummary(slot: FeedPost['companion']['slots'][number]) {
