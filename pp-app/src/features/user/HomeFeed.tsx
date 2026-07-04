@@ -5,7 +5,7 @@ import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { fetchFeedPostPage, getPostTitle, listFeedPostPage, listFeedPosts, mergeApprovedWorkIntoFeed, type FeedPostPage } from '../../services/feedService';
 import type { ConsumerLocation } from '../../services/locationService';
-import { fetchMatchedCompanions, matchCompanions, type GenderPreference } from '../../services/matchingService';
+import { fetchMatchedCompanions, matchCompanions } from '../../services/matchingService';
 import type { FeedPost } from '../../types/api';
 import { PhotoFeed } from './PhotoFeed';
 
@@ -20,15 +20,13 @@ type FeedFilters = {
   channel: FeedChannel;
   query: string;
   nearbyOnly: boolean;
-  venueType: string;
+  intent: string;
+  place: string;
+  look: string;
+  charmTone: string;
   shootTime: string;
-  scene: string;
-  minDurationMinutes: number;
-  maxDurationMinutes: number;
-  minBudgetCents: number;
-  maxBudgetCents: number | null;
-  creatorGenderPreference: GenderPreference;
-  photographerGenderPreference: GenderPreference;
+  subject: string;
+  media: string;
 };
 
 type LocationStatus = 'idle' | 'locating' | 'located' | 'unsupported' | 'denied' | 'failed';
@@ -54,15 +52,13 @@ const initialFilters: FeedFilters = {
   channel: '发现',
   query: '',
   nearbyOnly: false,
-  venueType: '不限',
+  intent: '不限',
+  place: '不限',
+  look: '不限',
+  charmTone: '不限',
   shootTime: '不限',
-  scene: '不限',
-  minDurationMinutes: 30,
-  maxDurationMinutes: 480,
-  minBudgetCents: 0,
-  maxBudgetCents: null,
-  creatorGenderPreference: 'any',
-  photographerGenderPreference: 'any',
+  subject: '不限',
+  media: '不限',
 };
 
 const locationOptions: Record<string, Record<string, string[]>> = {
@@ -93,25 +89,61 @@ const locationOptions: Record<string, Record<string, string[]>> = {
 };
 const channels: FeedChannel[] = ['关注', '发现', '附近'];
 const idleFeedDragState: FeedDragState = { active: false, startX: 0, deltaX: 0, pointerId: null };
-const venueTypeOptions = ['不限', '室外', '室内'];
-const shootTimeOptions = ['不限', '早上', '中午', '下午', '晚上'];
-const sceneOptions = ['不限', '景点游客照', '网红餐厅拍照', '城市街拍', '旅行跟拍', '节日纪念', '情侣/婚纱', '亲子/宠物', '商业形象'];
-const genderOptions: Array<{ label: string; value: GenderPreference }> = [
-  { label: '不限', value: 'any' },
-  { label: '男', value: 'male' },
-  { label: '女', value: 'female' },
+const intentOptions = ['不限', '日常出片', '旅行拍照', '纪念日', '多人合影'];
+const placeOptions = [
+  { label: '不限', description: '先看全部场景' },
+  { label: '餐厅酒咖', description: '咖啡馆 / 早午餐 / 餐厅 / 酒吧' },
+  { label: '室内场景', description: '酒店民宿 / 买手店 / 花店 / 工作室' },
+  { label: '城市街区', description: '梧桐街道 / 商圈街拍 / 夜景街头' },
+  { label: '艺术展区', description: '艺术区 / 创意园 / 厂房 / 画廊' },
+  { label: '地标景点', description: '城市地标 / 老建筑 / 校园 / 古镇' },
+  { label: '户外自然', description: '江海湖边 / 公园草坪 / 山野森林' },
 ];
-const minDurationLimit = 30;
-const maxDurationLimit = 480;
-const durationStepMinutes = 30;
-const maxBudgetLimitCents = 200000;
-const budgetStepCents = 5000;
+const lookOptions = [
+  { label: '不限', description: '先看全部风格' },
+  { label: '松弛日常', description: '自然、不尴尬，像生活里刚好被拍到' },
+  { label: '清冷高级', description: '干净、克制、低饱和，有一点距离感' },
+  { label: '杂志街拍', description: '穿搭、姿态、城市感，像杂志里的街拍' },
+  { label: '回忆胶片', description: '暖色、颗粒、旧照片感，适合纪念和旅行' },
+  { label: '迷人状态', description: '眼神、吸引力，明艳或更有氛围' },
+];
+const charmToneOptions = ['不限', '明艳', '可爱', '少年气', '成熟感', '氛围感'];
+const shootTimeOptions = ['不限', '清晨', '上午', '午后', '傍晚', '夜晚'];
+const subjectOptions = ['不限', '女性', '男性', '情侣', '朋友', '家庭'];
+const mediaOptions = ['不限', '照片', '视频'];
+const placeKeywords: Record<string, string[]> = {
+  餐厅酒咖: ['餐厅', '咖啡', '咖啡馆', '早午餐', '甜品', '酒吧', '茶室', '探店', 'brunch', '吃饭'],
+  室内场景: ['室内', '酒店', '民宿', '买手店', '花店', '家居', '书店', '美甲', '工作室', '影棚', '空间'],
+  城市街区: ['街区', '街拍', 'citywalk', '梧桐', '武康路', '安福路', '巨鹿路', '商圈', '天桥', '路口', '夜景街头'],
+  艺术展区: ['艺术区', '创意园', '厂房', '仓库', '工业风', '画廊', '快闪', '展览', '美术馆', '博物馆', '市集', '西岸', '798'],
+  地标景点: ['地标', '景点', '游客照', '古迹', '古镇', '老建筑', '校园', '观景台', '外滩', '西湖', '武侯祠', '颐和园'],
+  户外自然: ['户外', '自然', '海边', '江边', '湖边', '公园', '草坪', '植物园', '山野', '森林', '露营', '徒步', '雪景'],
+};
+const lookKeywords: Record<string, string[]> = {
+  松弛日常: ['松弛', '日常', '自然', '抓拍', '生活感', '不看镜头', '朋友感', '自然光'],
+  清冷高级: ['清冷', '高级', '干净', '低饱和', '白净', '通透', '克制', '简洁', '冷感'],
+  杂志街拍: ['杂志', '街拍', '穿搭', '姿态', '大片', '时装', 'fashion', 'citywalk', '封面'],
+  回忆胶片: ['回忆', '胶片', '复古', '颗粒', '暖色', '旧照片', '生日', '毕业', '纪念', '旅行日记'],
+  迷人状态: ['迷人', '明艳', '可爱', '少年气', '成熟感', '氛围感', '眼神', '性感', '暧昧', '酷帅'],
+};
+const charmToneKeywords: Record<string, string[]> = {
+  明艳: ['明艳', '明媚', '耀眼', '浓颜', '红唇', '存在感'],
+  可爱: ['可爱', '灵动', '笑容', '少女', '甜', '萌'],
+  少年气: ['少年', '清爽', '中性', '阳光', '生命力', '干净'],
+  成熟感: ['成熟', '气场', '都市', '性感', '稳定', '女人味', '男人味'],
+  氛围感: ['氛围', '朦胧', '柔焦', '低光', '眼神', '暧昧', '故事感'],
+};
+const subjectKeywords: Record<string, string[]> = {
+  情侣: ['情侣', '恋人', '约会', '双人', '领证', '婚纱', '纪念日'],
+  朋友: ['朋友', '闺蜜', '兄弟', '姐妹', '多人', '合影', '聚会'],
+  家庭: ['家庭', '家人', '亲子', '宝宝', '儿童', '宠物', '猫', '狗'],
+};
 const maxDistanceLimitKm = 50;
 const feedPageSize = 18;
 const feedCacheKey = 'pp:consumer-feed-page-cache:v1';
 const feedCacheTtlMs = 1000 * 60 * 5;
 const searchHistoryKey = 'pp:consumer-search-history';
-const searchSuggestions = ['黑白大片', 'Citywalk', '探店', '夜景', '武康路', '安福路', '预算300内', '女生摄影师'];
+const searchSuggestions = ['杂志街拍', '回忆胶片', '餐厅酒咖', '艺术展区', '夜景', '武康路', '酒店民宿', '海边'];
 
 const demoMapPoints = [
   { city: '上海', district: '徐汇区', name: '武康路定位点', address: '武康路 / 安福路', lat: 31.2087, lng: 121.4456, x: 34, y: 36 },
@@ -243,18 +275,15 @@ export function HomeFeed() {
         location: locationKeyword,
         locationKeywords,
         keyword: filters.query,
-        activityType: filters.scene,
-        minDurationMinutes: filters.minDurationMinutes,
-        maxDurationMinutes: filters.maxDurationMinutes,
-        minBudgetCents: filters.minBudgetCents || undefined,
-        maxBudgetCents: filters.maxBudgetCents ?? undefined,
+        activityType: filters.intent,
         maxDistanceMeters: filters.maxDistanceKm ? filters.maxDistanceKm * 1000 : undefined,
-        genderPreference: filters.photographerGenderPreference,
         nearbyOnly: filters.nearbyOnly,
       })
-        .filter((post) => matchesVenueType(post, filters.venueType))
+        .filter((post) => matchesPlace(post, filters.place))
+        .filter((post) => matchesLook(post, filters.look, filters.charmTone))
         .filter((post) => matchesShootTime(post, filters.shootTime))
-        .filter((post) => matchesCreatorGender(post, filters.creatorGenderPreference)),
+        .filter((post) => matchesSubject(post, filters.subject))
+        .filter((post) => matchesMedia(post, filters.media)),
     [activeLocation?.lat, activeLocation?.lng, feedPosts, filters, locationKeyword, locationKeywords],
   );
   const channelPostGroups = useMemo(
@@ -384,13 +413,8 @@ export function HomeFeed() {
       lng: activeLocation.lng,
       location: locationKeyword,
       keyword: filters.query,
-      activityType: filters.scene,
-      minDurationMinutes: filters.minDurationMinutes,
-      maxDurationMinutes: filters.maxDurationMinutes,
-      minBudgetCents: filters.minBudgetCents || undefined,
-      maxBudgetCents: filters.maxBudgetCents ?? undefined,
+      activityType: filters.intent,
       maxDistanceMeters: filters.maxDistanceKm ? filters.maxDistanceKm * 1000 : undefined,
-      genderPreference: filters.photographerGenderPreference,
       nearbyOnly: true,
     }).then((items) => {
       if (!mounted) return;
@@ -1033,51 +1057,30 @@ function FilterSheet({
   onReset: () => void;
   onClose: () => void;
 }) {
+  const charmToneVisible = filters.look === '迷人状态';
+
   return (
-    <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-end bg-black/70" onClick={onClose}>
-      <section className="h-full w-[84%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <SheetHeader title="筛选" onClose={onClose} />
-        <div className="mt-4 space-y-4">
-          <FilterGroup label="拍摄环境" options={venueTypeOptions} value={filters.venueType} onChange={(venueType) => onChange({ venueType })} />
-          <FilterGroup label="拍摄时间" options={shootTimeOptions} value={filters.shootTime} onChange={(shootTime) => onChange({ shootTime })} />
-          <SelectFilter label="活动类型" options={sceneOptions} value={filters.scene} onChange={(scene) => onChange({ scene })} />
-          <RangeSliderGroup
-            label="时长范围"
-            min={minDurationLimit}
-            max={maxDurationLimit}
-            step={durationStepMinutes}
-            minValue={filters.minDurationMinutes}
-            maxValue={filters.maxDurationMinutes}
-            formatValue={formatDurationLabel}
-            onChange={(minDurationMinutes, maxDurationMinutes) => onChange({ minDurationMinutes, maxDurationMinutes })}
+    <div className="fixed inset-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 items-end bg-black/70" onClick={onClose}>
+      <section
+        className="max-h-[88dvh] w-full overflow-y-auto rounded-t-[28px] bg-white p-4 pb-6 text-black shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <SheetHeader title="筛选作品" onClose={onClose} />
+        <div className="mt-4 space-y-5">
+          <FilterGroup label="想拍什么" options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
+          <DescribedFilterGroup label="地点" options={placeOptions} value={filters.place} onChange={(place) => onChange({ place })} />
+          <DescribedFilterGroup
+            label="风格"
+            options={lookOptions}
+            value={filters.look}
+            onChange={(look) => onChange({ look, charmTone: look === '迷人状态' ? filters.charmTone : '不限' })}
           />
-          <RangeSliderGroup
-            label="预算范围"
-            min={0}
-            max={maxBudgetLimitCents}
-            step={budgetStepCents}
-            minValue={filters.minBudgetCents}
-            maxValue={filters.maxBudgetCents ?? maxBudgetLimitCents}
-            formatValue={formatBudgetLabel}
-            onChange={(minBudgetCents, maxBudgetCents) =>
-              onChange({
-                minBudgetCents,
-                maxBudgetCents: maxBudgetCents >= maxBudgetLimitCents ? null : maxBudgetCents,
-              })
-            }
-          />
-          <OptionGroup
-            label="创作者性别"
-            options={genderOptions}
-            value={filters.creatorGenderPreference}
-            onChange={(creatorGenderPreference) => onChange({ creatorGenderPreference })}
-          />
-          <OptionGroup
-            label="摄影师性别"
-            options={genderOptions}
-            value={filters.photographerGenderPreference}
-            onChange={(photographerGenderPreference) => onChange({ photographerGenderPreference })}
-          />
+          {charmToneVisible ? (
+            <FilterGroup label="更偏向" options={charmToneOptions} value={filters.charmTone} onChange={(charmTone) => onChange({ charmTone })} />
+          ) : null}
+          <FilterGroup label="时间" options={shootTimeOptions} value={filters.shootTime} onChange={(shootTime) => onChange({ shootTime })} />
+          <FilterGroup label="出镜人" options={subjectOptions} value={filters.subject} onChange={(subject) => onChange({ subject })} />
+          <FilterGroup label="内容形式" options={mediaOptions} value={filters.media} onChange={(media) => onChange({ media })} />
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onReset}>
@@ -1122,120 +1125,35 @@ function FilterGroup({ label, options, value, onChange }: { label: string; optio
   );
 }
 
-function SelectFilter({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="block">
-      <span className="text-xs font-bold text-zinc-500">{label}</span>
-      <span className="relative mt-2 block">
-        <select
-          className="h-12 w-full appearance-none rounded-[16px] border border-zinc-200 bg-white px-4 pr-11 text-sm font-black text-zinc-950 outline-none shadow-[0_10px_30px_rgba(15,15,15,0.05)]"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
-      </span>
-    </label>
-  );
-}
-
-function OptionGroup<T extends string | number | null>({
+function DescribedFilterGroup({
   label,
   options,
   value,
   onChange,
 }: {
   label: string;
-  options: Array<{ label: string; value: T }>;
-  value: T;
-  onChange: (value: T) => void;
+  options: Array<{ label: string; description: string }>;
+  value: string;
+  onChange: (value: string) => void;
 }) {
   return (
     <div>
       <p className="mb-2 text-xs font-bold text-zinc-500">{label}</p>
-      <div className="flex gap-2 overflow-x-auto scrollbar-none">
+      <div className="grid grid-cols-2 gap-2">
         {options.map((option) => (
           <button
             key={option.label}
-            className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold ${option.value === value ? 'pp-pill-active' : 'pp-pill'}`}
-            onClick={() => onChange(option.value)}
+            className={`min-h-[70px] rounded-[18px] border px-3 py-2 text-left transition ${
+              option.label === value ? 'border-black bg-black text-white' : 'border-zinc-200 bg-white text-zinc-950 shadow-[0_10px_24px_rgba(15,15,15,0.05)]'
+            }`}
+            onClick={() => onChange(option.label)}
           >
-            {option.label}
+            <span className="block text-sm font-black">{option.label}</span>
+            <span className={`mt-1 block text-[10px] font-semibold leading-4 ${option.label === value ? 'text-white/70' : 'text-zinc-500'}`}>
+              {option.description}
+            </span>
           </button>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function RangeSliderGroup({
-  label,
-  min,
-  max,
-  step,
-  minValue,
-  maxValue,
-  formatValue,
-  onChange,
-}: {
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  minValue: number;
-  maxValue: number;
-  formatValue: (value: number) => string;
-  onChange: (minValue: number, maxValue: number) => void;
-}) {
-  const safeMinValue = clampNumber(minValue, min, max - step);
-  const safeMaxValue = clampNumber(maxValue, min + step, max);
-
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-xs font-bold text-zinc-500">{label}</p>
-        <p className="rounded-full bg-zinc-950 px-2.5 py-1 text-[11px] font-black text-white">
-          {formatValue(safeMinValue)} - {formatValue(safeMaxValue)}
-        </p>
-      </div>
-      <div className="space-y-2 rounded-[16px] border border-zinc-100 bg-white px-3 py-3 shadow-[0_10px_30px_rgba(15,15,15,0.05)]">
-        <label className="grid grid-cols-[42px_1fr_64px] items-center gap-2 text-xs font-bold text-zinc-400">
-          下限
-          <input
-            className="accent-black"
-            type="range"
-            min={min}
-            max={max - step}
-            step={step}
-            value={safeMinValue}
-            onChange={(event) => {
-              const nextMin = Number(event.target.value);
-              onChange(nextMin, Math.max(safeMaxValue, nextMin + step));
-            }}
-          />
-          <span className="rounded-full bg-zinc-100 px-2 py-1 text-right text-zinc-800">{formatValue(safeMinValue)}</span>
-        </label>
-        <label className="grid grid-cols-[42px_1fr_64px] items-center gap-2 text-xs font-bold text-zinc-400">
-          上限
-          <input
-            className="accent-black"
-            type="range"
-            min={min + step}
-            max={max}
-            step={step}
-            value={safeMaxValue}
-            onChange={(event) => {
-              const nextMax = Number(event.target.value);
-              onChange(Math.min(safeMinValue, nextMax - step), nextMax);
-            }}
-          />
-          <span className="rounded-full bg-zinc-100 px-2 py-1 text-right text-zinc-800">{formatValue(safeMaxValue)}</span>
-        </label>
       </div>
     </div>
   );
@@ -1334,63 +1252,79 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function formatDurationLabel(value: number) {
-  if (value < 60) return `${value}分钟`;
-  return value % 60 === 0 ? `${value / 60}小时` : `${Math.floor(value / 60)}.5小时`;
+function matchesPlace(post: FeedPost, place: string) {
+  if (place === '不限') return true;
+  return textMatchesKeywords(getPostSearchText(post), placeKeywords[place] ?? [place]);
 }
 
-function formatBudgetLabel(value: number) {
-  if (value >= maxBudgetLimitCents) return '不限';
-  if (value <= 0) return '¥0';
-  return `¥${Math.round(value / 100)}`;
+function matchesLook(post: FeedPost, look: string, charmTone: string) {
+  if (look === '不限') return true;
+
+  const text = getPostSearchText(post);
+  const lookMatched = textMatchesKeywords(text, lookKeywords[look] ?? [look]);
+  if (look !== '迷人状态' || charmTone === '不限') return lookMatched;
+
+  return lookMatched && textMatchesKeywords(text, charmToneKeywords[charmTone] ?? [charmTone]);
 }
 
-function matchesCreatorGender(post: FeedPost, preference: GenderPreference) {
-  if (preference === 'any') return true;
-  const creatorGender = getCreatorGender(post);
-  return creatorGender === preference;
+function matchesSubject(post: FeedPost, subject: string) {
+  if (subject === '不限') return true;
+
+  const text = getPostSearchText(post);
+  if (subject === '女性') return getCreatorGender(post) === 'female' || textMatchesKeywords(text, ['女性', '女生', '女孩', '女友', 'girl']);
+  if (subject === '男性') return getCreatorGender(post) === 'male' || textMatchesKeywords(text, ['男性', '男生', '男孩', '男友', 'boy']);
+  return textMatchesKeywords(text, subjectKeywords[subject] ?? [subject]);
 }
 
-function getCreatorGender(post: FeedPost): GenderPreference | 'unknown' {
+type SubjectGender = 'male' | 'female' | 'unknown';
+
+function getCreatorGender(post: FeedPost): SubjectGender {
   const explicitGender = (post.creator as { gender?: string } | undefined)?.gender;
   if (explicitGender === 'male' || explicitGender === 'female') return explicitGender;
   const seed = `${post.creator?.id ?? post.id}-${post.creator?.name ?? ''}`;
   return Math.abs(hashString(seed)) % 3 === 0 ? 'male' : 'female';
 }
 
-function matchesVenueType(post: FeedPost, venueType: string) {
-  if (venueType === '不限') return true;
-  if (post.venueType) return post.venueType === venueType;
+function matchesMedia(post: FeedPost, media: string) {
+  if (media === '不限') return true;
 
-  const text = getPostSearchText(post);
-  if (venueType === '室内') return ['室内', '餐厅', '探店', '咖啡', '书店', '展览', '美术馆', '酒店', '影棚', '空间'].some((keyword) => text.includes(keyword.toLowerCase()));
-  return ['室外', '户外', '街拍', 'citywalk', '旅行', '景点', '公园', '外滩', '武康路', '夜景', '海边'].some((keyword) => text.includes(keyword.toLowerCase()));
+  const hasVideo = post.images.some(isVideoMedia) || textMatchesKeywords(getPostSearchText(post), ['视频', '短片', 'vlog', 'reels', 'tiktok']);
+  if (media === '视频') return hasVideo;
+  return post.images.some((image) => !isVideoMedia(image)) || !hasVideo;
+}
+
+function isVideoMedia(image: FeedPost['images'][number]) {
+  return image.mediaKind === 'video' || Boolean(image.videoUrl) || Boolean(image.contentType?.startsWith('video/'));
+}
+
+function textMatchesKeywords(text: string, keywords: string[]) {
+  return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
 }
 
 function matchesShootTime(post: FeedPost, shootTime: string) {
   if (shootTime === '不限') return true;
-  if (post.shootTime) return post.shootTime === shootTime;
+  if (post.shootTime === shootTime) return true;
 
-  const text = [post.timeLabel, post.caption, post.title, post.activity, ...post.styleTags].filter(Boolean).join(' ').toLowerCase();
+  const text = [post.shootTime, post.timeLabel, post.caption, post.title, post.activity, ...post.styleTags].filter(Boolean).join(' ').toLowerCase();
   const keywords: Record<string, string[]> = {
-    早上: ['早上', '上午', '晨', '清晨', '日出', 'morning'],
-    中午: ['中午', '午间', '正午', '午后', 'noon'],
-    下午: ['下午', '午后', '傍晚前', 'afternoon'],
-    晚上: ['晚上', '夜景', '夜间', '傍晚', '黄昏', '晚', 'night'],
+    清晨: ['清晨', '早晨', '晨', '日出', 'morning'],
+    上午: ['上午', '早上', 'morning'],
+    午后: ['午后', '下午', '自然光', 'afternoon'],
+    傍晚: ['傍晚', '黄昏', '夕阳', '落日', '晚霞', 'sunset'],
+    夜晚: ['晚上', '夜景', '夜晚', '夜间', '低光', 'night'],
   };
   return (keywords[shootTime] ?? []).some((keyword) => text.includes(keyword.toLowerCase()));
 }
 
 function getActiveFilterCount(filters: FeedFilters) {
   return [
-    filters.venueType !== initialFilters.venueType,
+    filters.intent !== initialFilters.intent,
+    filters.place !== initialFilters.place,
+    filters.look !== initialFilters.look,
+    filters.charmTone !== initialFilters.charmTone,
     filters.shootTime !== initialFilters.shootTime,
-    filters.scene !== initialFilters.scene,
-    filters.minDurationMinutes !== initialFilters.minDurationMinutes || filters.maxDurationMinutes !== initialFilters.maxDurationMinutes,
-    filters.minBudgetCents !== initialFilters.minBudgetCents,
-    filters.maxBudgetCents !== initialFilters.maxBudgetCents,
-    filters.creatorGenderPreference !== initialFilters.creatorGenderPreference,
-    filters.photographerGenderPreference !== initialFilters.photographerGenderPreference,
+    filters.subject !== initialFilters.subject,
+    filters.media !== initialFilters.media,
   ].filter(Boolean).length;
 }
 
