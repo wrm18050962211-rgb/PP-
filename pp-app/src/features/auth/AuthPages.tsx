@@ -30,8 +30,8 @@ function getRegisterPath(role: PublicRole, phone?: string) {
 }
 
 const roleOptions: Array<{ role: PublicRole; title: string; desc: string; icon: typeof UserRound }> = [
-  { role: 'consumer', title: '用户', desc: '发现拍摄风格、预约摄影师、管理成片', icon: UserRound },
-  { role: 'companion', title: '摄影师', desc: '接单报价、管理档期、发布作品', icon: Camera },
+  { role: 'consumer', title: 'Client', desc: '预约拍摄，管理成片', icon: UserRound },
+  { role: 'companion', title: 'Studio', desc: '接单报价，管理交付', icon: Camera },
 ];
 
 export function EntryRedirect() {
@@ -107,7 +107,7 @@ export function RegisterPage() {
   }
 
   return (
-    <AuthFrame eyebrow="首次使用 Still" title="选择身份并注册">
+    <AuthFrame eyebrow="首次使用 Still" title="选择入口并注册">
       <div className="grid grid-cols-2 gap-2">
         {roleOptions.map((item) => {
           const Icon = item.icon;
@@ -268,9 +268,9 @@ function MissingRoleRegisterDialog({
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 px-5">
       <section className="w-full max-w-sm rounded-[18px] bg-white p-5 text-zinc-950 shadow-2xl">
         <p className="text-xs font-black text-[#e85d75]">该身份尚未注册</p>
-        <h2 className="mt-2 text-xl font-black">注册成为{roleLabel}？</h2>
+        <h2 className="mt-2 text-xl font-black">注册 {roleLabel}？</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-zinc-500">
-          手机号 {phone || '当前手机号'} 还没有{roleLabel}身份。你可以关闭并留在登录页，或进入{roleLabel}注册流程。
+          手机号 {phone || '当前手机号'} 还没有 {roleLabel} 身份。你可以关闭并留在登录页，或进入 {roleLabel} 注册流程。
         </p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button type="button" className="h-11 rounded-full bg-zinc-100 text-sm font-black text-zinc-600" onClick={onClose}>
@@ -420,5 +420,5 @@ function getErrorMessage(error: unknown) {
 }
 
 function getPublicRoleLabel(role: PublicRole) {
-  return role === 'companion' ? '摄影师' : '用户';
+  return role === 'companion' ? 'Studio' : 'Client';
 }
