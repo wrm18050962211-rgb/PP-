@@ -192,14 +192,14 @@ export function OrdersPage() {
   }
 
   return (
-    <div className="min-h-dvh pp-page px-4 py-5">
+    <div className="min-h-dvh bg-[#050505] px-4 py-5 text-white">
       <header className="flex items-start gap-3">
-        <Link className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/82 text-[#3f302c] ring-1 ring-[#eadfd8]" to={backTo} aria-label="返回我的">
+        <Link className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/15" to={backTo} aria-label="返回我的">
           <ArrowLeft size={20} />
         </Link>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-[#e85d75]">我的预约</p>
-          <h1 className="mt-1 text-2xl font-bold text-[#3f302c]">{workMode ? '编辑作品' : '订单'}</h1>
+          <p className="text-xs font-semibold text-white/45">我的预约</p>
+          <h1 className="mt-1 text-2xl font-bold text-white">{workMode ? '编辑作品' : '订单'}</h1>
         </div>
       </header>
 
@@ -209,9 +209,9 @@ export function OrdersPage() {
           <p className="mt-1 text-xs leading-5 text-white/58">创作者和摄影师都可编辑，双方确认后可分别选择是否同步到自己的主页。</p>
         </section>
       ) : (
-        <section className="mt-4 rounded-[16px] bg-white/78 p-3 text-[#3f302c] ring-1 ring-[#eadfd8]">
-          <p className="text-xs font-black text-[#e85d75]">订单分为 4 个主状态</p>
-          <p className="mt-1 text-xs leading-5 text-[#8f8078]">
+        <section className="mt-4 rounded-[8px] bg-white/[0.08] p-3 text-white ring-1 ring-white/10">
+          <p className="text-xs font-black text-white">订单分为 4 个主状态</p>
+          <p className="mt-1 text-xs leading-5 text-white/55">
             待确认先沟通，摄影师确认后进入已确认并托管款项；拍摄后创作者确认完成；取消按阶段进入平台违约/退款处理。
           </p>
         </section>
@@ -223,7 +223,7 @@ export function OrdersPage() {
               <button
                 key={tab.key}
                 className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
-                  activeWorkTab === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
+                  activeWorkTab === tab.key ? 'bg-white text-black' : 'bg-white/10 text-white/72 ring-1 ring-white/12'
                 }`}
                 onClick={() => setActiveWorkTab(tab.key)}
                 type="button"
@@ -236,7 +236,7 @@ export function OrdersPage() {
               <button
                 key={tab.key}
                 className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
-                  activeStatus === tab.key ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#7a6b64] ring-1 ring-[#eadfd8]'
+                  activeStatus === tab.key ? 'bg-white text-black' : 'bg-white/10 text-white/72 ring-1 ring-white/12'
                 }`}
                 onClick={() => setActiveStatus(tab.key)}
                 type="button"
@@ -246,7 +246,7 @@ export function OrdersPage() {
             ))}
       </div>
 
-      {workMode ? <p className="mt-3 text-xs font-semibold leading-5 text-[#8f8078]">{workTabs.find((tab) => tab.key === activeWorkTab)?.desc}</p> : null}
+      {workMode ? <p className="mt-3 text-xs font-semibold leading-5 text-white/45">{workTabs.find((tab) => tab.key === activeWorkTab)?.desc}</p> : null}
 
       <div className="mt-4 space-y-4">
         {workMode
@@ -296,7 +296,7 @@ export function OrdersPage() {
       {((workMode && !filteredWorkOrders.length) || (!workMode && !filteredOrders.length && !showQuotedConsultations)) && (
         <div className="mt-16 text-center">
           <ReceiptText className="mx-auto text-zinc-300" size={48} />
-          <p className="mt-4 text-sm font-semibold text-[#8f8078]">{workMode ? '当前没有这个编辑状态的作品' : '当前没有这个状态的订单'}</p>
+          <p className="mt-4 text-sm font-semibold text-white/45">{workMode ? '当前没有这个编辑状态的作品' : '当前没有这个状态的订单'}</p>
         </div>
       )}
 
@@ -362,25 +362,25 @@ function OrderCard({
   const meta = statusMeta[order.status] ?? { label: order.statusText, tone: 'bg-zinc-100 text-zinc-600 ring-zinc-200' };
 
   return (
-    <article className="rounded-[22px] pp-surface p-4">
+    <article className="rounded-[8px] pp-surface p-4 text-zinc-950">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-[#a99b94]">{order.orderNo}</p>
-          <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{order.title}</h2>
+          <p className="text-xs font-semibold text-zinc-400">{order.orderNo}</p>
+          <h2 className="mt-1 truncate text-lg font-bold text-zinc-950">{order.title}</h2>
         </div>
         <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${meta.tone}`}>{meta.label}</span>
       </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-[18px] bg-[#fff5f1] p-3">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-[#e85d75] ring-1 ring-[#eadfd8]">
+      <div className="mt-4 flex items-center gap-3 rounded-[8px] bg-zinc-50 p-3">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-zinc-800 ring-1 ring-zinc-200">
           <Camera size={21} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-[#a99b94]">陪拍者信息</p>
-          <p className="mt-0.5 text-sm font-bold text-[#3f302c]">{order.companion}</p>
-          <p className="truncate text-xs text-[#8f8078]">{order.activityName ?? order.title}</p>
+          <p className="text-xs font-semibold text-zinc-400">陪拍者信息</p>
+          <p className="mt-0.5 text-sm font-bold text-zinc-950">{order.companion}</p>
+          <p className="truncate text-xs text-zinc-500">{order.activityName ?? order.title}</p>
         </div>
-        <Link to={`/consumer/messages/${order.id}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#3f302c] text-white" aria-label="进入消息页">
+        <Link to={`/consumer/messages/${order.id}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-zinc-950 text-white" aria-label="进入消息页">
           <MessageCircle size={17} />
         </Link>
       </div>
@@ -393,7 +393,7 @@ function OrderCard({
         <DetailLine icon={<ReceiptText size={17} />} label="订单状态" value={meta.label} />
       </div>
 
-      <div className="mt-4 space-y-2 rounded-[18px] border border-[#eadfd8] bg-white/62 p-3">
+      <div className="mt-4 space-y-2 rounded-[8px] border border-zinc-200 bg-white p-3">
         <PriceLine label="基础价格" value={formatMoney(basePrice)} />
         <PriceLine label="精修加购" value={addOnTotal ? formatAddOns(order) : '未加购'} muted={!addOnTotal} />
         <div className="border-t border-zinc-100 pt-2">
@@ -406,7 +406,7 @@ function OrderCard({
         <section className="mt-4 rounded-[18px] bg-[#fff7df] p-3 text-[#8a5a12] ring-1 ring-[#f2dfaa]">
           <p className="text-sm font-black">尾款待托管</p>
           <p className="mt-1 text-xs leading-5">拍摄前需将尾款 {formatMoney(order.balanceCents ?? 0)} 托管到平台。未托管尾款时，摄影师可拒绝开始拍摄，不交付底片。</p>
-          <button className="mt-3 h-10 w-full rounded-full bg-[#3f302c] text-sm font-black text-white" onClick={onPayBalance} type="button">
+          <button className="mt-3 h-10 w-full rounded-full bg-zinc-950 text-sm font-black text-white" onClick={onPayBalance} type="button">
             支付尾款
           </button>
         </section>
@@ -415,14 +415,14 @@ function OrderCard({
       <div className="mt-4 flex gap-2">
         <Link
           to={`/consumer/messages/${order.id}`}
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white"
+          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white"
         >
           <MessageCircle size={17} />
           进入消息页
         </Link>
         {canCancel && (
           <button
-            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#6f625d]"
+            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700"
             onClick={onCancel}
             type="button"
           >
@@ -444,7 +444,7 @@ function OrderCard({
           </button>
         )}
         {['cancelled', 'refunding', 'refunded', 'disputed'].includes(order.status) && (
-          <span className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#a99b94]">
+          <span className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-zinc-100 text-sm font-bold text-zinc-400">
             <CheckCircle2 size={17} />
             已取消
           </span>
@@ -467,14 +467,14 @@ function ConsultationQuoteCard({
   const adjusted = quote.totalCents !== estimate.totalCents || quote.depositCents !== estimate.depositCents;
 
   return (
-    <article className="rounded-[22px] border border-[#eadfd8] bg-white p-4 shadow-[0_12px_30px_rgba(63,48,44,0.05)]">
+    <article className="rounded-[8px] border border-zinc-200 bg-white p-4 text-zinc-950 shadow-[0_18px_48px_rgba(0,0,0,0.16)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-[#a99b94]">{consultation.id}</p>
-          <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{consultation.requestCard.packageName}</h2>
-          <p className="mt-1 truncate text-xs font-semibold text-[#8f8078]">{consultation.photographerName} · 咨询报价</p>
+          <p className="text-xs font-semibold text-zinc-400">{consultation.id}</p>
+          <h2 className="mt-1 truncate text-lg font-bold text-zinc-950">{consultation.requestCard.packageName}</h2>
+          <p className="mt-1 truncate text-xs font-semibold text-zinc-500">{consultation.photographerName} · 咨询报价</p>
         </div>
-        <span className="shrink-0 rounded-full bg-[#fff1f3] px-3 py-1 text-xs font-bold text-[#e85d75] ring-1 ring-[#ffdce4]">摄影师已报价</span>
+        <span className="shrink-0 rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-white ring-1 ring-zinc-950">摄影师已报价</span>
       </div>
 
       <div className="mt-4 grid gap-3 text-sm">
@@ -485,24 +485,24 @@ function ConsultationQuoteCard({
         <DetailLine icon={<ImagePlus size={17} />} label="图片数量" value={formatConsultationImageQuantity(consultation)} />
       </div>
 
-      <div className="mt-4 rounded-[18px] bg-[#fff5f1] p-3 text-sm font-semibold leading-6 text-[#6f625d]">
+      <div className="mt-4 rounded-[8px] bg-zinc-50 p-3 text-sm font-semibold leading-6 text-zinc-600">
         <PriceLine label="订单原报价" value={formatMoney(estimate.totalCents)} muted={adjusted} />
         <PriceLine label="摄影师调整价" value={formatMoney(quote.totalCents)} strong />
         <PriceLine label="定金托管" value={formatMoney(quote.depositCents)} />
         <PriceLine label="拍摄前尾款" value={formatMoney(quote.balanceCents)} />
-        {adjusted ? <p className="mt-2 text-xs text-[#a99b94]">摄影师已基于需求卡调整价格，请确认后支付定金。</p> : null}
+        {adjusted ? <p className="mt-2 text-xs text-zinc-400">摄影师已基于需求卡调整价格，请确认后支付定金。</p> : null}
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Link
           to={`/consumer/messages/${consultation.id}`}
-          className="flex h-10 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#6f625d]"
+          className="flex h-10 items-center justify-center gap-2 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700"
         >
           <MessageCircle size={17} />
           进入沟通
         </Link>
         <button
-          className="flex h-10 items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white disabled:bg-zinc-200 disabled:text-zinc-400"
+          className="flex h-10 items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white disabled:bg-zinc-200 disabled:text-zinc-400"
           onClick={onAccept}
           type="button"
         >
@@ -539,11 +539,11 @@ function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; recor
   const imageLimitText = imageLimit.limit === null ? '不限' : String(imageLimit.limit);
 
   return (
-    <article className="rounded-[22px] pp-surface p-4">
+    <article className="rounded-[8px] pp-surface p-4 text-zinc-950">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-[#a99b94]">{order.orderNo}</p>
-          <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{order.activityName ?? order.title}</h2>
+          <p className="text-xs font-semibold text-zinc-400">{order.orderNo}</p>
+          <h2 className="mt-1 truncate text-lg font-bold text-zinc-950">{order.activityName ?? order.title}</h2>
         </div>
         <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${getWorkEditTone(status)}`}>{statusLabel}</span>
       </div>
@@ -555,13 +555,13 @@ function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; recor
         <DetailLine icon={<Clock3 size={17} />} label="时长" value={order.durationLabel ?? `${order.durationMinutes ?? 0}分钟`} />
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2 rounded-[18px] bg-[#fff5f1] p-3 text-center">
+      <div className="mt-4 grid grid-cols-3 gap-2 rounded-[8px] bg-zinc-50 p-3 text-center">
         <WorkMetric label="照片/Live" value={`${imageCount}/${imageLimitText}`} />
         <WorkMetric label="创作者确认" value={record?.creatorConfirmed ? '已确认' : '未确认'} />
         <WorkMetric label="摄影师确认" value={record?.photographerConfirmed ? '已确认' : '未确认'} />
       </div>
 
-      <button className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full bg-[#3f302c] text-sm font-bold text-white" onClick={onManage} type="button">
+      <button className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white" onClick={onManage} type="button">
         <ImagePlus size={17} />
         {actionText}
       </button>
@@ -572,8 +572,8 @@ function WorkEditOrderCard({ order, record, onManage }: { order: AppOrder; recor
 function WorkMetric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold text-[#a99b94]">{label}</p>
-      <p className="mt-1 text-xs font-black text-[#3f302c]">{value}</p>
+      <p className="text-[11px] font-semibold text-zinc-400">{label}</p>
+      <p className="mt-1 text-xs font-black text-zinc-950">{value}</p>
     </div>
   );
 }
@@ -1295,7 +1295,7 @@ function ReviewDialog({ order, onClose, onSubmit }: { order: AppOrder; onClose: 
         {[1, 2, 3, 4, 5].map((value) => (
           <button
             key={value}
-            className={`grid h-10 w-10 place-items-center rounded-full ${value <= rating ? 'bg-rose-500 text-white' : 'bg-zinc-100 text-zinc-300'}`}
+            className={`grid h-10 w-10 place-items-center rounded-full ${value <= rating ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-300'}`}
             onClick={() => setRating(value)}
             type="button"
             aria-label={`${value}星`}
@@ -1311,7 +1311,7 @@ function ReviewDialog({ order, onClose, onSubmit }: { order: AppOrder; onClose: 
         placeholder="写一句评价，帮助其他用户参考"
         value={content}
       />
-      <button className="mt-4 h-11 w-full rounded-full bg-rose-500 text-sm font-bold text-white" onClick={onSubmit} type="button">
+      <button className="mt-4 h-11 w-full rounded-full bg-zinc-950 text-sm font-bold text-white" onClick={onSubmit} type="button">
         提交评价
       </button>
     </ActionSheet>
@@ -1320,11 +1320,11 @@ function ReviewDialog({ order, onClose, onSubmit }: { order: AppOrder; onClose: 
 
 function ActionSheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#3f302c]/30 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 sm:pb-4" role="dialog" aria-modal="true">
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-[22px] bg-[#fffaf6] shadow-xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#eadfd8] bg-[#fffaf6]/95 px-4 py-3 backdrop-blur">
-          <h2 className="text-lg font-bold text-[#3f302c]">{title}</h2>
-          <button className="grid h-9 w-9 place-items-center rounded-full bg-[#f2e8e1] text-[#7a6b64]" onClick={onClose} type="button" aria-label="关闭">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 sm:pb-4" role="dialog" aria-modal="true">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-[8px] bg-white text-zinc-950 shadow-xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur">
+          <h2 className="text-lg font-bold text-zinc-950">{title}</h2>
+          <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" onClick={onClose} type="button" aria-label="关闭">
             <XCircle size={18} />
           </button>
         </div>
@@ -1338,8 +1338,8 @@ function DetailLine({ icon, label, value }: { icon: React.ReactNode; label: stri
   return (
     <div className="flex items-center gap-3">
       <span className="text-zinc-400">{icon}</span>
-      <span className="w-20 shrink-0 text-[#7a6b64]">{label}</span>
-      <span className="min-w-0 flex-1 truncate font-semibold text-[#3f302c]">{value}</span>
+      <span className="w-20 shrink-0 text-zinc-500">{label}</span>
+      <span className="min-w-0 flex-1 truncate font-semibold text-zinc-950">{value}</span>
     </div>
   );
 }
@@ -1347,8 +1347,8 @@ function DetailLine({ icon, label, value }: { icon: React.ReactNode; label: stri
 function PriceLine({ label, value, strong, muted }: { label: string; value: string; strong?: boolean; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className={`${strong ? 'font-bold text-[#3f302c]' : 'text-[#7a6b64]'} text-sm`}>{label}</span>
-      <span className={`${strong ? 'text-lg font-bold' : 'text-sm font-semibold'} ${muted ? 'text-[#b0a29b]' : 'text-[#3f302c]'}`}>{value}</span>
+      <span className={`${strong ? 'font-bold text-zinc-950' : 'text-zinc-500'} text-sm`}>{label}</span>
+      <span className={`${strong ? 'text-lg font-bold' : 'text-sm font-semibold'} ${muted ? 'text-zinc-300' : 'text-zinc-950'}`}>{value}</span>
     </div>
   );
 }

@@ -39,7 +39,7 @@ const STYLE_ANY = '风格不限';
 const INTERACTION_ANY = '互动不限';
 const EQUIPMENT_ANY = '设备不限';
 const BUDGET_MIN = 0;
-const BUDGET_MAX = 2000;
+const BUDGET_MAX = 10000; // Slider sentinel: the max value is treated as unlimited.
 const BUDGET_STEP = 50;
 
 const staticFilterOptions: Record<Exclude<CategoricalFilterKey, 'date'>, string[]> = {
@@ -688,6 +688,8 @@ function formatBudgetRange(min: number, max: number) {
 }
 
 function parseBudgetParam(value: string | null, fallback: number) {
+  if (value === null || value.trim() === '') return fallback;
+
   const parsed = Number(value);
   return Number.isFinite(parsed) ? clampToBudget(parsed) : fallback;
 }

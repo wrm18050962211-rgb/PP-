@@ -116,8 +116,8 @@ export function RegisterPage() {
             <button
               key={item.role}
               type="button"
-              className={`min-h-28 rounded-[10px] px-3 py-3 text-left ring-1 transition ${
-                active ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-white text-zinc-700 ring-zinc-200'
+              className={`min-h-28 rounded-[8px] px-3 py-3 text-left ring-1 transition ${
+                active ? 'bg-black text-white ring-black' : 'bg-zinc-50 text-zinc-800 ring-zinc-200 hover:bg-zinc-100'
               }`}
               onClick={() => setRole(item.role)}
             >
@@ -132,7 +132,7 @@ export function RegisterPage() {
       <PhoneCodeForm phone={phone} code={code} onPhoneChange={setPhone} onCodeChange={setCode} onSendCode={sendCode} demoCode={demoCode} />
       {error ? <ErrorLine text={error} /> : null}
 
-      <button className="mt-5 h-12 w-full rounded-full bg-[#e85d75] text-sm font-black text-white" type="button" onClick={submit}>
+      <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={submit}>
         注册账号
       </button>
       <Link className="mt-4 block text-center text-sm font-bold text-zinc-500" to="/auth/login">
@@ -203,8 +203,8 @@ export function LoginPage() {
             <button
               key={item.role}
               type="button"
-              className={`min-h-24 rounded-[10px] px-3 py-3 text-left ring-1 transition ${
-                active ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-white text-zinc-700 ring-zinc-200'
+              className={`min-h-24 rounded-[8px] px-3 py-3 text-left ring-1 transition ${
+                active ? 'bg-black text-white ring-black' : 'bg-zinc-50 text-zinc-800 ring-zinc-200 hover:bg-zinc-100'
               }`}
               onClick={() => {
                 setRole(item.role);
@@ -267,7 +267,7 @@ function MissingRoleRegisterDialog({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 px-5">
       <section className="w-full max-w-sm rounded-[18px] bg-white p-5 text-zinc-950 shadow-2xl">
-        <p className="text-xs font-black text-[#e85d75]">该身份尚未注册</p>
+        <p className="text-xs font-black text-zinc-500">该身份尚未注册</p>
         <h2 className="mt-2 text-xl font-black">注册 {roleLabel}？</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-zinc-500">
           手机号 {phone || '当前手机号'} 还没有 {roleLabel} 身份。你可以关闭并留在登录页，或进入 {roleLabel} 注册流程。
@@ -306,7 +306,7 @@ export function AccountSettingsPage() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <p className="text-xs font-black text-[#e85d75]">账号与安全</p>
+          <p className="text-xs font-black text-zinc-500">账号与安全</p>
           <h1 className="mt-0.5 text-2xl font-black">设置</h1>
         </div>
       </header>
@@ -337,14 +337,14 @@ export function AccountSettingsPage() {
 
 function AuthFrame({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh bg-[#f7f7f5] px-5 py-8 text-zinc-950">
+    <div className="min-h-dvh bg-[#050505] px-5 py-8 text-white">
       <section className="mx-auto max-w-md">
         <div className="pt-8">
-          <p className="text-sm font-black text-[#e85d75]">{eyebrow}</p>
+          <p className="text-sm font-black text-white/45">{eyebrow}</p>
           <h1 className="mt-2 text-3xl font-black tracking-normal">{title}</h1>
-          <p className="mt-3 text-sm font-semibold leading-6 text-zinc-500">用手机号验证码进入 Still，后续可平滑替换为微信手机号授权。</p>
+          <p className="mt-3 text-sm font-semibold leading-6 text-white/52">用手机号验证码进入 Still，后续可平滑替换为微信手机号授权。</p>
         </div>
-        <div className="mt-7 rounded-[16px] bg-white p-4 shadow-sm ring-1 ring-zinc-200">{children}</div>
+        <div className="mt-7 rounded-[8px] bg-white p-4 text-zinc-950 shadow-2xl ring-1 ring-white/10">{children}</div>
       </section>
     </div>
   );

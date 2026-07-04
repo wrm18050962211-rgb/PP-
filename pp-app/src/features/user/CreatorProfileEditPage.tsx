@@ -48,18 +48,18 @@ export function CreatorProfileEditPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-[#f7f7f5] px-4 py-5 text-zinc-950">
+    <div className="min-h-dvh bg-[#050505] px-4 py-5 text-white">
       <header className="flex items-center gap-3">
-        <Link to="/consumer/mine" className="grid h-10 w-10 place-items-center rounded-full bg-white ring-1 ring-zinc-200" aria-label="返回">
+        <Link to="/consumer/mine" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/15" aria-label="返回">
           <ArrowLeft size={20} />
         </Link>
         <div>
-          <p className="text-xs font-black text-rose-500">创作者主页</p>
+          <p className="text-xs font-black text-white/45">创作者主页</p>
           <h1 className="text-2xl font-black">编辑主页</h1>
         </div>
       </header>
 
-      <section className="mt-5 rounded-[12px] bg-zinc-950 p-5 text-white">
+      <section className="mt-5 rounded-[8px] bg-white/[0.08] p-5 text-white ring-1 ring-white/10">
         <div className="flex items-center gap-3">
           <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-full bg-white/12 ring-1 ring-white/20">
             {draft.avatarUrl ? <img className="h-full w-full object-cover" src={draft.avatarUrl} alt={draft.displayName} /> : <UserRound size={26} />}
@@ -109,7 +109,9 @@ export function CreatorProfileEditPage() {
       </section>
 
       <button
-        className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-black text-white ${canSave ? 'bg-rose-500' : 'bg-zinc-300'}`}
+        className={`mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full text-sm font-black ${
+          canSave ? 'bg-white text-black' : 'bg-white/16 text-white/35'
+        }`}
         disabled={!canSave}
         onClick={save}
         type="button"

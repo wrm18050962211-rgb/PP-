@@ -21,20 +21,20 @@ export function InquiriesPage() {
   );
 
   return (
-    <div className="min-h-dvh pp-page px-4 py-5">
+    <div className="min-h-dvh bg-[#050505] px-4 py-5 text-white">
       <header className="flex items-start gap-3">
-        <Link className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/82 text-[#3f302c] ring-1 ring-[#eadfd8]" to="/consumer/mine" aria-label="返回我的">
+        <Link className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/15" to="/consumer/mine" aria-label="返回我的">
           <ArrowLeft size={20} />
         </Link>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-[#e85d75]">咨询档期/报价</p>
-          <h1 className="mt-1 text-2xl font-bold text-[#3f302c]">我的询价</h1>
+          <p className="text-xs font-semibold text-white/45">咨询档期/报价</p>
+          <h1 className="mt-1 text-2xl font-bold text-white">我的询价</h1>
         </div>
       </header>
 
-      <section className="mt-4 rounded-[16px] bg-white/78 p-3 text-[#3f302c] ring-1 ring-[#eadfd8]">
-        <p className="text-xs font-black text-[#e85d75]">这里还不是订单</p>
-        <p className="mt-1 text-xs leading-5 text-[#8f8078]">
+      <section className="mt-4 rounded-[8px] bg-white/[0.08] p-3 text-white ring-1 ring-white/10">
+        <p className="text-xs font-black text-white">这里还不是订单</p>
+        <p className="mt-1 text-xs leading-5 text-white/55">
           询价单展示已提交的需求卡。摄影师确认价格后，这里会显示订单原报价和摄影师调整后的价格；你需要到“我的订单”的待确认栏确认后，该询价才会移除。
         </p>
       </section>
@@ -50,8 +50,8 @@ export function InquiriesPage() {
       {!inquiries.length && (
         <div className="mt-16 text-center">
           <FileQuestion className="mx-auto text-zinc-300" size={48} />
-          <p className="mt-4 text-sm font-semibold text-[#8f8078]">当前没有进行中的询价</p>
-          <Link className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-[#3f302c] px-5 text-sm font-bold text-white" to="/consumer/orders?tab=paid_pending_confirm">
+          <p className="mt-4 text-sm font-semibold text-white/45">当前没有进行中的询价</p>
+          <Link className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-white px-5 text-sm font-bold text-black" to="/consumer/orders?tab=paid_pending_confirm">
             查看待确认订单
           </Link>
         </div>
@@ -66,16 +66,16 @@ function InquiryCard({ consultation, estimate }: { consultation: ConsultationRec
   const quoted = consultation.status === 'quoted' && quote;
 
   return (
-    <article className="rounded-[22px] border border-[#eadfd8] bg-white p-4 shadow-[0_12px_30px_rgba(63,48,44,0.05)]">
+    <article className="rounded-[8px] border border-zinc-200 bg-white p-4 text-zinc-950 shadow-[0_18px_48px_rgba(0,0,0,0.16)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-[#a99b94]">{consultation.id}</p>
-          <h2 className="mt-1 truncate text-lg font-bold text-[#3f302c]">{consultation.requestCard.packageName}</h2>
-          <p className="mt-1 truncate text-xs font-semibold text-[#8f8078]">{consultation.photographerName} · {quoted ? '摄影师已报价' : '等待报价'}</p>
+          <p className="text-xs font-semibold text-zinc-400">{consultation.id}</p>
+          <h2 className="mt-1 truncate text-lg font-bold text-zinc-950">{consultation.requestCard.packageName}</h2>
+          <p className="mt-1 truncate text-xs font-semibold text-zinc-500">{consultation.photographerName} · {quoted ? '摄影师已报价' : '等待报价'}</p>
         </div>
         <span
           className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ring-1 ${
-            quoted ? 'bg-[#fff1f3] text-[#e85d75] ring-[#ffdce4]' : 'bg-amber-50 text-amber-700 ring-amber-100'
+            quoted ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-amber-50 text-amber-700 ring-amber-100'
           }`}
         >
           {quoted ? '已报价' : '待报价'}
@@ -89,26 +89,26 @@ function InquiryCard({ consultation, estimate }: { consultation: ConsultationRec
         <DetailLine icon={<Users size={17} />} label="人数" value={`${consultation.requestCard.peopleCount} 人 · ${consultation.requestCard.sceneType === 'outdoor' ? '室外' : '室内'}`} />
       </div>
 
-      <div className="mt-4 rounded-[18px] bg-[#fff5f1] p-3 text-xs font-semibold leading-5 text-[#6f625d]">
+      <div className="mt-4 rounded-[8px] bg-zinc-50 p-3 text-xs font-semibold leading-5 text-zinc-600">
         <p>{formatAddOns(consultation)}</p>
-        {consultation.requestCard.note ? <p className="mt-2 text-[#8f8078]">备注：{consultation.requestCard.note}</p> : null}
-        <p className="mt-2 text-[#a99b94]">{getConsultationRiskText(consultation)}</p>
+        {consultation.requestCard.note ? <p className="mt-2 text-zinc-500">备注：{consultation.requestCard.note}</p> : null}
+        <p className="mt-2 text-zinc-400">{getConsultationRiskText(consultation)}</p>
       </div>
 
       {quote ? (
-        <div className="mt-4 rounded-[18px] border border-[#eadfd8] bg-white/70 p-3 text-sm font-semibold leading-6 text-[#6f625d]">
+        <div className="mt-4 rounded-[8px] border border-zinc-200 bg-white p-3 text-sm font-semibold leading-6 text-zinc-600">
           <PriceLine label="订单原报价" value={formatMoney(estimate.totalCents)} muted={adjusted} />
           <PriceLine label="摄影师调整价" value={formatMoney(quote.totalCents)} strong />
           <PriceLine label="定金托管" value={formatMoney(quote.depositCents)} />
           <PriceLine label="拍摄前尾款" value={formatMoney(quote.balanceCents)} />
-          {adjusted ? <p className="mt-2 text-xs text-[#a99b94]">摄影师已调整价格，请到订单待确认栏确认。</p> : null}
+          {adjusted ? <p className="mt-2 text-xs text-zinc-400">摄影师已调整价格，请到订单待确认栏确认。</p> : null}
         </div>
       ) : null}
 
       <div className={`mt-4 grid gap-2 ${quoted ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <Link
           to={`/consumer/messages/${consultation.id}`}
-          className="flex h-10 items-center justify-center gap-2 rounded-full bg-[#f2e8e1] text-sm font-bold text-[#6f625d]"
+          className="flex h-10 items-center justify-center gap-2 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700"
         >
           <MessageCircle size={17} />
           进入沟通
@@ -116,7 +116,7 @@ function InquiryCard({ consultation, estimate }: { consultation: ConsultationRec
         {quoted ? (
           <Link
             to="/consumer/orders?tab=paid_pending_confirm"
-            className="flex h-10 items-center justify-center rounded-full bg-[#3f302c] text-sm font-bold text-white"
+            className="flex h-10 items-center justify-center rounded-full bg-zinc-950 text-sm font-bold text-white"
           >
             去订单确认
           </Link>
@@ -129,9 +129,9 @@ function InquiryCard({ consultation, estimate }: { consultation: ConsultationRec
 function DetailLine({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="grid grid-cols-[24px_76px_minmax(0,1fr)] items-center gap-2">
-      <span className="text-[#a99b94]">{icon}</span>
-      <span className="font-semibold text-[#a99b94]">{label}</span>
-      <span className="min-w-0 truncate font-bold text-[#3f302c]">{value}</span>
+      <span className="text-zinc-400">{icon}</span>
+      <span className="font-semibold text-zinc-400">{label}</span>
+      <span className="min-w-0 truncate font-bold text-zinc-950">{value}</span>
     </div>
   );
 }
@@ -163,8 +163,8 @@ function formatRetouch(selection?: ConsultationRecord['requestCard']['retouchSel
 function PriceLine({ label, value, strong, muted }: { label: string; value: string; strong?: boolean; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-[#a99b94]">{label}</span>
-      <span className={`${strong ? 'text-base font-black text-[#3f302c]' : muted ? 'text-[#b5a9a3] line-through' : 'font-bold text-[#3f302c]'}`}>{value}</span>
+      <span className="text-zinc-400">{label}</span>
+      <span className={`${strong ? 'text-base font-black text-zinc-950' : muted ? 'text-zinc-300 line-through' : 'font-bold text-zinc-950'}`}>{value}</span>
     </div>
   );
 }

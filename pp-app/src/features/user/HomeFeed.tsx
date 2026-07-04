@@ -1064,47 +1064,49 @@ function FilterSheet({
   onClose: () => void;
 }) {
   const charmToneVisible = filters.look === '迷人状态';
-  const [openSection, setOpenSection] = useState('intent');
+  const [openSection, setOpenSection] = useState('');
   const toggleSection = (section: string) => setOpenSection((current) => (current === section ? '' : section));
 
   return (
     <div className="fixed inset-y-0 left-1/2 z-50 flex w-full max-w-md -translate-x-1/2 justify-end bg-black/70" onClick={onClose}>
       <section
-        className="h-full w-[88%] max-w-sm overflow-y-auto bg-white p-4 pb-6 text-black shadow-2xl"
+        className="flex h-full w-[88%] max-w-sm flex-col overflow-hidden bg-white p-4 text-black shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <SheetHeader title="筛选作品" onClose={onClose} />
         <p className="mt-1 text-xs font-semibold leading-5 text-zinc-500">左侧选城市和具体位置，这里选择想看的作品类型。</p>
-        <div className="mt-5 space-y-3">
-          <FilterSection title="想拍什么" value={filters.intent} open={openSection === 'intent'} onToggle={() => toggleSection('intent')}>
-            <DescribedOptionList options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
-          </FilterSection>
-          <FilterSection title="拍摄场景" value={filters.place} open={openSection === 'place'} onToggle={() => toggleSection('place')}>
-            <DescribedOptionList options={placeOptions} value={filters.place} onChange={(place) => onChange({ place })} />
-          </FilterSection>
-          <FilterSection title="风格" value={filters.look} open={openSection === 'look'} onToggle={() => toggleSection('look')}>
-            <DescribedOptionList
-              options={lookOptions}
-              value={filters.look}
-              onChange={(look) => onChange({ look, charmTone: look === '迷人状态' ? filters.charmTone : '不限' })}
-            />
-          </FilterSection>
-          {charmToneVisible ? (
-            <FilterSection title="更偏向" value={filters.charmTone} open={openSection === 'charm'} onToggle={() => toggleSection('charm')}>
-              <ChipGrid options={charmToneOptions} value={filters.charmTone} onChange={(charmTone) => onChange({ charmTone })} />
+        <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className={`flex min-h-full flex-col ${openSection ? 'gap-3' : 'justify-between'}`}>
+            <FilterSection title="想拍什么" value={filters.intent} open={openSection === 'intent'} onToggle={() => toggleSection('intent')}>
+              <DescribedOptionList options={intentOptions} value={filters.intent} onChange={(intent) => onChange({ intent })} />
             </FilterSection>
-          ) : null}
-          <FilterSection title="时间" value={filters.shootTime} open={openSection === 'time'} onToggle={() => toggleSection('time')}>
-            <ChipGrid options={shootTimeOptions} value={filters.shootTime} onChange={(shootTime) => onChange({ shootTime })} />
-          </FilterSection>
-          <FilterSection title="出镜人" value={filters.subject} open={openSection === 'subject'} onToggle={() => toggleSection('subject')}>
-            <ChipGrid options={subjectOptions} value={filters.subject} onChange={(subject) => onChange({ subject })} />
-          </FilterSection>
-          <FilterSection title="内容形式" value={filters.media} open={openSection === 'media'} onToggle={() => toggleSection('media')}>
-            <ChipGrid options={mediaOptions} value={filters.media} onChange={(media) => onChange({ media })} />
-          </FilterSection>
+            <FilterSection title="拍摄场景" value={filters.place} open={openSection === 'place'} onToggle={() => toggleSection('place')}>
+              <DescribedOptionList options={placeOptions} value={filters.place} onChange={(place) => onChange({ place })} />
+            </FilterSection>
+            <FilterSection title="风格" value={filters.look} open={openSection === 'look'} onToggle={() => toggleSection('look')}>
+              <DescribedOptionList
+                options={lookOptions}
+                value={filters.look}
+                onChange={(look) => onChange({ look, charmTone: look === '迷人状态' ? filters.charmTone : '不限' })}
+              />
+            </FilterSection>
+            {charmToneVisible ? (
+              <FilterSection title="更偏向" value={filters.charmTone} open={openSection === 'charm'} onToggle={() => toggleSection('charm')}>
+                <ChipGrid options={charmToneOptions} value={filters.charmTone} onChange={(charmTone) => onChange({ charmTone })} />
+              </FilterSection>
+            ) : null}
+            <FilterSection title="时间" value={filters.shootTime} open={openSection === 'time'} onToggle={() => toggleSection('time')}>
+              <ChipGrid options={shootTimeOptions} value={filters.shootTime} onChange={(shootTime) => onChange({ shootTime })} />
+            </FilterSection>
+            <FilterSection title="出镜人" value={filters.subject} open={openSection === 'subject'} onToggle={() => toggleSection('subject')}>
+              <ChipGrid options={subjectOptions} value={filters.subject} onChange={(subject) => onChange({ subject })} />
+            </FilterSection>
+            <FilterSection title="内容形式" value={filters.media} open={openSection === 'media'} onToggle={() => toggleSection('media')}>
+              <ChipGrid options={mediaOptions} value={filters.media} onChange={(media) => onChange({ media })} />
+            </FilterSection>
+          </div>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid shrink-0 grid-cols-2 gap-2">
           <button className="h-12 rounded-full bg-zinc-100 text-sm font-bold text-zinc-700" onClick={onReset}>
             重置
           </button>
