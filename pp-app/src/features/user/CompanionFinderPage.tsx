@@ -9,10 +9,12 @@ import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
 
 type FilterKey = 'area' | 'time' | 'budget' | 'duration' | 'photographerGender' | 'need' | 'style' | 'media' | 'interaction' | 'equipment';
-type CategoricalFilterKey = Exclude<FilterKey, 'budget'>;
+type CategoricalFilterKey = Exclude<FilterKey, 'budget' | 'duration'>;
 type FinderFilters = Record<CategoricalFilterKey, string> & {
   budgetMin: number;
   budgetMax: number;
+  durationMin: number;
+  durationMax: number;
 };
 type PublicCompanion = FeedPost['companion'] &
   Partial<{
@@ -33,8 +35,7 @@ type ShellContext = {
 const AREA_ANY = '地点不限';
 const TIME_ANY = '时间不限';
 const NOW_AVAILABLE = '现在可拍';
-const DURATION_ANY = '时长不限';
-const PHOTOGRAPHER_GENDER_ANY = '摄影师不限';
+const PHOTOGRAPHER_GENDER_ANY = '不限';
 const NEED_ANY = '需求不限';
 const STYLE_ANY = '风格不限';
 const MEDIA_ANY = '形式不限';
@@ -43,12 +44,14 @@ const EQUIPMENT_ANY = '设备不限';
 const BUDGET_MIN = 0;
 const BUDGET_MAX = 10000; // Slider sentinel: the max value is treated as unlimited.
 const BUDGET_STEP = 50;
+const DURATION_MIN = 30;
+const DURATION_MAX = 24 * 60;
+const DURATION_STEP = 30;
 
 const staticFilterOptions: Record<CategoricalFilterKey, string[]> = {
   area: [AREA_ANY, '武康路', '安福路', '外滩', '静安寺', '徐汇滨江', '新天地'],
-  time: [TIME_ANY, NOW_AVAILABLE, '今天', '明天', '本周末', '上午', '下午', '傍晚', '晚上'],
-  duration: [DURATION_ANY, '30分钟', '1小时', '1.5小时', '2小时', '3小时', '半天', '全天'],
-  photographerGender: [PHOTOGRAPHER_GENDER_ANY, '女摄影师', '男摄影师'],
+  time: [TIME_ANY, NOW_AVAILABLE, '上午', '下午', '傍晚', '晚上'],
+  photographerGender: [PHOTOGRAPHER_GENDER_ANY, '女', '男'],
   need: [NEED_ANY, '日常出片', '旅行拍照', '纪念日', '多人合照'],
   style: [STYLE_ANY, '松弛日常', '清冷高级', '杂志街拍', '回忆胶片', '迷人状态'],
   media: [MEDIA_ANY, '照片', '视频', '照片+视频'],
@@ -61,7 +64,7 @@ const filterLabels: Record<FilterKey, string> = {
   time: '时间',
   budget: '预算范围',
   duration: '时长',
-  photographerGender: '摄影师',
+  photographerGender: '摄影师性别',
   need: '拍摄需求',
   style: '风格偏好',
   media: '内容形式',
@@ -74,7 +77,6 @@ const filterGroupOrder: FilterKey[] = ['area', 'time', 'budget', 'duration', 'ph
 const initialFinderFilters: FinderFilters = {
   area: AREA_ANY,
   time: TIME_ANY,
-  duration: DURATION_ANY,
   photographerGender: PHOTOGRAPHER_GENDER_ANY,
   need: NEED_ANY,
   style: STYLE_ANY,
@@ -83,6 +85,8 @@ const initialFinderFilters: FinderFilters = {
   equipment: EQUIPMENT_ANY,
   budgetMin: BUDGET_MIN,
   budgetMax: BUDGET_MAX,
+  durationMin: DURATION_MIN,
+  durationMax: DURATION_MAX,
 };
 
 const needKeywordMap: Record<string, string[]> = {
@@ -216,6 +220,7 @@ export function CompanionFinderPage() {
           mode={filterOpen}
           onSelect={(key, value) => setFilters((current) => ({ ...current, [key]: value }))}
           onBudgetChange={(patch) => setFilters((current) => normalizeBudgetRange({ ...current, ...patch }))}
+          onDurationChange={(patch) => setFilters((current) => normalizeDurationRange({ ...current, ...patch }))}
           onReset={() => setFilters(initialFinderFilters)}
           onClose={() => setFilterOpen(null)}
         />
@@ -329,6 +334,7 @@ function CompanionFilterSheet({
   mode,
   onSelect,
   onBudgetChange,
+  onDurationChange,
   onReset,
   onClose,
 }: {
@@ -336,6 +342,7 @@ function CompanionFilterSheet({
   mode: FilterKey | 'all';
   onSelect: (key: CategoricalFilterKey, value: string) => void;
   onBudgetChange: (patch: Partial<Pick<FinderFilters, 'budgetMin' | 'budgetMax'>>) => void;
+  onDurationChange: (patch: Partial<Pick<FinderFilters, 'durationMin' | 'durationMax'>>) => void;
   onReset: () => void;
   onClose: () => void;
 }) {
@@ -364,6 +371,8 @@ function CompanionFilterSheet({
               >
                 {key === 'budget' ? (
                   <BudgetRangeEditor filters={filters} onChange={onBudgetChange} />
+                ) : key === 'duration' ? (
+                  <DurationRangeEditor filters={filters} onChange={onDurationChange} />
                 ) : (
                   <FilterOptionGroup filterKey={key} value={filters[key]} onSelect={(value) => onSelect(key, value)} />
                 )}
@@ -416,14 +425,15 @@ function FilterDrawerGroup({
 function FilterOptionGroup({ filterKey, value, onSelect }: { filterKey: CategoricalFilterKey; value: string; onSelect: (value: string) => void }) {
   const options = getFilterOptions(filterKey);
   const singleColumn = filterKey === 'area' || filterKey === 'need' || filterKey === 'style' || filterKey === 'interaction';
+  const compactRow = filterKey === 'photographerGender';
 
   return (
     <div className="max-h-[42dvh] overflow-y-auto pr-1">
-      <div className={`grid gap-2 ${singleColumn ? 'grid-cols-1' : 'grid-cols-2'}`}>
+      <div className={`grid gap-2 ${singleColumn ? 'grid-cols-1' : compactRow ? 'grid-cols-3' : 'grid-cols-2'}`}>
         {options.map((option) => (
           <button
             key={option}
-            className={`min-h-10 rounded-[8px] px-3 text-sm font-black ${
+            className={`${compactRow ? 'min-h-8 rounded-full px-2 text-xs' : 'min-h-10 rounded-[8px] px-3 text-sm'} font-black ${
               value === option ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'
             } ${singleColumn ? 'text-left' : 'text-center'}`}
             onClick={() => onSelect(option)}
@@ -454,19 +464,56 @@ function BudgetRangeEditor({
   );
 }
 
+function DurationRangeEditor({
+  filters,
+  onChange,
+}: {
+  filters: FinderFilters;
+  onChange: (patch: Partial<Pick<FinderFilters, 'durationMin' | 'durationMax'>>) => void;
+}) {
+  return (
+    <div>
+      <div className="space-y-4 rounded-[14px] bg-zinc-50 p-4">
+        <RangeRow
+          label="下限"
+          value={filters.durationMin}
+          onChange={(value) => onChange({ durationMin: value })}
+          min={DURATION_MIN}
+          max={filters.durationMax}
+          step={DURATION_STEP}
+          valueLabel={formatDurationValue}
+        />
+        <RangeRow
+          label="上限"
+          value={filters.durationMax}
+          onChange={(value) => onChange({ durationMax: value })}
+          min={filters.durationMin}
+          max={DURATION_MAX}
+          step={DURATION_STEP}
+          valueLabel={formatDurationValue}
+        />
+      </div>
+    </div>
+  );
+}
+
 function RangeRow({
   label,
   value,
   min,
   max,
+  step = BUDGET_STEP,
   unlimited = false,
+  valueLabel,
   onChange,
 }: {
   label: string;
   value: number;
   min: number;
   max: number;
+  step?: number;
   unlimited?: boolean;
+  valueLabel?: (value: number) => string;
   onChange: (value: number) => void;
 }) {
   return (
@@ -477,11 +524,13 @@ function RangeRow({
         type="range"
         min={min}
         max={max}
-        step={BUDGET_STEP}
+        step={step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
       />
-      <span className="rounded-full bg-white px-2 py-1 text-center text-xs text-zinc-800 ring-1 ring-zinc-100">{unlimited && value >= BUDGET_MAX ? '不限' : `¥${value}`}</span>
+      <span className="rounded-full bg-white px-2 py-1 text-center text-xs text-zinc-800 ring-1 ring-zinc-100">
+        {valueLabel ? valueLabel(value) : unlimited && value >= BUDGET_MAX ? '不限' : `¥${value}`}
+      </span>
     </label>
   );
 }
@@ -496,7 +545,7 @@ function matchesFinderFilters(filters: FinderFilters, companion: PublicCompanion
   return (
     matchesTextOption(filters.area, AREA_ANY, searchable) &&
     matchesScheduleFilters(filters, companion) &&
-    matchesDurationFilter(filters.duration, companion) &&
+    matchesDurationFilter(filters, companion) &&
     matchesPhotographerGender(filters.photographerGender, companion) &&
     matchesSemanticOption(filters.need, NEED_ANY, needKeywordMap, searchable) &&
     matchesSemanticOption(filters.style, STYLE_ANY, styleKeywordMap, searchable, getProfileTags(companion, 'style')) &&
@@ -595,9 +644,6 @@ function isCurrentAvailableSlot(slot: FeedPost['companion']['slots'][number]) {
 }
 
 function matchesTimeFilter(slot: FeedPost['companion']['slots'][number], option: string) {
-  if (option === '今天') return getSlotDateValue(slot) === getDateValueFromToday(0);
-  if (option === '明天') return getSlotDateValue(slot) === getDateValueFromToday(1);
-  if (option === '本周末') return isWeekendSlot(slot);
   return matchesTimeBucket(slot, option);
 }
 
@@ -618,27 +664,15 @@ function matchesTimeBucket(slot: FeedPost['companion']['slots'][number], option:
   return startMinutes < bucket[1] && endMinutes > bucket[0];
 }
 
-function matchesDurationFilter(option: string, companion: PublicCompanion) {
-  if (option === DURATION_ANY) return true;
-  const ranges: Record<string, [number, number]> = {
-    '30分钟': [1, 45],
-    '1小时': [46, 75],
-    '1.5小时': [76, 105],
-    '2小时': [106, 150],
-    '3小时': [151, 210],
-    半天: [211, 300],
-    全天: [301, 720],
-  };
-  const range = ranges[option];
-  if (!range) return true;
-  return companion.activities.some((activity) => activity.durationMinutes >= range[0] && activity.durationMinutes <= range[1]);
+function matchesDurationFilter(filters: FinderFilters, companion: PublicCompanion) {
+  return companion.activities.some((activity) => activity.durationMinutes >= filters.durationMin && activity.durationMinutes <= filters.durationMax);
 }
 
 function matchesPhotographerGender(option: string, companion: PublicCompanion) {
   if (option === PHOTOGRAPHER_GENDER_ANY) return true;
   const gender = normalizeText(companion.gender);
-  if (option === '女摄影师') return /female|woman|girl|女/.test(gender);
-  if (option === '男摄影师') return /male|man|boy|男/.test(gender);
+  if (option === '女') return /female|woman|girl|女/.test(gender);
+  if (option === '男') return /male|man|boy|男/.test(gender);
   return true;
 }
 
@@ -688,14 +722,14 @@ function getFilterOptionLabel(key: CategoricalFilterKey, value: string) {
 
 function getFilterSummary(key: FilterKey, filters: FinderFilters) {
   if (key === 'budget') return formatBudgetRange(filters.budgetMin, filters.budgetMax);
+  if (key === 'duration') return formatDurationRange(filters.durationMin, filters.durationMax);
   return getFilterOptionLabel(key, filters[key]);
 }
 
 function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: ReturnType<typeof listFeedPosts>[number]): FinderFilters {
-  return normalizeBudgetRange({
+  return normalizeFinderRanges({
     area: matchFilterOption('area', params.get('area') ?? sameStylePost?.locationName ?? sameStylePost?.companion.areas[0]),
     time: matchFilterOption('time', params.get('time')),
-    duration: matchFilterOption('duration', params.get('duration')),
     photographerGender: matchFilterOption('photographerGender', params.get('photographerGender') ?? params.get('gender')),
     need: matchFilterOption('need', params.get('need') ?? sameStylePost?.activityCategory ?? sameStylePost?.activity),
     style: matchFilterOption('style', params.get('style') ?? sameStylePost?.activity ?? sameStylePost?.styleTags[0]),
@@ -704,6 +738,8 @@ function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: Ret
     equipment: matchFilterOption('equipment', params.get('equipment')),
     budgetMin: parseBudgetParam(params.get('budgetMin'), BUDGET_MIN),
     budgetMax: parseBudgetParam(params.get('budgetMax'), BUDGET_MAX),
+    durationMin: parseDurationParam(params.get('durationMin'), DURATION_MIN),
+    durationMax: parseDurationParam(params.get('durationMax'), DURATION_MAX),
   });
 }
 
@@ -728,13 +764,28 @@ function normalizeBudgetRange(filters: FinderFilters): FinderFilters {
   };
 }
 
+function normalizeDurationRange(filters: FinderFilters): FinderFilters {
+  const durationMin = clampToDuration(filters.durationMin);
+  const durationMax = clampToDuration(filters.durationMax);
+  return {
+    ...filters,
+    durationMin: Math.min(durationMin, durationMax),
+    durationMax: Math.max(durationMin, durationMax),
+  };
+}
+
+function normalizeFinderRanges(filters: FinderFilters): FinderFilters {
+  return normalizeDurationRange(normalizeBudgetRange(filters));
+}
+
 function getActiveFilterCount(filters: FinderFilters) {
   const categoricalCount = (Object.keys(initialFinderFilters) as Array<keyof FinderFilters>).filter((key) => {
-    if (key === 'budgetMin' || key === 'budgetMax') return false;
+    if (key === 'budgetMin' || key === 'budgetMax' || key === 'durationMin' || key === 'durationMax') return false;
     return filters[key] !== initialFinderFilters[key];
   }).length;
   const budgetChanged = filters.budgetMin !== BUDGET_MIN || filters.budgetMax !== BUDGET_MAX;
-  return categoricalCount + (budgetChanged ? 1 : 0);
+  const durationChanged = filters.durationMin !== DURATION_MIN || filters.durationMax !== DURATION_MAX;
+  return categoricalCount + (budgetChanged ? 1 : 0) + (durationChanged ? 1 : 0);
 }
 
 function getPortfolioAspectClass(index: number, post?: FeedPost) {
@@ -746,31 +797,6 @@ function getPortfolioAspectClass(index: number, post?: FeedPost) {
   return cycle[index % cycle.length];
 }
 
-function getDateValueFromToday(offsetDays: number) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  today.setDate(today.getDate() + offsetDays);
-  return toDateValue(today);
-}
-
-function isWeekendSlot(slot: FeedPost['companion']['slots'][number]) {
-  const date = new Date(slot.startAt);
-  if (Number.isNaN(date.getTime())) return false;
-  return date.getDay() === 0 || date.getDay() === 6;
-}
-
-function getSlotDateValue(slot: FeedPost['companion']['slots'][number]) {
-  return toDateValue(new Date(slot.startAt));
-}
-
-function toDateValue(date: Date) {
-  if (Number.isNaN(date.getTime())) return '';
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function formatSlotSummary(slot: FeedPost['companion']['slots'][number]) {
   if (isCurrentAvailableSlot(slot)) return '现在可拍';
   return `${slot.dateLabel} ${slot.timeLabel || ''}`.trim();
@@ -780,6 +806,17 @@ function formatBudgetRange(min: number, max: number) {
   return `¥${min} - ${max >= BUDGET_MAX ? '不限' : `¥${max}`}`;
 }
 
+function formatDurationRange(min: number, max: number) {
+  return `${formatDurationValue(min)} - ${formatDurationValue(max)}`;
+}
+
+function formatDurationValue(minutes: number) {
+  if (minutes >= DURATION_MAX) return '1天';
+  if (minutes % 60 === 0) return `${minutes / 60}小时`;
+  if (minutes > 60) return `${Number((minutes / 60).toFixed(1))}小时`;
+  return `${minutes}分钟`;
+}
+
 function parseBudgetParam(value: string | null, fallback: number) {
   if (value === null || value.trim() === '') return fallback;
 
@@ -787,8 +824,19 @@ function parseBudgetParam(value: string | null, fallback: number) {
   return Number.isFinite(parsed) ? clampToBudget(parsed) : fallback;
 }
 
+function parseDurationParam(value: string | null, fallback: number) {
+  if (value === null || value.trim() === '') return fallback;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? clampToDuration(parsed) : fallback;
+}
+
 function clampToBudget(value: number) {
   return Math.min(BUDGET_MAX, Math.max(BUDGET_MIN, Math.round(value / BUDGET_STEP) * BUDGET_STEP));
+}
+
+function clampToDuration(value: number) {
+  return Math.min(DURATION_MAX, Math.max(DURATION_MIN, Math.round(value / DURATION_STEP) * DURATION_STEP));
 }
 
 function normalizeText(value?: string | null) {
