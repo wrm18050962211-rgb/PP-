@@ -8,7 +8,7 @@ import { applyCompanionProfile, readCompanionProfile } from '../../services/comp
 import { getPostTitle, listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
 
-type FilterKey = 'area' | 'date' | 'time' | 'personality' | 'style' | 'interaction' | 'equipment' | 'budget';
+type FilterKey = 'area' | 'time' | 'budget' | 'duration' | 'photographerGender' | 'need' | 'style' | 'media' | 'interaction' | 'equipment';
 type CategoricalFilterKey = Exclude<FilterKey, 'budget'>;
 type FinderFilters = Record<CategoricalFilterKey, string> & {
   budgetMin: number;
@@ -31,49 +31,88 @@ type ShellContext = {
 };
 
 const AREA_ANY = '地点不限';
-const DATE_ANY = '日期不限';
 const TIME_ANY = '时间不限';
 const NOW_AVAILABLE = '现在可拍';
-const PERSONALITY_ANY = '性格不限';
+const DURATION_ANY = '时长不限';
+const PHOTOGRAPHER_GENDER_ANY = '摄影师不限';
+const NEED_ANY = '需求不限';
 const STYLE_ANY = '风格不限';
+const MEDIA_ANY = '形式不限';
 const INTERACTION_ANY = '互动不限';
 const EQUIPMENT_ANY = '设备不限';
 const BUDGET_MIN = 0;
 const BUDGET_MAX = 10000; // Slider sentinel: the max value is treated as unlimited.
 const BUDGET_STEP = 50;
 
-const staticFilterOptions: Record<Exclude<CategoricalFilterKey, 'date'>, string[]> = {
+const staticFilterOptions: Record<CategoricalFilterKey, string[]> = {
   area: [AREA_ANY, '武康路', '安福路', '外滩', '静安寺', '徐汇滨江', '新天地'],
-  time: [TIME_ANY, NOW_AVAILABLE, '早上', '中午', '下午', '晚上'],
-  personality: [PERSONALITY_ANY, '轻松聊天', '温柔耐心', '不尴尬', '情绪稳定', '高效直接'],
-  style: [STYLE_ANY, 'Citywalk', '探店', '街拍', '夜景', '旅行跟拍', '胶片感', '人像快拍'],
-  interaction: [INTERACTION_ANY, '会指导动作', '会找角度', '会规划路线', '安静记录', '会带动情绪'],
-  equipment: [EQUIPMENT_ANY, '全画幅', '半画幅', '手机', 'CCD'],
+  time: [TIME_ANY, NOW_AVAILABLE, '今天', '明天', '本周末', '上午', '下午', '傍晚', '晚上'],
+  duration: [DURATION_ANY, '30分钟', '1小时', '1.5小时', '2小时', '3小时', '半天', '全天'],
+  photographerGender: [PHOTOGRAPHER_GENDER_ANY, '女摄影师', '男摄影师'],
+  need: [NEED_ANY, '日常出片', '旅行拍照', '纪念日', '多人合照'],
+  style: [STYLE_ANY, '松弛日常', '清冷高级', '杂志街拍', '回忆胶片', '迷人状态'],
+  media: [MEDIA_ANY, '照片', '视频', '照片+视频'],
+  interaction: [INTERACTION_ANY, '耐心引导', '积极带动', '安静沉稳', '路线规划', '抓拍记录'],
+  equipment: [EQUIPMENT_ANY, '相机', '手机', 'CCD', '胶片'],
 };
 
 const filterLabels: Record<FilterKey, string> = {
   area: '地点',
-  date: '日期',
   time: '时间',
-  personality: '性格标签',
-  style: '擅长风格',
-  interaction: '互动方式',
-  equipment: '摄影设备',
   budget: '预算范围',
+  duration: '时长',
+  photographerGender: '摄影师',
+  need: '拍摄需求',
+  style: '风格偏好',
+  media: '内容形式',
+  interaction: '拍摄互动',
+  equipment: '设备偏好',
 };
 
-const filterGroupOrder: FilterKey[] = ['area', 'date', 'time', 'personality', 'style', 'interaction', 'equipment', 'budget'];
+const filterGroupOrder: FilterKey[] = ['area', 'time', 'budget', 'duration', 'photographerGender', 'need', 'style', 'media', 'interaction', 'equipment'];
 
 const initialFinderFilters: FinderFilters = {
   area: AREA_ANY,
-  date: DATE_ANY,
   time: TIME_ANY,
-  personality: PERSONALITY_ANY,
+  duration: DURATION_ANY,
+  photographerGender: PHOTOGRAPHER_GENDER_ANY,
+  need: NEED_ANY,
   style: STYLE_ANY,
+  media: MEDIA_ANY,
   interaction: INTERACTION_ANY,
   equipment: EQUIPMENT_ANY,
   budgetMin: BUDGET_MIN,
   budgetMax: BUDGET_MAX,
+};
+
+const needKeywordMap: Record<string, string[]> = {
+  日常出片: ['日常', '出片', 'citywalk', '逛街', '街拍', '探店', '咖啡', '小红书', '生活照'],
+  旅行拍照: ['旅行', '跟拍', '游客', '城市', '景点', '地标', '路线', '旅拍', '外滩'],
+  纪念日: ['纪念日', '生日', '毕业', '周年', '情侣', '胶片', '回忆', '节日', '领证'],
+  多人合照: ['合照', '多人', '情侣', '朋友', '闺蜜', '家人', '家庭', '亲子', '宠物'],
+};
+
+const styleKeywordMap: Record<string, string[]> = {
+  松弛日常: ['松弛', '日常', '自然', '自然光', '生活感', '抓拍', '不尴尬', 'citywalk'],
+  清冷高级: ['清冷', '高级', '干净', '简洁', '极简', '通勤', '低饱和', '冷调'],
+  杂志街拍: ['杂志', '街拍', '时装', '大片', '广告感', '黑白', '都市', '封面'],
+  回忆胶片: ['回忆', '胶片', '复古', '暖色', '老街', '情绪片', '颗粒', '纪念'],
+  迷人状态: ['迷人', '氛围感', '明亮', '笑容', '少年', '可爱', '纯欲', '性感', '状态'],
+};
+
+const interactionKeywordMap: Record<string, string[]> = {
+  耐心引导: ['耐心', '温柔', '指导', '引导', '姿势', '动作', '第一次拍照'],
+  积极带动: ['积极', '带动', '情绪', '夸', '笑容', '不尴尬', '轻松聊天', '情绪价值'],
+  安静沉稳: ['安静', '沉稳', '安静记录', '专注', '构图', '稳定', '观察'],
+  路线规划: ['路线', '规划', '机位', '地标', '夜景路线', '户外路线'],
+  抓拍记录: ['抓拍', '记录', '自然抓拍', '纪实', '生活感', '自然'],
+};
+
+const equipmentKeywordMap: Record<string, string[]> = {
+  相机: ['相机', '全画幅', '半画幅', '35mm', '50mm', '微单', '单反'],
+  手机: ['手机', 'iphone'],
+  CCD: ['ccd', '复古', '颗粒'],
+  胶片: ['胶片', '胶片机', 'film'],
 };
 
 export function CompanionFinderPage() {
@@ -167,7 +206,7 @@ export function CompanionFinderPage() {
       {companions.length ? null : (
         <section className="px-5 py-16 text-center">
           <p className="text-lg font-black text-white">没有匹配的摄影师</p>
-          <p className="mt-2 text-sm font-semibold text-white/45">可以放宽预算、日期或标签条件再试一次。</p>
+          <p className="mt-2 text-sm font-semibold text-white/45">可以放宽预算、时间或风格条件再试一次。</p>
         </section>
       )}
 
@@ -376,16 +415,17 @@ function FilterDrawerGroup({
 
 function FilterOptionGroup({ filterKey, value, onSelect }: { filterKey: CategoricalFilterKey; value: string; onSelect: (value: string) => void }) {
   const options = getFilterOptions(filterKey);
+  const singleColumn = filterKey === 'area' || filterKey === 'need' || filterKey === 'style' || filterKey === 'interaction';
 
   return (
     <div className="max-h-[42dvh] overflow-y-auto pr-1">
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid gap-2 ${singleColumn ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {options.map((option) => (
           <button
             key={option}
-            className={`min-h-10 rounded-full px-3 text-sm font-black ${
+            className={`min-h-10 rounded-[8px] px-3 text-sm font-black ${
               value === option ? 'bg-black text-white' : 'border border-zinc-200 bg-white text-zinc-800'
-            }`}
+            } ${singleColumn ? 'text-left' : 'text-center'}`}
             onClick={() => onSelect(option)}
             type="button"
           >
@@ -456,10 +496,13 @@ function matchesFinderFilters(filters: FinderFilters, companion: PublicCompanion
   return (
     matchesTextOption(filters.area, AREA_ANY, searchable) &&
     matchesScheduleFilters(filters, companion) &&
-    matchesProfileOption(filters.personality, PERSONALITY_ANY, getProfileTags(companion, 'personality'), searchable) &&
-    matchesProfileOption(filters.style, STYLE_ANY, getProfileTags(companion, 'style'), searchable) &&
-    matchesProfileOption(filters.interaction, INTERACTION_ANY, getProfileTags(companion, 'interaction'), searchable) &&
-    matchesProfileOption(filters.equipment, EQUIPMENT_ANY, getProfileTags(companion, 'equipment'), searchable) &&
+    matchesDurationFilter(filters.duration, companion) &&
+    matchesPhotographerGender(filters.photographerGender, companion) &&
+    matchesSemanticOption(filters.need, NEED_ANY, needKeywordMap, searchable) &&
+    matchesSemanticOption(filters.style, STYLE_ANY, styleKeywordMap, searchable, getProfileTags(companion, 'style')) &&
+    matchesMediaFilter(filters.media, companion, posts, searchable) &&
+    matchesSemanticOption(filters.interaction, INTERACTION_ANY, interactionKeywordMap, searchable, getProfileTags(companion, 'interaction')) &&
+    matchesSemanticOption(filters.equipment, EQUIPMENT_ANY, equipmentKeywordMap, searchable, getProfileTags(companion, 'equipment')) &&
     matchesBudgetRange(filters, getLowestPriceCents(companion, posts))
   );
 }
@@ -484,12 +527,13 @@ function buildSearchableText(companion: PublicCompanion, portfolioPosts: FeedPos
       companion.bio,
       ...companion.tags,
       ...companion.areas,
-      ...companion.activities.map((activity) => activity.name),
+      ...companion.activities.map((activity) => `${activity.name} ${activity.durationLabel} ${activity.durationMinutes}`),
+      ...companion.extras.map((extra) => `${extra.name} ${extra.unitLabel}`),
       ...companion.slots.map((slot) => `${slot.label} ${slot.dateLabel} ${slot.timeLabel}`),
-      ...getProfileTags(companion, 'personality'),
       ...getProfileTags(companion, 'style'),
       ...getProfileTags(companion, 'interaction'),
       ...getProfileTags(companion, 'equipment'),
+      ...portfolioPosts.flatMap((post) => post.images.map((image) => `${image.mediaKind ?? ''} ${image.contentType ?? ''} ${image.videoUrl ? '视频' : ''}`)),
     ]
       .filter(Boolean)
       .join(' '),
@@ -500,10 +544,14 @@ function matchesTextOption(option: string, emptyValue: string, searchable: strin
   return option === emptyValue || searchable.includes(normalizeText(option));
 }
 
-function matchesProfileOption(option: string, emptyValue: string, tags: string[], searchable: string) {
+function matchesSemanticOption(option: string, emptyValue: string, keywordMap: Record<string, string[]>, searchable: string, tags: string[] = []) {
   if (option === emptyValue) return true;
   const normalized = normalizeText(option);
-  return tags.some((tag) => normalizeText(tag).includes(normalized) || normalized.includes(normalizeText(tag))) || searchable.includes(normalized);
+  const candidates = [option, ...(keywordMap[option] ?? []), ...tags];
+  return candidates.some((candidate) => {
+    const candidateText = normalizeText(candidate);
+    return candidateText && (searchable.includes(candidateText) || candidateText.includes(normalized) || normalized.includes(candidateText));
+  });
 }
 
 function matchesBudgetRange(filters: FinderFilters, priceCents: number) {
@@ -512,19 +560,30 @@ function matchesBudgetRange(filters: FinderFilters, priceCents: number) {
 }
 
 function matchesScheduleFilters(filters: FinderFilters, companion: PublicCompanion) {
-  if (filters.time === NOW_AVAILABLE) return isAvailableNow(companion);
-  if (filters.date === DATE_ANY && filters.time === TIME_ANY) return true;
+  if (filters.time === TIME_ANY) return true;
+  if (filters.time === NOW_AVAILABLE) return isInstantBookable(companion);
 
   return companion.slots.some((slot) => {
     if (slot.status !== 'available') return false;
-    if (filters.date !== DATE_ANY && getSlotDateValue(slot) !== filters.date) return false;
-    if (filters.time !== TIME_ANY && !matchesTimeBucket(slot, filters.time)) return false;
-    return true;
+    return matchesTimeFilter(slot, filters.time);
   });
 }
 
-function isAvailableNow(companion: PublicCompanion) {
-  return companion.serviceEnabled !== false && companion.slots.some(isCurrentAvailableSlot);
+function isInstantBookable(companion: PublicCompanion) {
+  // 摄影师端的“临时接单”会在 applyBookingSettingsToCompanion 中映射成 serviceEnabled 和可用档期。
+  return isCompanionOnline(companion) && companion.serviceEnabled !== false && companion.slots.some(isCurrentAvailableSlot);
+}
+
+function isCompanionOnline(companion: PublicCompanion) {
+  const presence = companion as PublicCompanion &
+    Partial<{
+      online: boolean;
+      isOnline: boolean;
+      presenceStatus: string;
+    }>;
+  if (presence.online === false || presence.isOnline === false) return false;
+  if (presence.presenceStatus && !/online|active|available|在线|空闲/i.test(presence.presenceStatus)) return false;
+  return true;
 }
 
 function isCurrentAvailableSlot(slot: FeedPost['companion']['slots'][number]) {
@@ -535,11 +594,18 @@ function isCurrentAvailableSlot(slot: FeedPost['companion']['slots'][number]) {
   return Number.isFinite(start) && Number.isFinite(end) && start <= now && now < end;
 }
 
+function matchesTimeFilter(slot: FeedPost['companion']['slots'][number], option: string) {
+  if (option === '今天') return getSlotDateValue(slot) === getDateValueFromToday(0);
+  if (option === '明天') return getSlotDateValue(slot) === getDateValueFromToday(1);
+  if (option === '本周末') return isWeekendSlot(slot);
+  return matchesTimeBucket(slot, option);
+}
+
 function matchesTimeBucket(slot: FeedPost['companion']['slots'][number], option: string) {
   const ranges: Record<string, [number, number]> = {
-    早上: [6 * 60, 12 * 60],
-    中午: [11 * 60, 14 * 60],
-    下午: [14 * 60, 18 * 60],
+    上午: [6 * 60, 12 * 60],
+    下午: [12 * 60, 18 * 60],
+    傍晚: [17 * 60, 20 * 60],
     晚上: [18 * 60, 24 * 60],
   };
   const bucket = ranges[option];
@@ -552,6 +618,49 @@ function matchesTimeBucket(slot: FeedPost['companion']['slots'][number], option:
   return startMinutes < bucket[1] && endMinutes > bucket[0];
 }
 
+function matchesDurationFilter(option: string, companion: PublicCompanion) {
+  if (option === DURATION_ANY) return true;
+  const ranges: Record<string, [number, number]> = {
+    '30分钟': [1, 45],
+    '1小时': [46, 75],
+    '1.5小时': [76, 105],
+    '2小时': [106, 150],
+    '3小时': [151, 210],
+    半天: [211, 300],
+    全天: [301, 720],
+  };
+  const range = ranges[option];
+  if (!range) return true;
+  return companion.activities.some((activity) => activity.durationMinutes >= range[0] && activity.durationMinutes <= range[1]);
+}
+
+function matchesPhotographerGender(option: string, companion: PublicCompanion) {
+  if (option === PHOTOGRAPHER_GENDER_ANY) return true;
+  const gender = normalizeText(companion.gender);
+  if (option === '女摄影师') return /female|woman|girl|女/.test(gender);
+  if (option === '男摄影师') return /male|man|boy|男/.test(gender);
+  return true;
+}
+
+function matchesMediaFilter(option: string, companion: PublicCompanion, posts: FeedPost[], searchable: string) {
+  if (option === MEDIA_ANY) return true;
+  const hasVideo =
+    posts.some((post) => post.images.some(isVideoMedia)) ||
+    companion.extras.some((extra) => /视频|短片|video|reel|tiktok|抖音/i.test(extra.name)) ||
+    /视频|短片|vlog|reel|tiktok|抖音/.test(searchable);
+  const hasPhoto =
+    posts.some((post) => post.images.some((image) => !isVideoMedia(image))) ||
+    companion.activities.some((activity) => /拍照|照片|人像|跟拍|出片/.test(activity.name)) ||
+    /照片|拍照|人像|出片|photo/.test(searchable);
+  if (option === '照片+视频') return hasPhoto && hasVideo;
+  if (option === '视频') return hasVideo;
+  return hasPhoto;
+}
+
+function isVideoMedia(image: FeedPost['images'][number]) {
+  return image.mediaKind === 'video' || Boolean(image.videoUrl) || Boolean(image.contentType?.startsWith('video/'));
+}
+
 function getLowestPriceCents(companion: PublicCompanion, posts: FeedPost[]) {
   const prices = [
     ...companion.activities.map((activity) => activity.priceCents),
@@ -560,20 +669,20 @@ function getLowestPriceCents(companion: PublicCompanion, posts: FeedPost[]) {
   return prices.length ? Math.min(...prices) : 0;
 }
 
-function getProfileTags(companion: PublicCompanion, kind: 'personality' | 'style' | 'interaction' | 'equipment') {
-  if (kind === 'personality') return companion.profilePersonalityTags?.length ? companion.profilePersonalityTags : companion.tags.filter((tag) => /沟通|耐心|温柔|轻松|不尴尬|情绪|高效/.test(tag));
+function getProfileTags(companion: PublicCompanion, kind: 'style' | 'interaction' | 'equipment') {
   if (kind === 'style') return companion.profileStyleTags?.length ? companion.profileStyleTags : companion.tags.filter((tag) => !/沟通|耐心|温柔|轻松|不尴尬|情绪|指导|路线|角度|设备/.test(tag));
-  if (kind === 'interaction') return companion.profileInteractionTags?.length ? companion.profileInteractionTags : companion.tags.filter((tag) => /指导|路线|角度|穿搭|光线|情绪|记录/.test(tag));
-  return companion.profileEquipment?.length ? companion.profileEquipment : ['全画幅相机'];
+  if (kind === 'interaction') {
+    const profileTags = [...(companion.profileInteractionTags ?? []), ...(companion.profilePersonalityTags ?? [])];
+    return profileTags.length ? profileTags : companion.tags.filter((tag) => /指导|路线|角度|穿搭|光线|情绪|记录|沟通|耐心|温柔|轻松|不尴尬|高效|安静|积极/.test(tag));
+  }
+  return companion.profileEquipment?.length ? companion.profileEquipment : companion.tags.filter((tag) => /相机|全画幅|半画幅|手机|ccd|胶片|设备/i.test(tag)).concat('相机');
 }
 
 function getFilterOptions(key: CategoricalFilterKey) {
-  if (key === 'date') return [DATE_ANY, ...buildUpcomingDateValues(14)];
   return staticFilterOptions[key];
 }
 
 function getFilterOptionLabel(key: CategoricalFilterKey, value: string) {
-  if (key === 'date' && value !== DATE_ANY) return formatDatePill(value);
   return value;
 }
 
@@ -585,10 +694,12 @@ function getFilterSummary(key: FilterKey, filters: FinderFilters) {
 function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: ReturnType<typeof listFeedPosts>[number]): FinderFilters {
   return normalizeBudgetRange({
     area: matchFilterOption('area', params.get('area') ?? sameStylePost?.locationName ?? sameStylePost?.companion.areas[0]),
-    date: matchFilterOption('date', params.get('date')),
     time: matchFilterOption('time', params.get('time')),
-    personality: matchFilterOption('personality', params.get('personality')),
+    duration: matchFilterOption('duration', params.get('duration')),
+    photographerGender: matchFilterOption('photographerGender', params.get('photographerGender') ?? params.get('gender')),
+    need: matchFilterOption('need', params.get('need') ?? sameStylePost?.activityCategory ?? sameStylePost?.activity),
     style: matchFilterOption('style', params.get('style') ?? sameStylePost?.activity ?? sameStylePost?.styleTags[0]),
+    media: matchFilterOption('media', params.get('media')),
     interaction: matchFilterOption('interaction', params.get('interaction')),
     equipment: matchFilterOption('equipment', params.get('equipment')),
     budgetMin: parseBudgetParam(params.get('budgetMin'), BUDGET_MIN),
@@ -598,11 +709,6 @@ function createInitialFinderFilters(params: URLSearchParams, sameStylePost?: Ret
 
 function matchFilterOption(key: CategoricalFilterKey, value?: string | null) {
   if (!value) return initialFinderFilters[key];
-  if (key === 'date') {
-    const normalizedDate = normalizeDateValue(value);
-    return normalizedDate && getFilterOptions('date').includes(normalizedDate) ? normalizedDate : DATE_ANY;
-  }
-
   const normalized = normalizeText(value);
   const options = getFilterOptions(key);
   return (
@@ -640,24 +746,17 @@ function getPortfolioAspectClass(index: number, post?: FeedPost) {
   return cycle[index % cycle.length];
 }
 
-function buildUpcomingDateValues(days: number) {
+function getDateValueFromToday(offsetDays: number) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return Array.from({ length: days }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() + index);
-    return toDateValue(date);
-  });
+  today.setDate(today.getDate() + offsetDays);
+  return toDateValue(today);
 }
 
-function formatDatePill(value: string) {
-  const date = new Date(`${value}T00:00:00+08:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((date.getTime() - today.getTime()) / 86400000);
-  const prefix = diffDays === 0 ? '今天' : diffDays === 1 ? '明天' : ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][date.getDay()];
-  return `${prefix} ${date.getMonth() + 1}/${date.getDate()}`;
+function isWeekendSlot(slot: FeedPost['companion']['slots'][number]) {
+  const date = new Date(slot.startAt);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getDay() === 0 || date.getDay() === 6;
 }
 
 function getSlotDateValue(slot: FeedPost['companion']['slots'][number]) {
@@ -670,12 +769,6 @@ function toDateValue(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function normalizeDateValue(value: string) {
-  const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-  return '';
 }
 
 function formatSlotSummary(slot: FeedPost['companion']['slots'][number]) {
