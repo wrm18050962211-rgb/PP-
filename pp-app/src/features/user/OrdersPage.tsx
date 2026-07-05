@@ -103,10 +103,10 @@ const workDurationOptions = [
 export function OrdersPage() {
   const { orders, session, createOrder, updateOrderFunding, updateOrderStatus } = useAppData();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const workMode = searchParams.get('work') === '1';
   const backTo = searchParams.get('from') === 'companion' ? '/companion/mine' : '/consumer/mine';
-  const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>(() => parseOrderStatusTab(searchParams.get('tab')));
+  const activeStatus = parseOrderStatusTab(searchParams.get('tab'));
   const [activeWorkTab, setActiveWorkTab] = useState<WorkEditTab>('not_started');
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
@@ -137,6 +137,7 @@ export function OrdersPage() {
   );
 
   useEffect(() => {
+    let cancelled = false;
     const autoCompletedRecords: OrderWorkRecord[] = [];
     completedWorkOrders.forEach((order) => {
       const record = workByOrderId.get(order.id);
@@ -146,12 +147,15 @@ export function OrdersPage() {
       updateOrderFunding(order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
       autoCompletedRecords.push(completedRecord);
     });
-    if (autoCompletedRecords.length) setWorkRecords(listOrderWorkRecords());
+    if (autoCompletedRecords.length) {
+      queueMicrotask(() => {
+        if (!cancelled) setWorkRecords(listOrderWorkRecords());
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
   }, [completedWorkOrders, updateOrderFunding, workByOrderId]);
-
-  useEffect(() => {
-    setActiveStatus(parseOrderStatusTab(searchParams.get('tab')));
-  }, [searchParams]);
 
   useEffect(() => {
     const refreshWorkRecords = () => setWorkRecords(listOrderWorkRecords());
@@ -187,8 +191,17 @@ export function OrdersPage() {
     createOrder(input, 'confirmed');
     closeConsultation(consultation.id);
     setConsultationVersion((value) => value + 1);
-    setActiveStatus('confirmed');
     navigate('/consumer/orders?tab=confirmed');
+  }
+
+  function selectStatusTab(tab: OrderStatus | 'all') {
+    const nextParams = new URLSearchParams(searchParams);
+    if (tab === 'all') {
+      nextParams.delete('tab');
+    } else {
+      nextParams.set('tab', tab);
+    }
+    setSearchParams(nextParams);
   }
 
   return (
@@ -238,7 +251,7 @@ export function OrdersPage() {
                 className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
                   activeStatus === tab.key ? 'bg-white text-black' : 'bg-white/10 text-white/72 ring-1 ring-white/12'
                 }`}
-                onClick={() => setActiveStatus(tab.key)}
+                onClick={() => selectStatusTab(tab.key)}
                 type="button"
               >
                 {tab.label}
@@ -676,9 +689,16 @@ export function OrderWorkDialog({
   const canConfirmAsPhotographer = actor === 'photographer' && canActorConfirmOrderWork(draft, 'photographer', requiredImageCount);
 
   useEffect(() => {
-    if (!record || record.updatedAt === draft.updatedAt) return;
-    setDraft(record);
-  }, [record?.orderId, record?.updatedAt]);
+    if (!record) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setDraft((current) => (current.updatedAt === record.updatedAt ? current : record));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [record]);
 
   useEffect(() => {
     if (!syncRevision) return;
