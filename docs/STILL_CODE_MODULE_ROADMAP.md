@@ -1180,3 +1180,665 @@ npm.cmd run check:mvp
 5. CMS、增长、实验、插件化。
 
 这个顺序的原因很简单：先学会让真实业务不出事故，再学会让工程长期长大。
+
+## 9. AI 赋能模块：API + RAG 的产品升级路线
+
+这一节用于指导后续版本把 AI 能力接入 Still 平台。原则是：不训练模型，优先通过 AI API、结构化输出、function calling、RAG、moderation 和少量业务规则完成产品增强。
+
+参考高 star 项目的启发：
+- Dify：重点不是聊天本身，而是 AI workflow、RAG pipeline、agent capabilities、model management、observability 和 API 化接入。
+- Flowise/Langflow：把 AI 能力拆成可组合节点，但 Still 第一阶段不需要做可视化工作流平台。
+- Open WebUI：多模型、多 provider、RAG、RBAC、插件、用量和成本分析值得参考。
+- Chatwoot：AI 最适合先放进客服和支持流程，减少重复人工，并辅助复杂会话。
+- CopilotKit：适合学习 human-in-the-loop、共享状态、AI 生成 UI 和用户确认。
+- LobeHub：把 agent 当成工作单元，但 Still 只需要轻量任务助手，不需要完整 agent 团队。
+- Vane/Perplexica：AI 搜索可以做成不同搜索模式，例如地点找、灵感找、预算找、场景找。
+
+### 9.1 AI 接入总原则
+
+产品原则：
+- AI 负责生成草稿、提取结构化信息、总结、解释、辅助审核。
+- 订单、支付、退款、封禁、身份审核、结算等关键动作必须由业务规则或人工确认。
+- AI 输出必须可编辑、可撤回、可追踪。
+- 用户侧 AI 结果要用“建议”“草稿”“推荐理由”等文案，避免让用户误以为平台承诺一定正确。
+
+技术原则：
+- 前端不直连 AI API，统一走后端。
+- API key 只放服务端环境变量。
+- 所有 AI 请求记录业务场景、用户、prompt 版本、模型、token 成本和结果采纳情况。
+- 所有结构化结果必须经过 schema 校验。
+- RAG 知识库只放平台规则、客服 SOP、审核规则、地点运营资料等可控内容。
+- 高风险场景必须进人工审核队列。
+
+### 9.2 AI Gateway：所有 AI 能力的入口
+
+先做这个模块，再做具体功能。
+
+新增后端结构：
+```text
+server/routes/ai.mjs
+server/services/ai/aiClient.mjs
+server/services/ai/aiPromptService.mjs
+server/services/ai/aiUsageLogger.mjs
+server/services/ai/aiGuardrailService.mjs
+server/services/ai/aiRagService.mjs
+```
+
+关联现有文件：
+- `server/server.mjs`
+- `server/.env.example`
+- `pp-app/src/services/apiClient.ts`
+
+建议新增环境变量：
+```text
+OPENAI_API_KEY=
+AI_DEFAULT_TEXT_MODEL=
+AI_DEFAULT_FAST_MODEL=
+AI_ENABLE_USER_FEATURES=false
+AI_ENABLE_ADMIN_FEATURES=false
+AI_DAILY_USER_LIMIT=
+AI_DAILY_ADMIN_LIMIT=
+AI_RAG_VECTOR_STORE_ID=
+```
+
+建议新增数据库表：
+```text
+ai_requests
+ai_outputs
+ai_feedback
+ai_prompt_templates
+ai_usage_daily
+```
+
+`ai_requests` 至少记录：
+- `id`
+- `user_id`
+- `role`
+- `feature`
+- `business_object_type`
+- `business_object_id`
+- `prompt_version`
+- `model`
+- `status`
+- `input_tokens`
+- `output_tokens`
+- `cost_estimate`
+- `created_at`
+
+第一版接口：
+```text
+POST /api/ai/post-copy
+POST /api/ai/booking-intent
+POST /api/ai/support-answer
+POST /api/ai/moderate-message
+POST /api/ai/admin-summary
+POST /api/ai/feedback
+```
+
+验收标准：
+- 前端没有任何 AI provider key。
+- 每次 AI 调用都能在后台查到日志。
+- 超过限额时返回明确错误。
+- prompt 可以按版本回滚。
+
+### 9.3 AI 发布助手：提高摄影师供给质量
+
+产品目标：
+- 帮摄影师更快发布高质量作品。
+- 降低新摄影师不会写标题、标签、套餐说明的问题。
+- 提升首页内容可读性和搜索可召回能力。
+
+关联现有文件：
+- `pp-app/src/features/companion/PublishPost.tsx`
+- `pp-app/src/features/companion/CompanionProfileEdit.tsx`
+- `pp-app/src/features/companion/CompanionPackageSettings.tsx`
+- `pp-app/src/services/companionProfileService.ts`
+- `pp-app/src/services/companionPackageService.ts`
+- `pp-app/src/services/feedService.ts`
+
+AI 能力：
+- 根据已有输入生成作品标题。
+- 根据拍摄地点、风格、图片说明生成标签。
+- 润色摄影师简介。
+- 生成套餐卖点。
+- 给发布表单做完整度建议。
+
+接口：
+```text
+POST /api/ai/post-copy
+POST /api/ai/profile-polish
+POST /api/ai/package-copy
+POST /api/ai/publish-checklist
+```
+
+输入示例：
+```json
+{
+  "city": "杭州",
+  "placeName": "西湖",
+  "styleTags": ["日系", "清新"],
+  "targetUser": "生日写真",
+  "rawDescription": "周末可以拍，1小时，给底片"
+}
+```
+
+输出示例：
+```json
+{
+  "title": "西湖日系生日写真，轻松自然出片",
+  "tags": ["日系", "生日", "西湖", "清新", "单人写真"],
+  "description": "适合想要自然氛围的生日写真，拍摄约 1 小时，提供基础调色和精选建议。",
+  "warnings": ["套餐是否包含精修数量还不够清楚"]
+}
+```
+
+前端交互：
+- 按钮文案：`AI 帮我润色`
+- 输出必须显示为可编辑草稿。
+- 用户点击“采用”后才写入表单。
+
+验收标准：
+- AI 草稿不直接发布。
+- 每次采用都记录 `ai_feedback`。
+- 用户能恢复原文。
+
+### 9.4 AI 预约意图识别：把自然语言变成筛选条件
+
+产品目标：
+- 用户不需要理解所有筛选项，也能表达需求。
+- 提升从浏览到预约的转化率。
+
+关联现有文件：
+- `pp-app/src/features/user/CompanionFinderPage.tsx`
+- `pp-app/src/features/user/HomeFeed.tsx`
+- `pp-app/src/features/user/CheckoutPage.tsx`
+- `pp-app/src/services/matchingService.ts`
+- `pp-app/src/services/locationService.ts`
+
+AI 能力：
+- 提取拍摄场景：生日、情侣、毕业、探店、旅行、头像。
+- 提取风格：日系、港风、清新、夜景、情绪片。
+- 提取预算。
+- 提取时间偏好。
+- 提取地点意图。
+- 把一句话转成 `matchingService` 可用的参数。
+
+接口：
+```text
+POST /api/ai/booking-intent
+POST /api/ai/recommendation-explanation
+```
+
+输入示例：
+```json
+{
+  "text": "我想周末在市中心拍生日照，预算 300 到 500，想要日系一点"
+}
+```
+
+输出示例：
+```json
+{
+  "scene": "birthday",
+  "styles": ["日系", "清新"],
+  "budgetMin": 300,
+  "budgetMax": 500,
+  "timePreference": "weekend",
+  "placeKeyword": "市中心",
+  "missingFields": ["具体日期", "人数"]
+}
+```
+
+前端交互：
+- 搜索框增加自然语言入口。
+- 解析后展示筛选 chips，让用户确认。
+- 用户确认后再调用真实匹配接口。
+
+验收标准：
+- AI 只负责解析，不直接创建订单。
+- 解析失败时回退普通筛选。
+- 推荐理由不能编造不存在的摄影师能力。
+
+### 9.5 客服 RAG：平台规则和订单问题问答
+
+产品目标：
+- 降低重复客服问题。
+- 帮客服更快处理退款、争议、审核、预约说明。
+- 提高 App Store 审核时的合规可解释性。
+
+关联现有文件：
+- `pp-app/src/features/user/MessagesPage.tsx`
+- `pp-app/src/features/admin/AdminDashboard.tsx`
+- `pp-app/src/services/messageService.ts`
+- `pp-app/src/services/adminService.ts`
+- `docs/APP_STORE_LAUNCH.md`
+- `docs/STILL_CODE_MODULE_ROADMAP.md`
+
+RAG 知识库内容：
+- 用户协议。
+- 隐私政策。
+- 退款规则。
+- 支付说明。
+- 摄影师审核规则。
+- 聊天和私下交易处理规则。
+- 举报处理 SOP。
+- 地点安全说明。
+- App Review 审核说明。
+
+建议新增结构：
+```text
+docs/knowledge/
+  refund_policy.md
+  privacy_policy.md
+  user_agreement.md
+  creator_review_sop.md
+  moderation_sop.md
+  location_safety_sop.md
+  app_review_notes.md
+```
+
+建议新增数据库表：
+```text
+knowledge_documents
+knowledge_chunks
+knowledge_sync_jobs
+```
+
+接口：
+```text
+POST /api/ai/support-answer
+POST /api/ai/order-summary
+POST /api/ai/reply-draft
+POST /api/ai/rag/reindex
+```
+
+用户侧能力：
+- 问“怎么退款”。
+- 问“摄影师迟到了怎么办”。
+- 问“可以改地点吗”。
+
+客服侧能力：
+- 一键总结订单上下文。
+- 一键生成回复草稿。
+- 标出规则依据。
+
+验收标准：
+- 回答必须带引用来源或规则名称。
+- 无依据时回答“不确定，请转人工”。
+- 不能编造退款承诺。
+- 所有客服 AI 回复默认是草稿。
+
+### 9.6 AI 审核和风控：辅助而不是代替人工
+
+产品目标：
+- 降低违规内容、骚扰、诈骗、私下交易风险。
+- 减轻管理员审核压力。
+- 给人工审核提供可解释摘要。
+
+关联现有文件：
+- `pp-app/src/services/messageService.ts`
+- `pp-app/src/services/mediaService.ts`
+- `pp-app/src/services/adminService.ts`
+- `server/store/postgresModerationWrites.mjs`
+- `pp-app/src/features/admin/AdminDashboard.tsx`
+
+AI 能力：
+- 聊天文本风险分类。
+- 用户简介风险提示。
+- 作品标题/描述风险提示。
+- 举报内容摘要。
+- 给审核员生成建议处理理由。
+
+风险分类建议：
+```text
+harassment
+sexual_content
+scam
+private_transaction
+abuse
+underage_risk
+dangerous_location
+identity_fraud
+spam
+normal
+```
+
+接口：
+```text
+POST /api/ai/moderate-message
+POST /api/ai/moderate-profile
+POST /api/ai/moderate-post
+POST /api/ai/report-summary
+```
+
+建议落库：
+```text
+message_risk_events
+audit_cases
+reports
+ai_outputs
+```
+
+处理策略：
+- 低风险：正常通过，只记录分数。
+- 中风险：提示用户修改或进入人工队列。
+- 高风险：限制发送或隐藏，进入人工复核。
+
+验收标准：
+- AI 不能直接永久封号。
+- AI 不能直接拒绝身份审核。
+- AI 风控必须有人工复核入口。
+- 管理员能看到 AI 建议和原始内容。
+
+### 9.7 AI 搜索和灵感推荐
+
+产品目标：
+- 让用户从“筛选条件”变成“表达需求”。
+- 帮用户发现地点、风格、摄影师和套餐。
+
+关联现有文件：
+- `pp-app/src/features/user/HomeFeed.tsx`
+- `pp-app/src/features/user/CompanionFinderPage.tsx`
+- `pp-app/src/services/feedService.ts`
+- `pp-app/src/services/locationService.ts`
+- `pp-app/src/services/matchingService.ts`
+- `pp-app/src/services/userCollectionService.ts`
+
+搜索模式：
+- 快速找：预算、时间、地点明确。
+- 灵感找：用户不知道拍什么，让 AI 推荐主题。
+- 地点找：围绕地图、POI、商圈找摄影师。
+- 场景找：生日、毕业、情侣、探店、夜景。
+
+接口：
+```text
+POST /api/ai/search-intent
+POST /api/ai/search-suggestions
+POST /api/ai/feed-explanation
+```
+
+第一版不要让 AI 直接排序全量 feed。更稳的做法：
+1. AI 解析用户意图。
+2. 业务搜索召回摄影师和帖子。
+3. 规则排序。
+4. AI 只生成解释和补充搜索建议。
+
+验收标准：
+- 搜索结果来自真实数据库。
+- AI 解释不能说数据库里不存在的能力。
+- 用户可以切回普通筛选。
+
+### 9.8 地点和拍摄方案助手
+
+产品目标：
+- 把地图模块从“选点”升级成“拍摄方案”。
+- 提升预约前的确定感。
+
+关联现有文件：
+- `pp-app/src/services/locationService.ts`
+- `pp-app/src/services/matchingService.ts`
+- `pp-app/src/components/booking/LocationSelector.tsx`
+- `pp-app/src/features/companion/ServiceRangeSettings.tsx`
+
+AI 能力：
+- 根据地点生成拍摄建议。
+- 根据时间生成光线和路线建议。
+- 根据用户场景推荐地点。
+- 根据摄影师服务半径解释是否可服务。
+
+RAG 知识库：
+- 热门地点。
+- 风险地点。
+- 地点安全提示。
+- 城市专题。
+- 拍摄路线。
+
+接口：
+```text
+POST /api/ai/location-plan
+POST /api/ai/place-suggestions
+```
+
+验收标准：
+- 地点推荐必须来自 `places` 或地图 provider 返回结果。
+- 安全提示不可省略。
+- 用户拒绝定位时仍可手动输入。
+
+### 9.9 创作者成长助手
+
+产品目标：
+- 帮摄影师提高资料质量、服务质量和接单转化。
+- 让平台供给质量稳定变好。
+
+关联现有文件：
+- `pp-app/src/features/companion/CompanionStudio.tsx`
+- `pp-app/src/features/companion/CompanionIncomePage.tsx`
+- `pp-app/src/features/companion/CompanionPackageSettings.tsx`
+- `pp-app/src/services/orderSettlementService.ts`
+- `pp-app/src/services/companionBookingSettingsService.ts`
+
+AI 能力：
+- 资料完整度诊断。
+- 套餐描述优化建议。
+- 根据浏览、收藏、预约、成交数据解释转化问题。
+- 给摄影师生成本周改进建议。
+
+接口：
+```text
+POST /api/ai/creator-profile-audit
+POST /api/ai/creator-growth-tips
+```
+
+验收标准：
+- 建议要基于真实数据，不要泛泛鼓励。
+- 涉及价格时只给区间建议，不做强制改价。
+- 不展示其他摄影师隐私数据。
+
+### 9.10 运营后台 AI 助手
+
+产品目标：
+- 让运营每天快速知道平台发生了什么。
+- 让问题订单、举报、审核、客服压力可见。
+
+关联现有文件：
+- `pp-app/src/features/admin/AdminDashboard.tsx`
+- `pp-app/src/services/adminService.ts`
+- `server/store/postgresModerationWrites.mjs`
+- `server/store/postgresOrderWrites.mjs`
+
+AI 能力：
+- 今日运营日报。
+- 风险订单摘要。
+- 重复客服问题聚类。
+- 举报原因聚类。
+- 摄影师审核建议。
+- 搜索无结果分析。
+
+接口：
+```text
+POST /api/ai/admin-daily-brief
+POST /api/ai/ops-insight
+POST /api/ai/audit-case-summary
+```
+
+建议日报结构：
+```json
+{
+  "orders": "今日新增订单、支付成功、取消和退款情况",
+  "risks": "高风险消息、举报、异常订单",
+  "supply": "新摄影师、待审核资料、低质量供给",
+  "growth": "热门搜索、无结果搜索、转化异常",
+  "actions": ["建议人工处理的事项"]
+}
+```
+
+验收标准：
+- AI 日报必须能跳转到真实订单、举报、审核 case。
+- 运营建议不能自动执行。
+- 所有高风险事项需要人工确认。
+
+### 9.11 AI 前端交互组件
+
+新增前端组件：
+```text
+pp-app/src/services/aiService.ts
+pp-app/src/components/ai/AiDraftButton.tsx
+pp-app/src/components/ai/AiSuggestionPanel.tsx
+pp-app/src/components/ai/AiFeedbackBar.tsx
+pp-app/src/components/ai/AiSourceCitations.tsx
+```
+
+组件规范：
+- `AiDraftButton`：触发 AI 生成。
+- `AiSuggestionPanel`：展示建议和草稿。
+- `AiFeedbackBar`：采纳、不准确、没帮助。
+- `AiSourceCitations`：客服 RAG 引用来源。
+
+交互规则：
+- 默认不自动覆盖用户输入。
+- 默认不自动提交业务动作。
+- AI 生成内容必须可编辑。
+- AI 失败时不影响主流程。
+
+### 9.12 AI 数据、成本和质量评估
+
+为什么必须做：
+- 没有日志就不知道 AI 是否真的提升转化。
+- 没有反馈就无法迭代 prompt。
+- 没有成本控制容易失控。
+
+建议指标：
+- AI 发布草稿采纳率。
+- AI 预约解析后下单转化率。
+- 客服 AI 自助解决率。
+- 客服草稿采用率。
+- 审核 AI 命中后人工确认率。
+- 每个功能每日 token 成本。
+- AI 输出投诉率。
+
+建议新增后台视图：
+- AI 使用量。
+- AI 成本。
+- AI 采纳率。
+- AI 高风险输出。
+- prompt 版本表现。
+
+### 9.13 AI 安全边界
+
+AI 不允许直接执行：
+- 创建订单。
+- 支付。
+- 退款。
+- 结算。
+- 永久封号。
+- 通过身份审核。
+- 删除用户数据。
+- 代表用户发送敏感消息。
+
+AI 可以辅助：
+- 生成草稿。
+- 总结上下文。
+- 提取结构化条件。
+- 推荐下一步。
+- 生成审核建议。
+- 生成客服回复草稿。
+
+高风险防护：
+- 所有 AI 输入都要经过权限检查。
+- 用户只能让 AI 处理自己可见的数据。
+- 管理员 AI 总结不能泄露无权限数据。
+- Prompt 中要明确“不得编造平台政策、价格、退款承诺”。
+- RAG 没检索到依据时必须转人工。
+
+### 9.14 AI 版本路线
+
+#### AI V0：基础设施版
+
+目标：先有统一 AI 接入，避免后续散乱。
+
+任务：
+1. 新增 `server/routes/ai.mjs`。
+2. 新增 `server/services/ai/aiClient.mjs`。
+3. 新增 `ai_requests/ai_outputs/ai_feedback`。
+4. 后端统一限流和日志。
+5. 前端新增 `aiService.ts`。
+
+验收：
+- 可以完成一次 AI 调用。
+- 可以查到调用日志。
+- 可以关闭所有 AI 功能。
+
+#### AI V1：转化和供给版
+
+目标：先做最直接提升体验和供给质量的功能。
+
+任务：
+1. AI 发布助手。
+2. AI 资料润色。
+3. AI 套餐描述。
+4. AI 预约意图识别。
+
+验收：
+- 摄影师可采用 AI 草稿。
+- 用户自然语言能转成筛选条件。
+- AI 失败不影响发布和预约。
+
+#### AI V2：客服和风控版
+
+目标：降低真实运营压力。
+
+任务：
+1. 客服 RAG。
+2. 订单摘要。
+3. 回复草稿。
+4. 消息风险分类。
+5. 举报摘要。
+
+验收：
+- 客服回答有知识来源。
+- 高风险内容进入人工队列。
+- AI 不自动做处罚。
+
+#### AI V3：搜索、地点和运营版
+
+目标：提升发现效率和运营效率。
+
+任务：
+1. AI 搜索意图。
+2. AI 地点方案。
+3. AI 创作者成长建议。
+4. AI 运营日报。
+
+验收：
+- 搜索结果来自真实数据。
+- 地点建议来自地图/地点库。
+- 运营日报可跳转到真实业务对象。
+
+#### AI V4：轻量 Agent 和工作流版
+
+目标：在业务稳定后再做自动化工作流。
+
+任务：
+1. 客服助手可以多轮追问。
+2. 运营助手可以生成待办。
+3. 审核助手可以组装 case 材料。
+4. 支持 human-in-the-loop 确认。
+
+验收：
+- 所有工作流都有暂停和人工确认。
+- 所有自动化步骤有审计日志。
+- 任意 AI 工作流可以关闭。
+
+### 9.15 最推荐的落地顺序
+
+1. AI Gateway。
+2. AI 发布助手。
+3. AI 预约意图识别。
+4. 客服 RAG。
+5. AI 审核和举报摘要。
+6. AI 搜索和地点方案。
+7. 创作者成长助手。
+8. 运营日报。
+9. 轻量 agent 工作流。
+
+这个顺序的核心判断：先做能直接提升供给和转化的 AI，再做能降低运营成本的 AI，最后才做更复杂的 agent 化。
