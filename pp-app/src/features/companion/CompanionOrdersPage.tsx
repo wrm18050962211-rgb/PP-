@@ -215,6 +215,7 @@ function CompanionWorkEditPage() {
   const activeWorkRecord = activeWorkOrder ? workByOrderId.get(activeWorkOrder.id) : undefined;
 
   useEffect(() => {
+    let cancelled = false;
     const autoCompletedRecords: OrderWorkRecord[] = [];
     completedOrders.forEach((order) => {
       const record = workByOrderId.get(order.id);
@@ -224,7 +225,14 @@ function CompanionWorkEditPage() {
       updateOrderFunding(order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
       autoCompletedRecords.push(completedRecord);
     });
-    if (autoCompletedRecords.length) setWorkRecords(listOrderWorkRecords());
+    if (autoCompletedRecords.length) {
+      queueMicrotask(() => {
+        if (!cancelled) setWorkRecords(listOrderWorkRecords());
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
   }, [completedOrders, updateOrderFunding, workByOrderId]);
 
   useEffect(() => {
