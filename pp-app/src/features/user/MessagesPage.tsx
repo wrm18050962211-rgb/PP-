@@ -62,8 +62,13 @@ export function MessagesPage() {
   useEffect(() => {
     if (!activeOrder && !activeConsultation) return () => undefined;
     if (activeConsultation) {
-      setConversation(createConversationFromConsultation(activeConsultation));
-      return () => undefined;
+      let mounted = true;
+      queueMicrotask(() => {
+        if (mounted) setConversation(createConversationFromConsultation(activeConsultation));
+      });
+      return () => {
+        mounted = false;
+      };
     }
     if (!activeOrder) return () => undefined;
     const order = activeOrder;

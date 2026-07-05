@@ -12,15 +12,16 @@ const tabs = [
 export function ConsumerShell() {
   const { pathname } = useLocation();
   const showBottomNav = tabs.some((tab) => tab.to === pathname);
-  const chromeCanCompact = showBottomNav;
+
+  return <ConsumerShellFrame key={showBottomNav ? 'with-nav' : 'without-nav'} showBottomNav={showBottomNav} />;
+}
+
+function ConsumerShellFrame({ showBottomNav }: { showBottomNav: boolean }) {
   const [homeChromeCompact, setHomeChromeCompact] = useState(false);
   const lastScrollYRef = useRef(0);
 
   useEffect(() => {
-    if (!chromeCanCompact) {
-      setHomeChromeCompact(false);
-      return undefined;
-    }
+    if (!showBottomNav) return undefined;
 
     lastScrollYRef.current = window.scrollY;
     let frame = 0;
@@ -47,7 +48,7 @@ export function ConsumerShell() {
       window.removeEventListener('scroll', handleScroll);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [chromeCanCompact]);
+  }, [showBottomNav]);
 
   const compactChrome = showBottomNav && homeChromeCompact;
 

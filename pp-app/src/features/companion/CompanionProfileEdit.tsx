@@ -1,5 +1,5 @@
 import { ArrowLeft, Camera, Check, Clock3, ImagePlus, Save, ShieldCheck, Sparkles, UserRound, Wrench } from 'lucide-react';
-import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
@@ -19,18 +19,19 @@ const interactionOptions = ['会指导动作', '会找角度', '会看穿搭', '
 
 export function CompanionProfileEdit() {
   const { session } = useAppData();
-  const [toast, setToast] = useState('');
   const posts = useMemo(() => listFeedPosts(), []);
   const baseCompanion = useMemo(() => {
     const ownPost = posts.find((post) => post.companion.id === session?.companionId);
     return ownPost?.companion ?? posts[0].companion;
   }, [posts, session?.companionId]);
+  const profileKey = `${baseCompanion.id}:${session?.companionId ?? ''}:${session?.user.phone ?? ''}`;
+
+  return <CompanionProfileForm key={profileKey} session={session} baseCompanion={baseCompanion} />;
+}
+
+function CompanionProfileForm({ session, baseCompanion }: { session: ReturnType<typeof useAppData>['session']; baseCompanion: Companion }) {
+  const [toast, setToast] = useState('');
   const [draft, setDraft] = useState<CompanionProfileDraft>(() => buildInitialDraft(session, baseCompanion));
-
-  useEffect(() => {
-    setDraft(buildInitialDraft(session, baseCompanion));
-  }, [baseCompanion.id, session?.companionId, session?.user.phone]);
-
   const previewProfile = applyCompanionProfile(baseCompanion, draft);
   const previewAvatar = draft.pendingAvatarUrl || previewProfile.avatar;
   const avatarPending = draft.avatarReviewStatus === 'pending' && Boolean(draft.pendingAvatarUrl);

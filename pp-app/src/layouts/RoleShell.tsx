@@ -12,15 +12,16 @@ const photographerTabs = [
 export function RoleShell() {
   const { pathname } = useLocation();
   const showBottomNav = photographerTabs.some((tab) => tab.to === pathname);
-  const chromeCanCompact = showBottomNav;
+
+  return <RoleShellFrame key={showBottomNav ? 'with-nav' : 'without-nav'} pathname={pathname} showBottomNav={showBottomNav} />;
+}
+
+function RoleShellFrame({ pathname, showBottomNav }: { pathname: string; showBottomNav: boolean }) {
   const [roleChromeCompact, setRoleChromeCompact] = useState(false);
   const lastScrollYRef = useRef(0);
 
   useEffect(() => {
-    if (!chromeCanCompact) {
-      setRoleChromeCompact(false);
-      return undefined;
-    }
+    if (!showBottomNav) return undefined;
 
     lastScrollYRef.current = window.scrollY;
     let frame = 0;
@@ -47,7 +48,7 @@ export function RoleShell() {
       window.removeEventListener('scroll', handleScroll);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [chromeCanCompact]);
+  }, [showBottomNav]);
 
   const compactChrome = showBottomNav && roleChromeCompact;
 
