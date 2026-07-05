@@ -1,37 +1,40 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { ConsumerShell } from '../layouts/ConsumerShell';
 import { RoleShell } from '../layouts/RoleShell';
-import { AdminDashboard } from '../features/admin/AdminDashboard';
 import { AccountSettingsPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAuth, RequireRegistrationDraft, RequireRole } from '../features/auth/AuthPages';
-import { CompanionOnboarding } from '../features/companion/CompanionOnboarding';
-import { CompanionBookingSettingsPage } from '../features/companion/CompanionBookingSettingsPage';
-import { CompanionIncomePage } from '../features/companion/CompanionIncomePage';
-import { CompanionComingSoonPage } from '../features/companion/CompanionComingSoonPage';
-import { CompanionConsultationsPage } from '../features/companion/CompanionConsultationsPage';
-import { CompanionOrdersPage } from '../features/companion/CompanionOrdersPage';
-import { CompanionPackageSettings } from '../features/companion/CompanionPackageSettings';
-import { CompanionProfileEdit } from '../features/companion/CompanionProfileEdit';
-import { PublishPost } from '../features/companion/PublishPost';
-import { CompanionStudio } from '../features/companion/CompanionStudio';
-import { ServiceRangeSettings } from '../features/companion/ServiceRangeSettings';
-import { CheckoutPage } from '../features/user/CheckoutPage';
-import { CompanionFinderPage } from '../features/user/CompanionFinderPage';
-import { CreatorOnboarding } from '../features/user/CreatorOnboarding';
-import { CreatorProfileEditPage } from '../features/user/CreatorProfileEditPage';
-import { CreatorProfilePage } from '../features/user/CreatorProfilePage';
-import { HomeFeed } from '../features/user/HomeFeed';
-import { InquiriesPage } from '../features/user/InquiriesPage';
-import { MessagesPage } from '../features/user/MessagesPage';
-import { MinePage } from '../features/user/MinePage';
-import { OrdersPage } from '../features/user/OrdersPage';
-import { PhotographerProfilePage } from '../features/user/PhotographerProfilePage';
-import { PostDetail } from '../features/user/PostDetail';
-import { UserCollectionPage } from '../features/user/UserCollectionPage';
 import { getRegisteredAccount } from '../services/authService';
+
+const AdminDashboard = lazy(() => import('../features/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
+const CompanionOnboarding = lazy(() => import('../features/companion/CompanionOnboarding').then((module) => ({ default: module.CompanionOnboarding })));
+const CompanionBookingSettingsPage = lazy(() => import('../features/companion/CompanionBookingSettingsPage').then((module) => ({ default: module.CompanionBookingSettingsPage })));
+const CompanionIncomePage = lazy(() => import('../features/companion/CompanionIncomePage').then((module) => ({ default: module.CompanionIncomePage })));
+const CompanionComingSoonPage = lazy(() => import('../features/companion/CompanionComingSoonPage').then((module) => ({ default: module.CompanionComingSoonPage })));
+const CompanionConsultationsPage = lazy(() => import('../features/companion/CompanionConsultationsPage').then((module) => ({ default: module.CompanionConsultationsPage })));
+const CompanionOrdersPage = lazy(() => import('../features/companion/CompanionOrdersPage').then((module) => ({ default: module.CompanionOrdersPage })));
+const CompanionPackageSettings = lazy(() => import('../features/companion/CompanionPackageSettings').then((module) => ({ default: module.CompanionPackageSettings })));
+const CompanionProfileEdit = lazy(() => import('../features/companion/CompanionProfileEdit').then((module) => ({ default: module.CompanionProfileEdit })));
+const PublishPost = lazy(() => import('../features/companion/PublishPost').then((module) => ({ default: module.PublishPost })));
+const CompanionStudio = lazy(() => import('../features/companion/CompanionStudio').then((module) => ({ default: module.CompanionStudio })));
+const ServiceRangeSettings = lazy(() => import('../features/companion/ServiceRangeSettings').then((module) => ({ default: module.ServiceRangeSettings })));
+const CheckoutPage = lazy(() => import('../features/user/CheckoutPage').then((module) => ({ default: module.CheckoutPage })));
+const CompanionFinderPage = lazy(() => import('../features/user/CompanionFinderPage').then((module) => ({ default: module.CompanionFinderPage })));
+const CreatorOnboarding = lazy(() => import('../features/user/CreatorOnboarding').then((module) => ({ default: module.CreatorOnboarding })));
+const CreatorProfileEditPage = lazy(() => import('../features/user/CreatorProfileEditPage').then((module) => ({ default: module.CreatorProfileEditPage })));
+const CreatorProfilePage = lazy(() => import('../features/user/CreatorProfilePage').then((module) => ({ default: module.CreatorProfilePage })));
+const HomeFeed = lazy(() => import('../features/user/HomeFeed').then((module) => ({ default: module.HomeFeed })));
+const InquiriesPage = lazy(() => import('../features/user/InquiriesPage').then((module) => ({ default: module.InquiriesPage })));
+const MessagesPage = lazy(() => import('../features/user/MessagesPage').then((module) => ({ default: module.MessagesPage })));
+const MinePage = lazy(() => import('../features/user/MinePage').then((module) => ({ default: module.MinePage })));
+const OrdersPage = lazy(() => import('../features/user/OrdersPage').then((module) => ({ default: module.OrdersPage })));
+const PhotographerProfilePage = lazy(() => import('../features/user/PhotographerProfilePage').then((module) => ({ default: module.PhotographerProfilePage })));
+const PostDetail = lazy(() => import('../features/user/PostDetail').then((module) => ({ default: module.PostDetail })));
+const UserCollectionPage = lazy(() => import('../features/user/UserCollectionPage').then((module) => ({ default: module.UserCollectionPage })));
 
 export default function App() {
   return (
-    <Routes>
+    <Suspense fallback={null}>
+      <Routes>
       <Route path="/" element={<EntryRedirect />} />
 
       <Route
@@ -224,8 +227,9 @@ export default function App() {
       <Route path="/orders" element={<LegacyRoleRedirect target="orders" />} />
       <Route path="/messages" element={<LegacyRoleRedirect target="messages" />} />
       <Route path="/mine" element={<LegacyRoleRedirect target="mine" />} />
-      <Route path="*" element={<EntryRedirect />} />
-    </Routes>
+        <Route path="*" element={<EntryRedirect />} />
+      </Routes>
+    </Suspense>
   );
 }
 
