@@ -657,7 +657,105 @@
 - 管理员权限和审计要落库。
 - 举报、审核、退款、封禁要形成闭环。
 
-## 6. 每次代码任务的最小完成标准
+## 6. 本轮 longrun 模块级审计结论
+
+这一节专门回答“当前模块划分下，哪些粗糙、哪些缺失、哪些演示/废代码会影响上线”。结论来自当前仓库静态扫描，并参考高 star 平台项目的常见做法：
+
+- [Cal.com/Cal.diy](https://github.com/calcom/cal.com) 这类预约平台把 PostgreSQL、Prisma、环境密钥、开发种子账号和生产部署边界分开。
+- [Appwrite](https://github.com/appwrite/appwrite) 把 Auth、Database、Storage、Messaging、Realtime 作为平台基础能力，而不是散落在页面里。
+- [Medusa](https://github.com/medusajs/medusa) 把交易平台拆成可组合 commerce modules，避免所有交易状态都堆在一个大 server 文件里。
+- [Novu](https://github.com/novuhq/novu) 把通知、偏好、provider、workflow 独立成基础设施，适合参考你的订单/审核/客服通知体系。
+
+### 6.1 生产阻塞模块
+
+这些不改，不建议真实上线或提交正式审核：
+
+- API 与环境层：`pp-app/src/services/apiClient.ts` 默认 `http://127.0.0.1:8787`，生产构建必须改成 `VITE_API_BASE_URL` 必填，并禁止 mock fallback。
+- 登录与 session：`pp-app/src/services/authService.ts` 依赖 localStorage、本地验证码、`switchMockRole()`；`server/server.mjs` 依赖 `store.activeSession` 全局状态。生产必须改成真实 token/session。
+- 订单刷新：`pp-app/src/app/AppDataProvider.tsx` 的 `refreshOrders()` 还是空数组，订单状态无法真实恢复。
+- 支付：`pp-app/src/services/paymentService.ts` 非小程序 runtime 会调用 `/mock-success`；生产支付必须改成服务端状态查询 + 支付回调验签。
+- PostgreSQL 写入：`server/store/postgresStore.mjs` 标记 `writes: false`、`transactions: false`，`save()` 未实现。生产不能继续用 JSON store 承载订单、支付、消息、审核。
+- CORS 与安全：`server/server.mjs` 使用 `Access-Control-Allow-Origin: '*'`，生产需要白名单、鉴权中间件、rate limit、request id、结构化错误。
+- 地图下单：`LocationSelector.tsx` 仍是静态区域按钮，`locationService.ts` 只做定位，缺 POI、逆地理编码、地点快照。
+- 媒体：`mediaService.ts`、`CompanionProfileEdit.tsx`、`messageService.ts` 存在 data URL 本地图片流，生产必须走对象存储和媒体表。
+
+### 6.2 影响真实运营的粗糙模块
+
+这些能让 demo 跑起来，但真实用户一进来会很难运营：
+
+- `server/server.mjs` 是 1800 行左右的业务单体，订单、支付、登录、媒体、审核、seed、CORS 都在一起。建议拆 `routes/`、`services/`、`auth/`、`payments/`、`orders/`、`moderation/`。
+- `pp-app/src/features/admin/AdminDashboard.tsx` 是大而全页面，混合 demo 指标、审核、订单、风控 UI。建议拆成运营模块，并由真实 admin API 驱动。
+- `pp-app/src/features/user/HomeFeed.tsx`、`OrdersPage.tsx`、`CompanionFinderPage.tsx`、`MessagesPage.tsx` 都偏大，后续接真实错误态、分页、埋点、地图时维护成本会很高。
+- `adminService.ts` 仍导入 `mockApi`，很多 admin 操作 API 不可用时返回成功，生产会造成运营误判。
+- `messageService.ts` 使用 localStorage 共享会话和 mockConversation，缺真实消息同步、消息发送失败重试、会话分页、推送通知。
+- `consultationService.ts`、`orderWorkService.ts` 仍使用 localStorage。生产如果保留，数据会丢失且跨设备不可恢复。
+- `matchingService.ts` API 失败时返回空数组，缺明确错误态；附近匹配需要服务半径、距离排序、城市兜底。
+- `creatorProfileService.ts`、`userCollectionService.ts` 仍依赖虚拟作品/虚拟收藏统计，会影响真实增长数据判断。
+
+### 6.3 缺失但上线应补的模块
+
+当前仓库还缺这些平台底座：
+
+- `auth/session` 模块：token 签发、刷新、撤销、设备会话、管理员 session。
+- `config/env` 模块：集中校验生产环境变量，启动时 fail fast。
+- `request middleware`：鉴权、角色权限、CORS 白名单、rate limit、request id、错误码。
+- `idempotency` 模块：订单创建、支付创建、支付回调、退款、取消都要有幂等键。
+- `queue/jobs` 模块：订单超时释放、支付回调重试、通知发送、图片审核、日志聚合。
+- `notifications` 模块：站内信、短信/微信服务通知、Push 的统一事件入口。
+- `places/location` 模块：POI、地图选点、地点快照、热门地点、风险地点、定位授权记录。
+- `media_assets` 模块：上传策略、对象存储回调、宽高/大小/用途、审核状态。
+- `audit/security` 模块：管理员操作日志、风控事件、用户封禁、内容处理记录。
+- `observability` 模块：前端崩溃上报、后端结构化日志、支付/数据库/队列告警。
+- `appstore/compliance` 模块：隐私协议、删除账号、举报入口、审核账号、权限文案、数据使用说明。
+
+### 6.4 演示代码、废代码与上线风险清单
+
+这些文件不一定都要删除，但必须在生产构建中隔离、禁用或替换：
+
+- 必须生产禁用：
+  - `server/server.mjs` 的 `/api/auth/wechat/mock-login`。
+  - `server/server.mjs` 的 `/api/payments/:id/mock-success`。
+  - `server/server.mjs` 的 `seedVirtualData()`、`seedVirtualTradeData()` 自动注入虚拟内容。
+  - `pp-app/src/services/authService.ts` 的本地验证码、测试角色切换、mock session。
+  - `pp-app/src/features/auth/AuthPages.tsx` 中展示“本地测试验证码”的 UI。
+  - `pp-app/src/services/paymentService.ts` 的 mock success fallback。
+  - `pp-app/src/services/apiClient.ts` 的生产默认本地 API。
+- 只能开发环境保留：
+  - `pp-app/src/data/mock.ts`
+  - `pp-app/src/data/mockApi.ts`
+  - `pp-app/src/services/virtualOrderLedger.ts`
+  - `pp-app/src/services/scopedStorage.ts`
+  - `docs/TEST_ACCOUNTS.md`
+  - `docs/LOCAL_CLOUD_STORAGE.md`
+  - `server/data/store.json`
+  - `database/seed_mvp.sql`
+- 候选删除或改成真实页面：
+  - `pp-app/src/features/companion/CompanionComingSoonPage.tsx`，当前 `/companion/creators` 仍是 coming soon。
+  - `HomeFeed.tsx` 里的 `demoMapPoints`、`nearbyDemoScore`。
+  - `AdminDashboard.tsx` 里的 `Demo Creator` 等演示行。
+  - `accountDirectory.ts` 里的虚拟摄影师测试账号生成逻辑。
+- 不应入库或不应影响审核：
+  - `pp-app/dist/`
+  - `pp-app/node_modules/`
+  - `pp-app/*.log`
+  - `server/logs/`
+  - `server/*.log`
+  - `database/generated/`
+  - `.codex-dev-logs/`
+
+当前这些日志和构建产物在 git 状态中是 ignored，没有被跟踪，这是好事；后续继续保持不要提交。
+
+### 6.5 推荐的清理顺序
+
+1. 先做生产环境开关：一处判断 `isProductionApp()`，所有 mock/login/payment/local fallback 都挂到这个开关下。
+2. 再做 API 层硬失败：生产 API 失败显示错误，不回退 mock。
+3. 然后替换登录/session：先让真实用户身份贯穿订单、消息、后台。
+4. 接 PostgreSQL 写事务：订单、支付、消息、审核优先。
+5. 加地图地点快照：下单必须保存 `placeName/placeAddress/placeLat/placeLng/providerPoiId`。
+6. 清理 UI 演示痕迹：测试验证码、角色切换、mock 支付、coming soon、Demo 文案。
+7. 最后拆大文件：先按业务边界迁移，不做无目标重构。
+
+## 7. 每次代码任务的最小完成标准
 
 每个事务完成后必须留下：
 
@@ -688,4 +786,3 @@ npm.cmd run check:mvp
 - 授权定位后附近匹配。
 - 下单后订单详情地点不丢失。
 - 后台可看到地点快照。
-
