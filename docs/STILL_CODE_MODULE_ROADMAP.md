@@ -786,3 +786,397 @@ npm.cmd run check:mvp
 - 授权定位后附近匹配。
 - 下单后订单详情地点不丢失。
 - 后台可看到地点快照。
+
+## 8. 从业务 App 升级到平台型全栈工程
+
+这一节不是 App Store 上线最低要求，而是用这个 App 训练完整全栈能力的版本路线。假设前面所有生产事务都已经完成，下面这些模块可以让项目从“一个能运营的预约 App”继续升级成“更接近高 star 平台项目的工程”。
+
+### 8.1 工程组织：从单 App 到 monorepo
+
+参考方向：Cal.com/Cal.diy、Medusa、Novu。
+
+当前状态：
+- 前端在 `pp-app/src`。
+- 后端在 `server/server.mjs` 和 `server/store`。
+- 数据库在 `database`。
+- 类型主要集中在前端 `pp-app/src/types`，前后端共享不足。
+
+可升级模块：
+- 新建 `packages/shared`：放订单状态、支付状态、用户角色、API DTO、错误码。
+- 新建 `packages/db`：放 schema、migration、数据库 client、transaction helper。
+- 新建 `packages/ui`：沉淀按钮、表单、弹窗、地图选择器、订单状态组件。
+- 新建 `apps/mobile` 或继续保留 `pp-app`：承载 Capacitor App。
+- 新建 `apps/admin`：将运营后台从用户 App 中拆出来。
+- 新建 `apps/api`：替代单文件 `server/server.mjs`。
+
+版本任务：
+1. 先只抽 `packages/shared`，让前后端共用 `OrderStatus`、`PaymentStatus`、`UserRole`。
+2. 再抽 `packages/db`，统一数据库访问和 migration。
+3. 最后拆 `apps/admin`，让后台独立发布、独立权限、独立路由。
+
+你能学到：
+- monorepo。
+- package boundary。
+- shared types。
+- internal SDK。
+
+### 8.2 API 架构：从手写路由到模块化服务
+
+参考方向：Appwrite 的平台服务分层、Medusa 的模块化 commerce services。
+
+当前状态：
+- `server/server.mjs` 同时处理 auth、feed、order、payment、message、moderation、media、seed。
+- 权限、校验、错误、日志散落在业务函数中。
+
+可升级模块：
+- `server/routes/auth.mjs`
+- `server/routes/orders.mjs`
+- `server/routes/payments.mjs`
+- `server/routes/messages.mjs`
+- `server/routes/media.mjs`
+- `server/routes/admin.mjs`
+- `server/middleware/auth.mjs`
+- `server/middleware/requireRole.mjs`
+- `server/middleware/rateLimit.mjs`
+- `server/middleware/errorHandler.mjs`
+- `server/services/orderService.mjs`
+- `server/services/paymentService.mjs`
+- `server/services/locationService.mjs`
+
+版本任务：
+1. 先抽 middleware：鉴权、角色、错误码、request id。
+2. 再抽订单和支付 service，因为它们最需要事务和幂等。
+3. 最后抽 feed、message、admin，降低前期风险。
+
+你能学到：
+- middleware。
+- service layer。
+- API contract。
+- error taxonomy。
+- 模块边界设计。
+
+### 8.3 权限系统：从角色判断到 RBAC/ABAC
+
+参考方向：Directus、Appwrite、Supabase。
+
+当前状态：
+- 用户角色大致有 consumer、companion、admin。
+- 后台权限和普通用户权限没有形成完整权限矩阵。
+
+可升级模块：
+- `permissions` 表：定义 `order.read:any`、`order.read:own`、`audit.write` 等权限。
+- `role_permissions` 表：角色和权限绑定。
+- `resource_policies`：按资源判断，例如“摄影师只能处理自己的订单”。
+- `admin_action_logs`：记录管理员操作。
+- 前端 `ProtectedRoute` 升级为 `RequirePermission`。
+
+版本任务：
+1. 先做硬编码权限矩阵。
+2. 再落库成 `permissions/role_permissions`。
+3. 最后做资源级 ABAC，例如订单 owner、companionId、城市运营权限。
+
+你能学到：
+- RBAC。
+- ABAC。
+- least privilege。
+- audit log。
+
+### 8.4 实时系统：从普通聊天到实时同步
+
+参考方向：Supabase Realtime、Appwrite Realtime、Novu Inbox。
+
+当前状态：
+- `messageService.ts` 仍有 localStorage/mockConversation 兜底。
+- 没有在线状态、消息 ACK、多端同步。
+
+可升级模块：
+- `conversations` 和 `messages` 增加 cursor pagination。
+- WebSocket gateway：订单消息、客服消息、审核通知。
+- `message_delivery_receipts`：sent、delivered、read。
+- `presence`：摄影师在线、客服在线。
+- Push/站内信 fallback：离线时转通知。
+
+版本任务：
+1. 先做轮询版消息同步，保证数据正确。
+2. 再加 WebSocket 只推“有新消息”的事件。
+3. 最后加已读回执、在线状态、多端同步。
+
+你能学到：
+- WebSocket。
+- event-driven sync。
+- delivery receipt。
+- offline-first。
+
+### 8.5 搜索系统：从筛选到搜索工程
+
+参考方向：大型 marketplace、CMS、内容平台。
+
+当前状态：
+- 首页、陪拍查找、地点筛选多为前端文本筛选和静态规则。
+- 地图部分还没有 POI 搜索、地理索引、搜索日志。
+
+可升级模块：
+- `searchService`：统一搜索作品、摄影师、地点、城市专题。
+- `places` 建地理索引。
+- 接入 Meilisearch、Typesense 或 Elasticsearch。
+- `search_logs`：记录关键词、城市、点击、转化。
+- 支持拼音、同义词、热门搜索、无结果推荐。
+
+版本任务：
+1. 先用 PostgreSQL 实现基础搜索和地理距离排序。
+2. 数据量上来后接搜索引擎。
+3. 再做搜索日志和排序优化。
+
+你能学到：
+- full-text search。
+- geo search。
+- ranking。
+- search analytics。
+
+### 8.6 CMS 与运营内容：从写死配置到可运营后台
+
+参考方向：Strapi、Directus。
+
+当前状态：
+- 热门地点、专题、首页运营位、部分筛选项更像代码里的配置。
+- 后台主要偏审核/订单，还没有内容发布系统。
+
+可升级模块：
+- `editorial_collections`：城市专题、热门路线、拍摄灵感。
+- `content_blocks`：首页 banner、运营位、规则说明。
+- `places` 后台管理：热门地点、安全提示、禁用地点。
+- `draft/published` 状态。
+- 内容版本和发布时间。
+
+版本任务：
+1. 先做热门地点后台配置。
+2. 再做城市专题和首页运营位。
+3. 最后做草稿、发布、版本回滚。
+
+你能学到：
+- CMS data model。
+- content workflow。
+- draft/publish。
+- editorial operations。
+
+### 8.7 插件和第三方集成：从写死 provider 到可替换能力
+
+参考方向：Cal.com integrations、Medusa modules、Novu providers。
+
+当前状态：
+- 地图、支付、短信、对象存储、通知都可以接，但容易写死某一个供应商。
+
+可升级模块：
+- `paymentProvider`：WeChat Pay、Stripe、mock。
+- `mapProvider`：Tencent Map、Amap、Apple Map、manual。
+- `smsProvider`：Aliyun、Tencent Cloud、Twilio。
+- `storageProvider`：COS、S3、R2。
+- `notificationProvider`：站内、短信、微信服务通知、Push。
+- provider 配置放入后台或环境变量，不散落在业务代码。
+
+版本任务：
+1. 先给地图和对象存储做 provider interface。
+2. 再给支付做 provider interface，但生产只启用一个。
+3. 最后把通知做成事件驱动 provider。
+
+你能学到：
+- adapter pattern。
+- provider abstraction。
+- webhook verification。
+- integration config。
+
+### 8.8 测试体系：从能 build 到可持续交付
+
+参考方向：所有成熟高 star 项目的 CI。
+
+当前状态：
+- 已有 `npm.cmd run build`。
+- 后端有 `check:mvp` 和 smoke。
+- 还缺系统性的单元、集成、E2E、并发测试。
+
+可升级模块：
+- 前端：Vitest + Testing Library。
+- 浏览器 E2E：Playwright，覆盖登录、地图选点、下单、支付状态、举报。
+- 后端：订单事务、支付回调、权限矩阵、消息风控单元测试。
+- 数据库：migration 测试、seed 测试、rollback 测试。
+- 并发：同一 slot 双人抢单测试。
+- CI：每次 PR 自动跑 lint、typecheck、unit、build、smoke。
+
+版本任务：
+1. 先补订单/支付/权限的后端测试。
+2. 再补 App 主流程 E2E。
+3. 最后把测试接入 GitHub Actions。
+
+你能学到：
+- test pyramid。
+- contract testing。
+- E2E。
+- CI quality gate。
+
+### 8.9 DevOps 与云原生：从本地运行到稳定发布
+
+参考方向：Appwrite、Supabase、自托管平台项目。
+
+当前状态：
+- 项目有本地前后端和数据库资料，但缺完整部署工程。
+
+可升级模块：
+- `Dockerfile`：api、admin、app build。
+- `docker-compose.yml`：api、PostgreSQL、Redis、对象存储模拟、队列 worker。
+- GitHub Actions：build、test、deploy。
+- Nginx/Caddy：HTTPS、反向代理、静态资源。
+- 环境分层：dev、staging、production。
+- 备份和恢复脚本。
+- release checklist。
+
+版本任务：
+1. 先做 `docker-compose` 本地一键启动。
+2. 再做 staging 部署。
+3. 最后做生产发布、回滚、备份恢复演练。
+
+你能学到：
+- Docker。
+- CI/CD。
+- environment promotion。
+- deployment rollback。
+- backup/restore。
+
+### 8.10 安全工程：从基本鉴权到安全治理
+
+参考方向：Appwrite、Supabase、Directus 的安全边界。
+
+当前状态：
+- 当前路线已经覆盖生产鉴权、CORS、支付验签、举报合规。
+- 但还没有系统安全工程。
+
+可升级模块：
+- 输入校验 schema：所有 API request body 都必须验证。
+- 输出脱敏：手机号、openid、支付回调、身份证信息。
+- 文件上传安全：MIME、大小、后缀、病毒扫描、图片重新编码。
+- secret 管理：密钥不进仓库，支持 rotation。
+- 依赖漏洞扫描：`npm audit` 或 GitHub Dependabot。
+- 安全审计日志：登录失败、权限拒绝、管理员敏感操作。
+- 数据导出/删除：用户隐私权利闭环。
+
+版本任务：
+1. 先补输入校验和错误码。
+2. 再补敏感数据脱敏和日志规范。
+3. 最后做安全扫描、密钥轮换、用户数据导出。
+
+你能学到：
+- OWASP Top 10。
+- secure upload。
+- secrets management。
+- privacy engineering。
+
+### 8.11 数据与增长工程：从埋点到实验平台
+
+参考方向：高 star SaaS 和 marketplace 项目。
+
+当前状态：
+- 路线中已有 `user_events`、推荐、热门地点、A/B 实验，但还没形成数据平台。
+
+可升级模块：
+- `event_schema`：统一事件定义、属性、版本。
+- `user_events`：匿名设备、登录用户、session、来源。
+- funnel：浏览作品 -> 地图选点 -> 预约 -> 支付。
+- cohort：新用户、复购用户、摄影师留存。
+- feature flags：首页排序、地图入口、支付文案、推荐策略。
+- experiment assignment：实验分组和曝光日志。
+- metrics dashboard：转化率、支付成功率、取消率、响应率。
+
+版本任务：
+1. 先做 10 个核心事件。
+2. 再做漏斗和留存报表。
+3. 最后做 feature flag 和 A/B 实验。
+
+你能学到：
+- event taxonomy。
+- analytics pipeline。
+- feature flag。
+- A/B testing。
+
+### 8.12 开源协作与开发者体验
+
+参考方向：所有高 star 项目的 README、CONTRIBUTING、issue/PR workflow。
+
+当前状态：
+- 当前文档对自己很有用，但还不是别人能快速参与的开源项目。
+
+可升级模块：
+- `README.md`：项目介绍、技术栈、本地启动、测试账号、架构图。
+- `CONTRIBUTING.md`：开发流程、分支规则、提交规范。
+- `SECURITY.md`：漏洞报告方式。
+- `.github/ISSUE_TEMPLATE` 和 `.github/PULL_REQUEST_TEMPLATE.md`。
+- `docs/architecture.md`：模块图、数据流、订单状态机。
+- `docs/runbook.md`：故障处理、回滚、备份恢复。
+- `docs/api.md`：接口契约。
+
+版本任务：
+1. 先补本地启动和架构图。
+2. 再补贡献规范和 PR 模板。
+3. 最后补 runbook、API 文档和安全政策。
+
+你能学到：
+- DX。
+- technical writing。
+- open-source workflow。
+- operational runbook。
+
+### 8.13 建议版本路线
+
+这些不是一次性重构，而是按版本推进：
+
+#### V1：真实运营版
+
+完成前面“必须补”和“影响真实运营”的任务：
+- 真实登录。
+- PostgreSQL 写入。
+- 订单并发和支付闭环。
+- 地图选点和地点快照。
+- 合规入口。
+- 后台处理闭环。
+- Redis、队列、通知、监控。
+
+#### V2：平台工程版
+
+目标是把项目从“能跑”变成“能长期维护”：
+- 拆 `server/server.mjs`。
+- 建 `packages/shared`。
+- 建 middleware 和 service layer。
+- 做 RBAC/ABAC。
+- 做测试体系和 CI。
+- 做 Docker 本地一键启动。
+
+#### V3：运营增长版
+
+目标是让平台更会增长、更好运营：
+- 搜索系统。
+- CMS 运营内容。
+- 地点运营后台。
+- 埋点漏斗。
+- feature flag。
+- 推荐规则和实验。
+
+#### V4：开放平台版
+
+目标是接近高 star 平台项目的工程质感：
+- provider/plugin abstraction。
+- Webhook 平台。
+- 开发者文档。
+- API token。
+- 多租户/团队权限。
+- Realtime gateway。
+- 开源协作规范。
+
+### 8.14 学习时不要平均用力
+
+如果你的目标是成为能独立交付产品的全栈，优先级是：
+
+1. 订单、支付、数据库事务、权限、安全。
+2. 部署、监控、日志、备份、回滚。
+3. 测试、CI、代码组织、模块拆分。
+4. 搜索、实时、通知、队列。
+5. CMS、增长、实验、插件化。
+
+这个顺序的原因很简单：先学会让真实业务不出事故，再学会让工程长期长大。
