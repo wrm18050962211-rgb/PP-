@@ -6,7 +6,6 @@ import {
   ImagePlus,
   MapPinned,
   Settings,
-  UserRound,
   UserRoundPen,
 } from 'lucide-react';
 import { useEffect } from 'react';

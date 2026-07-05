@@ -41,7 +41,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       setApplication(scopedInitial.application);
       setBookingSettings(scopedInitial.bookingSettings);
       setWorkDraft(scopedInitial.workDraft);
-      return refreshOrders(nextSession.role).then((serverOrders) => {
+      return refreshOrders().then((serverOrders) => {
         if (!mounted || serverOrders.length === 0) return;
         setOrders(serverOrders);
         persistSnapshot(serverOrders, initialDataRef.current, nextSession.role);
@@ -56,7 +56,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       setApplication(scopedInitial.application);
       setBookingSettings(scopedInitial.bookingSettings);
       setWorkDraft(scopedInitial.workDraft);
-      void refreshOrders(nextSession.role).then((serverOrders) => {
+      void refreshOrders().then((serverOrders) => {
         if (serverOrders.length === 0) return;
         setOrders(serverOrders);
         persistSnapshot(serverOrders, initialDataRef.current, nextSession.role);
@@ -75,7 +75,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (!session) return;
 
     let mounted = true;
-    refreshOrders(session.role).then((serverOrders) => {
+    refreshOrders().then((serverOrders) => {
       if (!mounted || serverOrders.length === 0) return;
       setOrders(serverOrders);
       persistSnapshot(serverOrders, initialDataRef.current, session.role);
@@ -211,7 +211,7 @@ function loadInitialData(role?: UserRole, session?: AuthSession | null) {
   }
 }
 
-async function refreshOrders(_role: UserRole) {
+async function refreshOrders() {
   return [];
 }
 

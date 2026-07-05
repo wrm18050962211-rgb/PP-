@@ -116,12 +116,6 @@ function WorkGrid({ works, basePath }: { works: FeedPost[]; basePath: string }) 
   );
 }
 
-function buildCreatorBio(post: FeedPost) {
-  const tags = post.styleTags.slice(0, 2).join(' / ');
-  const location = post.locationName || post.location;
-  return `${location} · ${tags || '创作样板'}。喜欢用作品记录路线、场景和可复拍的风格。`;
-}
-
 function CollaboratedPhotographersSheet({ photographers, basePath, onClose }: { photographers: FeedPost['companion'][]; basePath: string; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end bg-black/58" onClick={onClose}>
@@ -151,10 +145,6 @@ function CollaboratedPhotographersSheet({ photographers, basePath, onClose }: { 
       </section>
     </div>
   );
-}
-
-function stableMetricSeed(value: string, range: number) {
-  return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0) % range;
 }
 
 function formatMetric(value: number) {

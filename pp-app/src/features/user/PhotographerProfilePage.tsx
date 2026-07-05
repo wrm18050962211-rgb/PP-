@@ -424,10 +424,6 @@ function buildPhotographerReviews(photographer: FeedPost['companion'], works: Fe
   });
 }
 
-function stableMetricSeed(value: string, range: number) {
-  return [...value].reduce((sum, char) => sum + char.charCodeAt(0), 0) % range;
-}
-
 function formatMetric(value: number) {
   if (value >= 10000) return `${(value / 10000).toFixed(1)}万`;
   if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;

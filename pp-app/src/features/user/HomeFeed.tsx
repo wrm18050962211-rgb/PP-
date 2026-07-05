@@ -29,7 +29,6 @@ type FeedFilters = {
   media: string;
 };
 
-type LocationStatus = 'idle' | 'locating' | 'located' | 'unsupported' | 'denied' | 'failed';
 type FeedChannel = '关注' | '发现' | '附近';
 type FeedDragState = {
   active: boolean;
@@ -176,7 +175,6 @@ export function HomeFeed() {
   const [cityOpen, setCityOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [consumerLocation, setConsumerLocation] = useState<ConsumerLocation | null>(null);
-  const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle');
   const [matchedPostIds, setMatchedPostIds] = useState<string[] | null>(null);
   const [locationMessage, setLocationMessage] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -228,13 +226,11 @@ export function HomeFeed() {
     setMatchedPostIds(null);
 
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setLocationStatus('unsupported');
       setLocationMessage('当前环境不支持定位，已使用本地附近演示排序');
       setFilters((current) => ({ ...current, city: '不限', district: '不限', area: '不限', locationPointName: '当前位置', nearbyOnly: true, channel: channels[2] }));
       return;
     }
 
-    setLocationStatus('locating');
     setLocationMessage('正在获取当前位置...');
     setFilters((current) => ({ ...current, city: '不限', district: '不限', area: '不限', locationPointName: '当前位置', nearbyOnly: true, channel: channels[2] }));
     navigator.geolocation.getCurrentPosition(
@@ -244,7 +240,6 @@ export function HomeFeed() {
           lng: position.coords.longitude,
           accuracy: position.coords.accuracy,
         });
-        setLocationStatus('located');
         setLocationMessage('已按当前位置优先展示附近陪拍者');
         setFilters((current) => ({
           ...current,
@@ -259,7 +254,6 @@ export function HomeFeed() {
         }));
       },
       (error) => {
-        setLocationStatus(error.code === error.PERMISSION_DENIED ? 'denied' : 'failed');
         setLocationMessage(error.code === error.PERMISSION_DENIED ? '未获得定位授权，已使用本地附近演示排序' : '定位暂时失败，已使用本地附近演示排序');
         setFilters((current) => ({ ...current, city: '不限', district: '不限', area: '不限', locationPointName: '当前位置', nearbyOnly: true, channel: channels[2] }));
       },

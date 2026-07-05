@@ -635,49 +635,6 @@ function ProtectedCompletedWorkPanel({ record, onManage }: { record?: OrderWorkR
   );
 }
 
-function CompletedWorkPanel({ record, onManage }: { record?: OrderWorkRecord; onManage: () => void }) {
-  const confirmed = record ? isOrderWorkConfirmed(record) : false;
-  const statusText = !record
-    ? '还未上传成片'
-    : record.changeRequestBy && !record.changeAccepted
-      ? '修改待另一方确认'
-      : confirmed
-        ? '双方已确认'
-        : '等待双方确认';
-  const publishText =
-    confirmed && (record?.publishToCreator || record?.publishToPhotographer)
-      ? [record.publishToCreator ? '创作者主页' : '', record.publishToPhotographer ? '摄影师主页' : ''].filter(Boolean).join(' / ')
-      : '确认后可选择同步主页';
-
-  return (
-    <section className="mt-4 rounded-[18px] bg-zinc-950 p-3 text-white">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-1 text-xs font-black text-white/46">
-            <Users size={14} />
-            成片协作
-          </p>
-          <h3 className="mt-1 text-sm font-black">{statusText}</h3>
-          <p className="mt-1 truncate text-xs font-semibold text-white/48">{publishText}</p>
-        </div>
-        <button className="h-9 shrink-0 rounded-full bg-white px-3 text-xs font-black text-zinc-950" onClick={onManage} type="button">
-          {record ? '管理成片' : '上传照片'}
-        </button>
-      </div>
-
-      {record?.imageUrls.length ? (
-        <div className="mt-3 grid grid-cols-4 gap-1">
-          {record.imageUrls.slice(0, 4).map((url, index) => (
-            <div key={`${url}-${index}`} className="aspect-square w-full overflow-hidden rounded-[6px]">
-              <LivePhotoMedia media={mediaFromWorkUrl(url, index)} alt={`成片 ${index + 1}`} />
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
 export function OrderWorkDialog({
   actor,
   order,
