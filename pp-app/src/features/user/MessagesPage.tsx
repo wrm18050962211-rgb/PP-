@@ -30,10 +30,10 @@ export function MessagesPage() {
   const { orderId } = useParams();
   const navigate = useNavigate();
   const { orders, session, createOrder } = useAppData();
-  const [consultationVersion, setConsultationVersion] = useState(0);
+  const [, setConsultationVersion] = useState(0);
   const [threadPrefs, setThreadPrefs] = useState<ThreadPrefs>(() => loadThreadPrefs());
   const activeOrder = useMemo(() => (orderId ? orders.find((order) => order.id === orderId) : undefined), [orderId, orders]);
-  const activeConsultation = useMemo(() => (!activeOrder && orderId ? getConsultation(orderId) : null), [activeOrder, consultationVersion, orderId]);
+  const activeConsultation = !activeOrder && orderId ? getConsultation(orderId) : null;
   const activePost = useMemo(() => findPostForOrder(activeOrder, listFeedPosts()), [activeOrder]);
   const [draft, setDraft] = useState('');
   const [conversation, setConversation] = useState<Conversation>(() => getConversation());

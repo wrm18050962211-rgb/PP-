@@ -111,17 +111,14 @@ export function OrdersPage() {
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
   const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
-  const [consultationVersion, setConsultationVersion] = useState(0);
+  const [, setConsultationVersion] = useState(0);
   const posts = useMemo(() => listFeedPosts(), []);
 
   const filteredOrders = useMemo(
     () => orders.filter((order) => activeStatus === 'all' || getDisplayOrderStatus(order.status) === activeStatus),
     [activeStatus, orders],
   );
-  const quotedConsultations = useMemo(
-    () => (session && !workMode ? listConsultations(session).filter(isQuotedConsultation) : []),
-    [consultationVersion, session, workMode],
-  );
+  const quotedConsultations = session && !workMode ? listConsultations(session).filter(isQuotedConsultation) : [];
   const showQuotedConsultations = !workMode && quotedConsultations.length > 0 && (activeStatus === 'all' || activeStatus === 'paid_pending_confirm');
   const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
   const completedWorkOrders = useMemo(() => orders.filter((order) => getDisplayOrderStatus(order.status) === 'completed'), [orders]);

@@ -20,15 +20,12 @@ type DraftQuote = {
 
 export function CompanionConsultationsPage() {
   const { session } = useAppData();
-  const [version, setVersion] = useState(0);
+  const [, setVersion] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, DraftQuote>>({});
   const [quoteFeedback, setQuoteFeedback] = useState<Record<string, string>>({});
   const posts = useMemo(() => listFeedPosts(), []);
   const companionById = useMemo(() => new Map(posts.map((post) => [post.companion.id, post.companion])), [posts]);
-  const consultations = useMemo(
-    () => listConsultations(session).filter((consultation) => consultation.status !== 'closed'),
-    [session, version],
-  );
+  const consultations = listConsultations(session).filter((consultation) => consultation.status !== 'closed');
 
   const updateDraft = (id: string, patch: Partial<DraftQuote>) => {
     setDrafts((current) => {
