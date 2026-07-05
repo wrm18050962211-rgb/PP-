@@ -170,7 +170,7 @@ export function HomeFeed() {
   const [posts, setPosts] = useState<FeedPost[]>(initialFeedPage.items);
   const [feedCursor, setFeedCursor] = useState<string | null>(initialFeedPage.nextCursor);
   const [hasMoreFeed, setHasMoreFeed] = useState(initialFeedPage.hasMore);
-  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedLoading, setFeedLoading] = useState(true);
   const [filters, setFilters] = useState<FeedFilters>(initialFilters);
   const [cityOpen, setCityOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -187,7 +187,6 @@ export function HomeFeed() {
 
   useEffect(() => {
     let mounted = true;
-    setFeedLoading(true);
     fetchFeedPostPage({ limit: feedPageSize })
       .then((page) => {
         if (!mounted) return;
@@ -265,13 +264,24 @@ export function HomeFeed() {
   const locationLabel = getLocationLabel(filters);
   const locationKeyword = getLocationKeyword(filters);
   const activeLocation = getActiveLocation(filters, consumerLocation);
-  const locationKeywords = useMemo(() => getLocationKeywords(filters), [filters.area, filters.city, filters.district, filters.locationPointName]);
+  const activeLocationLat = activeLocation?.lat;
+  const activeLocationLng = activeLocation?.lng;
+  const locationKeywords = useMemo(
+    () =>
+      getLocationKeywords({
+        area: filters.area,
+        city: filters.city,
+        district: filters.district,
+        locationPointName: filters.locationPointName,
+      }),
+    [filters.area, filters.city, filters.district, filters.locationPointName],
+  );
   const localFilteredPosts = useMemo(
     () =>
       matchCompanions(feedPosts, {
         city: filters.city,
-        lat: activeLocation?.lat,
-        lng: activeLocation?.lng,
+        lat: activeLocationLat,
+        lng: activeLocationLng,
         location: locationKeyword,
         locationKeywords,
         keyword: filters.query,
@@ -284,7 +294,7 @@ export function HomeFeed() {
         .filter((post) => matchesShootTime(post, filters.shootTime))
         .filter((post) => matchesSubject(post, filters.subject))
         .filter((post) => matchesMedia(post, filters.media)),
-    [activeLocation?.lat, activeLocation?.lng, feedPosts, filters, locationKeyword, locationKeywords],
+    [activeLocationLat, activeLocationLng, feedPosts, filters, locationKeyword, locationKeywords],
   );
   const channelPostGroups = useMemo(
     () => createChannelPostGroups(localFilteredPosts, matchedPostIds, filters, locationKeywords),
@@ -401,16 +411,21 @@ export function HomeFeed() {
   );
 
   useEffect(() => {
-    if (!filters.nearbyOnly || !activeLocation) {
-      setMatchedPostIds(null);
-      return;
+    if (!filters.nearbyOnly || activeLocationLat === undefined || activeLocationLng === undefined) {
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (!cancelled) setMatchedPostIds(null);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
 
     let mounted = true;
     fetchMatchedCompanions({
       city: filters.city,
-      lat: activeLocation.lat,
-      lng: activeLocation.lng,
+      lat: activeLocationLat,
+      lng: activeLocationLng,
       location: locationKeyword,
       keyword: filters.query,
       activityType: filters.intent,
@@ -425,7 +440,7 @@ export function HomeFeed() {
     return () => {
       mounted = false;
     };
-  }, [activeLocation?.lat, activeLocation?.lng, filters, locationKeyword]);
+  }, [activeLocationLat, activeLocationLng, filters, locationKeyword]);
 
   useEffect(() => {
     const node = feedLoadRef.current;
