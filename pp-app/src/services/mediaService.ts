@@ -1,5 +1,5 @@
 import type { MediaUploadPolicy, MediaUploadPurpose, PostImage } from '../types/api';
-import { apiPost, isApiEnabled } from './apiClient';
+import { apiPost, getApiFallback, isApiEnabled } from './apiClient';
 import { isMiniProgramRuntime, wxUploadFile } from './miniProgramBridge';
 
 type UploadInput = {
@@ -11,7 +11,7 @@ export async function uploadPostImage(file: File): Promise<PostImage> {
   const isVideo = file.type.startsWith('video/');
   const policy = await requestUploadPolicy(file, isVideo ? 'video' : 'post-image');
   const localPreviewUrl = await readFileAsDataUrl(file);
-  const mediaUrl = policy?.mode === 'production' ? policy.publicUrl : localPreviewUrl;
+  const mediaUrl = policy?.mode === 'production' ? policy.publicUrl : getApiFallback(localPreviewUrl, 'Media upload');
 
   return {
     id: `draft-image-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -27,7 +27,7 @@ export async function uploadPostImage(file: File): Promise<PostImage> {
 }
 
 export async function requestUploadPolicy(file: File, purpose: MediaUploadPurpose): Promise<MediaUploadPolicy | null> {
-  if (!isApiEnabled()) return null;
+  if (!isApiEnabled()) return getApiFallback(null, 'Upload policy');
 
   try {
     const response = await apiPost<MediaUploadPolicy>('/api/media/upload-policy', {
@@ -36,21 +36,21 @@ export async function requestUploadPolicy(file: File, purpose: MediaUploadPurpos
       contentType: file.type || 'application/octet-stream',
       sizeBytes: file.size,
     });
-    return response.success ? response.data : null;
+    return response.success ? response.data : getApiFallback(null, 'Upload policy');
   } catch {
-    return null;
+    return getApiFallback(null, 'Upload policy');
   }
 }
 
 export async function uploadMediaFile({ file, purpose }: UploadInput): Promise<string> {
   const policy = await requestUploadPolicy(file, purpose);
   if (policy?.mode === 'production') return policy.publicUrl;
-  return readFileAsDataUrl(file);
+  return getApiFallback(await readFileAsDataUrl(file), 'Media upload');
 }
 
 export async function uploadMiniProgramMediaFile(filePath: string, purpose: MediaUploadPurpose, fileName = 'upload.jpg'): Promise<string> {
   const policy = await requestMiniProgramUploadPolicy(fileName, purpose);
-  if (!policy) return filePath;
+  if (!policy) return getApiFallback(filePath, 'Mini program media upload');
   if (policy.mode === 'production' && isMiniProgramRuntime()) {
     await wxUploadFile(policy.uploadUrl, filePath, { key: policy.objectKey });
   }
@@ -58,7 +58,7 @@ export async function uploadMiniProgramMediaFile(filePath: string, purpose: Medi
 }
 
 async function requestMiniProgramUploadPolicy(fileName: string, purpose: MediaUploadPurpose): Promise<MediaUploadPolicy | null> {
-  if (!isApiEnabled()) return null;
+  if (!isApiEnabled()) return getApiFallback(null, 'Mini program upload policy');
 
   try {
     const response = await apiPost<MediaUploadPolicy>('/api/media/upload-policy', {
@@ -66,9 +66,9 @@ async function requestMiniProgramUploadPolicy(fileName: string, purpose: MediaUp
       fileName,
       contentType: 'application/octet-stream',
     });
-    return response.success ? response.data : null;
+    return response.success ? response.data : getApiFallback(null, 'Mini program upload policy');
   } catch {
-    return null;
+    return getApiFallback(null, 'Mini program upload policy');
   }
 }
 

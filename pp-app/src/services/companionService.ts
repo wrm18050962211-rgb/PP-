@@ -1,6 +1,6 @@
 import { defaultApplication, defaultWorkDraft, seedOrders } from '../data/mockApi';
 import type { CompanionApplication, CompanionDashboard, PublishedWorkDraft } from '../types/api';
-import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { apiGet, apiPost, getApiFallback, isApiEnabled } from './apiClient';
 
 export function getDefaultApplication(): CompanionApplication {
   return defaultApplication;
@@ -20,24 +20,24 @@ export function getCompanionDashboard(): CompanionDashboard {
 }
 
 export async function fetchCompanionDashboard(): Promise<CompanionDashboard> {
-  if (!isApiEnabled()) return getCompanionDashboard();
+  if (!isApiEnabled()) return getApiFallback(getCompanionDashboard(), 'Companion dashboard');
 
   try {
     const response = await apiGet<CompanionDashboard>('/api/companion/me');
-    return response.success ? response.data : getCompanionDashboard();
+    return response.success ? response.data : getApiFallback(getCompanionDashboard(), 'Companion dashboard');
   } catch {
-    return getCompanionDashboard();
+    return getApiFallback(getCompanionDashboard(), 'Companion dashboard');
   }
 }
 
 export async function saveCompanionApplicationDraft(application: CompanionApplication): Promise<CompanionApplication> {
-  if (!isApiEnabled()) return application;
+  if (!isApiEnabled()) return getApiFallback(application, 'Save companion application draft');
 
   try {
     const response = await apiPost<CompanionApplication>('/api/companion/me/application', application);
-    return response.success ? response.data : application;
+    return response.success ? response.data : getApiFallback(application, 'Save companion application draft');
   } catch {
-    return application;
+    return getApiFallback(application, 'Save companion application draft');
   }
 }
 

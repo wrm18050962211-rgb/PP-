@@ -11,7 +11,7 @@ import type {
   PublishedWorkDraft,
 } from '../types/api';
 import { evaluateMessageRisk } from '../utils/messageRisk';
-import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { apiGet, apiPost, getApiFallback, isApiEnabled } from './apiClient';
 
 const moderationStorageKey = 'pp-admin-moderation-v1';
 
@@ -29,18 +29,18 @@ export function getAdminDashboardData(application: CompanionApplication, workDra
 
 export async function fetchAdminDashboardData(application: CompanionApplication, workDraft: PublishedWorkDraft, orders: AppOrder[]): Promise<AdminDashboardData> {
   const fallback = getAdminDashboardData(application, workDraft, orders);
-  if (!isApiEnabled()) return fallback;
+  if (!isApiEnabled()) return getApiFallback(fallback, 'Admin dashboard');
 
   try {
     const response = await apiGet<AdminDashboardData>('/api/admin/dashboard');
-    return response.success ? response.data : fallback;
+    return response.success ? response.data : getApiFallback(fallback, 'Admin dashboard');
   } catch {
-    return fallback;
+    return getApiFallback(fallback, 'Admin dashboard');
   }
 }
 
 export async function approveAuditCase(caseId: string) {
-  if (!isApiEnabled()) return true;
+  if (!isApiEnabled()) return getApiFallback(true, 'Approve audit case');
 
   try {
     const response = await apiPost<{ ok: boolean }>(`/api/admin/audit-cases/${caseId}/approve`);
@@ -51,7 +51,7 @@ export async function approveAuditCase(caseId: string) {
 }
 
 export async function rejectAuditCase(caseId: string, reason: string) {
-  if (!isApiEnabled()) return true;
+  if (!isApiEnabled()) return getApiFallback(true, 'Reject audit case');
 
   try {
     const response = await apiPost<{ ok: boolean }>(`/api/admin/audit-cases/${caseId}/reject`, { reason });
@@ -72,13 +72,13 @@ export function getAdminModerationData(orders: AppOrder[] = seedOrders): AdminMo
 
 export async function fetchAdminModerationData(orders: AppOrder[] = seedOrders): Promise<AdminModerationData> {
   const fallback = getAdminModerationData(orders);
-  if (!isApiEnabled()) return fallback;
+  if (!isApiEnabled()) return getApiFallback(fallback, 'Admin moderation');
 
   try {
     const response = await apiGet<AdminModerationData>('/api/admin/moderation');
-    return response.success ? response.data : fallback;
+    return response.success ? response.data : getApiFallback(fallback, 'Admin moderation');
   } catch {
-    return fallback;
+    return getApiFallback(fallback, 'Admin moderation');
   }
 }
 
@@ -121,7 +121,7 @@ export function applyAdminModerationAction(
 }
 
 export async function syncAdminModerationAction(caseId: string, actionType: AdminActionType, note = '') {
-  if (!isApiEnabled()) return true;
+  if (!isApiEnabled()) return getApiFallback(true, 'Admin moderation action');
 
   try {
     const response = await apiPost<AdminRiskMessageCase | AdminReportCase>(`/api/admin/moderation/${caseId}/actions`, { actionType, note });

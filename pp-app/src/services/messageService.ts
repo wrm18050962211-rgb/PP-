@@ -1,7 +1,7 @@
 import { mockConversation, seedOrders } from '../data/mockApi';
 import type { AppOrder, Conversation, Message } from '../types/api';
 import { blockedWords, evaluateMessageRisk, findMessageRiskWords } from '../utils/messageRisk';
-import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { apiGet, apiPost, getApiFallback, isApiEnabled } from './apiClient';
 import { findLedgerOrder } from './virtualOrderLedger';
 
 const localConversationStorageKey = 'order-conversations-v1';
@@ -22,13 +22,14 @@ export function getConversationForOrder(orderId?: string): Conversation {
 }
 
 export async function fetchConversation(orderId?: string): Promise<Conversation> {
-  if (!isApiEnabled() || !orderId) return getLocalConversation(orderId);
+  if (!orderId) return getApiFallback(getLocalConversation(orderId), 'Conversation');
+  if (!isApiEnabled()) return getApiFallback(getLocalConversation(orderId), 'Conversation');
 
   try {
     const response = await apiGet<Conversation>(`/api/orders/${orderId}/conversation`);
-    return response.success ? response.data : getLocalConversation(orderId);
+    return response.success ? response.data : getApiFallback(getLocalConversation(orderId), 'Conversation');
   } catch {
-    return getLocalConversation(orderId);
+    return getApiFallback(getLocalConversation(orderId), 'Conversation');
   }
 }
 
@@ -51,18 +52,21 @@ export async function sendMessage(
   }
 
   if (!isApiEnabled()) {
-    return {
+    return getApiFallback({
       blocked: false,
       matchedKeywords: [],
       message: createLocalMessage(content, risk.level === 'medium' ? 'flagged' : 'clean', from),
-    };
+    }, 'Send message');
   }
 
   try {
     const response = await apiPost<Message>(`/api/conversations/${conversationId}/messages`, { content, from });
     return response.success ? { blocked: false, matchedKeywords: [], message: response.data } : { blocked: true, matchedKeywords };
   } catch {
-    return { blocked: false, matchedKeywords: [], message: createLocalMessage(content, risk.level === 'medium' ? 'flagged' : 'clean', from) };
+    return getApiFallback(
+      { blocked: false, matchedKeywords: [], message: createLocalMessage(content, risk.level === 'medium' ? 'flagged' : 'clean', from) },
+      'Send message',
+    );
   }
 }
 
@@ -86,7 +90,7 @@ export async function sendImageMessage(
   }
 
   const imageUrl = await readFileAsDataUrl(file);
-  return {
+  return getApiFallback({
     blocked: false,
     matchedKeywords,
     message: createLocalMessage('[图片]', risk.level === 'medium' ? 'flagged' : 'clean', from, {
@@ -94,7 +98,7 @@ export async function sendImageMessage(
       imageName: file.name,
       imageUrl,
     }),
-  };
+  }, 'Send image message');
 }
 
 export function sendVoiceMessage(
@@ -112,7 +116,7 @@ export function sendVoiceMessage(
 }
 
 export async function submitOrderReport(orderId: string, description = '用户在消息页发起举报') {
-  if (!isApiEnabled()) return true;
+  if (!isApiEnabled()) return getApiFallback(true, 'Order report');
 
   try {
     const response = await apiPost<{ ok: boolean }>(`/api/orders/${orderId}/report`, {
