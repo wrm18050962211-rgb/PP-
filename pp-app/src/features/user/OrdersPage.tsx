@@ -14,7 +14,7 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
@@ -34,6 +34,7 @@ import {
   completeOrderWork,
   createWatermarkText,
   createOrderWorkRecord,
+  getOrderImageLimit,
   getOrderWorkDisplayUrls,
   getOrderWorkPreviewUrls,
   getOrderWorkStage,
@@ -669,6 +670,8 @@ export function OrderWorkDialog({
   const [draft, setDraft] = useState<OrderWorkRecord>(() => record ?? createOrderWorkRecord(order, post));
   const [disputeReason, setDisputeReason] = useState('');
   const [syncRevision, setSyncRevision] = useState(0);
+  const draftRef = useRef(draft);
+  const onDraftChangeRef = useRef(onDraftChange);
   const confirmed = isOrderWorkConfirmed(draft);
   const stage = getOrderWorkStage(draft);
   const editable = canActorEditOrderWork(draft, actor);
@@ -698,8 +701,16 @@ export function OrderWorkDialog({
   }, [record]);
 
   useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    onDraftChangeRef.current = onDraftChange;
+  }, [onDraftChange]);
+
+  useEffect(() => {
     if (!syncRevision) return;
-    onDraftChange?.(buildSubmitRecord(draft));
+    onDraftChangeRef.current?.(buildOrderWorkSubmitRecord(draftRef.current));
   }, [syncRevision]);
 
   function queueDraftSync() {
@@ -793,33 +804,12 @@ export function OrderWorkDialog({
     queueDraftSync();
   }
 
-  function buildSubmitRecord(recordToSave = draft) {
-    const nextConfirmed = recordToSave.creatorConfirmed && recordToSave.photographerConfirmed;
-    const completed = Boolean(recordToSave.orderCompletedAt) || recordToSave.deliveryStatus === 'released';
-    const previewMode: OrderWorkRecord['previewMode'] = completed ? 'original_released' : 'low_res_watermarked';
-    const deliveryStatus: OrderWorkRecord['deliveryStatus'] = completed
-      ? 'released'
-      : nextConfirmed
-        ? 'confirmed'
-        : recordToSave.deliveryStatus ?? (recordToSave.imageUrls.length ? 'preview_ready' : 'draft');
-    return {
-      ...recordToSave,
-      previewMode,
-      deliveryStatus,
-      publishToCreator: nextConfirmed ? recordToSave.publishToCreator : false,
-      publishToPhotographer: nextConfirmed ? recordToSave.publishToPhotographer : false,
-      bothConfirmedAt: nextConfirmed ? recordToSave.bothConfirmedAt ?? new Date().toISOString() : undefined,
-      collaborationStage: nextConfirmed ? 'locked' : getOrderWorkStage(recordToSave),
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
   function submit() {
-    onSubmit(buildSubmitRecord());
+    onSubmit(buildOrderWorkSubmitRecord(draft));
   }
 
   function completeAndSettle() {
-    onCompleteOrder?.(buildSubmitRecord());
+    onCompleteOrder?.(buildOrderWorkSubmitRecord(draft));
   }
 
   function togglePublish(target: WorkActor, checked: boolean) {
@@ -1099,6 +1089,29 @@ export function OrderWorkDialog({
       </div>
     </ActionSheet>
   );
+}
+
+function buildOrderWorkSubmitRecord(recordToSave: OrderWorkRecord) {
+  const nextConfirmed = recordToSave.creatorConfirmed && recordToSave.photographerConfirmed;
+  const completed = Boolean(recordToSave.orderCompletedAt) || recordToSave.deliveryStatus === 'released';
+  const updatedAt = new Date().toISOString();
+  const previewMode: OrderWorkRecord['previewMode'] = completed ? 'original_released' : 'low_res_watermarked';
+  const deliveryStatus: OrderWorkRecord['deliveryStatus'] = completed
+    ? 'released'
+    : nextConfirmed
+      ? 'confirmed'
+      : recordToSave.deliveryStatus ?? (recordToSave.imageUrls.length ? 'preview_ready' : 'draft');
+
+  return {
+    ...recordToSave,
+    previewMode,
+    deliveryStatus,
+    publishToCreator: nextConfirmed ? recordToSave.publishToCreator : false,
+    publishToPhotographer: nextConfirmed ? recordToSave.publishToPhotographer : false,
+    bothConfirmedAt: nextConfirmed ? recordToSave.bothConfirmedAt ?? updatedAt : undefined,
+    collaborationStage: nextConfirmed ? 'locked' : getOrderWorkStage(recordToSave),
+    updatedAt,
+  };
 }
 
 function WorkStatusPill({ label, active, time }: { label: string; active: boolean; time?: string }) {
@@ -1423,17 +1436,6 @@ function mediaFromWorkUrl(url: string, index: number) {
 function parseDataUrlContentType(url: string) {
   const match = url.match(/^data:([^;,]+)/);
   return match?.[1] ?? '';
-}
-
-export function getOrderImageLimit(order: Pick<AppOrder, 'imageQuantityMode' | 'customImageQuantity'>) {
-  const mode = order.imageQuantityMode ?? '9';
-  if (mode === 'unlimited') return { limit: null as number | null, label: '不限' };
-  if (mode === 'custom') {
-    const customLimit = Math.max(1, Math.floor(order.customImageQuantity ?? 9));
-    return { limit: customLimit, label: `${customLimit}张` };
-  }
-  const limit = Number(mode);
-  return { limit, label: `${limit}张` };
 }
 
 function getWorkEditStatus(record?: OrderWorkRecord): WorkEditTab {

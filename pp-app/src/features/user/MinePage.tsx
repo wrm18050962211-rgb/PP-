@@ -6,7 +6,7 @@ import { listConsultations } from '../../services/consultationService';
 import { getCreatorIdentity, readCreatorProfile } from '../../services/creatorProfileService';
 import { listFeedPosts } from '../../services/feedService';
 import type { AuthSession, FeedPost, UserRole } from '../../types/api';
-import { getCollectionSummary } from './UserCollectionPage';
+import { getCollectionSummary } from './collectionSummary';
 
 type UserFacingRole = Extract<UserRole, 'consumer' | 'companion'>;
 type CreatorMenuItem = { icon: LucideIcon; label: string; desc: string; to: string; badge?: string };

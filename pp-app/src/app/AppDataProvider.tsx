@@ -84,7 +84,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [session?.role]);
+  }, [session]);
 
   const value = useMemo<AppData>(() => {
     function persist(next: Partial<Pick<AppData, 'orders' | 'application' | 'bookingSettings' | 'workDraft'>>) {

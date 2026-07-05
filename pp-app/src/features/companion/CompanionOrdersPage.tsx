@@ -17,6 +17,7 @@ import { useAppData } from '../../app/useAppData';
 import { listFeedPosts } from '../../services/feedService';
 import {
   completeOrderWork,
+  getOrderImageLimit,
   isOrderWorkConfirmed,
   listOrderWorkRecords,
   markOrderWorkDisputed,
@@ -27,7 +28,7 @@ import {
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import type { AppOrder, OrderStatus } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
-import { OrderWorkDialog, getOrderImageLimit } from '../user/OrdersPage';
+import { OrderWorkDialog } from '../user/OrdersPage';
 
 type CompanionOrderTab = OrderStatus;
 type WorkEditTab = 'not_started' | 'editing' | 'done';

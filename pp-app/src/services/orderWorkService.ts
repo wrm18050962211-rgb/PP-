@@ -209,6 +209,17 @@ export function createWatermarkText(order: AppOrder) {
   return `${order.orderNo} ${order.creatorId ?? order.creatorPhone ?? 'creator'} ${new Date().toLocaleDateString('zh-CN')}`;
 }
 
+export function getOrderImageLimit(order: Pick<AppOrder, 'imageQuantityMode' | 'customImageQuantity'>) {
+  const mode = order.imageQuantityMode ?? '9';
+  if (mode === 'unlimited') return { limit: null as number | null, label: '\u4e0d\u9650' };
+  if (mode === 'custom') {
+    const customLimit = Math.max(1, Math.floor(order.customImageQuantity ?? 9));
+    return { limit: customLimit, label: `${customLimit}\u5f20` };
+  }
+  const limit = Number(mode);
+  return { limit, label: `${limit}\u5f20` };
+}
+
 export function markOrderWorkDisputed(record: OrderWorkRecord, reason: string): OrderWorkRecord {
   return normalizeOrderWorkRecord({
     ...record,

@@ -15,7 +15,7 @@ import { applyCompanionProfile, readCompanionProfile } from '../../services/comp
 import { listConsultations } from '../../services/consultationService';
 import { listFeedPosts } from '../../services/feedService';
 import type { FeedPost } from '../../types/api';
-import { getCollectionSummary } from '../user/UserCollectionPage';
+import { getCollectionSummary } from '../user/collectionSummary';
 
 type MenuItem = { icon: typeof ClipboardList; label: string; desc: string; to: string; badge?: string };
 
