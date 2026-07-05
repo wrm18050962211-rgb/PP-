@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { PostImage } from '../types/api';
+import { isLiveMedia } from '../utils/media';
 
 type LivePhotoMediaProps = {
   media?: PostImage;
@@ -12,11 +13,19 @@ type LivePhotoMediaProps = {
   playLive?: boolean;
 };
 
-export function isLiveMedia(media?: Pick<PostImage, 'contentType' | 'mediaKind' | 'videoUrl'>) {
-  return media?.mediaKind === 'live' || media?.mediaKind === 'video' || Boolean(media?.videoUrl) || Boolean(media?.contentType?.startsWith('video/'));
+export function LivePhotoMedia(props: LivePhotoMediaProps) {
+  const mediaKey = [
+    props.media?.id,
+    props.media?.url,
+    props.media?.posterUrl,
+    props.media?.videoUrl,
+    props.fallbackSrc,
+  ].join('|');
+
+  return <LivePhotoMediaContent key={mediaKey} {...props} />;
 }
 
-export function LivePhotoMedia({
+function LivePhotoMediaContent({
   media,
   alt,
   className = '',
@@ -33,11 +42,6 @@ export function LivePhotoMedia({
   const imageSrc = imageFailed ? fallbackSrc : media?.posterUrl || media?.url || fallbackSrc;
   const videoSrc = live ? media?.videoUrl || (media?.contentType?.startsWith('video/') ? media.url : undefined) : undefined;
   const shouldPlayVideo = playLive && live && videoSrc && !videoFailed;
-
-  useEffect(() => {
-    setVideoFailed(false);
-    setImageFailed(false);
-  }, [media?.id, media?.url, media?.videoUrl]);
 
   return (
     <div className={`relative h-full w-full overflow-hidden ${className}`}>

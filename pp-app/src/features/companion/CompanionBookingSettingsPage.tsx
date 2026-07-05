@@ -124,7 +124,7 @@ export function CompanionBookingSettingsPage() {
       return;
     }
 
-    updateDayRanges(weekday, [{ id: `${applyMode}-${weekday}-${Date.now()}`, ...nextRange }, ...ranges]);
+    updateDayRanges(weekday, [{ id: nextRangeId(applyMode, weekday, selectedDay.dateValue, ranges), ...nextRange }, ...ranges]);
   };
 
   const updateRange = (weekday: RepeatWeekday, rangeId: string, patch: Partial<BookingTimeRange>) => {
@@ -782,7 +782,19 @@ function isSameLocalDate(left: string, right: string) {
 }
 
 function normalizePlace(place: string) {
-  return place.replace(/^上海\s*[·\-]\s*/, '').trim();
+  return place.replace(/^上海\s*[·-]\s*/, '').trim();
+}
+
+function nextRangeId(applyMode: CompanionBookingSettings['scheduleApplyMode'], weekday: RepeatWeekday, dateValue: string, ranges: BookingTimeRange[]) {
+  const prefix = `${applyMode}-${weekday}-${dateValue}`;
+  const usedIds = new Set(ranges.map((range) => range.id));
+  let nextIndex = ranges.length + 1;
+  let id = `${prefix}-${nextIndex}`;
+  while (usedIds.has(id)) {
+    nextIndex += 1;
+    id = `${prefix}-${nextIndex}`;
+  }
+  return id;
 }
 
 function formatOrderTime(order: AppOrder) {

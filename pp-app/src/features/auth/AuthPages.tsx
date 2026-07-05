@@ -1,5 +1,5 @@
 import { ArrowLeft, Camera, CheckCircle2, LogOut, MessageSquareText, ShieldCheck, Smartphone, UserRound } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   accountHasRole,
@@ -70,22 +70,22 @@ export function GuestOnly({ children }: { children: React.ReactNode }) {
 }
 
 export function RegisterPage() {
-  const navigate = useNavigate();
   const location = useLocation();
   const registerState = location.state as { role?: PublicRole; phone?: string } | null;
   const registerParams = new URLSearchParams(location.search);
   const initialRole = toPublicRole(registerState?.role) ?? toPublicRole(registerParams.get('role')) ?? 'consumer';
   const initialPhone = registerState?.phone ?? registerParams.get('phone') ?? '';
+
+  return <RegisterForm key={`${initialRole}:${initialPhone}`} initialRole={initialRole} initialPhone={initialPhone} />;
+}
+
+function RegisterForm({ initialRole, initialPhone }: { initialRole: PublicRole; initialPhone: string }) {
+  const navigate = useNavigate();
   const [role, setRole] = useState<PublicRole>(initialRole);
   const [phone, setPhone] = useState(initialPhone);
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    setRole(initialRole);
-    setPhone(initialPhone);
-  }, [initialRole, initialPhone]);
 
   function sendCode() {
     try {

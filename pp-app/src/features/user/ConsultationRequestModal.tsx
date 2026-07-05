@@ -95,7 +95,7 @@ export function ConsultationRequestModal({
     }));
   }
 
-  async function useCurrentLocation() {
+  async function handleUseCurrentLocation() {
     setLocationStatus('正在获取定位...');
     try {
       const location = await requestConsumerLocation();
@@ -160,7 +160,7 @@ export function ConsultationRequestModal({
             </select>
           </Field>
           <div className="grid min-w-0 grid-cols-2 gap-2">
-            <button className="flex h-10 min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full bg-white px-2 text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => void useCurrentLocation()} type="button">
+            <button className="flex h-10 min-w-0 items-center justify-center gap-2 overflow-hidden rounded-full bg-white px-2 text-xs font-black text-zinc-800 ring-1 ring-zinc-200 backdrop-blur" onClick={() => void handleUseCurrentLocation()} type="button">
               <LocateFixed size={15} />
               <span className="min-w-0 truncate">使用当前位置</span>
             </button>

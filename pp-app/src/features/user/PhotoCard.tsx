@@ -1,9 +1,10 @@
 import { Heart, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { isLiveMedia, LivePhotoMedia } from '../../components/LivePhotoMedia';
+import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { listFeedPosts } from '../../services/feedService';
 import { getPostLikeCount } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
+import { isLiveMedia } from '../../utils/media';
 
 export type PhotoCardVariant = 'tall' | 'portrait' | 'soft' | 'wide';
 
