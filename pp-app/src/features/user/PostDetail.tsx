@@ -35,8 +35,6 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const [consultOpen, setConsultOpen] = useState(false);
   const [drawer, setDrawer] = useState<DrawerType>(null);
   const [activeImage, setActiveImage] = useState(0);
-  const [liked, setLiked] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -49,6 +47,8 @@ function PostDetailContent({ postId }: { postId?: string }) {
     const posts = listFeedPosts();
     return posts.some((item) => item.id === post.id) ? posts : [post, ...posts];
   }, [post]);
+  const [liked, setLiked] = useState(() => isPostLiked(post.id, collectionPosts));
+  const [bookmarked, setBookmarked] = useState(() => isPostFavorited(post.id, collectionPosts));
   const postTitle = getPostTitle(post);
   const photographer = post.companion;
   const isCompanionMode = session?.role === 'companion';
@@ -63,7 +63,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
     if (!visibleCreator) return [];
     const works = collectionPosts.filter((item) => getCreatorIdentity(item).id === visibleCreator.id);
     return works.some((item) => item.id === post.id) ? works : [post, ...works];
-  }, [collectionPosts, post, visibleCreator?.id]);
+  }, [collectionPosts, post, visibleCreator]);
   const creatorWorkCards = useMemo(
     () =>
       creatorWorks.flatMap((work) =>
@@ -84,7 +84,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const activeMedia = images[activeImage] ?? cover;
   const isLandscape = getImageAspectRatio(activeMedia) >= 1;
   const mediaHeightClass = isLandscape ? (captionExpanded ? 'h-[44dvh]' : 'h-[58dvh]') : captionExpanded ? 'h-[56dvh]' : 'h-[66dvh]';
-  const baseComments = useMemo(() => buildComments(post, visibleCreator), [post, visibleCreator?.avatar, visibleCreator?.name]);
+  const baseComments = useMemo(() => buildComments(post, visibleCreator), [post, visibleCreator]);
   const comments = useMemo(() => [...baseComments, ...localComments], [baseComments, localComments]);
   const [likeCount, setLikeCount] = useState(() => getPostLikeCount(post.id, collectionPosts));
   const shareCount = useMemo(() => formatMetric(260 + stableMetricSeed(`${post.id}-share`, 180)), [post.id]);
@@ -109,18 +109,6 @@ function PostDetailContent({ postId }: { postId?: string }) {
     const timer = window.setTimeout(() => setToast(''), 1600);
     return () => window.clearTimeout(timer);
   }, [toast]);
-
-  useEffect(() => {
-    setActiveImage(0);
-    setLiked(isPostLiked(post.id, collectionPosts));
-    setBookmarked(isPostFavorited(post.id, collectionPosts));
-    setLikeCount(getPostLikeCount(post.id, collectionPosts));
-    setCaptionExpanded(false);
-    setCommentsOpen(false);
-    setCommentText('');
-    setLocalComments([]);
-    imageTrackRef.current?.scrollTo({ left: 0 });
-  }, [collectionPosts, post.id]);
 
   const handleShare = async () => {
     try {
@@ -501,22 +489,7 @@ function PhotographerDrawerSummary({ post, packageSettings }: { post: FeedPost; 
   );
 }
 
-function ProfileDrawer({
-  open,
-  side,
-  title,
-  name,
-  avatar,
-  hero,
-  heroSlides,
-  workCards,
-  meta,
-  tags,
-  basePath,
-  pinActions = false,
-  onClose,
-  children,
-}: {
+type ProfileDrawerProps = {
   open: boolean;
   side: 'left' | 'right';
   title: string;
@@ -531,28 +504,49 @@ function ProfileDrawer({
   pinActions?: boolean;
   onClose: () => void;
   children: ReactNode;
-}) {
+};
+
+type ProfileDrawerPanelProps = Omit<ProfileDrawerProps, 'open' | 'heroSlides'> & {
+  slides: Array<{ id: string; image: string }>;
+};
+
+function ProfileDrawer({ open, heroSlides, ...panelProps }: ProfileDrawerProps) {
   const slides = heroSlides?.filter((slide) => slide.image) ?? [];
+  if (!open) return null;
+
+  return <ProfileDrawerPanel {...panelProps} slides={slides} />;
+}
+
+function ProfileDrawerPanel({
+  side,
+  title,
+  name,
+  avatar,
+  hero,
+  slides,
+  workCards,
+  meta,
+  tags,
+  basePath,
+  pinActions = false,
+  onClose,
+  children,
+}: ProfileDrawerPanelProps) {
+  const slideCount = slides.length;
   const [activeSlide, setActiveSlide] = useState(0);
 
   useEffect(() => {
-    if (!open) {
-      setActiveSlide(0);
-      return;
-    }
-    if (slides.length <= 1) return;
+    if (slideCount <= 1) return;
     const timer = window.setInterval(() => {
-      setActiveSlide((current) => (current + 1) % slides.length);
+      setActiveSlide((current) => (current + 1) % slideCount);
     }, 2800);
     return () => window.clearInterval(timer);
-  }, [open, slides.length]);
-
-  if (!open) return null;
+  }, [slideCount]);
 
   const activeHero = slides[activeSlide] ?? (hero ? { id: '', image: hero } : null);
-  const canSlide = slides.length > 1;
-  const showPrevious = () => setActiveSlide((current) => (current - 1 + slides.length) % slides.length);
-  const showNext = () => setActiveSlide((current) => (current + 1) % slides.length);
+  const canSlide = slideCount > 1;
+  const showPrevious = () => setActiveSlide((current) => (current - 1 + slideCount) % slideCount);
+  const showNext = () => setActiveSlide((current) => (current + 1) % slideCount);
 
   return (
     <div className="pointer-events-none fixed inset-y-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2">
@@ -653,7 +647,7 @@ function ProfileDrawer({
   );
 }
 
-export function buildCreator(post: FeedPost, profile?: CreatorProfileDraft | null) {
+function buildCreator(post: FeedPost, profile?: CreatorProfileDraft | null) {
   const baseCreator = getCreatorIdentity(post);
   const appliedCreator = applyCreatorProfile(baseCreator, profile ?? null);
   const bio = getCreatorBio(post, profile?.creatorId === baseCreator.id ? profile : null);
