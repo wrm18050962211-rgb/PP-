@@ -1,13 +1,13 @@
 import {
   Banknote,
   Ban,
-  Bell,
   CheckCircle2,
   ChevronRight,
   CreditCard,
   FileSearch,
   Flag,
   LockKeyhole,
+  LogOut,
   MessageSquareWarning,
   PauseCircle,
   Settings,
@@ -18,8 +18,10 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
+import { getPostAuthHome, logoutLocalAdmin } from '../../services/authService';
 import { listAccountDeletionRequests, updateAccountDeletionRequestStatus, type AccountDeletionRequest, type AccountDeletionRequestStatus } from '../../services/accountDeletionService';
 import { fetchAdminModerationData, syncAdminModerationAction } from '../../services/adminService';
 import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
@@ -155,6 +157,7 @@ const configSeed: SystemConfig[] = [
 ];
 
 export function AdminDashboard() {
+  const navigate = useNavigate();
   const { application, workDraft, orders, reviewApplication, reviewWork, updateOrderStatus, updateOrderFunding } = useAppData();
   const [activeModule, setActiveModule] = useState<AdminModuleKey>('companions');
   const [selectedOrderId, setSelectedOrderId] = useState(orders[0]?.id ?? '');
@@ -228,10 +231,10 @@ export function AdminDashboard() {
 
   const metrics = useMemo(
     () => [
-      { label: '待审陪拍者', value: application.reviewStatus === '待审核' ? '1' : '0' },
-      { label: '待审作品', value: workDraft.reviewStatus === '待审核' ? '1' : '0' },
-      { label: '订单总数', value: String(orders.length) },
-      { label: '风控待处理', value: String(riskCases.filter((item) => item.status === '待处理').length) },
+      { label: '待审陪拍者', value: application.reviewStatus === '待审核' ? '1' : '0', module: 'companions' as const },
+      { label: '待审作品', value: workDraft.reviewStatus === '待审核' ? '1' : '0', module: 'works' as const },
+      { label: '订单总数', value: String(orders.length), module: 'orders' as const },
+      { label: '风控待处理', value: String(riskCases.filter((item) => item.status === '待处理').length), module: 'risk' as const },
     ],
     [application.reviewStatus, orders.length, riskCases, workDraft.reviewStatus],
   );
@@ -277,18 +280,27 @@ export function AdminDashboard() {
             <p className="text-xs font-bold text-[#e85d75]">PP 运营后台</p>
             <h1 className="mt-1 text-xl font-black text-[#3f302c] md:text-2xl">审核、风控、订单和结算</h1>
           </div>
-          <button className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]" aria-label="通知">
-            <Bell size={18} />
+          <button
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-white/78 px-3 text-xs font-bold text-[#6f625d] ring-1 ring-[#eadfd8]"
+            type="button"
+            onClick={() => {
+              const session = logoutLocalAdmin();
+              navigate(getPostAuthHome(session.role), { replace: true });
+            }}
+            aria-label="退出后台"
+          >
+            <LogOut size={16} />
+            退出后台
           </button>
         </div>
-        <div className="scrollbar-none mt-4 flex gap-2 overflow-x-auto">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
           {modules.map((item) => {
             const Icon = item.icon;
             const active = activeModule === item.key;
             return (
               <button
                 key={item.key}
-                className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold ${active ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]'}`}
+                className={`flex h-10 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-bold ${active ? 'bg-[#3f302c] text-white' : 'bg-white/78 text-[#6f625d] ring-1 ring-[#eadfd8]'}`}
                 onClick={() => setActiveModule(item.key)}
               >
                 <Icon size={15} />
@@ -303,17 +315,17 @@ export function AdminDashboard() {
       <main className="mx-auto max-w-6xl px-4 py-5">
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {metrics.map((metric) => (
-            <div key={metric.label} className="rounded-[20px] bg-white/82 p-4 shadow-sm ring-1 ring-[#eadfd8]">
+            <button key={metric.label} className="rounded-[20px] bg-white/82 p-4 text-left shadow-sm ring-1 ring-[#eadfd8] transition active:scale-[0.99]" type="button" onClick={() => setActiveModule(metric.module)}>
               <p className="text-2xl font-black text-[#3f302c]">{metric.value}</p>
               <p className="mt-1 text-xs font-medium text-[#7a6b64]">{metric.label}</p>
-            </div>
+            </button>
           ))}
         </section>
 
         <section className="mt-4 grid grid-cols-2 gap-3 md:max-w-3xl md:grid-cols-3">
-          <SummaryTile label="举报处理中" value={`${pendingReports} 个`} icon={<Flag size={17} />} />
-          <SummaryTile label="删除申请" value={`${pendingDeletionRequests} 个`} icon={<UserCog size={17} />} />
-          <SummaryTile label="待结算金额" value={formatMoney(pendingSettlementCents)} icon={<Banknote size={17} />} />
+          <SummaryTile label="举报处理中" value={`${pendingReports} 个`} icon={<Flag size={17} />} onClick={() => setActiveModule('reports')} />
+          <SummaryTile label="删除申请" value={`${pendingDeletionRequests} 个`} icon={<UserCog size={17} />} onClick={() => setActiveModule('accounts')} />
+          <SummaryTile label="待结算金额" value={formatMoney(pendingSettlementCents)} icon={<Banknote size={17} />} onClick={() => setActiveModule('finance')} />
         </section>
 
         <section className="mt-5">
@@ -384,15 +396,15 @@ export function AdminDashboard() {
   );
 }
 
-function SummaryTile({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+function SummaryTile({ label, value, icon, onClick }: { label: string; value: string; icon: React.ReactNode; onClick: () => void }) {
   return (
-    <div className="flex items-center gap-3 rounded-[20px] bg-[#3f302c] p-4 text-white">
+    <button className="flex items-center gap-3 rounded-[20px] bg-[#3f302c] p-4 text-left text-white transition active:scale-[0.99]" type="button" onClick={onClick}>
       <span className="grid h-9 w-9 place-items-center rounded-full bg-white/10">{icon}</span>
       <div className="min-w-0">
         <p className="truncate text-sm font-black">{value}</p>
         <p className="mt-0.5 truncate text-xs text-white/65">{label}</p>
       </div>
-    </div>
+    </button>
   );
 }
 

@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { ConsumerShell } from '../layouts/ConsumerShell';
 import { RoleShell } from '../layouts/RoleShell';
-import { AccountSettingsPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAuth, RequireRegistrationDraft, RequireRole } from '../features/auth/AuthPages';
+import { AccountSettingsPage, AdminLoginPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAdmin, RequireAuth, RequireRegistrationDraft, RequireRole } from '../features/auth/AuthPages';
 import { getRegisteredAccount } from '../services/authService';
 
 const AdminDashboard = lazy(() => import('../features/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
@@ -212,7 +212,15 @@ export default function App() {
         <Route path="income" element={<CompanionIncomePage />} />
       </Route>
 
-      <Route path="/admin" element={<AdminDashboard />} />
+      <Route
+        path="/admin"
+        element={
+          <RequireAdmin>
+            <AdminDashboard />
+          </RequireAdmin>
+        }
+      />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route
         path="/settings"
         element={

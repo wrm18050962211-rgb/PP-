@@ -3,12 +3,15 @@ import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   accountHasRole,
+  getActiveAuthRole,
   getAvailableLoginRoles,
   getPostAuthHome,
   getRegisteredAccount,
   hasRegisteredAccount,
   isAccountLoggedIn,
+  isAdminSessionActive,
   loginWithPhoneCode,
+  loginLocalAdmin,
   logoutAccount,
   MissingRoleRegistrationError,
   PendingRoleReviewError,
@@ -40,7 +43,7 @@ const roleOptions: Array<{ role: PublicRole; title: string; desc: string; icon: 
 export function EntryRedirect() {
   if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace />;
   if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace />;
-  return <Navigate to={getPostAuthHome(getRegisteredAccount()?.role)} replace />;
+  return <Navigate to={getPostAuthHome(getActiveAuthRole())} replace />;
 }
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -53,10 +56,57 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 export function RequireRole({ role, fallback, children }: { role: PublicRole; fallback: string; children: React.ReactNode }) {
   const location = useLocation();
   const account = getRegisteredAccount();
+  const activeRole = getActiveAuthRole();
   if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace state={{ from: location.pathname }} />;
   if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
-  if (account?.role !== role || !accountHasRole(role)) return <Navigate to={fallback} replace />;
+  if (activeRole !== role || !accountHasRole(role)) return <Navigate to={getPostAuthHome(activeRole) || fallback} replace />;
   return children;
+}
+
+export function RequireAdmin({ children }: { children: React.ReactNode }) {
+  if (!isAdminSessionActive()) return <Navigate to="/admin/login" replace />;
+  return children;
+}
+
+export function AdminLoginPage() {
+  const navigate = useNavigate();
+  const [passcode, setPasscode] = useState('');
+  const [error, setError] = useState('');
+
+  if (isAdminSessionActive()) return <Navigate to="/admin" replace />;
+
+  function login() {
+    setError('');
+    try {
+      const session = loginLocalAdmin(passcode);
+      navigate(getPostAuthHome(session.role), { replace: true });
+    } catch (nextError) {
+      setError(getErrorMessage(nextError));
+    }
+  }
+
+  return (
+    <AuthFrame eyebrow="Still Admin" title="运营后台登录">
+      <label className="block">
+        <span className="text-xs font-black text-zinc-400">管理员口令</span>
+        <input
+          className="mt-1 h-12 w-full rounded-[10px] bg-zinc-100 px-3 text-base font-bold outline-none"
+          inputMode="numeric"
+          maxLength={6}
+          placeholder={isTestRoleSwitchAllowed() ? '本地测试口令 000000' : '请输入管理员口令'}
+          value={passcode}
+          onChange={(event) => setPasscode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') login();
+          }}
+        />
+      </label>
+      {error ? <ErrorLine text={error} /> : null}
+      <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={login}>
+        进入后台
+      </button>
+    </AuthFrame>
+  );
 }
 
 export function RequireRegistrationDraft({ role, children }: { role: PublicRole; children: React.ReactNode }) {
@@ -68,7 +118,7 @@ export function RequireRegistrationDraft({ role, children }: { role: PublicRole;
 }
 
 export function GuestOnly({ children }: { children: React.ReactNode }) {
-  if (isAccountLoggedIn()) return <Navigate to={getPostAuthHome(getRegisteredAccount()?.role)} replace />;
+  if (isAccountLoggedIn()) return <Navigate to={getPostAuthHome(getActiveAuthRole())} replace />;
   return children;
 }
 
@@ -297,6 +347,7 @@ function getRoleOnboardingPath(role: PublicRole) {
 export function AccountSettingsPage() {
   const navigate = useNavigate();
   const account = getRegisteredAccount();
+  const activeRole = getActiveAuthRole();
   const roleLabel = account?.role ? getPublicRoleLabel(account.role) : '用户';
   const [activeComplianceItem, setActiveComplianceItem] = useState<ComplianceItem | null>(null);
   const [deletionSubmitted, setDeletionSubmitted] = useState(false);
@@ -311,7 +362,7 @@ export function AccountSettingsPage() {
   return (
     <div className="min-h-dvh bg-[#f7f7f5] px-4 pb-24 pt-4 text-zinc-950">
       <header className="flex items-center gap-3">
-        <button className="grid h-10 w-10 place-items-center rounded-full bg-white text-zinc-800 ring-1 ring-zinc-200" type="button" onClick={() => navigate(-1)} aria-label="返回">
+        <button className="grid h-10 w-10 place-items-center rounded-full bg-white text-zinc-800 ring-1 ring-zinc-200" type="button" onClick={() => navigate(getPostAuthHome(activeRole), { replace: true })} aria-label="返回">
           <ArrowLeft size={20} />
         </button>
         <div>

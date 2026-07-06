@@ -7,6 +7,8 @@ const roleStorageKey = 'pp-auth-role-v1';
 const accountStorageKey = 'pp-auth-account-v1';
 const loginStorageKey = 'pp-auth-logged-in-v1';
 const smsCodeStorageKey = 'pp-auth-sms-code-v1';
+const adminLoginStorageKey = 'pp-admin-logged-in-v1';
+const localAdminPasscode = '000000';
 
 type AuthAccount = {
   phone: string;
@@ -109,6 +111,15 @@ export function getRegisteredAccount() {
   return readAccount();
 }
 
+export function getActiveAuthRole(): UserRole {
+  return readStoredRole();
+}
+
+export function isAdminSessionActive() {
+  if (typeof localStorage === 'undefined') return false;
+  return readStoredRole() === 'admin' && localStorage.getItem(adminLoginStorageKey) === '1';
+}
+
 export function accountHasRole(role: PublicRole) {
   const account = readAccount();
   if (!account) return false;
@@ -124,9 +135,10 @@ export function getAvailableLoginRoles(phone?: string): PublicRole[] {
   return getUsableRoles(account);
 }
 
-export function getPostAuthHome(role = readStoredRole()) {
+export function getPostAuthHome(role: UserRole = readStoredRole()) {
+  if (role === 'admin') return '/admin';
   const account = readAccount();
-  if (account && role !== 'admin' && account.role === role && !getUsableRoles(account).includes(role)) {
+  if (account && account.role === role && !getUsableRoles(account).includes(role)) {
     return role === 'companion' ? '/companion/onboarding' : '/consumer/onboarding';
   }
   return role === 'companion' ? '/companion/mine' : '/consumer';
@@ -232,6 +244,29 @@ export async function logoutAccount() {
     }
   }
   clearApiAuthToken();
+}
+
+export function loginLocalAdmin(passcode: string): AuthSession {
+  ensureTestAuthAllowed('本地管理员登录');
+  if (passcode !== localAdminPasscode) throw new Error('管理员口令错误');
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(adminLoginStorageKey, '1');
+  }
+  persistRole('admin');
+  const session = localSession('admin');
+  notifySessionChanged(session);
+  return session;
+}
+
+export function logoutLocalAdmin(): AuthSession {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(adminLoginStorageKey);
+  }
+  const nextRole = readAccount()?.role ?? 'consumer';
+  persistRole(nextRole);
+  const session = localSession(nextRole);
+  notifySessionChanged(session);
+  return session;
 }
 
 export function addRoleToCurrentAccount(role: PublicRole) {
