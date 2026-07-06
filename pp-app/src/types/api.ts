@@ -69,6 +69,7 @@ export type PaymentRequest = {
   status: PaymentStatus;
   amountCents: number;
   amountText?: string;
+  expiresAt?: string;
   miniProgramPayParams: MiniProgramPayParams;
   payPayload?: {
     provider?: string;
@@ -333,6 +334,7 @@ export type AppOrder = {
   platformFeeCents?: number;
   cancellationSummary?: string;
   cancelledAt?: string;
+  paymentExpiresAt?: string;
   createdAt: string;
   steps: string[];
   currentStep: number;

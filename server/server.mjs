@@ -12,6 +12,8 @@ const port = Number(process.env.PORT || 8787);
 const appEnv = String(process.env.APP_ENV || 'development').trim().toLowerCase();
 const enableTestRoleSwitch = String(process.env.ENABLE_TEST_ROLE_SWITCH ?? 'true').trim().toLowerCase();
 const platformFeeRate = 0.08;
+const pendingPaymentHoldMinutes = Number(process.env.PENDING_PAYMENT_HOLD_MINUTES || 15);
+const pendingPaymentHoldMs = Math.max(1, pendingPaymentHoldMinutes) * 60 * 1000;
 const activeSlotLocks = new Set();
 
 const orderStatusText = {
@@ -68,9 +70,10 @@ http
     try {
       const url = new URL(req.url || '/', 'http://local');
       const { store, changed: storeChanged } = await dataStore.load();
+      const cleanupChanged = expirePendingPaymentOrders(store);
       const body = await readBody(req);
       const result = await route(req.method || 'GET', url, body, store, req);
-      if (storeChanged || result.changed) await dataStore.save(store);
+      if (storeChanged || cleanupChanged || result.changed) await dataStore.save(store);
       sendJson(res, result.status, result.payload);
     } catch (error) {
       sendJson(res, 500, fail('SERVER_ERROR', error instanceof Error ? error.message : 'Server error'));
@@ -508,7 +511,8 @@ async function createOrder(store, input) {
   const quote = buildQuote(context, input);
   const orderId = id('order');
   const paymentId = id('payment');
-  lockReservedSlotForOrder(context.companion.id, context.slot, orderId);
+  const paymentExpiresAt = createPaymentExpiresAt();
+  lockReservedSlotForOrder(context.companion.id, context.slot, orderId, paymentExpiresAt);
   const order = viewOrder({
     id: orderId,
     orderNo: orderNo(),
@@ -537,6 +541,7 @@ async function createOrder(store, input) {
     quote,
     idempotencyKey,
     paymentId,
+    paymentExpiresAt,
     createdAt: now(),
     statusLogs: [statusLog('pending_payment', 'Order created and slot locked')],
   });
@@ -551,6 +556,7 @@ async function createOrder(store, input) {
     mode: useLiveWechatPay() ? 'production' : 'mock',
     status: 'pending',
     amountCents: quote.totalAmountCents,
+    expiresAt: paymentExpiresAt,
     createdAt: now(),
   };
 
@@ -576,6 +582,7 @@ function mockPaymentSuccess(store, path) {
   const paymentId = path.split('/')[3];
   const payment = store.payments.find((item) => item.id === paymentId || item.paymentId === paymentId);
   if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
+  if (payment.status === 'closed') return error(409, 'PAYMENT_CLOSED', 'Payment has expired or closed');
   if (payment.status === 'paid') {
     const paidOrder = store.orders.find((item) => item.id === payment.orderId);
     return json({ payment: publicPayment(payment), order: paidOrder ? viewOrder(paidOrder) : null });
@@ -1096,6 +1103,49 @@ function releaseSlot(store, order) {
   releaseSlotReservation(companion.id, slot, order.id);
 }
 
+function expirePendingPaymentOrders(store) {
+  let changed = false;
+  const currentTime = Date.now();
+
+  for (const order of store.orders) {
+    if (order.status !== 'pending_payment') continue;
+    const payment = store.payments.find((item) => item.orderId === order.id);
+    if (payment?.status === 'paid') continue;
+    const expiresAtMs = getPendingPaymentExpiresAt(order, payment);
+    if (!expiresAtMs || expiresAtMs > currentTime) continue;
+
+    releaseSlot(store, order);
+    payment && closeExpiredPayment(payment);
+    Object.assign(
+      order,
+      viewOrder({
+        ...order,
+        status: 'cancelled',
+        cancelledAt: now(),
+        cancelReason: 'Payment window expired',
+      }),
+    );
+    order.statusLogs = [...(order.statusLogs || []), statusLog('cancelled', 'Payment window expired; slot released')];
+    changed = true;
+  }
+
+  return changed;
+}
+
+function getPendingPaymentExpiresAt(order, payment) {
+  const explicitTime = toTimestamp(order.paymentExpiresAt || payment?.expiresAt);
+  if (explicitTime) return explicitTime;
+  const createdAtMs = toTimestamp(order.createdAt || payment?.createdAt);
+  return createdAtMs ? createdAtMs + pendingPaymentHoldMs : null;
+}
+
+function closeExpiredPayment(payment) {
+  if (!payment || payment.status !== 'pending') return;
+  payment.status = 'closed';
+  payment.closedAt = now();
+  payment.closeReason = 'Payment window expired';
+}
+
 function reserveSlotForOrder(companionId, slot) {
   const lockKey = slotLockKey(companionId, slot.id);
   if (activeSlotLocks.has(lockKey)) return false;
@@ -1104,11 +1154,11 @@ function reserveSlotForOrder(companionId, slot) {
   return true;
 }
 
-function lockReservedSlotForOrder(companionId, slot, orderId) {
+function lockReservedSlotForOrder(companionId, slot, orderId, expiresAt) {
   activeSlotLocks.add(slotLockKey(companionId, slot.id));
   slot.status = 'locked';
   slot.lockedOrderId = orderId;
-  slot.lockExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  slot.lockExpiresAt = expiresAt || createPaymentExpiresAt();
 }
 
 function markSlotBooked(companionId, slot, orderId) {
@@ -1137,6 +1187,15 @@ function isSlotAvailable(slot) {
 
 function slotLockKey(companionId, slotId) {
   return `${companionId}:${slotId}`;
+}
+
+function createPaymentExpiresAt(baseTime = Date.now()) {
+  return new Date(baseTime + pendingPaymentHoldMs).toISOString();
+}
+
+function toTimestamp(value) {
+  const timestamp = new Date(value || '').getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function createConversation(order) {
@@ -1706,6 +1765,9 @@ function normalizeOrders(store) {
   store.orders.forEach((order) => {
     order.userId ||= 'demo-consumer-user';
     order.userName ||= 'Demo Consumer';
+    if (order.status === 'pending_payment') {
+      order.paymentExpiresAt ||= createPaymentExpiresAt(toTimestamp(order.createdAt) || Date.now());
+    }
     Object.assign(order, viewOrder(order));
     if (['paid_pending_confirm', 'confirmed', 'in_service', 'completed', 'disputed'].includes(order.status)) {
       store.conversations[order.id] ||= createConversation(order);
@@ -1715,6 +1777,7 @@ function normalizeOrders(store) {
     if (slot && order.status !== 'cancelled' && order.status !== 'refunded') {
       slot.status = order.status === 'pending_payment' ? 'locked' : 'booked';
       slot.lockedOrderId = order.id;
+      if (order.status === 'pending_payment') slot.lockExpiresAt = order.paymentExpiresAt;
     }
   });
 }
@@ -1781,6 +1844,7 @@ function publicPayment(payment) {
     status: payment.status,
     amountCents: payment.amountCents,
     amountText: formatMoney(payment.amountCents),
+    expiresAt: payment.expiresAt,
     miniProgramPayParams,
     payPayload: {
       provider: payment.provider || 'wechat_pay',

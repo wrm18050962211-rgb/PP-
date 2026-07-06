@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,6 +101,23 @@ try {
   assert(confirmed.status === 'confirmed', 'companion can confirm own order');
 
   await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
+  const expiring = await findBookablePost(feed.items);
+  const expiringOrder = await api('POST', '/api/orders', {
+    postId: expiring.post.id,
+    companionId: expiring.post.companion.id,
+    slotId: expiring.slot.id,
+    activityPricingId: expiring.activity.id,
+    placeName: expiring.post.locationName,
+    userNote: 'smoke test expiring payment',
+  });
+  await expirePendingOrderInStore(expiringOrder.id);
+  const ordersAfterExpiry = await api('GET', '/api/orders?role=user');
+  const expiredOrder = ordersAfterExpiry.items.find((item) => item.id === expiringOrder.id);
+  assert(expiredOrder?.status === 'cancelled', 'expired pending payment order is cancelled automatically');
+  const refreshedExpiringPost = await api('GET', `/api/posts/${expiring.post.id}`);
+  const releasedSlot = refreshedExpiringPost.companion.slots.find((item) => item.id === expiring.slot.id);
+  assert(releasedSlot?.status === 'available', 'expired pending payment releases the locked slot');
+
   const conversation = await api('GET', `/api/orders/${paid.order.id}/conversation`);
   const safeMessage = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'See you at the cafe entrance.' });
   assert(safeMessage.riskStatus === 'clean', 'safe chat message is accepted');
@@ -139,6 +156,7 @@ try {
           'mock-payment',
           'orders',
           'role-scoped-orders',
+          'pending-payment-expiry',
           'conversation',
           'risk-block',
           'moderation-action',
@@ -181,6 +199,30 @@ async function api(method, path, body, options = {}) {
     throw new Error(`${method} ${path} unexpectedly succeeded`);
   }
   return expectOk ? payload.data ?? payload : payload;
+}
+
+async function findBookablePost(feedItems) {
+  for (const item of feedItems) {
+    const post = await api('GET', `/api/posts/${item.id}`);
+    const slot = post.companion.slots.find((candidate) => candidate.status === 'available');
+    const activity = post.companion.activities[0];
+    if (slot?.id && activity?.id) return { post, slot, activity };
+  }
+  throw new Error('No available slot found for expiry smoke check');
+}
+
+async function expirePendingOrderInStore(orderId) {
+  const store = JSON.parse(await readFile(storePath, 'utf8'));
+  const expiredAt = '2000-01-01T00:00:00.000Z';
+  const order = store.orders.find((item) => item.id === orderId);
+  assert(order, 'expiring order exists in store');
+  order.paymentExpiresAt = expiredAt;
+  const payment = store.payments.find((item) => item.orderId === orderId);
+  if (payment) payment.expiresAt = expiredAt;
+  const companion = store.companions.find((item) => item.id === order.companionId);
+  const slot = companion?.slots.find((item) => item.id === order.slotId);
+  if (slot) slot.lockExpiresAt = expiredAt;
+  await writeFile(storePath, JSON.stringify(store, null, 2), 'utf8');
 }
 
 function assert(condition, message) {
