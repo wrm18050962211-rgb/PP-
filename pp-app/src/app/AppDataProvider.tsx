@@ -7,7 +7,7 @@ import {
   submitCompanionApplicationReview,
 } from '../services/companionService';
 import { completeRoleRegistration, fetchAuthSession } from '../services/authService';
-import { isApiEnabled } from '../services/apiClient';
+import { isApiEnabled, isProductionAppEnv } from '../services/apiClient';
 import { readDomainJson, writeDomainJson } from '../services/scopedStorage';
 import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderFunding, updateLedgerOrderStatus, upsertLedgerOrder } from '../services/virtualOrderLedger';
 import { defaultBookingSettings } from '../data/bookingSettings';
@@ -21,6 +21,11 @@ const storageKey = 'app-data-v1';
 const defaultApplication = getDefaultApplication();
 const defaultWorkDraft = getDefaultWorkDraft();
 const defaultOrders = listSeedOrders();
+const orderCreateFailedMessage = '订单创建失败，请检查网络后重试。';
+const orderCreateLocalFallbackMessage = '订单没有同步到服务端，已先保存在本机。请稍后重新确认。';
+const orderStatusFailedMessage = '订单状态更新失败，请检查网络后重试。';
+const orderStatusLocalFallbackMessage = '订单状态没有同步到服务端，已先保存在本机。';
+const orderStatusRestoredMessage = '订单状态没有同步成功，已恢复为服务端最新状态。';
 
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const initial = loadInitialData();
@@ -29,6 +34,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [application, setApplication] = useState<CompanionApplication>(initial.application);
   const [bookingSettings, setBookingSettings] = useState<CompanionBookingSettings>(initial.bookingSettings);
   const [workDraft, setWorkDraft] = useState<PublishedWorkDraft>(initial.workDraft);
+  const [orderActionError, setOrderActionError] = useState('');
   const initialDataRef = useRef({ application, bookingSettings, workDraft });
 
   useEffect(() => {
@@ -102,7 +108,10 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       application,
       bookingSettings,
       workDraft,
+      orderActionError,
+      clearOrderActionError: () => setOrderActionError(''),
       createOrder: async (orderInput, initialStatus) => {
+        setOrderActionError('');
         if (isApiEnabled()) {
           try {
             const serverOrder = await submitOrder(orderInput);
@@ -115,7 +124,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
             });
             return serverOrder;
           } catch {
-            // Fall through to the local ledger only when the API path cannot produce an order.
+            if (isProductionAppEnv) {
+              setOrderActionError(orderCreateFailedMessage);
+              throw new Error('Create order API failed.');
+            }
+            setOrderActionError(orderCreateLocalFallbackMessage);
           }
         }
 
@@ -126,6 +139,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         return order;
       },
       updateOrderStatus: (orderId, status) => {
+        const previousOrders = orders;
+        setOrderActionError('');
         const ledgerOrder = updateLedgerOrderStatus(orderId, status);
         const steps = getOrderSteps(status);
         const nextOrders = orders.map((order) =>
@@ -144,18 +159,44 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
           void updateRemoteOrderStatus(orderId, status).then(async (serverOrder) => {
             if (!serverOrder) {
               const serverOrders = session ? await refreshOrders(session.role) : [];
-              if (!serverOrders.length) return;
+              if (!serverOrders.length) {
+                if (isProductionAppEnv) {
+                  setOrders(previousOrders);
+                  persist({ orders: previousOrders });
+                  setOrderActionError(orderStatusFailedMessage);
+                } else {
+                  setOrderActionError(orderStatusLocalFallbackMessage);
+                }
+                return;
+              }
+              setOrderActionError(orderStatusRestoredMessage);
               setOrders(serverOrders);
               persistSnapshot(serverOrders, { application, bookingSettings, workDraft }, session?.role);
               return;
             }
 
+            setOrderActionError('');
             upsertLedgerOrder(serverOrder);
             setOrders((currentOrders) => {
               const reconciledOrders = mergeUpdatedOrder(currentOrders, serverOrder);
               persistSnapshot(reconciledOrders, { application, bookingSettings, workDraft }, session?.role);
               return reconciledOrders;
             });
+          }).catch(async () => {
+            const serverOrders = session ? await refreshOrders(session.role).catch(() => []) : [];
+            if (serverOrders.length) {
+              setOrders(serverOrders);
+              persistSnapshot(serverOrders, { application, bookingSettings, workDraft }, session?.role);
+              setOrderActionError(orderStatusRestoredMessage);
+              return;
+            }
+            if (isProductionAppEnv) {
+              setOrders(previousOrders);
+              persist({ orders: previousOrders });
+              setOrderActionError(orderStatusFailedMessage);
+              return;
+            }
+            setOrderActionError(orderStatusLocalFallbackMessage);
           });
         }
       },
@@ -216,7 +257,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         persist({ workDraft: nextDraft });
       },
     };
-  }, [application, bookingSettings, orders, session, workDraft]);
+  }, [application, bookingSettings, orderActionError, orders, session, workDraft]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }

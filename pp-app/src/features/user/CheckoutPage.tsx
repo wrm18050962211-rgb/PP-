@@ -122,6 +122,8 @@ export function CheckoutPage() {
             });
             setCreatedOrderId(order.id);
             setPaid(true);
+          } catch {
+            // The global order banner shows the user-facing failure message.
           } finally {
             setSubmitting(false);
           }

@@ -186,10 +186,14 @@ export function OrdersPage() {
   async function acceptConsultationQuote(consultation: ConsultationRecord) {
     const input = consultationToOrderInput(consultation);
     if (!input) return;
-    const order = await createOrder(input, 'confirmed');
-    closeConsultation(consultation.id);
-    setConsultationVersion((value) => value + 1);
-    navigate(`/consumer/orders?tab=${order.status}`);
+    try {
+      const order = await createOrder(input, 'confirmed');
+      closeConsultation(consultation.id);
+      setConsultationVersion((value) => value + 1);
+      navigate(`/consumer/orders?tab=${order.status}`);
+    } catch {
+      // The global order banner shows the user-facing failure message.
+    }
   }
 
   function selectStatusTab(tab: OrderStatus | 'all') {

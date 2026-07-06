@@ -287,9 +287,13 @@ export function MessagesPage() {
             onAccept={async () => {
               const input = consultationToOrderInput(activeConsultation);
               if (!input) return;
-              const order = await createOrder(input, 'confirmed');
-              closeConsultation(activeConsultation.id);
-              navigate(`/consumer/messages/${order.id}`);
+              try {
+                const order = await createOrder(input, 'confirmed');
+                closeConsultation(activeConsultation.id);
+                navigate(`/consumer/messages/${order.id}`);
+              } catch {
+                // The global order banner shows the user-facing failure message.
+              }
             }}
           />
         ) : null}

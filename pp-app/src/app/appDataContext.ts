@@ -15,6 +15,8 @@ export type AppData = {
   application: CompanionApplication;
   bookingSettings: CompanionBookingSettings;
   workDraft: PublishedWorkDraft;
+  orderActionError: string;
+  clearOrderActionError: () => void;
   createOrder: (order: CreateOrderInput, initialStatus?: OrderStatus) => Promise<AppOrder>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   updateOrderFunding: (orderId: string, patch: Partial<AppOrder>) => void;
