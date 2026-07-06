@@ -11,6 +11,7 @@ const tempDir = await mkdtemp(resolve(tmpdir(), 'pp-api-smoke-'));
 const storePath = resolve(tempDir, 'store.json');
 
 let server;
+let authToken = '';
 
 try {
   server = spawn(process.execPath, ['server.mjs'], {
@@ -44,9 +45,13 @@ try {
 
   const adminSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'admin' });
   assert(adminSession.role === 'admin' && adminSession.adminScope?.includes('risk'), 'mock login can switch to admin role');
+  const anonymousAdmin = await api('GET', '/api/admin/dashboard', undefined, { omitAuth: true, expectOk: false });
+  assert(anonymousAdmin.error?.code === 'AUTH_REQUIRED', 'admin API rejects missing token instead of using ambient session');
 
   const consumerSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
   assert(consumerSession.role === 'consumer', 'mock login can switch back to consumer role');
+  const consumerAdmin = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
+  assert(consumerAdmin.error?.code === 'FORBIDDEN', 'admin API rejects consumer token');
 
   const mediaPolicy = await api('POST', '/api/media/upload-policy', {
     purpose: 'post-image',
@@ -170,6 +175,7 @@ try {
           'auth-session',
           'wechat-login',
           'mock-login',
+          'admin-auth-boundary',
           'media-upload-policy',
           'feed',
           'matching',
@@ -210,9 +216,12 @@ async function waitForHealth() {
 }
 
 async function api(method, path, body, options = {}) {
+  const headers = {};
+  if (body) headers['content-type'] = 'application/json';
+  if (authToken && !options.omitAuth) headers.authorization = `Bearer ${authToken}`;
   const response = await fetch(`${baseUrl}${path}`, {
     method,
-    headers: body ? { 'content-type': 'application/json' } : undefined,
+    headers: Object.keys(headers).length ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   const payload = await response.json();
@@ -222,6 +231,9 @@ async function api(method, path, body, options = {}) {
   }
   if (!expectOk && response.ok && payload.success !== false) {
     throw new Error(`${method} ${path} unexpectedly succeeded`);
+  }
+  if (expectOk && payload.success === true && payload.data?.token) {
+    authToken = payload.data.token;
   }
   return expectOk ? payload.data ?? payload : payload;
 }

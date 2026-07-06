@@ -230,7 +230,7 @@ function sanitizeFileName(fileName) {
 function applyRequestSession(store, req) {
   const token = getBearerToken(req);
   if (!token) {
-    if (!isTestRoleSwitchAllowed()) store.activeSession = null;
+    store.activeSession = null;
     return null;
   }
   const session = findStoredSession(store, token);
@@ -309,7 +309,9 @@ function resolveSessionCompanionId(store, requestedCompanionId) {
 }
 
 function ensureActiveSession(store, fallbackRole = 'consumer') {
-  if (!store.activeSession?.role && !isTestRoleSwitchAllowed()) return null;
+  if (!store.activeSession?.role) {
+    if (!isTestRoleSwitchAllowed() || fallbackRole !== 'consumer') return null;
+  }
 
   const role = normalizeRole(store.activeSession?.role || fallbackRole);
   const session = createSession(store, role, store.activeSession?.user || null, {
