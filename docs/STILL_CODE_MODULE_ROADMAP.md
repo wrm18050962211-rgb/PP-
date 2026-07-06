@@ -4,6 +4,8 @@
 
 当前结论：项目已经有较完整的业务雏形，但仍有大量模块停在 mock、localStorage、JSON store、演示数据或半接入状态。上线优先级不是继续堆新页面，而是把交易闭环、数据持久化、地图地址、合规入口和运营后台做稳。
 
+运营后台不属于 C 端 App。MVP 本地阶段可以同仓开发、同端口演示，但初步上线或提交 TestFlight/App Store 前，后台必须从移动端用户包中拆出，作为单独的 Web Admin 发布、单独登录、单独权限和单独部署。
+
 ## 0. 当前代码状态快照
 
 ### 已有基础
@@ -35,6 +37,7 @@
 - `pp-app/src/services/locationService.ts` 只做浏览器/小程序定位，没有权限说明、POI 搜索、逆地理编码、订单地址快照。
 - `pp-app/src/features/user/CompanionFinderPage.tsx` 的地点筛选是静态文本和语义匹配，未接真实地图距离和服务范围。
 - 后台已有大页面和接口雏形，但运营闭环、权限、审计、退款、封禁、客服处理仍需生产化。
+- 运营后台仍在 `pp-app/src/features/admin` 并通过 `/admin` 挂在同一个前端路由中；这只适合本地演示，初步上线前必须从 App Store 移动端包中移除或拆到独立 Admin App。
 
 ## 1. 必须补：App Store 可审、可跑、不会崩
 
@@ -96,6 +99,33 @@
 - 用户只能看到自己的订单。
 - 摄影师只能处理自己的订单。
 - 管理员接口不能被普通用户访问。
+
+### 1.2A 运营后台与移动端物理隔离
+
+这项从第 8 章工程升级前移为上线前硬门槛。运营后台可以继续在同一个仓库里开发，但不能进入面向 Client/Photographer 的 App Store 移动端包。
+
+代码事务：
+
+- 新建独立后台入口，短期可用 `pp-app/src/app/AdminApp.tsx` 或后续 `apps/admin` 承载。
+- 移动端入口只挂载 Client/Photographer 路由，不再包含 `/admin`、`AdminDashboard`、后台 mock 数据或后台登录页。
+- 后台入口只挂载 `/admin` 系列路由，不复用移动端 tab、个人中心、设置页返回逻辑。
+- 后台使用独立 session key、admin token、admin API client 和权限判断。
+- 生产移动端构建必须能通过环境变量或独立入口排除 admin bundle。
+- 后台生产构建必须独立部署到内部门户或受保护域名，不通过 App Store 分发。
+
+数据与权限事务：
+
+- 后端 admin API 必须使用 `admin_users`、`admin role/scope` 和 `admin_action_logs`。
+- 普通用户 token 不能访问 admin API。
+- admin token 不能访问普通用户端的个人页面，只能通过受控后台 API 查看必要运营数据。
+
+验收标准：
+
+- App Store/TestFlight 包内没有运营后台入口。
+- 访问移动端任意路由时，不会加载后台大模块。
+- 访问后台必须单独登录管理员身份。
+- 后台退出不会改变 Client/Photographer 的移动端登录态。
+- 管理员敏感操作均写入审计日志。
 
 ### 1.3 PostgreSQL 真写入
 
@@ -529,18 +559,19 @@
 3. 增加环境开关：隐藏 mock 登录、mock 支付、测试角色切换。
 4. 接真实登录：先完成手机号或微信登录之一。
 5. 后端改 session/token：替换 `activeSession` 全局会话。
-6. 接 PostgreSQL 写入：订单、支付、消息、举报、审核先落库。
-7. 接订单事务：slot 锁定、支付成功、重复请求幂等。
-8. 接地图基础能力：
+6. 拆出运营后台入口：移动端包只保留 Client/Photographer，Admin 单独入口、单独登录、单独构建。
+7. 接 PostgreSQL 写入：订单、支付、消息、举报、审核先落库。
+8. 接订单事务：slot 锁定、支付成功、重复请求幂等。
+9. 接地图基础能力：
    - 地点搜索/手填
    - 当前位置授权
    - 订单地点快照
    - 摄影师服务区域半径匹配
-9. 支付生产闭环：预下单、回调验签、支付状态查询。
-10. 补 App Store 合规入口：隐私、协议、退款、客服、举报、删除账号。
-11. 补移动端错误态：loading、empty、error、retry、支付处理中。
-12. 准备 App Review 账号和审核说明。
-13. 跑最小验证：
+10. 支付生产闭环：预下单、回调验签、支付状态查询。
+11. 补 App Store 合规入口：隐私、协议、退款、客服、举报、删除账号。
+12. 补移动端错误态：loading、empty、error、retry、支付处理中。
+13. 准备 App Review 账号和审核说明。
+14. 跑最小验证：
     - `server`: `npm.cmd run check:mvp`
     - `pp-app`: `npm.cmd run build`
     - 真机/TestFlight 主流程 20 次。
@@ -551,8 +582,8 @@
 
 1. 上 Redis：验证码、限流、订单锁过期。
 2. 上队列：订单超时、支付回调重试、通知、图片审核。
-3. 拆后台运营工作台：订单、审核、举报、用户、财务。
-4. 做管理员权限和操作审计。
+3. 在独立 Admin App 内拆运营工作台模块：订单、审核、举报、用户、财务。
+4. 完善管理员权限和操作审计。
 5. 完成 COS/R2 真实上传和媒体入库。
 6. 做站内通知和关键短信/微信通知。
 7. 接崩溃监控和后端结构化日志。
@@ -653,6 +684,8 @@
 
 重点问题：
 
+- 初步上线前要从移动端 App 入口拆出，独立为 Web Admin。
+- 短期可以同仓维护，但生产移动端包不能包含后台路由和后台大模块。
 - 大页面需要拆模块。
 - 管理员权限和审计要落库。
 - 举报、审核、退款、封禁要形成闭环。
@@ -676,6 +709,7 @@
 - 支付：`pp-app/src/services/paymentService.ts` 非小程序 runtime 会调用 `/mock-success`；生产支付必须改成服务端状态查询 + 支付回调验签。
 - PostgreSQL 写入：`server/store/postgresStore.mjs` 标记 `writes: false`、`transactions: false`，`save()` 未实现。生产不能继续用 JSON store 承载订单、支付、消息、审核。
 - CORS 与安全：`server/server.mjs` 使用 `Access-Control-Allow-Origin: '*'`，生产需要白名单、鉴权中间件、rate limit、request id、结构化错误。
+- 运营后台入口：`/admin` 仍挂在移动端前端包里。初步上线前必须拆成独立 Admin 入口或独立 Web App，App Store 包不能包含后台路由和后台大模块。
 - 地图下单：`LocationSelector.tsx` 仍是静态区域按钮，`locationService.ts` 只做定位，缺 POI、逆地理编码、地点快照。
 - 媒体：`mediaService.ts`、`CompanionProfileEdit.tsx`、`messageService.ts` 存在 data URL 本地图片流，生产必须走对象存储和媒体表。
 
@@ -699,6 +733,7 @@
 - `auth/session` 模块：token 签发、刷新、撤销、设备会话、管理员 session。
 - `config/env` 模块：集中校验生产环境变量，启动时 fail fast。
 - `request middleware`：鉴权、角色权限、CORS 白名单、rate limit、request id、错误码。
+- `admin-app` 模块：独立后台入口、独立构建、独立 session、独立 API client、独立部署。
 - `idempotency` 模块：订单创建、支付创建、支付回调、退款、取消都要有幂等键。
 - `queue/jobs` 模块：订单超时释放、支付回调重试、通知发送、图片审核、日志聚合。
 - `notifications` 模块：站内信、短信/微信服务通知、Push 的统一事件入口。
@@ -750,10 +785,11 @@
 1. 先做生产环境开关：一处判断 `isProductionApp()`，所有 mock/login/payment/local fallback 都挂到这个开关下。
 2. 再做 API 层硬失败：生产 API 失败显示错误，不回退 mock。
 3. 然后替换登录/session：先让真实用户身份贯穿订单、消息、后台。
-4. 接 PostgreSQL 写事务：订单、支付、消息、审核优先。
-5. 加地图地点快照：下单必须保存 `placeName/placeAddress/placeLat/placeLng/providerPoiId`。
-6. 清理 UI 演示痕迹：测试验证码、角色切换、mock 支付、coming soon、Demo 文案。
-7. 最后拆大文件：先按业务边界迁移，不做无目标重构。
+4. 拆出后台入口：移动端生产包排除 `/admin`，Admin 独立登录、独立构建、独立部署。
+5. 接 PostgreSQL 写事务：订单、支付、消息、审核优先。
+6. 加地图地点快照：下单必须保存 `placeName/placeAddress/placeLat/placeLng/providerPoiId`。
+7. 清理 UI 演示痕迹：测试验证码、角色切换、mock 支付、coming soon、Demo 文案。
+8. 最后拆大文件：先按业务边界迁移，不做无目标重构。
 
 ## 7. 每次代码任务的最小完成标准
 
@@ -789,7 +825,7 @@ npm.cmd run check:mvp
 
 ## 8. 从业务 App 升级到平台型全栈工程
 
-这一节不是 App Store 上线最低要求，而是用这个 App 训练完整全栈能力的版本路线。假设前面所有生产事务都已经完成，下面这些模块可以让项目从“一个能运营的预约 App”继续升级成“更接近高 star 平台项目的工程”。
+这一节主要是 App Store 上线后的工程升级路线。注意：运营后台从移动端包中拆出已经前移到 `1.2A`，属于初步上线前硬门槛；本节的 `apps/admin` 更偏向后续 monorepo 化、共享包抽取和独立部署体验完善。
 
 ### 8.1 工程组织：从单 App 到 monorepo
 
@@ -806,13 +842,13 @@ npm.cmd run check:mvp
 - 新建 `packages/db`：放 schema、migration、数据库 client、transaction helper。
 - 新建 `packages/ui`：沉淀按钮、表单、弹窗、地图选择器、订单状态组件。
 - 新建 `apps/mobile` 或继续保留 `pp-app`：承载 Capacitor App。
-- 新建 `apps/admin`：将运营后台从用户 App 中拆出来。
+- 新建或完善 `apps/admin`：在 `1.2A` 已经拆出后台入口的基础上，做成完整独立后台应用。
 - 新建 `apps/api`：替代单文件 `server/server.mjs`。
 
 版本任务：
 1. 先只抽 `packages/shared`，让前后端共用 `OrderStatus`、`PaymentStatus`、`UserRole`。
 2. 再抽 `packages/db`，统一数据库访问和 migration。
-3. 最后拆 `apps/admin`，让后台独立发布、独立权限、独立路由。
+3. 完善 `apps/admin` 的独立发布、独立权限、独立路由和后台组件库。
 
 你能学到：
 - monorepo。
