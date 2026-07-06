@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchOrders, listSeedOrders, updateRemoteOrderStatus } from '../services/orderService';
+import { fetchOrders, listSeedOrders, submitOrder, updateRemoteOrderStatus } from '../services/orderService';
 import {
   getDefaultApplication,
   getDefaultWorkDraft,
@@ -102,7 +102,23 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       application,
       bookingSettings,
       workDraft,
-      createOrder: (orderInput, initialStatus) => {
+      createOrder: async (orderInput, initialStatus) => {
+        if (isApiEnabled()) {
+          try {
+            const serverOrder = await submitOrder(orderInput);
+            if (serverOrder.id.startsWith('local-')) throw new Error('Order API returned local fallback');
+            upsertLedgerOrder(serverOrder);
+            setOrders((currentOrders) => {
+              const reconciledOrders = mergeUpdatedOrder(currentOrders, serverOrder);
+              persistSnapshot(reconciledOrders, { application, bookingSettings, workDraft }, session?.role);
+              return reconciledOrders;
+            });
+            return serverOrder;
+          } catch {
+            // Fall through to the local ledger only when the API path cannot produce an order.
+          }
+        }
+
         const order = createLedgerOrder(orderInput, session, initialStatus);
         const nextOrders = [order, ...orders];
         setOrders(nextOrders);

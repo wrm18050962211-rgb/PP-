@@ -284,10 +284,10 @@ export function MessagesPage() {
               setConsultationVersion((value) => value + 1);
               if (next) setConversation(createConversationFromConsultation(next));
             }}
-            onAccept={() => {
+            onAccept={async () => {
               const input = consultationToOrderInput(activeConsultation);
               if (!input) return;
-              const order = createOrder(input, 'confirmed');
+              const order = await createOrder(input, 'confirmed');
               closeConsultation(activeConsultation.id);
               navigate(`/consumer/messages/${order.id}`);
             }}

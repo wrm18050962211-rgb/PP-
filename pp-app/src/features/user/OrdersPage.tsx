@@ -183,13 +183,13 @@ export function OrdersPage() {
     setActiveAction(null);
   }
 
-  function acceptConsultationQuote(consultation: ConsultationRecord) {
+  async function acceptConsultationQuote(consultation: ConsultationRecord) {
     const input = consultationToOrderInput(consultation);
     if (!input) return;
-    createOrder(input, 'confirmed');
+    const order = await createOrder(input, 'confirmed');
     closeConsultation(consultation.id);
     setConsultationVersion((value) => value + 1);
-    navigate('/consumer/orders?tab=confirmed');
+    navigate(`/consumer/orders?tab=${order.status}`);
   }
 
   function selectStatusTab(tab: OrderStatus | 'all') {

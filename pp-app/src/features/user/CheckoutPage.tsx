@@ -11,6 +11,7 @@ export function CheckoutPage() {
   const [searchParams] = useSearchParams();
   const [paid, setPaid] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const { createOrder } = useAppData();
   const post = useMemo(() => getPostDetail(postId), [postId]);
 
@@ -95,28 +96,35 @@ export function CheckoutPage() {
 
       <button
         className="mt-6 h-12 w-full rounded-full pp-primary text-sm font-bold"
-        onClick={() => {
-          const order = createOrder({
-            title: `${activity} 陪拍`,
-            time: slot,
-            place: area,
-            amountCents: total,
-            companion: post.companion.name,
-            companionId: post.companion.id,
-            postId: post.id,
-            activityId: selectedActivity.id,
-            activityName: selectedActivity.name,
-            slotId: selectedSlot.id,
-            startAt: selectedSlot.startAt,
-            endAt: selectedSlot.endAt,
-            dateLabel: selectedSlot.dateLabel,
-            timeLabel: selectedSlot.timeLabel,
-            durationMinutes: selectedActivity.durationMinutes,
-            durationLabel: duration,
-            addOns: [],
-          });
-          setCreatedOrderId(order.id);
-          setPaid(true);
+        disabled={submitting}
+        onClick={async () => {
+          if (submitting) return;
+          setSubmitting(true);
+          try {
+            const order = await createOrder({
+              title: `${activity} 陪拍`,
+              time: slot,
+              place: area,
+              amountCents: total,
+              companion: post.companion.name,
+              companionId: post.companion.id,
+              postId: post.id,
+              activityId: selectedActivity.id,
+              activityName: selectedActivity.name,
+              slotId: selectedSlot.id,
+              startAt: selectedSlot.startAt,
+              endAt: selectedSlot.endAt,
+              dateLabel: selectedSlot.dateLabel,
+              timeLabel: selectedSlot.timeLabel,
+              durationMinutes: selectedActivity.durationMinutes,
+              durationLabel: duration,
+              addOns: [],
+            });
+            setCreatedOrderId(order.id);
+            setPaid(true);
+          } finally {
+            setSubmitting(false);
+          }
         }}
       >
         确认并支付

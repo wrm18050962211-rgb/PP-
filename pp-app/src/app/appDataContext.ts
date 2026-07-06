@@ -15,7 +15,7 @@ export type AppData = {
   application: CompanionApplication;
   bookingSettings: CompanionBookingSettings;
   workDraft: PublishedWorkDraft;
-  createOrder: (order: CreateOrderInput, initialStatus?: OrderStatus) => AppOrder;
+  createOrder: (order: CreateOrderInput, initialStatus?: OrderStatus) => Promise<AppOrder>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   updateOrderFunding: (orderId: string, patch: Partial<AppOrder>) => void;
   saveApplication: (application: Partial<CompanionApplication>) => void;
