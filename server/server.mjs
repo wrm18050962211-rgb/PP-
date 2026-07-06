@@ -68,7 +68,7 @@ http
       const url = new URL(req.url || '/', 'http://local');
       const { store, changed: storeChanged } = await dataStore.load();
       const body = await readBody(req);
-      const result = await route(req.method || 'GET', url, body, store);
+      const result = await route(req.method || 'GET', url, body, store, req);
       if (storeChanged || result.changed) await dataStore.save(store);
       sendJson(res, result.status, result.payload);
     } catch (error) {
@@ -77,8 +77,9 @@ http
   })
   .listen(port, () => console.log(`PP backend MVP listening on http://127.0.0.1:${port}`));
 
-async function route(method, url, body, store) {
+async function route(method, url, body, store, req) {
   const path = url.pathname;
+  applyRequestSession(store, req);
 
   if (method === 'GET' && path === '/api/health') {
     return json({
@@ -212,19 +213,32 @@ function sanitizeFileName(fileName) {
     .slice(0, 80);
 }
 
+function applyRequestSession(store, req) {
+  const token = getBearerToken(req);
+  if (!token) {
+    if (!isTestRoleSwitchAllowed()) store.activeSession = null;
+    return null;
+  }
+  const session = findStoredSession(store, token);
+  if (!session) {
+    store.activeSession = null;
+    return null;
+  }
+  store.activeSession = refreshSession(store, session);
+  return store.activeSession;
+}
+
 function authSession(store) {
   if (!store.activeSession?.role && !isTestRoleSwitchAllowed()) return error(401, 'AUTH_REQUIRED', 'Authentication is required');
-  if (store.activeSession?.role) store.activeSession = createSession(store, normalizeRole(store.activeSession.role));
-  else store.activeSession = createSession(store, 'consumer');
-  return json(store.activeSession);
+  const session = store.activeSession?.role ? refreshSession(store, store.activeSession) : createSession(store, 'consumer');
+  return json(saveSession(store, session), 200, true);
 }
 
 function mockWechatLogin(store, body = {}) {
   if (!isTestRoleSwitchAllowed()) return error(403, 'TEST_LOGIN_DISABLED', 'Mock login is disabled in this environment');
   const role = normalizeRole(body.role);
   const session = createSession(store, role, null, { companionId: body.companionId });
-  store.activeSession = session;
-  return json(session, 200, true);
+  return json(saveSession(store, session), 200, true);
 }
 
 async function wechatLogin(store, body = {}) {
@@ -239,8 +253,7 @@ async function wechatLogin(store, body = {}) {
     const session = createSession(store, 'consumer', user);
     session.provider = 'wechat';
     session.openId = user.openId;
-    store.activeSession = session;
-    return json(session, 200, true);
+    return json(saveSession(store, session), 200, true);
   }
 
   const user = ensureWechatUser(store, {
@@ -251,11 +264,11 @@ async function wechatLogin(store, body = {}) {
   session.provider = 'wechat';
   session.mode = 'mock';
   session.loginCode = code.startsWith('mock-') ? code : undefined;
-  store.activeSession = session;
-  return json(session, 200, true);
+  return json(saveSession(store, session), 200, true);
 }
 
 function logout(store) {
+  revokeSession(store, store.activeSession?.token);
   store.activeSession = null;
   return json({ ok: true }, 200, true);
 }
@@ -264,14 +277,14 @@ function createSession(store, role, existingUser = null, options = {}) {
   const user = existingUser || store.activeSession?.user || ensureDemoUser(store, role);
   const companionId = role === 'companion' ? resolveSessionCompanionId(store, options.companionId || store.activeSession?.companionId) : null;
   const session = {
-    token: existingUser?.openId ? `wx-${role}-${existingUser.id}-session` : `local-${role}-session`,
+    token: options.token || buildSessionToken(role, existingUser),
     provider: existingUser?.openId ? 'wechat' : 'mock_wechat',
     role,
     roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
     user,
     companionId,
     adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
-    loginAt: now(),
+    loginAt: options.loginAt || now(),
   };
   return session;
 }
@@ -283,8 +296,61 @@ function resolveSessionCompanionId(store, requestedCompanionId) {
 
 function ensureActiveSession(store, fallbackRole = 'consumer') {
   const role = normalizeRole(store.activeSession?.role || fallbackRole);
-  store.activeSession = createSession(store, role, store.activeSession?.user || null);
-  return store.activeSession;
+  const session = createSession(store, role, store.activeSession?.user || null, {
+    companionId: store.activeSession?.companionId,
+    token: store.activeSession?.token,
+    loginAt: store.activeSession?.loginAt,
+  });
+  return saveSession(store, session);
+}
+
+function refreshSession(store, session) {
+  return createSession(store, normalizeRole(session.role), session.user || null, {
+    companionId: session.companionId,
+    token: session.token,
+    loginAt: session.loginAt,
+  });
+}
+
+function saveSession(store, session) {
+  store.sessions ||= [];
+  const storedSession = {
+    ...session,
+    updatedAt: now(),
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  };
+  const index = store.sessions.findIndex((item) => item.token === storedSession.token);
+  if (index >= 0) store.sessions[index] = storedSession;
+  else store.sessions.push(storedSession);
+  store.activeSession = storedSession;
+  return storedSession;
+}
+
+function findStoredSession(store, token) {
+  const session = store.sessions?.find((item) => item.token === token);
+  if (!session) return null;
+  if (session.expiresAt && new Date(session.expiresAt).getTime() < Date.now()) {
+    revokeSession(store, token);
+    return null;
+  }
+  return session;
+}
+
+function revokeSession(store, token) {
+  if (!token || !Array.isArray(store.sessions)) return;
+  store.sessions = store.sessions.filter((item) => item.token !== token);
+}
+
+function getBearerToken(req) {
+  const header = req?.headers?.authorization || req?.headers?.Authorization;
+  const value = Array.isArray(header) ? header[0] : header;
+  const match = String(value || '').match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || '';
+}
+
+function buildSessionToken(role, user) {
+  const prefix = user?.openId ? `wx-${role}-${user.id}` : `local-${role}`;
+  return `${prefix}-${randomString(18)}`;
 }
 
 async function exchangeWechatCode(code) {
@@ -1047,6 +1113,7 @@ function normalizeStore(store) {
   next.posts = Array.isArray(store.posts) && store.posts.length ? store.posts : initialStore().posts;
   next.users = Array.isArray(store.users) ? store.users : [];
   next.activeSession = store.activeSession || null;
+  next.sessions = Array.isArray(store.sessions) ? store.sessions : [];
   next.orders = Array.isArray(store.orders) ? store.orders : [];
   next.payments = Array.isArray(store.payments) ? store.payments : [];
   next.conversations = store.conversations && typeof store.conversations === 'object' ? store.conversations : {};
@@ -1143,6 +1210,7 @@ function initialStore() {
     meta: { version: 3, createdAt: now() },
     users: [],
     activeSession: null,
+    sessions: [],
     companions: [companion],
     posts: [post],
     orders: [order],
@@ -1919,7 +1987,7 @@ function send(res, status, payload, contentType = 'text/plain; charset=utf-8') {
     'Content-Type': contentType,
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-PP-Role, X-PP-User-Id',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-PP-Role, X-PP-User-Id',
   });
   res.end(payload);
 }

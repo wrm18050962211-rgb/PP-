@@ -1,5 +1,5 @@
 import type { AuthSession, UserRole } from '../types/api';
-import { apiGet, apiPost, isApiEnabled, isTestRoleSwitchAllowed } from './apiClient';
+import { apiGet, apiPost, clearApiAuthToken, isApiEnabled, isTestRoleSwitchAllowed, setApiAuthToken } from './apiClient';
 import { findTestAccountIdentitiesByPhone, type PublicRole, type TestAccountIdentity } from './accountDirectory';
 import { isMiniProgramRuntime, wxLogin } from './miniProgramBridge';
 
@@ -54,24 +54,22 @@ export class PendingRoleReviewError extends Error {
 }
 
 export async function fetchAuthSession(): Promise<AuthSession> {
-  if (isAccountLoggedIn()) return localSession(readStoredRole());
-  if (!isApiEnabled()) return localSession(readStoredRole());
-
-  try {
-    if (isMiniProgramRuntime()) {
-      const code = await wxLogin();
-      const response = await apiPost<AuthSession>('/api/auth/wechat/login', { code });
-      if (response.success) {
-        notifySessionChanged(response.data);
-        return response.data;
+  if (isApiEnabled()) {
+    try {
+      if (isMiniProgramRuntime()) {
+        const code = await wxLogin();
+        const response = await apiPost<AuthSession>('/api/auth/wechat/login', { code });
+        if (response.success) return persistRemoteSession(response.data);
       }
-    }
 
-    const response = await apiGet<AuthSession>('/api/auth/session');
-    return response.success ? response.data : localSession(readStoredRole());
-  } catch {
-    return localSession(readStoredRole());
+      const response = await apiGet<AuthSession>('/api/auth/session');
+      if (response.success) return persistRemoteSession(response.data);
+    } catch {
+      // Fall through to local MVP session while the production auth service is not connected.
+    }
   }
+
+  return localSession(readStoredRole());
 }
 
 export async function switchMockRole(role: UserRole): Promise<AuthSession> {
@@ -88,7 +86,7 @@ export async function switchMockRole(role: UserRole): Promise<AuthSession> {
 
   try {
     const response = await apiPost<AuthSession>('/api/auth/wechat/mock-login', { role, companionId: role === 'companion' ? account?.companionId : undefined });
-    const session = response.success ? localSession(role) : localSession(role);
+    const session = response.success ? persistRemoteSession(response.data) : localSession(role);
     notifySessionChanged(session);
     return session;
   } catch {
@@ -233,6 +231,7 @@ export async function logoutAccount() {
       // Local logout should still succeed if the mock API is unavailable.
     }
   }
+  clearApiAuthToken();
 }
 
 export function addRoleToCurrentAccount(role: PublicRole) {
@@ -294,6 +293,12 @@ function persistRole(role: UserRole) {
 function notifySessionChanged(session: AuthSession) {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent<AuthSession>('pp-auth-session-changed', { detail: session }));
+}
+
+function persistRemoteSession(session: AuthSession) {
+  if (session.token) setApiAuthToken(session.token);
+  persistRole(session.role);
+  return session;
 }
 
 function isUserRole(role: unknown): role is UserRole {
