@@ -107,6 +107,7 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && path === '/api/orders/quote') return quoteOrder(store, body);
   if (method === 'POST' && path === '/api/orders') return createOrder(store, body);
   if (method === 'GET' && path === '/api/orders') return listOrders(store, url);
+  if (method === 'GET' && isNestedRoute(path, '/api/payments/', '/status')) return getPaymentStatus(store, path);
   if (method === 'POST' && isNestedRoute(path, '/api/payments/', '/mock-success')) return mockPaymentSuccess(store, path);
   if (method === 'POST' && path === '/api/payments/wechat/notify') return wechatPaymentNotify(store, body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/confirm')) return transitionOrder(store, path, 'confirm');
@@ -490,6 +491,10 @@ function publicOrderWithPayment(store, order) {
   return payment ? { ...viewOrder(order), payment: publicPayment(payment) } : viewOrder(order);
 }
 
+function findPayment(store, idValue) {
+  return store.payments.find((item) => item.id === idValue || item.paymentId === idValue || item.paymentNo === idValue);
+}
+
 function quoteOrder(store, input) {
   const context = resolveOrderContext(store, input);
   if (context.error) return context.error;
@@ -618,6 +623,38 @@ function listOrders(store, url) {
   return json({ items });
 }
 
+async function getPaymentStatus(store, path) {
+  const session = ensureActiveSession(store);
+  if (!session) return authRequired();
+
+  const payment = findPayment(store, path.split('/')[3]);
+  if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
+
+  const order = store.orders.find((item) => item.id === payment.orderId);
+  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  if (!canAccessOrder(store, order, session, session.role)) {
+    return error(403, 'FORBIDDEN', 'Payment is not accessible for current role');
+  }
+
+  let refreshed = false;
+  try {
+    refreshed = await refreshWechatPaymentStatus(store, payment);
+  } catch (paymentQueryError) {
+    payment.lastQueryError = paymentQueryError instanceof Error ? paymentQueryError.message : 'Payment status query failed';
+    payment.lastQueriedAt = now();
+    refreshed = true;
+  }
+  return json(
+    {
+      payment: publicPayment(payment),
+      order: viewOrder(order),
+      conversation: store.conversations[order.id] || null,
+    },
+    200,
+    refreshed,
+  );
+}
+
 function transitionOrder(store, path, action, body = {}) {
   const session = ensureActiveSession(store);
   if (!session) return authRequired();
@@ -641,6 +678,7 @@ function transitionOrder(store, path, action, body = {}) {
   if (action === 'cancel') {
     if (['completed', 'refunded'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be cancelled');
     releaseSlot(store, order);
+    if (order.status === 'pending_payment') closePaymentForOrder(store, order, body.reason || 'Order cancelled');
     const result = updateOrder(store, order, order.status === 'pending_payment' ? 'cancelled' : 'refunding', body.reason || 'Order cancelled');
     if (order.status === 'refunding') createRefund(store, order, body.reason || 'Order cancelled');
     return result;
@@ -1140,10 +1178,20 @@ function getPendingPaymentExpiresAt(order, payment) {
 }
 
 function closeExpiredPayment(payment) {
+  closePayment(payment, 'Payment window expired');
+}
+
+function closePaymentForOrder(store, order, reason) {
+  const payment = store.payments.find((item) => item.orderId === order.id);
+  if (!payment) return;
+  closePayment(payment, reason);
+}
+
+function closePayment(payment, reason) {
   if (!payment || payment.status !== 'pending') return;
   payment.status = 'closed';
   payment.closedAt = now();
-  payment.closeReason = 'Payment window expired';
+  payment.closeReason = reason;
 }
 
 function reserveSlotForOrder(companionId, slot) {
@@ -1878,6 +1926,7 @@ async function createWechatJsapiPrepay(payment, order, session) {
     mchid: mchId,
     description: order.title.slice(0, 127),
     out_trade_no: payment.paymentNo,
+    time_expire: payment.expiresAt,
     notify_url: notifyUrl,
     amount: { total: payment.amountCents, currency: 'CNY' },
     payer: { openid: session.user.openId },
@@ -1887,7 +1936,7 @@ async function createWechatJsapiPrepay(payment, order, session) {
     throw new Error('Live WeChat Pay requires a real user openid from wx.login');
   }
 
-  const response = await wechatPayRequest('/v3/pay/transactions/jsapi', body, privateKey);
+  const response = await wechatPayRequest('POST', '/v3/pay/transactions/jsapi', body, privateKey);
   const prepayPackage = `prepay_id=${response.prepay_id}`;
   const timeStamp = String(Math.floor(Date.now() / 1000));
   const nonceStr = randomString(32);
@@ -1902,12 +1951,11 @@ async function createWechatJsapiPrepay(payment, order, session) {
   };
 }
 
-async function wechatPayRequest(path, body, privateKey) {
-  const method = 'POST';
+async function wechatPayRequest(method, path, body, privateKey) {
   const url = `https://api.mch.weixin.qq.com${path}`;
   const timestamp = String(Math.floor(Date.now() / 1000));
   const nonce = randomString(32);
-  const bodyText = JSON.stringify(body);
+  const bodyText = body ? JSON.stringify(body) : '';
   const message = `${method}\n${path}\n${timestamp}\n${nonce}\n${bodyText}\n`;
   const signature = signWechatPayMessage(message, privateKey);
   const authorization = [
@@ -1927,7 +1975,7 @@ async function wechatPayRequest(path, body, privateKey) {
       'Content-Type': 'application/json',
       'User-Agent': 'PP-Platform-MVP/1.0',
     },
-    body: bodyText,
+    body: bodyText || undefined,
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.message || `WeChat Pay request failed with ${response.status}`);
@@ -1945,10 +1993,48 @@ function wechatPaymentNotify(store, body = {}) {
   return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
 }
 
+async function refreshWechatPaymentStatus(store, payment) {
+  if (!useLiveWechatPay() || payment.status !== 'pending' || !payment.paymentNo) return false;
+
+  const privateKey = getWechatPayPrivateKey();
+  const mchId = requiredEnv('WECHAT_PAY_MCH_ID');
+  const path = `/v3/pay/transactions/out-trade-no/${encodeURIComponent(payment.paymentNo)}?mchid=${encodeURIComponent(mchId)}`;
+  const transaction = await wechatPayRequest('GET', path, null, privateKey);
+  payment.transactionId = transaction.transaction_id || payment.transactionId;
+  payment.wechatTradeState = transaction.trade_state;
+  payment.lastQueriedAt = now();
+
+  if (transaction.trade_state === 'SUCCESS') {
+    applyPaidPayment(store, payment, 'WeChat Pay status query succeeded');
+    return true;
+  }
+
+  if (['CLOSED', 'REVOKED'].includes(transaction.trade_state)) {
+    closePayment(payment, transaction.trade_state_desc || transaction.trade_state);
+    return true;
+  }
+
+  if (transaction.trade_state === 'PAYERROR') {
+    payment.status = 'failed';
+    payment.failedAt = now();
+    payment.failureReason = transaction.trade_state_desc || 'WeChat Pay reported PAYERROR';
+    return true;
+  }
+
+  return true;
+}
+
 function markPaymentPaid(store, payment, note) {
   if (payment.status === 'paid') return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+  if (payment.status === 'closed') return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+  const result = applyPaidPayment(store, payment, note);
+  if (result.error) return result.error;
+  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+}
+
+function applyPaidPayment(store, payment, note) {
   const order = store.orders.find((item) => item.id === payment.orderId);
-  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  if (!order) return { error: error(404, 'NOT_FOUND', 'Order not found') };
   payment.status = 'paid';
   payment.paidAt = now();
   Object.assign(order, viewOrder({ ...order, status: 'paid_pending_confirm', paidAt: now() }));
@@ -1957,7 +2043,7 @@ function markPaymentPaid(store, payment, note) {
   const slot = companion?.slots.find((item) => item.id === order.slotId);
   if (slot) markSlotBooked(companion.id, slot, order.id);
   store.conversations[order.id] ||= createConversation(order);
-  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+  return { order, conversation: store.conversations[order.id] };
 }
 
 function decryptWechatPayResource(resource) {

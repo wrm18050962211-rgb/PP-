@@ -90,6 +90,8 @@ try {
 
   const paid = await api('POST', `/api/payments/${order.payment.paymentId}/mock-success`);
   assert(paid.order.status === 'paid_pending_confirm' && paid.conversation?.id, 'mock payment pays order and opens conversation');
+  const paidStatus = await api('GET', `/api/payments/${order.payment.paymentId}/status`);
+  assert(paidStatus.payment.status === 'paid' && paidStatus.order.status === 'paid_pending_confirm', 'payment status endpoint returns paid order');
 
   const orders = await api('GET', '/api/orders?role=user');
   assert(orders.items.some((item) => item.id === paid.order.id), 'paid order appears in order list');
@@ -111,6 +113,8 @@ try {
     userNote: 'smoke test expiring payment',
   });
   await expirePendingOrderInStore(expiringOrder.id);
+  const expiredStatus = await api('GET', `/api/payments/${expiringOrder.payment.paymentId}/status`);
+  assert(expiredStatus.payment.status === 'closed' && expiredStatus.order.status === 'cancelled', 'payment status endpoint closes expired pending payment');
   const ordersAfterExpiry = await api('GET', '/api/orders?role=user');
   const expiredOrder = ordersAfterExpiry.items.find((item) => item.id === expiringOrder.id);
   assert(expiredOrder?.status === 'cancelled', 'expired pending payment order is cancelled automatically');
@@ -154,6 +158,7 @@ try {
           'create-order',
           'mini-program-payment-params',
           'mock-payment',
+          'payment-status',
           'orders',
           'role-scoped-orders',
           'pending-payment-expiry',

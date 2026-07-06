@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { listSeedOrders } from '../services/orderService';
+import { fetchOrders, listSeedOrders } from '../services/orderService';
 import {
   getDefaultApplication,
   getDefaultWorkDraft,
@@ -41,7 +41,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       setApplication(scopedInitial.application);
       setBookingSettings(scopedInitial.bookingSettings);
       setWorkDraft(scopedInitial.workDraft);
-      return refreshOrders().then((serverOrders) => {
+      return refreshOrders(nextSession.role).then((serverOrders) => {
         if (!mounted || serverOrders.length === 0) return;
         setOrders(serverOrders);
         persistSnapshot(serverOrders, initialDataRef.current, nextSession.role);
@@ -56,7 +56,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       setApplication(scopedInitial.application);
       setBookingSettings(scopedInitial.bookingSettings);
       setWorkDraft(scopedInitial.workDraft);
-      void refreshOrders().then((serverOrders) => {
+      void refreshOrders(nextSession.role).then((serverOrders) => {
         if (serverOrders.length === 0) return;
         setOrders(serverOrders);
         persistSnapshot(serverOrders, initialDataRef.current, nextSession.role);
@@ -75,7 +75,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (!session) return;
 
     let mounted = true;
-    refreshOrders().then((serverOrders) => {
+    refreshOrders(session.role).then((serverOrders) => {
       if (!mounted || serverOrders.length === 0) return;
       setOrders(serverOrders);
       persistSnapshot(serverOrders, initialDataRef.current, session.role);
@@ -211,8 +211,10 @@ function loadInitialData(role?: UserRole, session?: AuthSession | null) {
   }
 }
 
-async function refreshOrders() {
-  return [];
+async function refreshOrders(role: UserRole = 'consumer') {
+  if (!isApiEnabled()) return [];
+  const orderRole = role === 'companion' ? 'companion' : role === 'admin' ? 'admin' : 'user';
+  return fetchOrders(orderRole);
 }
 
 function persistSnapshot(
