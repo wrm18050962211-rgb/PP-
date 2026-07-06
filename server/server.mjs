@@ -176,6 +176,8 @@ function shortPostLocation(post = {}) {
 
 function createMediaUploadPolicy(store, body = {}) {
   const session = ensureActiveSession(store);
+  if (!session) return authRequired();
+
   const purpose = normalizeMediaPurpose(body.purpose);
   const fileName = sanitizeFileName(body.fileName || 'upload.jpg');
   const contentType = String(body.contentType || 'application/octet-stream');
@@ -295,6 +297,8 @@ function resolveSessionCompanionId(store, requestedCompanionId) {
 }
 
 function ensureActiveSession(store, fallbackRole = 'consumer') {
+  if (!store.activeSession?.role && !isTestRoleSwitchAllowed()) return null;
+
   const role = normalizeRole(store.activeSession?.role || fallbackRole);
   const session = createSession(store, role, store.activeSession?.user || null, {
     companionId: store.activeSession?.companionId,
@@ -302,6 +306,14 @@ function ensureActiveSession(store, fallbackRole = 'consumer') {
     loginAt: store.activeSession?.loginAt,
   });
   return saveSession(store, session);
+}
+
+function authRequired() {
+  return error(401, 'AUTH_REQUIRED', 'Authentication is required');
+}
+
+function adminRequired() {
+  return error(403, 'FORBIDDEN', 'Admin role is required');
 }
 
 function refreshSession(store, session) {
@@ -463,6 +475,8 @@ function quoteOrder(store, input) {
 
 async function createOrder(store, input) {
   const session = ensureActiveSession(store, 'consumer');
+  if (!session) return authRequired();
+
   const context = resolveOrderContext(store, input);
   if (context.error) return context.error;
   if (context.slot.status !== 'available') return error(409, 'ORDER_SLOT_UNAVAILABLE', 'Slot is not available');
@@ -532,6 +546,8 @@ async function createOrder(store, input) {
 }
 
 function mockPaymentSuccess(store, path) {
+  if (!isTestRoleSwitchAllowed()) return error(403, 'MOCK_PAYMENT_DISABLED', 'Mock payment success is disabled in this environment');
+
   const paymentId = path.split('/')[3];
   const payment = store.payments.find((item) => item.id === paymentId || item.paymentId === paymentId);
   if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
@@ -562,6 +578,8 @@ function mockPaymentSuccess(store, path) {
 
 function listOrders(store, url) {
   const session = ensureActiveSession(store);
+  if (!session) return authRequired();
+
   const role = normalize(url.searchParams.get('role') || session.role || 'user');
   const status = normalize(url.searchParams.get('status'));
   const items = store.orders
@@ -573,6 +591,8 @@ function listOrders(store, url) {
 
 function transitionOrder(store, path, action, body = {}) {
   const session = ensureActiveSession(store);
+  if (!session) return authRequired();
+
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
   if (!canMutateOrder(order, session, action)) return error(403, 'FORBIDDEN', 'Order action is not allowed for current role');
@@ -602,6 +622,8 @@ function transitionOrder(store, path, action, body = {}) {
 
 function setOrderStatus(store, path, status) {
   const session = ensureActiveSession(store);
+  if (!session) return authRequired();
+
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
   if (session.role !== 'admin') return error(403, 'FORBIDDEN', 'Only admin can set arbitrary order status');
@@ -619,6 +641,8 @@ function updateOrder(store, order, status, reason) {
 
 function getConversation(store, path) {
   const session = ensureActiveSession(store);
+  if (!session) return authRequired();
+
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
   if (!canAccessOrder(store, order, session, session.role)) return error(403, 'FORBIDDEN', 'Order is not accessible for current role');
@@ -631,6 +655,8 @@ function getConversation(store, path) {
 
 function sendMessage(store, path, body) {
   const session = ensureActiveSession(store);
+  if (!session) return authRequired();
+
   const conversationId = path.split('/')[3];
   const conversation = Object.values(store.conversations).find((item) => item.id === conversationId);
   if (!conversation) return error(404, 'NOT_FOUND', 'Conversation not found');
@@ -700,9 +726,13 @@ function sendMessage(store, path, body) {
 }
 
 function createReport(store, path, body) {
+  const session = ensureActiveSession(store);
+  if (!session) return authRequired();
+
   const orderId = path.split('/')[3] || body.orderId;
   const order = findOrder(store, orderId);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  if (!canAccessOrder(store, order, session, session.role)) return error(403, 'FORBIDDEN', 'Order is not accessible for current role');
 
   const report = {
     id: id('report'),
@@ -710,9 +740,9 @@ function createReport(store, path, body) {
     status: 'pending',
     riskLevel: body.riskLevel || 'medium',
     riskLabel: body.category || body.reason || 'Order dispute',
-    reporterRole: body.reporterRole || 'user',
-    reporterName: body.reporterRole === 'companion' ? order.companion : 'Demo user',
-    targetName: body.reporterRole === 'companion' ? 'Demo user' : order.companion,
+    reporterRole: body.reporterRole || messageSenderRole(session),
+    reporterName: session.role === 'companion' ? order.companion : session.user?.nickname || 'User',
+    targetName: session.role === 'companion' ? order.userName || 'User' : order.companion,
     reason: body.reason || body.category || 'Order communication report',
     description: body.description || 'A user report was created from the order conversation.',
     evidenceFiles: body.evidenceFiles || [],
@@ -740,6 +770,10 @@ function createReport(store, path, body) {
 }
 
 function companionDashboard(store) {
+  const session = ensureActiveSession(store, 'companion');
+  if (!session) return authRequired();
+  if (session.role !== 'companion' && session.role !== 'admin') return error(403, 'FORBIDDEN', 'Companion or admin role is required');
+
   const completed = store.orders.filter((order) => order.status === 'completed');
   const pending = store.settlements.filter((item) => item.status === 'pending').reduce((sum, item) => sum + item.payableCents, 0);
   return json({
@@ -756,11 +790,19 @@ function companionDashboard(store) {
 }
 
 function saveApplication(store, body) {
+  const session = ensureActiveSession(store, 'companion');
+  if (!session) return authRequired();
+  if (session.role !== 'companion') return error(403, 'FORBIDDEN', 'Companion role is required');
+
   store.application = { ...store.application, ...body, submitted: false, reviewStatus: 'draft', updatedAt: now() };
   return json(store.application, 200, true);
 }
 
 function submitCompanionReview(store) {
+  const session = ensureActiveSession(store, 'companion');
+  if (!session) return authRequired();
+  if (session.role !== 'companion') return error(403, 'FORBIDDEN', 'Companion role is required');
+
   store.application = { ...store.application, submitted: true, reviewStatus: 'pending_review', updatedAt: now() };
   const existing = store.auditCases.find((item) => item.targetType === 'companion' && item.targetId === 'companion-mori' && item.status === 'pending');
   if (!existing) {
@@ -779,6 +821,10 @@ function submitCompanionReview(store) {
 }
 
 function adminDashboard(store) {
+  const session = ensureActiveSession(store, 'admin');
+  if (!session) return authRequired();
+  if (session.role !== 'admin') return adminRequired();
+
   const pendingCompanions = store.auditCases.filter((item) => item.targetType === 'companion' && item.status === 'pending').length;
   const pendingPosts = store.auditCases.filter((item) => item.targetType === 'post' && item.status === 'pending').length;
   const pendingReports = store.reports.filter((item) => item.status === 'pending').length;
@@ -809,6 +855,10 @@ function adminDashboard(store) {
 }
 
 function adminModeration(store) {
+  const session = ensureActiveSession(store, 'admin');
+  if (!session) return authRequired();
+  if (session.role !== 'admin') return adminRequired();
+
   return json({
     messageCases: store.riskCases,
     reportCases: store.reports,
@@ -816,6 +866,10 @@ function adminModeration(store) {
 }
 
 function listAuditCases(store, url) {
+  const session = ensureActiveSession(store, 'admin');
+  if (!session) return authRequired();
+  if (session.role !== 'admin') return adminRequired();
+
   const targetType = normalize(url.searchParams.get('targetType'));
   const status = normalize(url.searchParams.get('status'));
   const items = store.auditCases
@@ -825,6 +879,10 @@ function listAuditCases(store, url) {
 }
 
 function reviewAuditCase(store, path, nextStatus, body = {}) {
+  const session = ensureActiveSession(store, 'admin');
+  if (!session) return authRequired();
+  if (session.role !== 'admin') return adminRequired();
+
   const caseId = path.split('/')[4];
   const auditCase = store.auditCases.find((item) => item.id === caseId);
   if (!auditCase) return error(404, 'NOT_FOUND', 'Audit case not found');
@@ -872,6 +930,10 @@ function reviewAuditCase(store, path, nextStatus, body = {}) {
 }
 
 function applyModerationAction(store, path, body) {
+  const session = ensureActiveSession(store, 'admin');
+  if (!session) return authRequired();
+  if (session.role !== 'admin') return adminRequired();
+
   const caseId = path.split('/')[4];
   const actionType = body.actionType || 'confirm_violation';
   const log = {
