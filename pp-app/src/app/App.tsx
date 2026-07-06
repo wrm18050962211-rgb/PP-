@@ -2,8 +2,8 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { ConsumerShell } from '../layouts/ConsumerShell';
 import { RoleShell } from '../layouts/RoleShell';
-import { AccountSettingsPage, AdminLoginPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAdmin, RequireAuth, RequireRegistrationDraft, RequireRole } from '../features/auth/AuthPages';
-import { getRegisteredAccount } from '../services/authService';
+import { AccountSettingsPage, AdminLoginPage, EntryRedirect, GuestOnly, LoginPage, RegisterPage, RequireAdmin, RequireAuth, RequireRegistrationDraft, RequireRole, RequireUserSettings } from '../features/auth/AuthPages';
+import { getActivePublicRole, getRegisteredAccount } from '../services/authService';
 
 const AdminDashboard = lazy(() => import('../features/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
 const CompanionOnboarding = lazy(() => import('../features/companion/CompanionOnboarding').then((module) => ({ default: module.CompanionOnboarding })));
@@ -74,9 +74,9 @@ export default function App() {
       <Route
         path="/consumer"
         element={
-          <RequireAuth>
+          <RequireRole role="consumer" fallback="/companion/mine">
             <ConsumerShell />
-          </RequireAuth>
+          </RequireRole>
         }
       >
         <Route
@@ -224,9 +224,9 @@ export default function App() {
       <Route
         path="/settings"
         element={
-          <RequireAuth>
+          <RequireUserSettings>
             <AccountSettingsPage />
-          </RequireAuth>
+          </RequireUserSettings>
         }
       />
 
@@ -247,7 +247,7 @@ function LegacyConsumerRedirect({ target }: { target: 'post' | 'checkout' }) {
 }
 
 function LegacyRoleRedirect({ target }: { target: 'orders' | 'messages' | 'mine' }) {
-  const role = getRegisteredAccount()?.role;
+  const role = getActivePublicRole() ?? getRegisteredAccount()?.role;
   const basePath = role === 'companion' ? '/companion' : '/consumer';
   return <Navigate to={`${basePath}/${target}`} replace />;
 }

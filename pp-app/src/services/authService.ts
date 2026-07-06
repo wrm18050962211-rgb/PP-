@@ -8,6 +8,7 @@ const accountStorageKey = 'pp-auth-account-v1';
 const loginStorageKey = 'pp-auth-logged-in-v1';
 const smsCodeStorageKey = 'pp-auth-sms-code-v1';
 const adminLoginStorageKey = 'pp-admin-logged-in-v1';
+const adminReturnRoleStorageKey = 'pp-admin-return-role-v1';
 const localAdminPasscode = '000000';
 
 type AuthAccount = {
@@ -113,6 +114,11 @@ export function getRegisteredAccount() {
 
 export function getActiveAuthRole(): UserRole {
   return readStoredRole();
+}
+
+export function getActivePublicRole(): PublicRole | null {
+  const role = readStoredRole();
+  return isPublicRole(role) ? role : null;
 }
 
 export function isAdminSessionActive() {
@@ -235,6 +241,8 @@ export async function loginWithPhoneCode(phone: string, code: string, role?: Pub
 export async function logoutAccount() {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(loginStorageKey);
+    localStorage.removeItem(adminLoginStorageKey);
+    localStorage.removeItem(adminReturnRoleStorageKey);
   }
   if (isApiEnabled()) {
     try {
@@ -249,7 +257,9 @@ export async function logoutAccount() {
 export function loginLocalAdmin(passcode: string): AuthSession {
   ensureTestAuthAllowed('本地管理员登录');
   if (passcode !== localAdminPasscode) throw new Error('管理员口令错误');
+  const currentRole = readStoredRole();
   if (typeof localStorage !== 'undefined') {
+    if (isPublicRole(currentRole)) localStorage.setItem(adminReturnRoleStorageKey, currentRole);
     localStorage.setItem(adminLoginStorageKey, '1');
   }
   persistRole('admin');
@@ -259,10 +269,13 @@ export function loginLocalAdmin(passcode: string): AuthSession {
 }
 
 export function logoutLocalAdmin(): AuthSession {
+  const account = readAccount();
+  const returnRole = typeof localStorage === 'undefined' ? null : localStorage.getItem(adminReturnRoleStorageKey);
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(adminLoginStorageKey);
+    localStorage.removeItem(adminReturnRoleStorageKey);
   }
-  const nextRole = readAccount()?.role ?? 'consumer';
+  const nextRole = isPublicRole(returnRole) && canUseRole(account, returnRole) ? returnRole : account?.role ?? 'consumer';
   persistRole(nextRole);
   const session = localSession(nextRole);
   notifySessionChanged(session);
@@ -338,6 +351,10 @@ function persistRemoteSession(session: AuthSession) {
 
 function isUserRole(role: unknown): role is UserRole {
   return role === 'consumer' || role === 'companion' || role === 'admin';
+}
+
+function isPublicRole(role: unknown): role is PublicRole {
+  return role === 'consumer' || role === 'companion';
 }
 
 function localSession(role: UserRole): AuthSession {

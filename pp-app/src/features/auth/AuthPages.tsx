@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   accountHasRole,
   getActiveAuthRole,
+  getActivePublicRole,
   getAvailableLoginRoles,
   getPostAuthHome,
   getRegisteredAccount,
@@ -60,6 +61,16 @@ export function RequireRole({ role, fallback, children }: { role: PublicRole; fa
   if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace state={{ from: location.pathname }} />;
   if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
   if (activeRole !== role || !accountHasRole(role)) return <Navigate to={getPostAuthHome(activeRole) || fallback} replace />;
+  return children;
+}
+
+export function RequireUserSettings({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const activeRole = getActivePublicRole();
+  if (getActiveAuthRole() === 'admin') return <Navigate to="/admin" replace />;
+  if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace state={{ from: location.pathname }} />;
+  if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
+  if (!activeRole || !accountHasRole(activeRole)) return <Navigate to={getPostAuthHome(activeRole ?? 'consumer')} replace />;
   return children;
 }
 
@@ -347,8 +358,8 @@ function getRoleOnboardingPath(role: PublicRole) {
 export function AccountSettingsPage() {
   const navigate = useNavigate();
   const account = getRegisteredAccount();
-  const activeRole = getActiveAuthRole();
-  const roleLabel = account?.role ? getPublicRoleLabel(account.role) : '用户';
+  const activeRole = getActivePublicRole() ?? account?.role ?? 'consumer';
+  const roleLabel = getPublicRoleLabel(activeRole);
   const [activeComplianceItem, setActiveComplianceItem] = useState<ComplianceItem | null>(null);
   const [deletionSubmitted, setDeletionSubmitted] = useState(false);
   const [supportSheetOpen, setSupportSheetOpen] = useState(false);
@@ -442,7 +453,7 @@ export function AccountSettingsPage() {
             if (!account) return;
             submitAccountDeletionRequest({
               phone: account.phone,
-              role: account.role,
+              role: activeRole,
               displayName: roleLabel,
             });
             setDeletionSubmitted(true);
@@ -459,7 +470,7 @@ export function AccountSettingsPage() {
             if (!account) return;
             submitSupportRequest({
               phone: account.phone,
-              role: account.role,
+              role: activeRole,
               displayName: roleLabel,
               category,
               description,
