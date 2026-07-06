@@ -18,6 +18,7 @@ import {
 } from '../../services/authService';
 import { submitAccountDeletionRequest } from '../../services/accountDeletionService';
 import { isTestRoleSwitchAllowed } from '../../services/apiClient';
+import { submitSupportRequest, supportRequestCategoryOptions, type SupportRequestCategory } from '../../services/supportRequestService';
 
 type PublicRole = RegisterInput['role'];
 
@@ -299,7 +300,8 @@ export function AccountSettingsPage() {
   const roleLabel = account?.role ? getPublicRoleLabel(account.role) : '用户';
   const [activeComplianceItem, setActiveComplianceItem] = useState<ComplianceItem | null>(null);
   const [deletionSubmitted, setDeletionSubmitted] = useState(false);
-  const supportPath = account?.role === 'companion' ? '/companion/messages' : '/consumer/messages';
+  const [supportSheetOpen, setSupportSheetOpen] = useState(false);
+  const [supportSubmitted, setSupportSubmitted] = useState(false);
 
   async function logout() {
     await logoutAccount();
@@ -352,7 +354,14 @@ export function AccountSettingsPage() {
               </span>
             </button>
           ))}
-          <button className="flex min-h-16 w-full items-center gap-3 px-4 text-left" type="button" onClick={() => navigate(supportPath)}>
+          <button
+            className="flex min-h-16 w-full items-center gap-3 px-4 text-left"
+            type="button"
+            onClick={() => {
+              setSupportSubmitted(false);
+              setSupportSheetOpen(true);
+            }}
+          >
             <span className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700">
               <Headphones size={19} />
             </span>
@@ -386,6 +395,25 @@ export function AccountSettingsPage() {
               displayName: roleLabel,
             });
             setDeletionSubmitted(true);
+          }}
+        />
+      ) : null}
+      {supportSheetOpen ? (
+        <SupportSheet
+          account={account}
+          roleLabel={roleLabel}
+          submitted={supportSubmitted}
+          onClose={() => setSupportSheetOpen(false)}
+          onSubmit={(category, description) => {
+            if (!account) return;
+            submitSupportRequest({
+              phone: account.phone,
+              role: account.role,
+              displayName: roleLabel,
+              category,
+              description,
+            });
+            setSupportSubmitted(true);
           }}
         />
       ) : null}
@@ -564,6 +592,93 @@ function ComplianceSheet({
           onClick={handlePrimaryAction}
         >
           {isDeleteAction && !deletionSubmitted ? '提交删除申请' : '我知道了'}
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function SupportSheet({
+  account,
+  roleLabel,
+  submitted,
+  onClose,
+  onSubmit,
+}: {
+  account: { phone: string; role: PublicRole } | null;
+  roleLabel: string;
+  submitted: boolean;
+  onClose: () => void;
+  onSubmit: (category: SupportRequestCategory, description: string) => void;
+}) {
+  const [category, setCategory] = useState<SupportRequestCategory>('order_service');
+  const [description, setDescription] = useState('');
+
+  function handlePrimaryAction() {
+    if (submitted) {
+      onClose();
+      return;
+    }
+    onSubmit(category, description);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]" role="dialog" aria-modal="true">
+      <section className="w-full max-w-md rounded-[12px] bg-white p-4 text-zinc-950 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-zinc-100 text-zinc-800">
+            <Headphones size={20} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black text-zinc-400">{account?.phone ?? '未登录账号'} · {roleLabel}</p>
+            <h2 className="mt-1 text-xl font-black">联系客服</h2>
+          </div>
+          <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" type="button" onClick={onClose} aria-label="关闭">
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {supportRequestCategoryOptions.map((option) => {
+            const active = option.value === category;
+            return (
+              <button
+                key={option.value}
+                className={`h-10 rounded-[10px] text-sm font-black ${active ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-700'}`}
+                type="button"
+                onClick={() => setCategory(option.value)}
+                disabled={submitted}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <label className="mt-4 block">
+          <span className="text-xs font-black text-zinc-400">补充说明</span>
+          <textarea
+            className="mt-1 min-h-24 w-full resize-none rounded-[10px] bg-zinc-100 px-3 py-3 text-sm font-semibold leading-5 text-zinc-900 outline-none placeholder:text-zinc-400"
+            placeholder="简单说一下订单、退款、举报或账号问题，方便后台跟进。"
+            value={description}
+            onChange={(event) => setDescription(event.target.value.slice(0, 180))}
+            disabled={submitted}
+          />
+        </label>
+
+        {submitted ? (
+          <p className="mt-4 rounded-[10px] bg-emerald-50 px-3 py-2 text-xs font-black leading-5 text-emerald-700">
+            客服请求已提交，后台可在举报处理中跟进。
+          </p>
+        ) : null}
+
+        <button
+          className="mt-5 h-11 w-full rounded-full bg-zinc-950 text-sm font-black text-white disabled:bg-zinc-300"
+          type="button"
+          onClick={handlePrimaryAction}
+          disabled={!account}
+        >
+          {submitted ? '我知道了' : '提交客服请求'}
         </button>
       </section>
     </div>

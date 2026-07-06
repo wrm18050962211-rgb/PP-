@@ -126,6 +126,13 @@ export const dataDomainPolicies: Record<string, DataDomainPolicy> = {
     migrationTarget: 'TencentDB account_deletion_requests / admin_action_logs',
     note: 'Account deletion requests must be visible to operations and handled through an auditable workflow.',
   },
+  'support-requests-v1': {
+    layer: 'cloud',
+    sensitivity: 'sensitive',
+    owner: 'admin',
+    migrationTarget: 'TencentDB support_requests / admin_action_logs',
+    note: 'Customer support requests must be visible to operations and handled through an auditable workflow.',
+  },
 };
 
 export function getDataDomainPolicy(key: string) {

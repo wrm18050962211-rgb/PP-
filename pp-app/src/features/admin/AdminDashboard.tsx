@@ -24,6 +24,7 @@ import { listAccountDeletionRequests, updateAccountDeletionRequestStatus, type A
 import { fetchAdminModerationData, syncAdminModerationAction } from '../../services/adminService';
 import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
+import { getSupportRequestCategoryLabel, listSupportRequests, updateSupportRequestStatus, type SupportRequest, type SupportRequestStatus } from '../../services/supportRequestService';
 import type { AdminActionType, AdminModerationData, AdminReportCase, AdminRiskMessageCase } from '../../types/api';
 import type { AppOrder, OrderStatus, PublishedWorkDraft } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
@@ -49,6 +50,7 @@ type ReportCase = {
   orderNo: string;
   status: '待处理' | '处理中' | '已完结';
   summary: string;
+  supportRequest?: SupportRequest;
 };
 
 type SettlementCase = {
@@ -166,6 +168,7 @@ export function AdminDashboard() {
   const [selectedSettlementId, setSelectedSettlementId] = useState(settlementSeed[0]?.id ?? '');
   const [accounts, setAccounts] = useState(accountSeed);
   const [accountDeletionRequests, setAccountDeletionRequests] = useState<AccountDeletionRequest[]>(() => listAccountDeletionRequests());
+  const [supportRequests, setSupportRequests] = useState<SupportRequest[]>(() => listSupportRequests());
   const [selectedAccountId, setSelectedAccountId] = useState(accountSeed[0]?.id ?? '');
   const [configs, setConfigs] = useState(configSeed);
   const [selectedConfigId, setSelectedConfigId] = useState(configSeed[0]?.id ?? '');
@@ -187,23 +190,28 @@ export function AdminDashboard() {
   }, [orders]);
 
   useEffect(() => {
-    const refreshDeletionRequests = () => setAccountDeletionRequests(listAccountDeletionRequests());
-    window.addEventListener('focus', refreshDeletionRequests);
-    window.addEventListener('storage', refreshDeletionRequests);
+    const refreshAdminRequests = () => {
+      setAccountDeletionRequests(listAccountDeletionRequests());
+      setSupportRequests(listSupportRequests());
+    };
+    window.addEventListener('focus', refreshAdminRequests);
+    window.addEventListener('storage', refreshAdminRequests);
     return () => {
-      window.removeEventListener('focus', refreshDeletionRequests);
-      window.removeEventListener('storage', refreshDeletionRequests);
+      window.removeEventListener('focus', refreshAdminRequests);
+      window.removeEventListener('storage', refreshAdminRequests);
     };
   }, []);
 
   const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0];
   const localDisputeReports = useMemo(() => buildLocalDisputeReports(orders), [orders]);
+  const supportReportCases = useMemo(() => supportRequests.map(mapSupportRequestToReportCase), [supportRequests]);
   const visibleReportCases = useMemo(
     () => [
       ...localDisputeReports,
-      ...reportCases.filter((item) => !localDisputeReports.some((localItem) => localItem.id === item.id)),
+      ...supportReportCases,
+      ...reportCases.filter((item) => !localDisputeReports.some((localItem) => localItem.id === item.id) && !supportReportCases.some((supportItem) => supportItem.id === item.id)),
     ],
-    [localDisputeReports, reportCases],
+    [localDisputeReports, reportCases, supportReportCases],
   );
   const selectedRisk = riskCases.find((item) => item.id === selectedRiskId) ?? riskCases[0];
   const selectedReport = visibleReportCases.find((item) => item.id === selectedReportId) ?? visibleReportCases[0];
@@ -240,6 +248,15 @@ export function AdminDashboard() {
   function recordReportAction(id: string, action: string, actionType: AdminActionType) {
     setReportActionLogs((logs) => ({ ...logs, [id]: [action, ...(logs[id] ?? [])] }));
     void syncAdminModerationAction(id, actionType, action);
+  }
+
+  function updateReportStatus(id: string, status: ReportCase['status']) {
+    const supportStatus = mapReportStatusToSupportStatus(status);
+    if (supportStatus && supportRequests.some((request) => request.id === id)) {
+      setSupportRequests(updateSupportRequestStatus(id, supportStatus));
+      return;
+    }
+    setReportCases((items) => items.map((item) => (item.id === id ? { ...item, status } : item)));
   }
 
   function updateAccountStatus(id: string, status: AccountCase['status']) {
@@ -329,7 +346,7 @@ export function AdminDashboard() {
               selectedOrder={orders.find((order) => order.orderNo === selectedReport.orderNo)}
               actionLogs={reportActionLogs[selectedReport.id] ?? []}
               onSelect={setSelectedReportId}
-              onUpdate={(id, status) => setReportCases((items) => items.map((item) => (item.id === id ? { ...item, status } : item)))}
+              onUpdate={updateReportStatus}
               onRecordAction={recordReportAction}
               onFreezeOrder={(orderNo) => {
                 const order = orders.find((item) => item.orderNo === orderNo);
@@ -670,6 +687,8 @@ function ReportPanel({
   onRecordAction: (id: string, action: string, actionType: AdminActionType) => void;
   onFreezeOrder: (orderNo: string) => void;
 }) {
+  const supportRequest = selectedReport.supportRequest;
+
   function record(status: ReportCase['status'], action: string) {
     onUpdate(selectedReport.id, status);
     onRecordAction(selectedReport.id, action, status === '已完结' ? 'resolve_report' : 'confirm_violation');
@@ -679,52 +698,77 @@ function ReportPanel({
     <ModuleFrame title="举报处理" count={`${reports.filter((item) => item.status !== '已完结').length} 未完结`}>
       <ListDetailLayout
         list={reports.map((item) => (
-          <ListRow key={item.id} active={item.id === selectedReport.id} title={item.type} subtitle={`${item.reporter} 举报 ${item.target}`} meta={item.status} onClick={() => onSelect(item.id)} />
+          <ListRow
+            key={item.id}
+            active={item.id === selectedReport.id}
+            title={item.type}
+            subtitle={item.supportRequest ? `${item.reporter} 提交客服请求` : `${item.reporter} 举报 ${item.target}`}
+            meta={item.status}
+            onClick={() => onSelect(item.id)}
+          />
         ))}
         detail={
           <DetailCard eyebrow={selectedReport.orderNo} title={selectedReport.type} status={selectedReport.status}>
             <InfoGrid
               items={[
-                ['举报人', selectedReport.reporter],
-                ['被举报对象', selectedReport.target],
-                ['关联订单', selectedReport.orderNo],
+                [supportRequest ? '提交人' : '举报人', selectedReport.reporter],
+                [supportRequest ? '处理对象' : '被举报对象', selectedReport.target],
+                [supportRequest ? '来源' : '关联订单', selectedReport.orderNo],
                 ['处理状态', selectedReport.status],
-                ['订单状态', selectedOrder ? selectedOrder.statusText : '-'],
-                ['订单金额', selectedOrder ? selectedOrder.amountText : '-'],
+                ...(supportRequest
+                  ? ([
+                      ['联系电话', supportRequest.phone],
+                      ['提交时间', formatDate(supportRequest.createdAt)],
+                    ] as Array<[string, string]>)
+                  : ([
+                      ['订单状态', selectedOrder ? selectedOrder.statusText : '-'],
+                      ['订单金额', selectedOrder ? selectedOrder.amountText : '-'],
+                    ] as Array<[string, string]>)),
               ]}
             />
             <p className="mt-4 text-sm leading-6 text-zinc-600">{selectedReport.summary}</p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <AdminButton onClick={() => record('处理中', '已开始处理举报')}>开始处理</AdminButton>
-              <AdminButton variant="danger" onClick={() => record('处理中', '已确认为违规')}>
-                确认为违规
-              </AdminButton>
-              <AdminButton variant="soft" icon={<Flag size={16} />} onClick={() => onRecordAction(selectedReport.id, '已警告用户', 'warn_user')}>
-                警告用户
-              </AdminButton>
-              <AdminButton variant="soft" icon={<Flag size={16} />} onClick={() => onRecordAction(selectedReport.id, '已警告陪拍者', 'warn_companion')}>
-                警告陪拍者
-              </AdminButton>
-              <AdminButton variant="soft" icon={<Ban size={16} />} onClick={() => onRecordAction(selectedReport.id, '已限制订单聊天', 'restrict_chat')}>
-                限制聊天
-              </AdminButton>
-              <AdminButton
-                variant="soft"
-                icon={<Snowflake size={16} />}
-                onClick={() => {
-                  onFreezeOrder(selectedReport.orderNo);
-                  onRecordAction(selectedReport.id, '已冻结订单并进入纠纷处理', 'freeze_order');
-                }}
-              >
-                冻结订单
-              </AdminButton>
-              <AdminButton variant="danger" icon={<PauseCircle size={16} />} onClick={() => onRecordAction(selectedReport.id, '已暂停陪拍者接单', 'suspend_companion')}>
-                暂停接单
-              </AdminButton>
-              <AdminButton variant="soft" onClick={() => record('已完结', '举报纠纷已完结')}>
-                处理完成
-              </AdminButton>
-            </div>
+            {supportRequest ? (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <AdminButton onClick={() => record('处理中', '已开始处理客服请求')} disabled={selectedReport.status !== '待处理'}>
+                  开始处理
+                </AdminButton>
+                <AdminButton variant="soft" onClick={() => record('已完结', '客服请求已处理完成')} disabled={selectedReport.status === '已完结'}>
+                  处理完成
+                </AdminButton>
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <AdminButton onClick={() => record('处理中', '已开始处理举报')}>开始处理</AdminButton>
+                <AdminButton variant="danger" onClick={() => record('处理中', '已确认为违规')}>
+                  确认为违规
+                </AdminButton>
+                <AdminButton variant="soft" icon={<Flag size={16} />} onClick={() => onRecordAction(selectedReport.id, '已警告用户', 'warn_user')}>
+                  警告用户
+                </AdminButton>
+                <AdminButton variant="soft" icon={<Flag size={16} />} onClick={() => onRecordAction(selectedReport.id, '已警告陪拍者', 'warn_companion')}>
+                  警告陪拍者
+                </AdminButton>
+                <AdminButton variant="soft" icon={<Ban size={16} />} onClick={() => onRecordAction(selectedReport.id, '已限制订单聊天', 'restrict_chat')}>
+                  限制聊天
+                </AdminButton>
+                <AdminButton
+                  variant="soft"
+                  icon={<Snowflake size={16} />}
+                  onClick={() => {
+                    onFreezeOrder(selectedReport.orderNo);
+                    onRecordAction(selectedReport.id, '已冻结订单并进入纠纷处理', 'freeze_order');
+                  }}
+                >
+                  冻结订单
+                </AdminButton>
+                <AdminButton variant="danger" icon={<PauseCircle size={16} />} onClick={() => onRecordAction(selectedReport.id, '已暂停陪拍者接单', 'suspend_companion')}>
+                  暂停接单
+                </AdminButton>
+                <AdminButton variant="soft" onClick={() => record('已完结', '举报纠纷已完结')}>
+                  处理完成
+                </AdminButton>
+              </div>
+            )}
             <ActionLogList logs={actionLogs} />
           </DetailCard>
         }
@@ -900,10 +944,30 @@ function mapDeletionRequestToAccountCase(request: AccountDeletionRequest): Accou
   };
 }
 
+function mapSupportRequestToReportCase(request: SupportRequest): ReportCase {
+  return {
+    id: request.id,
+    type: `客服请求：${getSupportRequestCategoryLabel(request.category)}`,
+    reporter: request.displayName,
+    target: '平台客服',
+    orderNo: '客服请求',
+    status: request.status === 'resolved' ? '已完结' : request.status === 'processing' ? '处理中' : '待处理',
+    summary: `${request.title}：${request.description}`,
+    supportRequest: request,
+  };
+}
+
 function mapAccountStatusToDeletionStatus(status: AccountCase['status']): AccountDeletionRequestStatus | null {
   if (status === '删除申请') return 'pending';
   if (status === '限制中') return 'processing';
   if (status === '已停用') return 'resolved';
+  return null;
+}
+
+function mapReportStatusToSupportStatus(status: ReportCase['status']): SupportRequestStatus | null {
+  if (status === '待处理') return 'pending';
+  if (status === '处理中') return 'processing';
+  if (status === '已完结') return 'resolved';
   return null;
 }
 
