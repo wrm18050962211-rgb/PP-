@@ -8,7 +8,6 @@ const accountStorageKey = 'pp-auth-account-v1';
 const loginStorageKey = 'pp-auth-logged-in-v1';
 const smsCodeStorageKey = 'pp-auth-sms-code-v1';
 const adminLoginStorageKey = 'pp-admin-logged-in-v1';
-const adminReturnRoleStorageKey = 'pp-admin-return-role-v1';
 const localAdminPasscode = '000000';
 const mockWechatLoginPath = import.meta.env.PROD ? '' : '/api/auth/wechat/mock-login';
 
@@ -124,7 +123,7 @@ export function getActivePublicRole(): PublicRole | null {
 
 export function isAdminSessionActive() {
   if (typeof localStorage === 'undefined') return false;
-  return readStoredRole() === 'admin' && localStorage.getItem(adminLoginStorageKey) === '1';
+  return localStorage.getItem(adminLoginStorageKey) === '1';
 }
 
 export function accountHasRole(role: PublicRole) {
@@ -242,8 +241,6 @@ export async function loginWithPhoneCode(phone: string, code: string, role?: Pub
 export async function logoutAccount() {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(loginStorageKey);
-    localStorage.removeItem(adminLoginStorageKey);
-    localStorage.removeItem(adminReturnRoleStorageKey);
   }
   if (isApiEnabled()) {
     try {
@@ -258,27 +255,19 @@ export async function logoutAccount() {
 export function loginLocalAdmin(passcode: string): AuthSession {
   ensureTestAuthAllowed('本地管理员登录');
   if (passcode !== localAdminPasscode) throw new Error('管理员口令错误');
-  const currentRole = readStoredRole();
   if (typeof localStorage !== 'undefined') {
-    if (isPublicRole(currentRole)) localStorage.setItem(adminReturnRoleStorageKey, currentRole);
     localStorage.setItem(adminLoginStorageKey, '1');
   }
-  persistRole('admin');
   const session = localSession('admin');
   notifySessionChanged(session);
   return session;
 }
 
 export function logoutLocalAdmin(): AuthSession {
-  const account = readAccount();
-  const returnRole = typeof localStorage === 'undefined' ? null : localStorage.getItem(adminReturnRoleStorageKey);
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(adminLoginStorageKey);
-    localStorage.removeItem(adminReturnRoleStorageKey);
   }
-  const nextRole = isPublicRole(returnRole) && canUseRole(account, returnRole) ? returnRole : account?.role ?? 'consumer';
-  persistRole(nextRole);
-  const session = localSession(nextRole);
+  const session = localSession(readStoredRole());
   notifySessionChanged(session);
   return session;
 }
@@ -331,11 +320,21 @@ export function getActiveAccountStorageScope(role: UserRole = readStoredRole()) 
 function readStoredRole(): UserRole {
   if (typeof localStorage === 'undefined') return 'consumer';
   const role = localStorage.getItem(roleStorageKey);
-  return isUserRole(role) ? role : 'consumer';
+  if (isPublicRole(role)) return role;
+  if (role === 'admin') {
+    const fallbackRole = readAccount()?.role;
+    if (isPublicRole(fallbackRole)) {
+      localStorage.setItem(roleStorageKey, fallbackRole);
+      return fallbackRole;
+    }
+    localStorage.removeItem(roleStorageKey);
+  }
+  return 'consumer';
 }
 
 function persistRole(role: UserRole) {
   if (typeof localStorage === 'undefined') return;
+  if (!isPublicRole(role)) return;
   localStorage.setItem(roleStorageKey, role);
 }
 

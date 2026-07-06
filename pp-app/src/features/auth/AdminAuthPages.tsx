@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { getPostAuthHome, isAdminSessionActive, loginLocalAdmin } from '../../services/authService';
+import { isAdminSessionActive, loginLocalAdmin } from '../../services/authService';
 import { isTestRoleSwitchAllowed } from '../../services/apiClient';
 
 export function RequireAdmin({ children }: { children: React.ReactNode }) {
@@ -18,8 +18,8 @@ export function AdminLoginPage() {
   function login() {
     setError('');
     try {
-      const session = loginLocalAdmin(passcode);
-      navigate(getPostAuthHome(session.role), { replace: true });
+      loginLocalAdmin(passcode);
+      navigate('/admin', { replace: true });
     } catch (nextError) {
       setError(getAdminErrorMessage(nextError));
     }
