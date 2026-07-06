@@ -1,4 +1,4 @@
-import { ArrowLeft, Camera, CheckCircle2, LogOut, MessageSquareText, ShieldCheck, Smartphone, UserRound } from 'lucide-react';
+import { ArrowLeft, Camera, CheckCircle2, FileText, Headphones, LogOut, MessageSquareText, ShieldAlert, ShieldCheck, Smartphone, Trash2, UserRound, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -296,6 +296,8 @@ export function AccountSettingsPage() {
   const navigate = useNavigate();
   const account = getRegisteredAccount();
   const roleLabel = account?.role ? getPublicRoleLabel(account.role) : '用户';
+  const [activeComplianceItem, setActiveComplianceItem] = useState<ComplianceItem | null>(null);
+  const supportPath = account?.role === 'companion' ? '/companion/messages' : '/consumer/messages';
 
   async function logout() {
     await logoutAccount();
@@ -326,6 +328,32 @@ export function AccountSettingsPage() {
         <SettingRow icon={<MessageSquareText size={19} />} title="验证码登录" desc="当前使用本地 mock 验证码" />
       </section>
 
+      <section className="mt-5">
+        <p className="px-1 text-xs font-black text-zinc-400">平台与合规</p>
+        <div className="mt-2 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
+          {complianceItems.map(({ icon: Icon, ...item }) => (
+            <button key={item.title} className="flex min-h-16 w-full items-center gap-3 px-4 text-left" type="button" onClick={() => setActiveComplianceItem({ icon: Icon, ...item })}>
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700">
+                <Icon size={19} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black">{item.title}</span>
+                <span className="mt-0.5 block truncate text-xs font-semibold text-zinc-400">{item.desc}</span>
+              </span>
+            </button>
+          ))}
+          <button className="flex min-h-16 w-full items-center gap-3 px-4 text-left" type="button" onClick={() => navigate(supportPath)}>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700">
+              <Headphones size={19} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-black">联系客服</span>
+              <span className="mt-0.5 block truncate text-xs font-semibold text-zinc-400">订单、退款、举报与账号问题</span>
+            </span>
+          </button>
+        </div>
+      </section>
+
       <button
         className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-black text-rose-600 ring-1 ring-rose-100"
         type="button"
@@ -334,6 +362,8 @@ export function AccountSettingsPage() {
         <LogOut size={18} />
         退出账号
       </button>
+
+      {activeComplianceItem ? <ComplianceSheet item={activeComplianceItem} onClose={() => setActiveComplianceItem(null)} /> : null}
     </div>
   );
 }
@@ -412,6 +442,72 @@ function SettingRow({ icon, title, desc }: { icon: React.ReactNode; title: strin
         <span className="block text-sm font-black">{title}</span>
         <span className="mt-0.5 block truncate text-xs font-semibold text-zinc-400">{desc}</span>
       </span>
+    </div>
+  );
+}
+
+type ComplianceItem = {
+  icon: typeof FileText;
+  title: string;
+  desc: string;
+  body: string;
+};
+
+const complianceItems: ComplianceItem[] = [
+  {
+    icon: FileText,
+    title: '隐私政策',
+    desc: '数据收集、定位、订单与聊天说明',
+    body: 'Still 只在注册、预约、支付、沟通、举报和安全风控所需范围内使用信息。定位能力只在你主动选择附近摄影师或拍摄地点时触发，拒绝定位后仍可手动填写地点。',
+  },
+  {
+    icon: ShieldCheck,
+    title: '用户协议',
+    desc: '平台交易、沟通和履约规则',
+    body: '请在平台内完成咨询、报价、支付和订单沟通。禁止诱导私下交易、骚扰、虚假样片、冒用身份或发布违法违规内容。',
+  },
+  {
+    icon: MessageSquareText,
+    title: '支付与退款',
+    desc: '线下摄影服务预约说明',
+    body: '支付用于线下摄影服务预约，不属于数字内容购买。取消、退款和争议先由平台人工处理，后台会记录订单状态和处理结果。',
+  },
+  {
+    icon: ShieldAlert,
+    title: '举报与投诉',
+    desc: '举报用户、内容或订单沟通',
+    body: '你可以在聊天页或订单沟通中发起举报。平台会优先复核涉及私下交易、骚扰、爽约、样片不实和退款争议的记录。',
+  },
+  {
+    icon: Trash2,
+    title: '删除账号',
+    desc: '提交账号删除申请',
+    body: '当前版本先通过人工客服处理删除账号申请。正式上线前会接入可追踪的账号删除申请记录，并按隐私政策处理订单、聊天和审核留痕。',
+  },
+];
+
+function ComplianceSheet({ item, onClose }: { item: ComplianceItem; onClose: () => void }) {
+  const Icon = item.icon;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]" role="dialog" aria-modal="true">
+      <section className="w-full max-w-md rounded-[12px] bg-white p-4 text-zinc-950 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-zinc-100 text-zinc-800">
+            <Icon size={20} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black text-zinc-400">{item.desc}</p>
+            <h2 className="mt-1 text-xl font-black">{item.title}</h2>
+          </div>
+          <button className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700" type="button" onClick={onClose} aria-label="关闭">
+            <X size={17} />
+          </button>
+        </div>
+        <p className="mt-4 text-sm font-semibold leading-6 text-zinc-500">{item.body}</p>
+        <button className="mt-5 h-11 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={onClose}>
+          我知道了
+        </button>
+      </section>
     </div>
   );
 }
