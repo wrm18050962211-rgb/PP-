@@ -100,6 +100,48 @@
 - 摄影师只能处理自己的订单。
 - 管理员接口不能被普通用户访问。
 
+### 1.2B 权限、会话与审计落地顺序
+
+这一节用于把 `1.2` 和 `1.2A` 里分散的账号、权限、后台隔离、审计事项变成明确执行顺序。当前代码已经有权限判断骨架、订单隔离和 admin API 拦截雏形，但仍处在 MVP/JSON store 阶段，不算生产级。
+
+建议按下面顺序小步推进：
+
+1. 先把 admin 和普通用户的 session 彻底分离：
+   - 移动端只使用 Client/Photographer session。
+   - 后台只使用 admin session。
+   - admin 登录、退出、token storage、返回路由都不能影响 Client/Photographer。
+   - 普通用户 token 不能进入 `/api/admin/*`，admin token 不能直接当作普通用户身份访问 C 端个人数据。
+
+2. 再把后端 admin API、订单 API、消息 API 的权限校验抽成统一中间层：
+   - `requireAuth`
+   - `requireRole`
+   - `requireAdmin`
+   - `requireOrderAccess`
+   - `requireCompanionOrderAccess`
+   - `requireSelfOrAdmin`
+   业务函数内部可以保留二次保护，但入口层必须先拦截明显越权请求。
+
+3. 然后把 session 和审计数据从 JSON store 接到 PostgreSQL：
+   - `user_sessions` 或等价 session 表。
+   - `admin_users`
+   - `admin_action_logs`
+   - `audit_logs`
+   - 登录失败、权限拒绝、管理员敏感操作都要有可追踪记录。
+
+4. 最后补权限测试矩阵：
+   - 普通用户访问 admin API 必须失败。
+   - admin session 访问 C 端个人路由或普通用户 API 必须失败或被转到后台受控 API。
+   - Client 访问别人订单必须失败。
+   - Photographer 访问或操作非自己订单必须失败。
+   - 未登录访问订单、消息、后台接口必须失败。
+
+验收标准：
+
+- 会话边界清楚：Client、Photographer、Admin 三套身份不会互相穿透。
+- 资源边界清楚：订单、消息、举报、后台审核都按当前身份和资源归属判断。
+- 审计边界清楚：后台敏感操作、权限拒绝、登录异常都有日志。
+- 测试边界清楚：每个关键越权场景都有自动化检查。
+
 ### 1.2A 运营后台与移动端物理隔离
 
 这项从第 8 章工程升级前移为上线前硬门槛。运营后台可以继续在同一个仓库里开发，但不能进入面向 Client/Photographer 的 App Store 移动端包。
