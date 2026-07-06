@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
+import { listAccountDeletionRequests, updateAccountDeletionRequestStatus, type AccountDeletionRequest, type AccountDeletionRequestStatus } from '../../services/accountDeletionService';
 import { fetchAdminModerationData, syncAdminModerationAction } from '../../services/adminService';
 import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
@@ -71,9 +72,10 @@ type AccountCase = {
   id: string;
   name: string;
   role: '创作者' | '摄影师' | '普通用户';
-  status: '正常' | '观察中' | '限制中' | '已停用';
+  status: '正常' | '观察中' | '限制中' | '已停用' | '删除申请';
   risk: string;
   lastActive: string;
+  deletionRequest?: AccountDeletionRequest;
 };
 
 const modules: Array<{ key: AdminModuleKey; label: string; icon: React.ElementType }> = [
@@ -163,6 +165,7 @@ export function AdminDashboard() {
   const [settlements, setSettlements] = useState(settlementSeed);
   const [selectedSettlementId, setSelectedSettlementId] = useState(settlementSeed[0]?.id ?? '');
   const [accounts, setAccounts] = useState(accountSeed);
+  const [accountDeletionRequests, setAccountDeletionRequests] = useState<AccountDeletionRequest[]>(() => listAccountDeletionRequests());
   const [selectedAccountId, setSelectedAccountId] = useState(accountSeed[0]?.id ?? '');
   const [configs, setConfigs] = useState(configSeed);
   const [selectedConfigId, setSelectedConfigId] = useState(configSeed[0]?.id ?? '');
@@ -183,6 +186,16 @@ export function AdminDashboard() {
     };
   }, [orders]);
 
+  useEffect(() => {
+    const refreshDeletionRequests = () => setAccountDeletionRequests(listAccountDeletionRequests());
+    window.addEventListener('focus', refreshDeletionRequests);
+    window.addEventListener('storage', refreshDeletionRequests);
+    return () => {
+      window.removeEventListener('focus', refreshDeletionRequests);
+      window.removeEventListener('storage', refreshDeletionRequests);
+    };
+  }, []);
+
   const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0];
   const localDisputeReports = useMemo(() => buildLocalDisputeReports(orders), [orders]);
   const visibleReportCases = useMemo(
@@ -195,7 +208,14 @@ export function AdminDashboard() {
   const selectedRisk = riskCases.find((item) => item.id === selectedRiskId) ?? riskCases[0];
   const selectedReport = visibleReportCases.find((item) => item.id === selectedReportId) ?? visibleReportCases[0];
   const selectedSettlement = settlements.find((item) => item.id === selectedSettlementId) ?? settlements[0];
-  const selectedAccount = accounts.find((item) => item.id === selectedAccountId) ?? accounts[0];
+  const visibleAccounts = useMemo(
+    () => [
+      ...accountDeletionRequests.map(mapDeletionRequestToAccountCase),
+      ...accounts.filter((account) => !accountDeletionRequests.some((request) => request.displayName === account.name)),
+    ],
+    [accountDeletionRequests, accounts],
+  );
+  const selectedAccount = visibleAccounts.find((item) => item.id === selectedAccountId) ?? visibleAccounts[0];
   const selectedConfig = configs.find((item) => item.id === selectedConfigId) ?? configs[0];
 
   const metrics = useMemo(
@@ -209,6 +229,7 @@ export function AdminDashboard() {
   );
 
   const pendingReports = visibleReportCases.filter((item) => item.status !== '已完结').length;
+  const pendingDeletionRequests = accountDeletionRequests.filter((item) => item.status !== 'resolved').length;
   const pendingSettlementCents = settlements.filter((item) => item.status === '待结算').reduce((sum, item) => sum + item.payableCents, 0);
 
   function recordRiskAction(id: string, action: string, actionType: AdminActionType) {
@@ -219,6 +240,15 @@ export function AdminDashboard() {
   function recordReportAction(id: string, action: string, actionType: AdminActionType) {
     setReportActionLogs((logs) => ({ ...logs, [id]: [action, ...(logs[id] ?? [])] }));
     void syncAdminModerationAction(id, actionType, action);
+  }
+
+  function updateAccountStatus(id: string, status: AccountCase['status']) {
+    const deletionStatus = mapAccountStatusToDeletionStatus(status);
+    if (deletionStatus) {
+      setAccountDeletionRequests(updateAccountDeletionRequestStatus(id, deletionStatus));
+      return;
+    }
+    setAccounts((items) => items.map((item) => (item.id === id ? { ...item, status } : item)));
   }
 
   return (
@@ -263,8 +293,9 @@ export function AdminDashboard() {
           ))}
         </section>
 
-        <section className="mt-4 grid grid-cols-2 gap-3 md:max-w-xl">
+        <section className="mt-4 grid grid-cols-2 gap-3 md:max-w-3xl md:grid-cols-3">
           <SummaryTile label="举报处理中" value={`${pendingReports} 个`} icon={<Flag size={17} />} />
+          <SummaryTile label="删除申请" value={`${pendingDeletionRequests} 个`} icon={<UserCog size={17} />} />
           <SummaryTile label="待结算金额" value={formatMoney(pendingSettlementCents)} icon={<Banknote size={17} />} />
         </section>
 
@@ -308,10 +339,10 @@ export function AdminDashboard() {
           )}
           {activeModule === 'accounts' && selectedAccount && (
             <AccountPanel
-              accounts={accounts}
+              accounts={visibleAccounts}
               selectedAccount={selectedAccount}
               onSelect={setSelectedAccountId}
-              onUpdate={(id, status) => setAccounts((items) => items.map((item) => (item.id === id ? { ...item, status } : item)))}
+              onUpdate={updateAccountStatus}
             />
           )}
           {activeModule === 'finance' && selectedSettlement && (
@@ -713,6 +744,8 @@ function AccountPanel({
   onSelect: (id: string) => void;
   onUpdate: (id: string, status: AccountCase['status']) => void;
 }) {
+  const isDeletionRequest = Boolean(selectedAccount.deletionRequest);
+
   return (
     <ModuleFrame title="账号状态管理" count={`${accounts.length} 个账号`}>
       <ListDetailLayout
@@ -734,22 +767,37 @@ function AccountPanel({
                 ['当前状态', selectedAccount.status],
                 ['最近活跃', selectedAccount.lastActive],
                 ['风控备注', selectedAccount.risk],
+                ...(selectedAccount.deletionRequest ? [
+                  ['申请手机号', selectedAccount.deletionRequest.phone],
+                  ['申请时间', formatDate(selectedAccount.deletionRequest.createdAt)],
+                ] as Array<[string, string]> : []),
               ]}
             />
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <AdminButton onClick={() => onUpdate(selectedAccount.id, '正常')} disabled={selectedAccount.status === '正常'}>
-                恢复正常
-              </AdminButton>
-              <AdminButton variant="soft" onClick={() => onUpdate(selectedAccount.id, '观察中')} disabled={selectedAccount.status === '观察中'}>
-                加入观察
-              </AdminButton>
-              <AdminButton variant="soft" icon={<Ban size={16} />} onClick={() => onUpdate(selectedAccount.id, '限制中')} disabled={selectedAccount.status === '限制中'}>
-                限制能力
-              </AdminButton>
-              <AdminButton variant="danger" icon={<PauseCircle size={16} />} onClick={() => onUpdate(selectedAccount.id, '已停用')} disabled={selectedAccount.status === '已停用'}>
-                停用账号
-              </AdminButton>
-            </div>
+            {isDeletionRequest ? (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <AdminButton variant="soft" onClick={() => onUpdate(selectedAccount.id, '限制中')} disabled={selectedAccount.status !== '删除申请'}>
+                  开始处理
+                </AdminButton>
+                <AdminButton variant="danger" icon={<PauseCircle size={16} />} onClick={() => onUpdate(selectedAccount.id, '已停用')} disabled={selectedAccount.status === '已停用'}>
+                  标记已处理
+                </AdminButton>
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <AdminButton onClick={() => onUpdate(selectedAccount.id, '正常')} disabled={selectedAccount.status === '正常'}>
+                  恢复正常
+                </AdminButton>
+                <AdminButton variant="soft" onClick={() => onUpdate(selectedAccount.id, '观察中')} disabled={selectedAccount.status === '观察中'}>
+                  加入观察
+                </AdminButton>
+                <AdminButton variant="soft" icon={<Ban size={16} />} onClick={() => onUpdate(selectedAccount.id, '限制中')} disabled={selectedAccount.status === '限制中'}>
+                  限制能力
+                </AdminButton>
+                <AdminButton variant="danger" icon={<PauseCircle size={16} />} onClick={() => onUpdate(selectedAccount.id, '已停用')} disabled={selectedAccount.status === '已停用'}>
+                  停用账号
+                </AdminButton>
+              </div>
+            )}
           </DetailCard>
         }
       />
@@ -838,6 +886,25 @@ function mapRemoteModerationData(data: AdminModerationData): { riskCases: RiskCa
     riskCases: data.messageCases.map(mapRemoteRiskCase),
     reportCases: data.reportCases.map(mapRemoteReportCase),
   };
+}
+
+function mapDeletionRequestToAccountCase(request: AccountDeletionRequest): AccountCase {
+  return {
+    id: request.id,
+    name: request.displayName,
+    role: request.role === 'companion' ? '摄影师' : '创作者',
+    status: request.status === 'pending' ? '删除申请' : request.status === 'processing' ? '限制中' : '已停用',
+    risk: request.reason,
+    lastActive: formatDate(request.updatedAt),
+    deletionRequest: request,
+  };
+}
+
+function mapAccountStatusToDeletionStatus(status: AccountCase['status']): AccountDeletionRequestStatus | null {
+  if (status === '删除申请') return 'pending';
+  if (status === '限制中') return 'processing';
+  if (status === '已停用') return 'resolved';
+  return null;
 }
 
 function buildLocalDisputeReports(orders: AppOrder[]): ReportCase[] {
@@ -1059,7 +1126,7 @@ function StatusPill({ status }: { status: string }) {
 function getStatusStyle(status: string) {
   if (['已通过', '已结算', '已完结', '已放行', '已启用', '已确认'].includes(status)) return 'bg-[#eef8f1] text-[#23724a]';
   if (['待审核', '待处理', '待结算', '待确认', '中危', '待完善'].includes(status)) return 'bg-amber-100 text-amber-700';
-  if (['需修改', '高危', '已拦截', '冻结中', '退款中', '争议处理中', '已取消'].includes(status)) return 'bg-[#fff1f2] text-[#be3450]';
+  if (['需修改', '高危', '已拦截', '冻结中', '退款中', '争议处理中', '已取消', '删除申请'].includes(status)) return 'bg-[#fff1f2] text-[#be3450]';
   if (['处理中', '服务中'].includes(status)) return 'bg-sky-100 text-sky-700';
   return 'bg-[#f2e8e1] text-[#6f625d]';
 }

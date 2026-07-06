@@ -16,6 +16,7 @@ import {
   requestPhoneCode,
   type RegisterInput,
 } from '../../services/authService';
+import { submitAccountDeletionRequest } from '../../services/accountDeletionService';
 import { isTestRoleSwitchAllowed } from '../../services/apiClient';
 
 type PublicRole = RegisterInput['role'];
@@ -297,6 +298,7 @@ export function AccountSettingsPage() {
   const account = getRegisteredAccount();
   const roleLabel = account?.role ? getPublicRoleLabel(account.role) : '用户';
   const [activeComplianceItem, setActiveComplianceItem] = useState<ComplianceItem | null>(null);
+  const [deletionSubmitted, setDeletionSubmitted] = useState(false);
   const supportPath = account?.role === 'companion' ? '/companion/messages' : '/consumer/messages';
 
   async function logout() {
@@ -332,7 +334,15 @@ export function AccountSettingsPage() {
         <p className="px-1 text-xs font-black text-zinc-400">平台与合规</p>
         <div className="mt-2 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
           {complianceItems.map(({ icon: Icon, ...item }) => (
-            <button key={item.title} className="flex min-h-16 w-full items-center gap-3 px-4 text-left" type="button" onClick={() => setActiveComplianceItem({ icon: Icon, ...item })}>
+            <button
+              key={item.title}
+              className="flex min-h-16 w-full items-center gap-3 px-4 text-left"
+              type="button"
+              onClick={() => {
+                setDeletionSubmitted(false);
+                setActiveComplianceItem({ icon: Icon, ...item });
+              }}
+            >
               <span className="grid h-9 w-9 place-items-center rounded-full bg-zinc-100 text-zinc-700">
                 <Icon size={19} />
               </span>
@@ -363,7 +373,22 @@ export function AccountSettingsPage() {
         退出账号
       </button>
 
-      {activeComplianceItem ? <ComplianceSheet item={activeComplianceItem} onClose={() => setActiveComplianceItem(null)} /> : null}
+      {activeComplianceItem ? (
+        <ComplianceSheet
+          item={activeComplianceItem}
+          deletionSubmitted={deletionSubmitted}
+          onClose={() => setActiveComplianceItem(null)}
+          onSubmitDeletion={() => {
+            if (!account) return;
+            submitAccountDeletionRequest({
+              phone: account.phone,
+              role: account.role,
+              displayName: roleLabel,
+            });
+            setDeletionSubmitted(true);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -451,6 +476,7 @@ type ComplianceItem = {
   title: string;
   desc: string;
   body: string;
+  action?: 'delete-account';
 };
 
 const complianceItems: ComplianceItem[] = [
@@ -483,11 +509,32 @@ const complianceItems: ComplianceItem[] = [
     title: '删除账号',
     desc: '提交账号删除申请',
     body: '当前版本先通过人工客服处理删除账号申请。正式上线前会接入可追踪的账号删除申请记录，并按隐私政策处理订单、聊天和审核留痕。',
+    action: 'delete-account',
   },
 ];
 
-function ComplianceSheet({ item, onClose }: { item: ComplianceItem; onClose: () => void }) {
+function ComplianceSheet({
+  item,
+  deletionSubmitted,
+  onClose,
+  onSubmitDeletion,
+}: {
+  item: ComplianceItem;
+  deletionSubmitted: boolean;
+  onClose: () => void;
+  onSubmitDeletion: () => void;
+}) {
   const Icon = item.icon;
+  const isDeleteAction = item.action === 'delete-account';
+
+  function handlePrimaryAction() {
+    if (!isDeleteAction || deletionSubmitted) {
+      onClose();
+      return;
+    }
+    onSubmitDeletion();
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]" role="dialog" aria-modal="true">
       <section className="w-full max-w-md rounded-[12px] bg-white p-4 text-zinc-950 shadow-2xl">
@@ -504,8 +551,19 @@ function ComplianceSheet({ item, onClose }: { item: ComplianceItem; onClose: () 
           </button>
         </div>
         <p className="mt-4 text-sm font-semibold leading-6 text-zinc-500">{item.body}</p>
-        <button className="mt-5 h-11 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={onClose}>
-          我知道了
+        {deletionSubmitted ? (
+          <p className="mt-4 rounded-[10px] bg-emerald-50 px-3 py-2 text-xs font-black leading-5 text-emerald-700">
+            删除账号申请已提交，后台可在账号状态中处理。
+          </p>
+        ) : null}
+        <button
+          className={`mt-5 h-11 w-full rounded-full text-sm font-black ${
+            isDeleteAction && !deletionSubmitted ? 'bg-rose-600 text-white' : 'bg-zinc-950 text-white'
+          }`}
+          type="button"
+          onClick={handlePrimaryAction}
+        >
+          {isDeleteAction && !deletionSubmitted ? '提交删除申请' : '我知道了'}
         </button>
       </section>
     </div>

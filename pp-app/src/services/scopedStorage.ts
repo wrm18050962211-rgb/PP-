@@ -119,6 +119,13 @@ export const dataDomainPolicies: Record<string, DataDomainPolicy> = {
     migrationTarget: 'TencentDB admin_audit_cases / moderation_cases',
     note: 'Admin review, moderation, reports, disputes, and account status changes are cloud-authoritative.',
   },
+  'account-deletion-requests-v1': {
+    layer: 'cloud',
+    sensitivity: 'sensitive',
+    owner: 'admin',
+    migrationTarget: 'TencentDB account_deletion_requests / admin_action_logs',
+    note: 'Account deletion requests must be visible to operations and handled through an auditable workflow.',
+  },
 };
 
 export function getDataDomainPolicy(key: string) {
@@ -150,4 +157,23 @@ export function readDomainJson<T>(key: string, fallback: T, role?: UserRole): T 
 
 export function writeDomainJson<T>(key: string, value: T, role?: UserRole) {
   writeScopedJson(key, value, role, getDataDomainPolicy(key).layer);
+}
+
+export function readAdminSharedJson<T>(key: string, fallback: T): T {
+  if (typeof localStorage === 'undefined') return fallback;
+  try {
+    const raw = localStorage.getItem(adminSharedStorageKey(key, getDataDomainPolicy(key).layer));
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeAdminSharedJson<T>(key: string, value: T) {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(adminSharedStorageKey(key, getDataDomainPolicy(key).layer), JSON.stringify(value));
+}
+
+function adminSharedStorageKey(key: string, layer: StorageLayer = 'cloud') {
+  return `pp-${layer}-db:admin:global:${key}`;
 }
