@@ -10,11 +10,17 @@ const storePath = process.env.STORE_PATH ? resolve(process.env.STORE_PATH) : res
 const dataStore = createDataStore({ storePath, initialStore, normalizeStore });
 const port = Number(process.env.PORT || 8787);
 const appEnv = String(process.env.APP_ENV || 'development').trim().toLowerCase();
+const isProductionServerEnv = appEnv === 'production';
+const corsAllowedOrigins = parseEnvList(process.env.CORS_ALLOWED_ORIGINS);
 const enableTestRoleSwitch = String(process.env.ENABLE_TEST_ROLE_SWITCH ?? 'true').trim().toLowerCase();
 const platformFeeRate = 0.08;
 const pendingPaymentHoldMinutes = Number(process.env.PENDING_PAYMENT_HOLD_MINUTES || 15);
 const pendingPaymentHoldMs = Math.max(1, pendingPaymentHoldMinutes) * 60 * 1000;
 const activeSlotLocks = new Set();
+
+if (isProductionServerEnv && corsAllowedOrigins.length === 0) {
+  throw new Error('APP_ENV=production requires CORS_ALLOWED_ORIGINS.');
+}
 
 const orderStatusText = {
   pending_payment: 'Pending payment',
@@ -65,7 +71,8 @@ const riskKeywords = [
 
 http
   .createServer(async (req, res) => {
-    if (req.method === 'OPTIONS') return send(res, 204, '');
+    if (!isCorsRequestAllowed(req)) return sendJson(req, res, 403, fail('CORS_FORBIDDEN', 'Request origin is not allowed.'));
+    if (req.method === 'OPTIONS') return send(req, res, 204, '');
 
     try {
       const url = new URL(req.url || '/', 'http://local');
@@ -74,9 +81,9 @@ http
       const body = await readBody(req);
       const result = await route(req.method || 'GET', url, body, store, req);
       if (storeChanged || cleanupChanged || result.changed) await dataStore.save(store);
-      sendJson(res, result.status, result.payload);
+      sendJson(req, res, result.status, result.payload);
     } catch (error) {
-      sendJson(res, 500, fail('SERVER_ERROR', error instanceof Error ? error.message : 'Server error'));
+      sendJson(req, res, 500, fail('SERVER_ERROR', error instanceof Error ? error.message : 'Server error'));
     }
   })
   .listen(port, () => console.log(`PP backend MVP listening on http://127.0.0.1:${port}`));
@@ -2371,18 +2378,53 @@ function fail(code, message) {
   return { success: false, data: null, error: { code, message } };
 }
 
-function sendJson(res, status, payload) {
-  send(res, status, JSON.stringify(payload), 'application/json; charset=utf-8');
+function sendJson(req, res, status, payload) {
+  send(req, res, status, JSON.stringify(payload), 'application/json; charset=utf-8');
 }
 
-function send(res, status, payload, contentType = 'text/plain; charset=utf-8') {
-  res.writeHead(status, {
+function send(req, res, status, payload, contentType = 'text/plain; charset=utf-8') {
+  const headers = {
     'Content-Type': contentType,
-    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-PP-Role, X-PP-User-Id',
-  });
+    Vary: 'Origin',
+  };
+  const corsOrigin = getAllowedCorsOrigin(req);
+  if (corsOrigin) headers['Access-Control-Allow-Origin'] = corsOrigin;
+  res.writeHead(status, headers);
   res.end(payload);
+}
+
+function isCorsRequestAllowed(req) {
+  return !getRequestOrigin(req) || Boolean(getAllowedCorsOrigin(req));
+}
+
+function getAllowedCorsOrigin(req) {
+  const origin = getRequestOrigin(req);
+  if (!origin) return '';
+  if (corsAllowedOrigins.includes(origin)) return origin;
+  if (!isProductionServerEnv && isLocalDevOrigin(origin)) return origin;
+  return '';
+}
+
+function getRequestOrigin(req) {
+  return String(req?.headers?.origin || '').trim();
+}
+
+function parseEnvList(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function isLocalDevOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    return ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function now() {
