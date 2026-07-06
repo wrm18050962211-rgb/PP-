@@ -39,11 +39,12 @@ export async function fetchOrders(role: 'user' | 'companion' | 'admin' = 'user')
 }
 
 export async function submitOrder(input: CreateOrderInput): Promise<AppOrder> {
-  if (!isApiEnabled()) return getApiFallback(createLocalOrder(input), 'Create order');
+  const requestInput = { ...input, idempotencyKey: input.idempotencyKey || input.clientRequestId || buildOrderIdempotencyKey(input) };
+  if (!isApiEnabled()) return getApiFallback(createLocalOrder(requestInput), 'Create order');
 
   try {
-    const response = await apiPost<CreateOrderResponse>('/api/orders', input);
-    if (!response.success) return getApiFallback(createLocalOrder(input), 'Create order');
+    const response = await apiPost<CreateOrderResponse>('/api/orders', requestInput);
+    if (!response.success) return getApiFallback(createLocalOrder(requestInput), 'Create order');
 
     const payment = response.data.payment;
     if (!payment) return response.data;
@@ -51,7 +52,7 @@ export async function submitOrder(input: CreateOrderInput): Promise<AppOrder> {
     const paidOrder = await requestMiniProgramPayment(payment);
     return paidOrder ?? response.data;
   } catch {
-    return getApiFallback(createLocalOrder(input), 'Create order');
+    return getApiFallback(createLocalOrder(requestInput), 'Create order');
   }
 }
 
@@ -76,4 +77,15 @@ export async function updateRemoteOrderStatus(orderId: string, status: OrderStat
   } catch {
     return null;
   }
+}
+
+function buildOrderIdempotencyKey(input: CreateOrderInput) {
+  return [
+    input.postId,
+    input.companionId,
+    input.slotId,
+    input.activityId,
+    input.consultationId ?? '',
+    input.amountCents,
+  ].join(':');
 }

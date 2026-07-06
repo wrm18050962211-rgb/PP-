@@ -348,6 +348,8 @@ export type OrderAddOnInput = {
 };
 
 export type CreateOrderInput = {
+  idempotencyKey?: string;
+  clientRequestId?: string;
   title: string;
   time: string;
   place: string;

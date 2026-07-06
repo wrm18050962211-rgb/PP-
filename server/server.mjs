@@ -12,6 +12,7 @@ const port = Number(process.env.PORT || 8787);
 const appEnv = String(process.env.APP_ENV || 'development').trim().toLowerCase();
 const enableTestRoleSwitch = String(process.env.ENABLE_TEST_ROLE_SWITCH ?? 'true').trim().toLowerCase();
 const platformFeeRate = 0.08;
+const activeSlotLocks = new Set();
 
 const orderStatusText = {
   pending_payment: 'Pending payment',
@@ -467,6 +468,25 @@ function messageSenderRole(session) {
   return session.role === 'admin' ? 'admin' : session.role === 'companion' ? 'companion' : 'user';
 }
 
+function normalizeOrderIdempotencyKey(value) {
+  return String(value || '').trim().slice(0, 120);
+}
+
+function findIdempotentOrder(store, session, idempotencyKey) {
+  if (!idempotencyKey) return null;
+  return store.orders.find(
+    (order) =>
+      order.idempotencyKey === idempotencyKey &&
+      order.userId === session.user.id &&
+      !['cancelled', 'refunded'].includes(order.status),
+  );
+}
+
+function publicOrderWithPayment(store, order) {
+  const payment = store.payments.find((item) => item.orderId === order.id);
+  return payment ? { ...viewOrder(order), payment: publicPayment(payment) } : viewOrder(order);
+}
+
 function quoteOrder(store, input) {
   const context = resolveOrderContext(store, input);
   if (context.error) return context.error;
@@ -477,13 +497,18 @@ async function createOrder(store, input) {
   const session = ensureActiveSession(store, 'consumer');
   if (!session) return authRequired();
 
+  const idempotencyKey = normalizeOrderIdempotencyKey(input.idempotencyKey || input.clientRequestId);
+  const existingOrder = idempotencyKey ? findIdempotentOrder(store, session, idempotencyKey) : null;
+  if (existingOrder) return json(publicOrderWithPayment(store, existingOrder));
+
   const context = resolveOrderContext(store, input);
   if (context.error) return context.error;
-  if (context.slot.status !== 'available') return error(409, 'ORDER_SLOT_UNAVAILABLE', 'Slot is not available');
+  if (!reserveSlotForOrder(context.companion.id, context.slot)) return error(409, 'ORDER_SLOT_UNAVAILABLE', 'Slot is not available');
 
   const quote = buildQuote(context, input);
   const orderId = id('order');
   const paymentId = id('payment');
+  lockReservedSlotForOrder(context.companion.id, context.slot, orderId);
   const order = viewOrder({
     id: orderId,
     orderNo: orderNo(),
@@ -510,6 +535,7 @@ async function createOrder(store, input) {
     placeAddress: input.placeAddress || '',
     userNote: input.userNote || '',
     quote,
+    idempotencyKey,
     paymentId,
     createdAt: now(),
     statusLogs: [statusLog('pending_payment', 'Order created and slot locked')],
@@ -533,12 +559,11 @@ async function createOrder(store, input) {
       const prepay = await createWechatJsapiPrepay(payment, order, session);
       Object.assign(payment, prepay);
     } catch (paymentError) {
+      releaseSlotReservation(context.companion.id, context.slot, order.id);
       return error(502, 'WECHAT_PAY_PREPAY_FAILED', paymentError instanceof Error ? paymentError.message : 'WeChat Pay prepay failed');
     }
   }
 
-  context.slot.status = 'locked';
-  context.slot.lockedOrderId = order.id;
   store.orders.unshift(order);
   store.payments.unshift(payment);
 
@@ -567,10 +592,7 @@ function mockPaymentSuccess(store, path) {
 
   const companion = store.companions.find((item) => item.id === order.companionId);
   const slot = companion?.slots.find((item) => item.id === order.slotId);
-  if (slot) {
-    slot.status = 'booked';
-    slot.lockedOrderId = order.id;
-  }
+  if (slot) markSlotBooked(companion.id, slot, order.id);
   store.conversations[order.id] ||= createConversation(order);
 
   return json({ payment: publicPayment(payment), order: viewOrder(order), conversation: store.conversations[order.id] }, 200, true);
@@ -1071,8 +1093,50 @@ function releaseSlot(store, order) {
   const companion = store.companions.find((item) => item.id === order.companionId);
   const slot = companion?.slots.find((item) => item.id === order.slotId);
   if (!slot) return;
+  releaseSlotReservation(companion.id, slot, order.id);
+}
+
+function reserveSlotForOrder(companionId, slot) {
+  const lockKey = slotLockKey(companionId, slot.id);
+  if (activeSlotLocks.has(lockKey)) return false;
+  if (!isSlotAvailable(slot)) return false;
+  activeSlotLocks.add(lockKey);
+  return true;
+}
+
+function lockReservedSlotForOrder(companionId, slot, orderId) {
+  activeSlotLocks.add(slotLockKey(companionId, slot.id));
+  slot.status = 'locked';
+  slot.lockedOrderId = orderId;
+  slot.lockExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+}
+
+function markSlotBooked(companionId, slot, orderId) {
+  activeSlotLocks.add(slotLockKey(companionId, slot.id));
+  slot.status = 'booked';
+  slot.lockedOrderId = orderId;
+  delete slot.lockExpiresAt;
+}
+
+function releaseSlotReservation(companionId, slot, orderId) {
+  if (slot.lockedOrderId && orderId && slot.lockedOrderId !== orderId) return;
+  activeSlotLocks.delete(slotLockKey(companionId, slot.id));
   slot.status = 'available';
   delete slot.lockedOrderId;
+  delete slot.lockExpiresAt;
+}
+
+function isSlotAvailable(slot) {
+  if (slot.status === 'locked' && slot.lockExpiresAt && new Date(slot.lockExpiresAt).getTime() < Date.now()) {
+    slot.status = 'available';
+    delete slot.lockedOrderId;
+    delete slot.lockExpiresAt;
+  }
+  return slot.status === 'available';
+}
+
+function slotLockKey(companionId, slotId) {
+  return `${companionId}:${slotId}`;
 }
 
 function createConversation(order) {
@@ -1827,10 +1891,7 @@ function markPaymentPaid(store, payment, note) {
   order.statusLogs = [...(order.statusLogs || []), statusLog('paid_pending_confirm', note)];
   const companion = store.companions.find((item) => item.id === order.companionId);
   const slot = companion?.slots.find((item) => item.id === order.slotId);
-  if (slot) {
-    slot.status = 'booked';
-    slot.lockedOrderId = order.id;
-  }
+  if (slot) markSlotBooked(companion.id, slot, order.id);
   store.conversations[order.id] ||= createConversation(order);
   return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
 }
