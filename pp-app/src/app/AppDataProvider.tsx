@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchOrders, listSeedOrders } from '../services/orderService';
+import { fetchOrders, listSeedOrders, updateRemoteOrderStatus } from '../services/orderService';
 import {
   getDefaultApplication,
   getDefaultWorkDraft,
@@ -9,7 +9,7 @@ import {
 import { completeRoleRegistration, fetchAuthSession } from '../services/authService';
 import { isApiEnabled } from '../services/apiClient';
 import { readDomainJson, writeDomainJson } from '../services/scopedStorage';
-import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderFunding, updateLedgerOrderStatus } from '../services/virtualOrderLedger';
+import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderFunding, updateLedgerOrderStatus, upsertLedgerOrder } from '../services/virtualOrderLedger';
 import { defaultBookingSettings } from '../data/bookingSettings';
 import { saveCompanionBookingSettings } from '../services/companionBookingSettingsService';
 import type { AppOrder, CompanionApplication, CompanionBookingSettings, PublishedWorkDraft } from '../types/domain';
@@ -124,6 +124,24 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         );
         setOrders(nextOrders);
         persist({ orders: nextOrders });
+        if (isApiEnabled()) {
+          void updateRemoteOrderStatus(orderId, status).then(async (serverOrder) => {
+            if (!serverOrder) {
+              const serverOrders = session ? await refreshOrders(session.role) : [];
+              if (!serverOrders.length) return;
+              setOrders(serverOrders);
+              persistSnapshot(serverOrders, { application, bookingSettings, workDraft }, session?.role);
+              return;
+            }
+
+            upsertLedgerOrder(serverOrder);
+            setOrders((currentOrders) => {
+              const reconciledOrders = mergeUpdatedOrder(currentOrders, serverOrder);
+              persistSnapshot(reconciledOrders, { application, bookingSettings, workDraft }, session?.role);
+              return reconciledOrders;
+            });
+          });
+        }
       },
       updateOrderFunding: (orderId, patch) => {
         const ledgerOrder = updateLedgerOrderFunding(orderId, patch);
@@ -234,6 +252,12 @@ function mergeSeedOrders(storedOrders: AppOrder[]) {
   const seedIds = new Set(defaultOrders.map((order) => order.id));
   const localOrders = storedOrders.filter((order) => !seedIds.has(order.id));
   return [...localOrders, ...defaultOrders];
+}
+
+function mergeUpdatedOrder(orders: AppOrder[], updatedOrder: AppOrder) {
+  const exists = orders.some((order) => order.id === updatedOrder.id);
+  if (!exists) return [updatedOrder, ...orders];
+  return orders.map((order) => (order.id === updatedOrder.id ? updatedOrder : order));
 }
 
 function mergeBookingSettings(storedSettings?: Partial<CompanionBookingSettings>) {
