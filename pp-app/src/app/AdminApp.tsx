@@ -1,16 +1,14 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { EntryRedirect } from '../features/auth/AuthPages';
 import { AdminLoginPage, RequireAdmin } from '../features/auth/AdminAuthPages';
-import { mobileRouteElements } from './MobileApp';
 
 const AdminDashboard = lazy(() => import('../features/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
 
-export default function App() {
+export default function AdminApp() {
   return (
     <Suspense fallback={null}>
       <Routes>
-        {mobileRouteElements(false)}
+        <Route path="/" element={<Navigate to="/admin" replace />} />
         <Route
           path="/admin"
           element={
@@ -20,7 +18,7 @@ export default function App() {
           }
         />
         <Route path="/admin/login" element={<AdminLoginPage />} />
-        <Route path="*" element={<EntryRedirect />} />
+        <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
     </Suspense>
   );

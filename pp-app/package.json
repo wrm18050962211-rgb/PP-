@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "npm run build:mobile",
+    "build:mobile": "tsc -b && vite build --config vite.mobile.config.ts",
+    "build:admin": "tsc -b && vite build --config vite.admin.config.ts",
+    "build:dev": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint .",
     "ios:add": "npm run build && npx cap add ios",

@@ -10,9 +10,7 @@ import {
   getRegisteredAccount,
   hasRegisteredAccount,
   isAccountLoggedIn,
-  isAdminSessionActive,
   loginWithPhoneCode,
-  loginLocalAdmin,
   logoutAccount,
   MissingRoleRegistrationError,
   PendingRoleReviewError,
@@ -72,52 +70,6 @@ export function RequireUserSettings({ children }: { children: React.ReactNode })
   if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
   if (!activeRole || !accountHasRole(activeRole)) return <Navigate to={getPostAuthHome(activeRole ?? 'consumer')} replace />;
   return children;
-}
-
-export function RequireAdmin({ children }: { children: React.ReactNode }) {
-  if (!isAdminSessionActive()) return <Navigate to="/admin/login" replace />;
-  return children;
-}
-
-export function AdminLoginPage() {
-  const navigate = useNavigate();
-  const [passcode, setPasscode] = useState('');
-  const [error, setError] = useState('');
-
-  if (isAdminSessionActive()) return <Navigate to="/admin" replace />;
-
-  function login() {
-    setError('');
-    try {
-      const session = loginLocalAdmin(passcode);
-      navigate(getPostAuthHome(session.role), { replace: true });
-    } catch (nextError) {
-      setError(getErrorMessage(nextError));
-    }
-  }
-
-  return (
-    <AuthFrame eyebrow="Still Admin" title="运营后台登录">
-      <label className="block">
-        <span className="text-xs font-black text-zinc-400">管理员口令</span>
-        <input
-          className="mt-1 h-12 w-full rounded-[10px] bg-zinc-100 px-3 text-base font-bold outline-none"
-          inputMode="numeric"
-          maxLength={6}
-          placeholder={isTestRoleSwitchAllowed() ? '本地测试口令 000000' : '请输入管理员口令'}
-          value={passcode}
-          onChange={(event) => setPasscode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') login();
-          }}
-        />
-      </label>
-      {error ? <ErrorLine text={error} /> : null}
-      <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={login}>
-        进入后台
-      </button>
-    </AuthFrame>
-  );
 }
 
 export function RequireRegistrationDraft({ role, children }: { role: PublicRole; children: React.ReactNode }) {
