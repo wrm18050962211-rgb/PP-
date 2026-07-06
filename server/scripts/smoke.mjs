@@ -96,7 +96,7 @@ try {
   const orders = await api('GET', '/api/orders?role=user');
   assert(orders.items.some((item) => item.id === paid.order.id), 'paid order appears in order list');
 
-  await api('POST', '/api/auth/wechat/mock-login', { role: 'companion' });
+  await api('POST', '/api/auth/wechat/mock-login', { role: 'companion', companionId: paid.order.companionId });
   const companionOrders = await api('GET', '/api/orders?role=companion');
   assert(companionOrders.items.every((item) => item.companionId === paid.order.companionId), 'companion order list is scoped to current companion');
   const confirmed = await api('POST', `/api/orders/${paid.order.id}/confirm`);
@@ -121,6 +121,25 @@ try {
   const refreshedExpiringPost = await api('GET', `/api/posts/${expiring.post.id}`);
   const releasedSlot = refreshedExpiringPost.companion.slots.find((item) => item.id === expiring.slot.id);
   assert(releasedSlot?.status === 'available', 'expired pending payment releases the locked slot');
+
+  const cancellable = await findBookablePost(feed.items);
+  const cancellableOrder = await api('POST', '/api/orders', {
+    postId: cancellable.post.id,
+    companionId: cancellable.post.companion.id,
+    slotId: cancellable.slot.id,
+    activityPricingId: cancellable.activity.id,
+    placeName: cancellable.post.locationName,
+    userNote: 'smoke test cancellation settlement',
+  });
+  const cancellablePaid = await api('POST', `/api/payments/${cancellableOrder.payment.paymentId}/mock-success`);
+  await api('POST', '/api/auth/wechat/mock-login', { role: 'companion', companionId: cancellablePaid.order.companionId });
+  await api('POST', `/api/orders/${cancellablePaid.order.id}/confirm`);
+  await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
+  const cancelledConfirmed = await api('POST', `/api/orders/${cancellablePaid.order.id}/cancel`, { reason: 'smoke test client cancellation' });
+  assert(cancelledConfirmed.status === 'refunding', 'confirmed cancellation transitions to refunding');
+  assert(cancelledConfirmed.cancellationActor === 'creator', 'confirmed cancellation records client actor');
+  assert(cancelledConfirmed.cancellationPhase === 'confirmed_before_balance', 'confirmed cancellation records phase');
+  assert(typeof cancelledConfirmed.refundToCreatorCents === 'number', 'confirmed cancellation records refund amount');
 
   const conversation = await api('GET', `/api/orders/${paid.order.id}/conversation`);
   const safeMessage = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'See you at the cafe entrance.' });
@@ -162,6 +181,7 @@ try {
           'orders',
           'role-scoped-orders',
           'pending-payment-expiry',
+          'confirmed-cancellation-settlement',
           'conversation',
           'risk-block',
           'moderation-action',

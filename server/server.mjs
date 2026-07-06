@@ -676,12 +676,7 @@ function transitionOrder(store, path, action, body = {}) {
   }
 
   if (action === 'cancel') {
-    if (['completed', 'refunded'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be cancelled');
-    releaseSlot(store, order);
-    if (order.status === 'pending_payment') closePaymentForOrder(store, order, body.reason || 'Order cancelled');
-    const result = updateOrder(store, order, order.status === 'pending_payment' ? 'cancelled' : 'refunding', body.reason || 'Order cancelled');
-    if (order.status === 'refunding') createRefund(store, order, body.reason || 'Order cancelled');
-    return result;
+    return cancelOrder(store, order, session, body);
   }
 
   return error(400, 'VALIDATION_ERROR', 'Unknown action');
@@ -704,6 +699,23 @@ function updateOrder(store, order, status, reason) {
   Object.assign(order, viewOrder({ ...order, status }));
   order.statusLogs = [...(order.statusLogs || []), statusLog(status, reason)];
   return json(viewOrder(order), 200, true);
+}
+
+function cancelOrder(store, order, session, body = {}) {
+  if (['completed', 'refunded'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be cancelled');
+
+  const reason = body.reason || 'Order cancelled';
+  const nextStatus = order.status === 'pending_payment' ? 'cancelled' : 'refunding';
+  const actor = cancellationActorForSession(session);
+  const settlement = calculateCancellationSnapshot(order, actor, reason);
+
+  releaseSlot(store, order);
+  if (order.status === 'pending_payment') closePaymentForOrder(store, order, reason);
+  Object.assign(order, settlement);
+
+  const result = updateOrder(store, order, nextStatus, reason);
+  if (nextStatus === 'refunding') createRefund(store, order, reason);
+  return result;
 }
 
 function getConversation(store, path) {
@@ -1127,11 +1139,118 @@ function createRefund(store, order, reason) {
     id: id('refund'),
     orderId: order.id,
     orderNo: order.orderNo,
-    amountCents: order.amountCents,
+    amountCents: order.refundToCreatorCents ?? order.amountCents,
+    penaltyCents: order.cancellationPenaltyCents || 0,
+    platformFeeCents: order.platformFeeCents || 0,
+    compensationToCounterpartyCents: order.compensationToCounterpartyCents || 0,
     reason,
     status: 'pending',
     createdAt: now(),
   });
+}
+
+function calculateCancellationSnapshot(order, actor, reason) {
+  const phase = cancellationPhaseForOrder(order);
+  const paidCents = getPaidCentsForCancellation(order, phase);
+  const platformFeeCents = ['confirmed_before_balance', 'full_escrowed', 'completed'].includes(phase) ? Math.round(paidCents * platformFeeRate) : 0;
+  let penaltyCents = 0;
+  let compensationToCounterpartyCents = 0;
+  let refundToCreatorCents = paidCents;
+
+  if (phase === 'confirmed_before_balance') {
+    if (actor === 'creator') {
+      penaltyCents = Math.min(paidCents, Math.round(order.amountCents * 0.15));
+      refundToCreatorCents = Math.max(0, paidCents - penaltyCents);
+      compensationToCounterpartyCents = Math.max(0, penaltyCents - platformFeeCents);
+    } else if (actor === 'photographer') {
+      compensationToCounterpartyCents = Math.round(order.amountCents * 0.1);
+      refundToCreatorCents = paidCents + compensationToCounterpartyCents;
+    }
+  } else if (phase === 'full_escrowed') {
+    if (actor === 'creator') {
+      penaltyCents = Math.min(paidCents, Math.max(order.depositCents || 0, Math.round(order.amountCents * 0.25)));
+      refundToCreatorCents = Math.max(0, paidCents - penaltyCents);
+      compensationToCounterpartyCents = Math.max(0, penaltyCents - platformFeeCents);
+    } else if (actor === 'photographer') {
+      compensationToCounterpartyCents = Math.round(order.amountCents * 0.2);
+      refundToCreatorCents = paidCents + compensationToCounterpartyCents;
+    }
+  }
+
+  if (actor === 'admin') {
+    penaltyCents = 0;
+    compensationToCounterpartyCents = 0;
+    refundToCreatorCents = paidCents;
+  }
+
+  return {
+    cancellationActor: actor,
+    cancellationPhase: phase,
+    cancellationReason: reason,
+    cancellationPenaltyCents: penaltyCents,
+    refundToCreatorCents,
+    compensationToCounterpartyCents,
+    platformFeeCents,
+    cancellationSummary: buildCancellationSummary({
+      actor,
+      phase,
+      paidCents,
+      penaltyCents,
+      refundToCreatorCents,
+      compensationToCounterpartyCents,
+      platformFeeCents,
+    }),
+    cancelledAt: now(),
+    depositStatus: paidCents > 0 ? (penaltyCents >= paidCents ? 'forfeited' : 'refunded') : 'unpaid',
+    balanceStatus: paidCents > 0 ? 'refunded' : 'unpaid',
+    fundsStatus: paidCents > 0 ? 'refunded' : 'none',
+    settlementStatus: 'cancelled',
+  };
+}
+
+function cancellationActorForSession(session) {
+  if (session.role === 'companion') return 'photographer';
+  if (session.role === 'admin') return 'admin';
+  return 'creator';
+}
+
+function cancellationPhaseForOrder(order) {
+  if (order.status === 'pending_payment') return 'pending_payment';
+  if (order.status === 'paid_pending_confirm') return 'paid_pending_confirm';
+  if (order.fundsStatus === 'full_escrowed' || order.balanceStatus === 'paid') return 'full_escrowed';
+  if (order.status === 'confirmed' || order.status === 'in_service') return 'confirmed_before_balance';
+  if (order.status === 'completed') return 'completed';
+  return 'other';
+}
+
+function getPaidCentsForCancellation(order, phase) {
+  if (phase === 'pending_payment') return 0;
+  if (order.fundsStatus === 'deposit_escrowed' || order.depositStatus === 'paid') return Math.min(order.amountCents, order.depositCents || order.amountCents);
+  if (order.fundsStatus === 'full_escrowed' || order.balanceStatus === 'paid') return order.amountCents;
+  if (['paid_pending_confirm', 'confirmed_before_balance', 'full_escrowed', 'completed'].includes(phase)) return order.amountCents;
+  return 0;
+}
+
+function buildCancellationSummary({
+  actor,
+  phase,
+  paidCents,
+  penaltyCents,
+  refundToCreatorCents,
+  compensationToCounterpartyCents,
+  platformFeeCents,
+}) {
+  const actorText = actor === 'creator' ? 'Client' : actor === 'photographer' ? 'Photographer' : 'Admin';
+  const phaseText = {
+    pending_payment: 'pending payment',
+    paid_pending_confirm: 'paid before photographer confirmation',
+    confirmed_before_balance: 'confirmed before balance settlement',
+    full_escrowed: 'fully escrowed',
+    completed: 'completed',
+    other: 'other',
+  }[phase] || phase;
+
+  return `${actorText} cancelled during ${phaseText}; paid ${formatMoney(paidCents)}, penalty ${formatMoney(penaltyCents)}, refund ${formatMoney(refundToCreatorCents)}, compensation ${formatMoney(compensationToCounterpartyCents)}, platform fee ${formatMoney(platformFeeCents)}.`;
 }
 
 function releaseSlot(store, order) {
@@ -1154,12 +1273,13 @@ function expirePendingPaymentOrders(store) {
 
     releaseSlot(store, order);
     payment && closeExpiredPayment(payment);
+    const settlement = calculateCancellationSnapshot(order, 'admin', 'Payment window expired');
     Object.assign(
       order,
       viewOrder({
         ...order,
+        ...settlement,
         status: 'cancelled',
-        cancelledAt: now(),
         cancelReason: 'Payment window expired',
       }),
     );

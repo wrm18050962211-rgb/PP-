@@ -326,7 +326,7 @@ export type AppOrder = {
   fundsStatus?: 'none' | 'deposit_escrowed' | 'full_escrowed' | 'frozen' | 'settled' | 'refunded';
   settlementStatus?: SettlementStatus;
   cancellationActor?: CancellationActor;
-  cancellationPhase?: 'paid_pending_confirm' | 'confirmed_before_balance' | 'full_escrowed' | 'completed' | 'other';
+  cancellationPhase?: 'pending_payment' | 'paid_pending_confirm' | 'confirmed_before_balance' | 'full_escrowed' | 'completed' | 'other';
   cancellationReason?: string;
   cancellationPenaltyCents?: number;
   refundToCreatorCents?: number;

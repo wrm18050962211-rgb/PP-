@@ -21,11 +21,11 @@ export type CancellationSettlement = Pick<
 const platformCommissionRate = 0.15;
 
 export function calculateCancellationSettlement(order: AppOrder, actor: CancellationActor, reason?: string): CancellationSettlement {
+  const phase = getCancellationPhase(order);
   const depositCents = order.depositCents ?? (order.fundsStatus === 'deposit_escrowed' ? Math.min(order.amountCents, 10000) : 0);
   const balanceCents = order.balanceCents ?? Math.max(0, order.amountCents - depositCents);
   const hasBalancePaid = order.balanceStatus === 'paid' || order.fundsStatus === 'full_escrowed';
-  const paidCents = depositCents + (hasBalancePaid ? balanceCents : 0);
-  const phase = getCancellationPhase(order);
+  const paidCents = phase === 'pending_payment' ? 0 : phase === 'paid_pending_confirm' ? order.amountCents : depositCents + (hasBalancePaid ? balanceCents : 0);
   const platformFeeCents = getPlatformFeeCents(phase, paidCents);
 
   let penaltyCents = 0;
@@ -34,13 +34,14 @@ export function calculateCancellationSettlement(order: AppOrder, actor: Cancella
   let depositStatus: AppOrder['depositStatus'] = depositCents ? 'refunded' : order.depositStatus;
   let balanceStatus: AppOrder['balanceStatus'] = hasBalancePaid ? 'refunded' : order.balanceStatus;
 
-  if (phase === 'paid_pending_confirm') {
-    if (actor === 'creator') {
-      penaltyCents = Math.round(depositCents * 0.3);
-      compensationToCounterpartyCents = Math.max(0, penaltyCents - platformFeeCents);
-      refundToCreatorCents = Math.max(0, paidCents - penaltyCents);
-      depositStatus = penaltyCents >= depositCents ? 'forfeited' : 'refunded';
-    }
+  if (phase === 'pending_payment') {
+    refundToCreatorCents = 0;
+    depositStatus = 'unpaid';
+    balanceStatus = 'unpaid';
+  } else if (phase === 'paid_pending_confirm') {
+    penaltyCents = 0;
+    compensationToCounterpartyCents = 0;
+    refundToCreatorCents = paidCents;
   } else if (phase === 'confirmed_before_balance') {
     if (actor === 'creator') {
       penaltyCents = Math.min(depositCents, Math.round(order.amountCents * 0.15));
@@ -87,12 +88,13 @@ export function calculateCancellationSettlement(order: AppOrder, actor: Cancella
     cancelledAt: new Date().toISOString(),
     depositStatus,
     balanceStatus,
-    fundsStatus: 'refunded',
+    fundsStatus: phase === 'pending_payment' ? 'none' : 'refunded',
     settlementStatus: 'cancelled',
   };
 }
 
 function getCancellationPhase(order: AppOrder): CancellationSettlement['cancellationPhase'] {
+  if (order.status === 'pending_payment') return 'pending_payment';
   if (order.status === 'paid_pending_confirm') return 'paid_pending_confirm';
   if (order.status === 'confirmed' && order.balanceStatus !== 'paid') return 'confirmed_before_balance';
   if (order.fundsStatus === 'full_escrowed' || order.balanceStatus === 'paid') return 'full_escrowed';
@@ -101,7 +103,7 @@ function getCancellationPhase(order: AppOrder): CancellationSettlement['cancella
 }
 
 function getPlatformFeeCents(phase: CancellationSettlement['cancellationPhase'], paidCents: number) {
-  if (phase === 'paid_pending_confirm') return 0;
+  if (phase === 'pending_payment' || phase === 'paid_pending_confirm') return 0;
   return Math.round(Math.max(0, paidCents) * platformCommissionRate);
 }
 
@@ -124,7 +126,9 @@ function buildCancellationSummary({
 }) {
   const actorText = actor === 'creator' ? '创作者' : actor === 'photographer' ? '摄影师' : '管理员';
   const phaseText =
-    phase === 'paid_pending_confirm'
+    phase === 'pending_payment'
+      ? '待支付'
+      : phase === 'paid_pending_confirm'
       ? '待确认'
       : phase === 'confirmed_before_balance'
         ? '已确认且尾款未托管'
