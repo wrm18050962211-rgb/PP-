@@ -1,19 +1,20 @@
 import type { ApiResponse } from '../types/api';
 import { isMiniProgramRuntime, wxRequest } from './miniProgramBridge';
 
-const localApiBaseUrl = 'http://127.0.0.1:8787';
+const localApiBaseUrl = import.meta.env.PROD ? '' : 'http://127.0.0.1:8787';
 const configuredApiBaseUrl = normalizeEnvValue(import.meta.env.VITE_API_BASE_URL);
 const appEnv = normalizeEnvValue(import.meta.env.VITE_APP_ENV).toLowerCase();
+const viteMode = normalizeEnvValue(import.meta.env.MODE).toLowerCase();
 const enableMockFallback = normalizeEnvValue(import.meta.env.VITE_ENABLE_MOCK).toLowerCase();
 const enableTestRoleSwitch = normalizeEnvValue(import.meta.env.VITE_ENABLE_TEST_ROLE_SWITCH).toLowerCase();
 const authTokenStorageKey = 'pp-auth-token-v1';
 let currentAuthToken = readStoredAuthToken();
 
-export const isProductionAppEnv = appEnv === 'production';
+export const isProductionAppEnv = appEnv === 'production' || (!appEnv && (import.meta.env.PROD || viteMode === 'production'));
 export const apiBaseUrl = configuredApiBaseUrl || (isProductionAppEnv ? '' : localApiBaseUrl);
 
 if (isProductionAppEnv && !configuredApiBaseUrl) {
-  throw new Error('VITE_APP_ENV=production requires VITE_API_BASE_URL. Refusing to use the local API default.');
+  throw new Error('Production app builds require VITE_API_BASE_URL. Refusing to use the local API default.');
 }
 
 export function isApiEnabled() {

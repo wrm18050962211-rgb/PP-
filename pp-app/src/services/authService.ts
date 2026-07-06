@@ -10,6 +10,7 @@ const smsCodeStorageKey = 'pp-auth-sms-code-v1';
 const adminLoginStorageKey = 'pp-admin-logged-in-v1';
 const adminReturnRoleStorageKey = 'pp-admin-return-role-v1';
 const localAdminPasscode = '000000';
+const mockWechatLoginPath = import.meta.env.PROD ? '' : '/api/auth/wechat/mock-login';
 
 type AuthAccount = {
   phone: string;
@@ -88,7 +89,7 @@ export async function switchMockRole(role: UserRole): Promise<AuthSession> {
   }
 
   try {
-    const response = await apiPost<AuthSession>('/api/auth/wechat/mock-login', { role, companionId: role === 'companion' ? account?.companionId : undefined });
+    const response = await apiPost<AuthSession>(mockWechatLoginPath, { role, companionId: role === 'companion' ? account?.companionId : undefined });
     const session = response.success ? persistRemoteSession(response.data) : localSession(role);
     notifySessionChanged(session);
     return session;
@@ -153,7 +154,7 @@ export function getPostAuthHome(role: UserRole = readStoredRole()) {
 export function requestPhoneCode(phone: string) {
   const normalizedPhone = normalizePhone(phone);
   if (!isValidPhone(normalizedPhone)) throw new Error('请输入 11 位手机号');
-  ensureTestAuthAllowed('本地测试验证码');
+  ensureTestAuthAllowed('验证码登录');
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const record: SmsCodeRecord = {

@@ -11,6 +11,8 @@ type PaymentStatusResponse = {
   order: AppOrder;
 };
 
+const mockPaymentSuccessSuffix = import.meta.env.PROD ? '' : '/mock-success';
+
 export async function requestMiniProgramPayment(payment: PaymentRequest): Promise<AppOrder | null> {
   if (!isApiEnabled()) return null;
 
@@ -27,7 +29,7 @@ export async function requestMiniProgramPayment(payment: PaymentRequest): Promis
     return fetchPaymentStatus(payment.paymentId);
   }
 
-  const mockSuccessPath = payment.payPayload?.mockSuccessPath || `/api/payments/${payment.paymentId}/mock-success`;
+  const mockSuccessPath = payment.payPayload?.mockSuccessPath || `/api/payments/${payment.paymentId}${mockPaymentSuccessSuffix}`;
   const response = await apiPost<MockPaymentResponse>(mockSuccessPath);
   return response.success ? response.data.order : null;
 }

@@ -38,6 +38,7 @@ const roleOptions: Array<{ role: PublicRole; title: string; desc: string; icon: 
   { role: 'consumer', title: 'Client', desc: '预约拍摄，管理成片', icon: UserRound },
   { role: 'companion', title: 'Studio', desc: '接单报价，管理交付', icon: Camera },
 ];
+const localSmsCodeLabel = import.meta.env.PROD ? '' : '本地测试验证码：';
 
 export function EntryRedirect() {
   if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace />;
@@ -343,7 +344,7 @@ export function AccountSettingsPage() {
       <section className="mt-5 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
         <SettingRow icon={<Smartphone size={19} />} title="手机号" desc={account?.phone ?? '未绑定'} />
         <SettingRow icon={<ShieldCheck size={19} />} title="实名认证" desc="MVP 本地模拟，后续接入微信与平台审核" />
-        <SettingRow icon={<MessageSquareText size={19} />} title="验证码登录" desc="当前使用本地 mock 验证码" />
+        <SettingRow icon={<MessageSquareText size={19} />} title="验证码登录" desc="用于手机号登录与账号安全验证" />
       </section>
 
       <section className="mt-5">
@@ -496,7 +497,7 @@ function PhoneCodeForm({
           </button>
         </div>
       </label>
-      {showTestCode && demoCode ? <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">本地测试验证码：{demoCode}</p> : null}
+      {showTestCode && demoCode ? <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">{localSmsCodeLabel}{demoCode}</p> : null}
     </div>
   );
 }
