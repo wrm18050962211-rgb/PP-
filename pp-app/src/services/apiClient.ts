@@ -5,6 +5,7 @@ const localApiBaseUrl = 'http://127.0.0.1:8787';
 const configuredApiBaseUrl = normalizeEnvValue(import.meta.env.VITE_API_BASE_URL);
 const appEnv = normalizeEnvValue(import.meta.env.VITE_APP_ENV).toLowerCase();
 const enableMockFallback = normalizeEnvValue(import.meta.env.VITE_ENABLE_MOCK).toLowerCase();
+const enableTestRoleSwitch = normalizeEnvValue(import.meta.env.VITE_ENABLE_TEST_ROLE_SWITCH).toLowerCase();
 
 export const isProductionAppEnv = appEnv === 'production';
 export const apiBaseUrl = configuredApiBaseUrl || (isProductionAppEnv ? '' : localApiBaseUrl);
@@ -20,6 +21,11 @@ export function isApiEnabled() {
 export function isMockFallbackAllowed() {
   if (isProductionAppEnv) return false;
   return enableMockFallback !== 'false';
+}
+
+export function isTestRoleSwitchAllowed() {
+  if (isProductionAppEnv) return false;
+  return enableTestRoleSwitch !== 'false';
 }
 
 export function getApiFallback<T>(fallback: T, context: string): T {

@@ -16,6 +16,7 @@ import {
   requestPhoneCode,
   type RegisterInput,
 } from '../../services/authService';
+import { isTestRoleSwitchAllowed } from '../../services/apiClient';
 
 type PublicRole = RegisterInput['role'];
 
@@ -86,6 +87,7 @@ function RegisterForm({ initialRole, initialPhone }: { initialRole: PublicRole; 
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
+  const showTestCode = isTestRoleSwitchAllowed();
 
   function sendCode() {
     try {
@@ -129,7 +131,7 @@ function RegisterForm({ initialRole, initialPhone }: { initialRole: PublicRole; 
         })}
       </div>
 
-      <PhoneCodeForm phone={phone} code={code} onPhoneChange={setPhone} onCodeChange={setCode} onSendCode={sendCode} demoCode={demoCode} />
+      <PhoneCodeForm phone={phone} code={code} onPhoneChange={setPhone} onCodeChange={setCode} onSendCode={sendCode} demoCode={demoCode} showTestCode={showTestCode} />
       {error ? <ErrorLine text={error} /> : null}
 
       <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={submit}>
@@ -154,6 +156,7 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [missingRolePrompt, setMissingRolePrompt] = useState<{ role: PublicRole; phone: string } | null>(null);
   const registeredRoles = getAvailableLoginRoles(phone || account?.phone);
+  const showTestCode = isTestRoleSwitchAllowed();
 
   function sendCode() {
     try {
@@ -219,7 +222,7 @@ export function LoginPage() {
         })}
       </div>
 
-      <PhoneCodeForm phone={phone} code={code} onPhoneChange={setPhone} onCodeChange={setCode} onSendCode={sendCode} demoCode={demoCode} />
+      <PhoneCodeForm phone={phone} code={code} onPhoneChange={setPhone} onCodeChange={setCode} onSendCode={sendCode} demoCode={demoCode} showTestCode={showTestCode} />
       {error ? <ErrorLine text={error} /> : null}
       {missingRolePrompt ? (
         <MissingRoleRegisterDialog
@@ -354,6 +357,7 @@ function PhoneCodeForm({
   phone,
   code,
   demoCode,
+  showTestCode,
   onPhoneChange,
   onCodeChange,
   onSendCode,
@@ -361,6 +365,7 @@ function PhoneCodeForm({
   phone: string;
   code: string;
   demoCode: string;
+  showTestCode: boolean;
   onPhoneChange: (value: string) => void;
   onCodeChange: (value: string) => void;
   onSendCode: () => void;
@@ -394,7 +399,7 @@ function PhoneCodeForm({
           </button>
         </div>
       </label>
-      {demoCode ? <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">本地测试验证码：{demoCode}</p> : null}
+      {showTestCode && demoCode ? <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">本地测试验证码：{demoCode}</p> : null}
     </div>
   );
 }

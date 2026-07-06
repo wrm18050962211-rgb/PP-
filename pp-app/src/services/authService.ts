@@ -1,5 +1,5 @@
 import type { AuthSession, UserRole } from '../types/api';
-import { apiGet, apiPost, isApiEnabled } from './apiClient';
+import { apiGet, apiPost, isApiEnabled, isTestRoleSwitchAllowed } from './apiClient';
 import { findTestAccountIdentitiesByPhone, type PublicRole, type TestAccountIdentity } from './accountDirectory';
 import { isMiniProgramRuntime, wxLogin } from './miniProgramBridge';
 
@@ -75,6 +75,7 @@ export async function fetchAuthSession(): Promise<AuthSession> {
 }
 
 export async function switchMockRole(role: UserRole): Promise<AuthSession> {
+  ensureTestAuthAllowed('测试身份切换');
   const account = readAccount();
   if (!canUseRole(account, role)) return localSession(readStoredRole());
 
@@ -136,6 +137,7 @@ export function getPostAuthHome(role = readStoredRole()) {
 export function requestPhoneCode(phone: string) {
   const normalizedPhone = normalizePhone(phone);
   if (!isValidPhone(normalizedPhone)) throw new Error('请输入 11 位手机号');
+  ensureTestAuthAllowed('本地测试验证码');
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const record: SmsCodeRecord = {
@@ -150,6 +152,7 @@ export function requestPhoneCode(phone: string) {
 }
 
 export function registerWithPhone(input: RegisterInput) {
+  ensureTestAuthAllowed('本地手机号注册');
   const phone = normalizePhone(input.phone);
   validatePhoneCode(phone, input.code);
   const existing = readAccount()?.phone === phone ? readAccount() : null;
@@ -197,6 +200,7 @@ export function registerWithPhone(input: RegisterInput) {
 }
 
 export async function loginWithPhoneCode(phone: string, code: string, role?: PublicRole) {
+  ensureTestAuthAllowed('本地验证码登录');
   const normalizedPhone = normalizePhone(phone);
   if (!isValidPhone(normalizedPhone)) throw new Error('请输入 11 位手机号');
   const account = findLoginAccount(normalizedPhone);
@@ -506,6 +510,11 @@ function validatePhoneCode(phone: string, code: string) {
   if (!record || record.phone !== phone || record.code !== code || record.expiresAt < Date.now()) {
     throw new Error('验证码错误或已过期');
   }
+}
+
+function ensureTestAuthAllowed(action: string) {
+  if (isTestRoleSwitchAllowed()) return;
+  throw new Error(`${action} 已在当前环境关闭，请接入真实短信或微信登录后再使用。`);
 }
 
 function readSmsCode(): SmsCodeRecord | null {

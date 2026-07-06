@@ -9,6 +9,8 @@ const root = dirname(fileURLToPath(import.meta.url));
 const storePath = process.env.STORE_PATH ? resolve(process.env.STORE_PATH) : resolve(root, 'data/store.json');
 const dataStore = createDataStore({ storePath, initialStore, normalizeStore });
 const port = Number(process.env.PORT || 8787);
+const appEnv = String(process.env.APP_ENV || 'development').trim().toLowerCase();
+const enableTestRoleSwitch = String(process.env.ENABLE_TEST_ROLE_SWITCH ?? 'true').trim().toLowerCase();
 const platformFeeRate = 0.08;
 
 const orderStatusText = {
@@ -211,12 +213,14 @@ function sanitizeFileName(fileName) {
 }
 
 function authSession(store) {
+  if (!store.activeSession?.role && !isTestRoleSwitchAllowed()) return error(401, 'AUTH_REQUIRED', 'Authentication is required');
   if (store.activeSession?.role) store.activeSession = createSession(store, normalizeRole(store.activeSession.role));
   else store.activeSession = createSession(store, 'consumer');
   return json(store.activeSession);
 }
 
 function mockWechatLogin(store, body = {}) {
+  if (!isTestRoleSwitchAllowed()) return error(403, 'TEST_LOGIN_DISABLED', 'Mock login is disabled in this environment');
   const role = normalizeRole(body.role);
   const session = createSession(store, role, null, { companionId: body.companionId });
   store.activeSession = session;
@@ -226,6 +230,8 @@ function mockWechatLogin(store, body = {}) {
 async function wechatLogin(store, body = {}) {
   const code = String(body.code || '').trim();
   if (!code) return error(400, 'VALIDATION_ERROR', 'WeChat login code is required');
+  if (code.startsWith('mock-') && !isTestRoleSwitchAllowed()) return error(403, 'TEST_LOGIN_DISABLED', 'Mock WeChat login code is disabled in this environment');
+  if (!hasWechatAuthConfig() && !isTestRoleSwitchAllowed()) return error(501, 'WECHAT_AUTH_NOT_CONFIGURED', 'WeChat auth config is required');
 
   if (hasWechatAuthConfig() && !code.startsWith('mock-')) {
     const identity = await exchangeWechatCode(code);
@@ -1720,6 +1726,11 @@ function getWechatPayPrivateKey() {
 
 function useLiveWechatPay() {
   return process.env.WECHAT_PAY_MODE === 'live';
+}
+
+function isTestRoleSwitchAllowed() {
+  if (appEnv === 'production') return false;
+  return enableTestRoleSwitch !== 'false';
 }
 
 function hasWechatAuthConfig() {

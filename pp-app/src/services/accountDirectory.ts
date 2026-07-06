@@ -1,4 +1,5 @@
 import type { UserRole } from '../types/api';
+import { isTestRoleSwitchAllowed } from './apiClient';
 import { listFeedPosts } from './feedService';
 
 export type PublicRole = Extract<UserRole, 'consumer' | 'companion'>;
@@ -17,6 +18,8 @@ export type TestAccountIdentity = {
 };
 
 export function listTestAccounts(): TestAccountIdentity[] {
+  if (!isTestRoleSwitchAllowed()) return [];
+
   const posts = listFeedPosts();
   const baseCreatorPosts = posts.filter((post) => !post.companion.isVirtual);
   const virtualPosts = posts.filter((post) => post.companion.isVirtual);
@@ -39,6 +42,7 @@ export function listTestAccounts(): TestAccountIdentity[] {
 }
 
 export function findTestAccountIdentitiesByPhone(phone: string) {
+  if (!isTestRoleSwitchAllowed()) return [];
   return listTestAccounts().filter((account) => account.phone === phone);
 }
 
