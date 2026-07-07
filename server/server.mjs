@@ -863,7 +863,7 @@ async function createPostgresOrder(context, quote, order, payment, input) {
   return json({ ...order, payment: publicPayment(payment) }, 201, false);
 }
 
-function mockPaymentSuccess(store, path) {
+async function mockPaymentSuccess(store, path) {
   if (!isTestRoleSwitchAllowed()) return error(403, 'MOCK_PAYMENT_DISABLED', 'Mock payment success is disabled in this environment');
   const publicSession = requirePublicSession(store, 'consumer', 'payment');
   if (publicSession.response) return publicSession.response;
@@ -881,6 +881,10 @@ function mockPaymentSuccess(store, path) {
   }
   if (order.status !== 'pending_payment') return error(409, 'ORDER_STATUS_INVALID', 'Order is not pending payment');
 
+  if (dataStore.kind !== 'json' && dataStore.orderWrites?.markPaymentPaid) {
+    return markPostgresPaymentPaid(order, payment);
+  }
+
   payment.status = 'paid';
   payment.paidAt = now();
   Object.assign(order, viewOrder({ ...order, status: 'paid_pending_confirm', paidAt: now() }));
@@ -892,6 +896,37 @@ function mockPaymentSuccess(store, path) {
   store.conversations[order.id] ||= createConversation(order);
 
   return json({ payment: publicPayment(payment), order: viewOrder(order), conversation: store.conversations[order.id] }, 200, true);
+}
+
+async function markPostgresPaymentPaid(order, payment) {
+  const paidAt = now();
+  await dataStore.orderWrites.markPaymentPaid({
+    paymentId: payment.id,
+    conversationId: id('conversation'),
+    statusLogId: id('status-log'),
+    paidAt,
+    thirdPartyTradeNo: `mock-${payment.paymentNo || payment.id}`,
+    rawCallback: { source: 'mock-success' },
+    operatorType: 'system',
+    statusReason: 'Mock payment succeeded',
+  });
+
+  const paidPayment = { ...payment, status: 'paid', paidAt };
+  const paidOrder = viewOrder({
+    ...order,
+    status: 'paid_pending_confirm',
+    paidAt,
+    statusLogs: [...(order.statusLogs || []), statusLog('paid_pending_confirm', 'Mock payment succeeded')],
+  });
+  return json(
+    {
+      payment: publicPayment(paidPayment),
+      order: paidOrder,
+      conversation: createConversation(paidOrder),
+    },
+    200,
+    false,
+  );
 }
 
 function listOrders(store, url) {
