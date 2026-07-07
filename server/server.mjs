@@ -1149,7 +1149,7 @@ function conversationSortTime(store, order) {
   return toTimestamp(lastMessageAt) ?? toTimestamp(order.createdAt) ?? 0;
 }
 
-function createReport(store, path, body) {
+async function createReport(store, path, body) {
   const publicSession = requirePublicSession(store, 'consumer', 'report');
   if (publicSession.response) return publicSession.response;
   const { session } = publicSession;
@@ -1180,6 +1180,10 @@ function createReport(store, path, body) {
     actionLogs: [],
   };
 
+  if (dataStore.kind !== 'json' && dataStore.moderationWrites?.createReport) {
+    return createPostgresReport(store, report, session, body);
+  }
+
   store.reports.unshift(report);
   store.auditCases.unshift({
     id: id('audit-case'),
@@ -1192,6 +1196,24 @@ function createReport(store, path, body) {
     logs: [],
   });
   return json(report, 201, true);
+}
+
+async function createPostgresReport(store, report, session, body) {
+  await dataStore.moderationWrites.createReport({
+    reportId: report.id,
+    auditCaseId: id('audit-case'),
+    reporterId: session.user?.id,
+    reportedUserId: body.reportedUserId || null,
+    orderId: report.orderId,
+    conversationId: store.conversations[report.orderId]?.id || null,
+    targetType: body.targetType || 'order',
+    targetId: body.targetId || report.orderId,
+    category: report.reason,
+    description: report.description,
+    evidenceFiles: report.evidenceFiles,
+    riskLevel: report.riskLevel,
+  });
+  return json(report, 201, false);
 }
 
 function companionDashboard(store) {
