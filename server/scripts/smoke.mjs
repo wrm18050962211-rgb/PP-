@@ -100,6 +100,8 @@ try {
 
   const orders = await api('GET', '/api/orders?role=user');
   assert(orders.items.some((item) => item.id === paid.order.id), 'paid order appears in order list');
+  const consumerStatusUpdate = await api('POST', `/api/orders/${paid.order.id}/status`, { status: 'disputed' }, { expectOk: false });
+  assert(consumerStatusUpdate.error?.code === 'FORBIDDEN', 'consumer token cannot use admin order status endpoint');
 
   await api('POST', '/api/auth/wechat/mock-login', { role: 'companion', companionId: paid.order.companionId });
   const companionOrders = await api('GET', '/api/orders?role=companion');
@@ -185,6 +187,7 @@ try {
           'mock-payment',
           'payment-status',
           'orders',
+          'admin-order-status-boundary',
           'role-scoped-orders',
           'pending-payment-expiry',
           'confirmed-cancellation-settlement',

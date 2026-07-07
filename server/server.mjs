@@ -699,12 +699,11 @@ function transitionOrder(store, path, action, body = {}) {
 }
 
 function setOrderStatus(store, path, status) {
-  const session = ensureActiveSession(store);
-  if (!session) return authRequired();
+  const admin = requireAdminSession(store);
+  if (admin.response) return admin.response;
 
   const order = findOrder(store, path.split('/')[3]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
-  if (session.role !== 'admin') return error(403, 'FORBIDDEN', 'Only admin can set arbitrary order status');
   if (!orderStatusText[status]) return error(400, 'VALIDATION_ERROR', 'Unknown order status');
   const result = updateOrder(store, order, status, 'Manual status update');
   if (status === 'completed') createSettlement(store, order);
