@@ -247,13 +247,14 @@ async function applyRequestSession(store, req) {
 }
 
 function authSession(store) {
-  if (!store.activeSession?.role && !isTestRoleSwitchAllowed()) return error(401, 'AUTH_REQUIRED', 'Authentication is required');
+  if (!store.activeSession?.role && (dataStore.kind !== 'json' || !isTestRoleSwitchAllowed())) return error(401, 'AUTH_REQUIRED', 'Authentication is required');
   const session = store.activeSession?.role ? refreshSession(store, store.activeSession) : createSession(store, 'consumer');
-  return json(saveSession(store, session), 200, true);
+  return json(saveSession(store, session), 200, dataStore.kind === 'json');
 }
 
 function mockWechatLogin(store, body = {}) {
   if (!isTestRoleSwitchAllowed()) return error(403, 'TEST_LOGIN_DISABLED', 'Mock login is disabled in this environment');
+  if (dataStore.kind !== 'json') return error(403, 'TEST_LOGIN_JSON_ONLY', 'Mock role switching is only available with the JSON store');
   const role = normalizeRole(body.role);
   const session = createSession(store, role, null, { companionId: body.companionId });
   return json(saveSession(store, session), 200, true);
