@@ -12,8 +12,11 @@ const loadedStore = result.store;
 assert(result.changed === false, 'postgres load is read-only');
 assert(loadedStore.orders[0]?.orderNo === 'ST2607080001', 'orders are loaded into read model');
 assert(loadedStore.orders[0]?.companion === 'Mori', 'order companion name is attached');
+assert(loadedStore.payments[0]?.paymentNo === 'PAY2607080001', 'payments are loaded into read model');
+assert(loadedStore.payments[0]?.orderId === loadedStore.orders[0]?.id, 'payment order link is preserved');
 assert(loadedStore.conversations['00000000-0000-4000-8000-000000000901']?.messages[0]?.text === 'Hello from Postgres', 'conversation messages are loaded');
 assert(pool.calls.some((call) => /from orders/i.test(call.sql)), 'orders query is issued');
+assert(pool.calls.some((call) => /from payments/i.test(call.sql)), 'payments query is issued');
 assert(pool.calls.some((call) => /from conversations/i.test(call.sql)), 'conversations query is issued');
 assert(pool.calls.some((call) => /from messages/i.test(call.sql)), 'messages query is issued');
 
@@ -21,8 +24,9 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['store-load-read-model', 'orders-query', 'conversations-query', 'messages-query'],
+      checks: ['store-load-read-model', 'orders-query', 'payments-query', 'conversations-query', 'messages-query'],
       orderCount: loadedStore.orders.length,
+      paymentCount: loadedStore.payments.length,
       conversationCount: Object.keys(loadedStore.conversations).length,
       queryCount: pool.calls.length,
     },
@@ -83,6 +87,25 @@ function createMockPool() {
               status: 'paid_pending_confirm',
               created_at: '2026-07-08T08:30:00.000Z',
               updated_at: '2026-07-08T08:45:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from payments/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000909',
+              order_id: '00000000-0000-4000-8000-000000000901',
+              payment_no: 'PAY2607080001',
+              channel: 'wechat_pay',
+              amount_cents: 39900,
+              status: 'paid',
+              third_party_trade_no: 'wx-trade-260708',
+              paid_at: '2026-07-08T08:50:00.000Z',
+              closed_at: null,
+              created_at: '2026-07-08T08:30:00.000Z',
+              updated_at: '2026-07-08T08:50:00.000Z',
             },
           ],
         };

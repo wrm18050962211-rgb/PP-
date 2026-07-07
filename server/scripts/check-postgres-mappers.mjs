@@ -152,6 +152,21 @@ const rows = {
       updated_at: '2026-06-12T05:30:00.000Z',
     },
   ],
+  payments: [
+    {
+      id: 'payment-pg-1',
+      order_id: 'order-pg-1',
+      payment_no: 'PAY2606120001',
+      channel: 'wechat_pay',
+      amount_cents: 39900,
+      status: 'paid',
+      third_party_trade_no: 'wx-trade-1',
+      paid_at: '2026-06-12T05:35:00.000Z',
+      closed_at: null,
+      created_at: '2026-06-12T05:00:00.000Z',
+      updated_at: '2026-06-12T05:35:00.000Z',
+    },
+  ],
   conversations: [
     {
       id: 'conversation-pg-1',
@@ -191,7 +206,9 @@ assert(post.styleTags.includes('胶片感'), 'post tags map');
 assert(store.orders[0].orderNo === 'ST2606120001', 'orders map');
 assert(store.orders[0].statusText === 'Confirmed', 'order status text maps');
 assert(store.conversations['order-pg-1'].messages[0].text === 'Hello', 'conversation messages map');
-assert(store.payments.length === 0, 'payments start empty');
+assert(store.payments[0].paymentNo === 'PAY2606120001', 'payments map');
+assert(store.payments[0].amountText === '¥399', 'payment amount text maps');
+assert(store.payments[0].closedAt === undefined, 'nullable payment timestamps stay empty');
 assert(Array.isArray(store.sessions) && store.sessions.length === 0, 'sessions start empty');
 assert(store.auditLogs[0].auditCaseId === 'audit-case-pg-1', 'audit logs map');
 assert(store.adminActionLogs[0].note === 'Order marked disputed', 'admin action logs map');
@@ -201,7 +218,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'orders', 'conversations', 'sessions', 'audit-logs', 'admin-action-logs', 'security-events'],
+      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'orders', 'payments', 'conversations', 'sessions', 'audit-logs', 'admin-action-logs', 'security-events'],
       companionCount: store.companions.length,
       postCount: store.posts.length,
     },

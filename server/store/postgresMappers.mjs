@@ -12,7 +12,7 @@ export function buildStoreFromPostgresRows(rows) {
     activeSession: null,
     sessions: [],
     orders,
-    payments: [],
+    payments: mapPayments(rows),
     conversations: mapConversations(rows, orders),
     riskCases: [],
     messageRiskEvents: [],
@@ -160,6 +160,30 @@ function mapOrders(rows, companionById) {
       currentStep: orderStepIndex[status] ?? 0,
       createdAt: toIso(row.created_at),
       updatedAt: toIso(row.updated_at),
+    };
+  });
+}
+
+function mapPayments(rows) {
+  return (rows.payments || []).map((row) => {
+    const id = stringId(row.id);
+    const amountCents = number(row.amount_cents);
+    return {
+      id,
+      paymentId: id,
+      paymentNo: row.payment_no || id,
+      orderId: stringId(row.order_id),
+      channel: row.channel || 'wechat_pay',
+      provider: row.channel || 'wechat_pay',
+      mode: 'production',
+      status: row.status || 'pending',
+      amountCents,
+      amountText: formatMoney(amountCents),
+      transactionId: row.third_party_trade_no || undefined,
+      paidAt: toOptionalIso(row.paid_at),
+      closedAt: toOptionalIso(row.closed_at),
+      createdAt: toOptionalIso(row.created_at),
+      updatedAt: toOptionalIso(row.updated_at),
     };
   });
 }
@@ -325,6 +349,12 @@ function formatDuration(minutes) {
 
 function toIso(value) {
   if (!value) return new Date(0).toISOString();
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}
+
+function toOptionalIso(value) {
+  if (!value) return undefined;
   if (value instanceof Date) return value.toISOString();
   return new Date(value).toISOString();
 }

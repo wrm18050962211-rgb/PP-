@@ -243,6 +243,7 @@ async function fetchReadModelRows(pool) {
     postImages,
     postTags,
     orders,
+    payments,
     conversations,
     messages,
     auditLogs,
@@ -259,6 +260,7 @@ async function fetchReadModelRows(pool) {
     queryRows(pool, `select * from post_images where audit_status = 'approved' order by sort_order asc, created_at asc`),
     queryRows(pool, `select * from post_tags`),
     queryRows(pool, `select * from orders order by created_at desc limit 100`),
+    queryRows(pool, `select * from payments order by created_at desc limit 100`),
     queryRows(pool, `select * from conversations order by coalesce(last_message_at, updated_at, created_at) desc limit 100`),
     queryRows(
       pool,
@@ -289,6 +291,7 @@ async function fetchReadModelRows(pool) {
     postImages,
     postTags,
     orders,
+    payments,
     conversations,
     messages,
     auditLogs,
