@@ -10,8 +10,11 @@ const requiredOperations = [
   'recordAuditTrail',
   'recordSecurityEvent',
   'manageSession',
+  'upsertAuthIdentityUser',
 ];
 const requiredTables = [
+  'users',
+  'user_auth_identities',
   'orders',
   'order_status_logs',
   'payments',

@@ -108,6 +108,17 @@ export const postgresWriteOperations = [
       'revoke session on logout or security invalidation',
     ],
   },
+  {
+    name: 'upsertAuthIdentityUser',
+    route: 'POST /api/auth/wechat/login',
+    transaction: true,
+    tables: ['users', 'user_auth_identities'],
+    steps: [
+      'lock auth identity by provider and provider_user_id',
+      'create user and identity when this is the first login',
+      'update last_login_at for returning identities',
+    ],
+  },
 ];
 
 export function getPostgresWriteOperation(name) {
