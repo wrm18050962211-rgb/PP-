@@ -62,6 +62,30 @@ const checks = [
     ],
   },
   {
+    file: 'src/services/companionBookingSettingsService.ts',
+    includes: [
+      'function canUseSharedBookingStorage',
+      'return isMockFallbackAllowed()',
+      'if (!canUseSharedBookingStorage()',
+    ],
+  },
+  {
+    file: 'src/services/companionPackageService.ts',
+    includes: [
+      'function canUseSharedPackageStorage',
+      'return isMockFallbackAllowed()',
+      'if (!canUseSharedPackageStorage()',
+    ],
+  },
+  {
+    file: 'src/services/companionProfileService.ts',
+    includes: [
+      'function canUseSharedProfileStorage',
+      'return isMockFallbackAllowed()',
+      'if (!canUseSharedProfileStorage()',
+    ],
+  },
+  {
     file: 'src/services/authService.ts',
     includes: [
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'))",
