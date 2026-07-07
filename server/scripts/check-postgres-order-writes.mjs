@@ -1,4 +1,4 @@
-import { createOrderTransaction, markPaymentPaidTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from '../store/postgresOrderWrites.mjs';
+import { createOrderTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from '../store/postgresOrderWrites.mjs';
 
 const draft = {
   orderId: '00000000-0000-4000-8000-000000000001',
@@ -85,6 +85,20 @@ assert(paymentSql.at(-1) === 'commit', 'payment transaction commits last');
 const invalidPaymentClient = createMockClient([{ payment_status: 'paid', order_status: 'pending_payment' }]);
 await assertRejects(() => markPaymentPaidTransaction(invalidPaymentClient, paymentDraft), 'Payment is not pending', 'invalid payment status rejects');
 assert(invalidPaymentClient.calls.at(-1).sql === 'rollback', 'invalid payment rolls back');
+
+const terminalPaymentClient = createMockClient([{ payment_status: 'pending' }]);
+const terminalPayment = await markPaymentTerminalTransaction(terminalPaymentClient, {
+  paymentId: draft.paymentId,
+  status: 'closed',
+  thirdPartyTradeNo: 'wx-closed-001',
+  rawCallback: { trade_state: 'CLOSED' },
+  occurredAt: '2026-06-12T06:02:00.000Z',
+});
+const terminalPaymentSql = terminalPaymentClient.calls.map((call) => call.sql);
+assert(terminalPayment.payment?.status === 'closed', 'terminal payment updates status');
+assert(terminalPaymentSql.some((sql) => /from payments/i.test(sql) && /for update/i.test(sql)), 'terminal payment locks payment');
+assert(terminalPaymentSql.some((sql) => /update payments/i.test(sql) && /raw_callback/i.test(sql)), 'terminal payment stores raw callback');
+assert(terminalPaymentSql.at(-1) === 'commit', 'terminal payment commits');
 
 const confirmClient = createMockClient([{ order_status: 'paid_pending_confirm' }]);
 const confirmed = await transitionOrderTransaction(confirmClient, {
@@ -185,6 +199,7 @@ console.log(
         'payment-status-log',
         'pay-commit',
         'pay-rollback',
+        'terminal-payment',
         'confirm-order',
         'complete-order',
         'complete-settlement',
@@ -199,6 +214,7 @@ console.log(
       ],
       successQueryCount: successClient.calls.length,
       paymentQueryCount: paymentClient.calls.length,
+      terminalPaymentQueryCount: terminalPaymentClient.calls.length,
       transitionQueryCount: confirmClient.calls.length + completeClient.calls.length + cancelClient.calls.length,
       adminStatusQueryCount: adminStatusClient.calls.length + adminCompletedClient.calls.length,
     },
@@ -247,9 +263,14 @@ function createMockClient(slotRows) {
           ],
         };
       }
+      if (/select id, status from payments/i.test(normalized)) {
+        const row = slotRows[0] || {};
+        return { rows: [{ id: draft.paymentId, status: row.payment_status || 'pending' }] };
+      }
       if (/insert into orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'pending_payment' }] };
       if (/insert into payments/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'pending' }] };
-      if (/update payments/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'paid' }] };
+      if (/update payments/i.test(normalized) && /status = 'paid'/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'paid' }] };
+      if (/update payments/i.test(normalized) && /raw_callback/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: params[0] }] };
       if (/update orders/i.test(normalized) && /paid_pending_confirm/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'paid_pending_confirm' }] };
       if (/update orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: params[0] }] };
       if (/insert into conversations/i.test(normalized)) return { rows: [{ id: paymentDraft.conversationId, order_id: draft.orderId, status: 'active' }] };

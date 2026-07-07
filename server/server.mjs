@@ -2848,6 +2848,9 @@ async function wechatPaymentNotify(store, body = {}) {
   if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
   if (dataStore.kind !== 'json' && dataStore.orderWrites?.markPaymentPaid) {
     if (transaction.trade_state === 'SUCCESS') return markPostgresWechatPaymentPaid(payment, transaction);
+    if (['CLOSED', 'REVOKED', 'PAYERROR'].includes(transaction.trade_state) && dataStore.orderWrites.markPaymentTerminal) {
+      return markPostgresWechatPaymentTerminal(payment, transaction);
+    }
     return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
   }
   payment.transactionId = transaction.transaction_id;
@@ -2868,6 +2871,18 @@ async function markPostgresWechatPaymentPaid(payment, transaction) {
     rawCallback: transaction,
     operatorType: 'system',
     statusReason: 'WeChat Pay callback succeeded',
+  });
+  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
+}
+
+async function markPostgresWechatPaymentTerminal(payment, transaction) {
+  const status = transaction.trade_state === 'PAYERROR' ? 'failed' : 'closed';
+  await dataStore.orderWrites.markPaymentTerminal({
+    paymentId: payment.id,
+    status,
+    occurredAt: now(),
+    thirdPartyTradeNo: transaction.transaction_id || null,
+    rawCallback: transaction,
   });
   return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
 }

@@ -69,12 +69,22 @@ assert(adminClient.calls.some((call) => /update orders/i.test(call.sql) && /stat
 assert(adminClient.calls.some((call) => /insert into order_status_logs/i.test(call.sql)), 'admin order gateway writes status log');
 assert(adminClient.released === true, 'admin order gateway releases client');
 
+const terminalResult = await store.orderWrites.markPaymentTerminal({
+  paymentId: '00000000-0000-4000-8000-000000000827',
+  status: 'failed',
+  rawCallback: { trade_state: 'PAYERROR' },
+});
+const terminalClient = pool.clients[2];
+assert(terminalResult.payment?.status === 'failed', 'terminal payment gateway returns terminal status');
+assert(terminalClient.calls.some((call) => /update payments/i.test(call.sql) && /raw_callback/i.test(call.sql)), 'terminal payment gateway updates payment');
+assert(terminalClient.released === true, 'terminal payment gateway releases client');
+
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['order-write-capability', 'create-order-gateway', 'admin-status-gateway', 'client-release'],
-      queryCount: client.calls.length + adminClient.calls.length,
+      checks: ['order-write-capability', 'create-order-gateway', 'admin-status-gateway', 'terminal-payment-gateway', 'client-release'],
+      queryCount: client.calls.length + adminClient.calls.length + terminalClient.calls.length,
     },
     null,
     2,
@@ -115,9 +125,11 @@ function createMockClient() {
           ],
         };
       }
+      if (/from payments/i.test(normalized) && /for update/i.test(normalized)) return { rows: [{ id: params[0], status: 'pending' }] };
       if (/insert into orders/i.test(normalized)) return { rows: [{ id: params[0], order_no: params[1] }] };
       if (/insert into payments/i.test(normalized)) return { rows: [{ id: params[0], status: 'pending' }] };
       if (/update orders/i.test(normalized)) return { rows: [{ id: params[3], status: params[0] }] };
+      if (/update payments/i.test(normalized)) return { rows: [{ id: params[4], status: params[0] }] };
       return { rows: [] };
     },
     release() {

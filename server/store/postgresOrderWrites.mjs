@@ -184,6 +184,47 @@ export async function markPaymentPaidTransaction(client, draft) {
   }
 }
 
+export async function markPaymentTerminalTransaction(client, draft) {
+  assertClient(client);
+  assertTerminalPaymentDraft(draft);
+
+  await client.query('begin');
+  try {
+    const paymentResult = await client.query(
+      `select id, status
+       from payments
+       where id = $1
+       for update`,
+      [draft.paymentId],
+    );
+    const payment = paymentResult.rows?.[0];
+    if (!payment) throw conflict('PAYMENT_NOT_FOUND', 'Payment not found');
+    if (payment.status !== 'pending') {
+      await client.query('commit');
+      return { payment, skipped: true };
+    }
+
+    const occurredAt = draft.occurredAt || new Date().toISOString();
+    const updatedPayment = await client.query(
+      `update payments
+       set status = $1,
+           third_party_trade_no = coalesce($2, third_party_trade_no),
+           raw_callback = $3,
+           closed_at = case when $1 = 'closed' then $4 else closed_at end,
+           updated_at = now()
+       where id = $5
+       returning *`,
+      [draft.status, draft.thirdPartyTradeNo || null, draft.rawCallback || {}, occurredAt, draft.paymentId],
+    );
+
+    await client.query('commit');
+    return { payment: updatedPayment.rows?.[0] || null, skipped: false };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  }
+}
+
 export async function transitionOrderTransaction(client, draft) {
   assertClient(client);
   assertTransitionDraft(draft);
@@ -361,6 +402,13 @@ function assertPaymentDraft(draft) {
   const required = ['paymentId', 'conversationId', 'statusLogId'];
   const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
   if (missing.length) throw new Error(`Missing markPaymentPaid draft fields: ${missing.join(', ')}`);
+}
+
+function assertTerminalPaymentDraft(draft) {
+  const required = ['paymentId', 'status'];
+  const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
+  if (!['closed', 'failed'].includes(draft?.status)) missing.push('status:closed_or_failed');
+  if (missing.length) throw new Error(`Missing terminal payment draft fields: ${missing.join(', ')}`);
 }
 
 function assertTransitionDraft(draft) {
