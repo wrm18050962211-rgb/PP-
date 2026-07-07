@@ -119,6 +119,15 @@ export async function markPaymentPaidTransaction(client, draft) {
     );
     const payment = paymentResult.rows?.[0];
     if (!payment) throw conflict('PAYMENT_NOT_FOUND', 'Payment not found');
+    if (payment.payment_status === 'paid') {
+      await client.query('commit');
+      return {
+        payment: { id: payment.payment_id, status: payment.payment_status },
+        order: { id: payment.order_id, status: payment.order_status },
+        conversation: null,
+        skipped: true,
+      };
+    }
     if (payment.payment_status !== 'pending') throw conflict('PAYMENT_STATUS_INVALID', 'Payment is not pending');
     if (payment.order_status !== 'pending_payment') throw conflict('ORDER_STATUS_INVALID', 'Order is not pending payment');
 

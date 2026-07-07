@@ -82,7 +82,12 @@ assert(paymentSql.some((sql) => /insert into conversations/i.test(sql) && /on co
 assert(paymentSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'records payment status log');
 assert(paymentSql.at(-1) === 'commit', 'payment transaction commits last');
 
-const invalidPaymentClient = createMockClient([{ payment_status: 'paid', order_status: 'pending_payment' }]);
+const duplicatePaymentClient = createMockClient([{ payment_status: 'paid', order_status: 'paid_pending_confirm' }]);
+const duplicatePaid = await markPaymentPaidTransaction(duplicatePaymentClient, paymentDraft);
+assert(duplicatePaid.skipped === true && duplicatePaid.payment?.status === 'paid', 'duplicate paid callback is idempotent');
+assert(duplicatePaymentClient.calls.at(-1).sql === 'commit', 'duplicate paid callback commits without side effects');
+
+const invalidPaymentClient = createMockClient([{ payment_status: 'closed', order_status: 'pending_payment' }]);
 await assertRejects(() => markPaymentPaidTransaction(invalidPaymentClient, paymentDraft), 'Payment is not pending', 'invalid payment status rejects');
 assert(invalidPaymentClient.calls.at(-1).sql === 'rollback', 'invalid payment rolls back');
 
@@ -215,6 +220,7 @@ console.log(
         'conversation',
         'payment-status-log',
         'pay-commit',
+        'pay-idempotent-skip',
         'pay-rollback',
         'terminal-payment',
         'expire-pending-payments',
@@ -232,6 +238,7 @@ console.log(
       ],
       successQueryCount: successClient.calls.length,
       paymentQueryCount: paymentClient.calls.length,
+      duplicatePaymentQueryCount: duplicatePaymentClient.calls.length,
       terminalPaymentQueryCount: terminalPaymentClient.calls.length,
       expiredPaymentQueryCount: expiredPaymentClient.calls.length,
       transitionQueryCount: confirmClient.calls.length + completeClient.calls.length + cancelClient.calls.length,
