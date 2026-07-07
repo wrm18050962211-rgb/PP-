@@ -115,7 +115,7 @@ export function CompanionOnboarding() {
         </div>
       </FormBlock>
 
-      <FormBlock title="3. 人脸识别占位流程">
+      <FormBlock title="3. 真人校验">
         <div className="rounded-[10px] border border-dashed border-zinc-300 p-4">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-full bg-zinc-100">
@@ -123,7 +123,7 @@ export function CompanionOnboarding() {
             </span>
             <div className="flex-1">
               <p className="text-sm font-bold">{faceStatusText[application.faceCheckStatus]}</p>
-              <p className="mt-0.5 text-xs text-zinc-500">MVP 先模拟活体检测，后续接入三方认证接口。</p>
+              <p className="mt-0.5 text-xs text-zinc-500">用于辅助确认本人入驻，平台会结合证件与资料进行复核。</p>
             </div>
           </div>
           <button className="mt-4 h-11 w-full rounded-full bg-zinc-950 text-sm font-bold text-white" onClick={startFaceCheck}>
@@ -223,7 +223,7 @@ function getAuditItems(application: CompanionApplication) {
     {
       icon: ShieldCheck,
       label: '人脸识别',
-      desc: 'MVP 模拟通过，后续接三方活体',
+      desc: '用于辅助确认本人入驻',
       done: application.faceCheckStatus === 'passed',
     },
     {

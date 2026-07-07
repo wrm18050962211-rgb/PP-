@@ -245,7 +245,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         persist({ application: nextApplication });
         if (status === '已通过') {
           completeRoleRegistration('companion', {
-            photographerName: nextApplication.nickname || 'Demo Photographer',
+            photographerName: nextApplication.nickname || 'Studio',
             photographerAvatarUrl: nextApplication.avatarImage,
           });
         }

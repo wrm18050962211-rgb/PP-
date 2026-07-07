@@ -123,7 +123,7 @@ export function ServiceRangeSettings() {
             <div className="min-w-0 flex-1">
               <p className="text-sm text-white/65">当前可服务范围</p>
               <h2 className="mt-1 text-2xl font-bold">{scopeSummary}</h2>
-              <p className="mt-2 text-sm leading-6 text-white/70">MVP 先用城市、可接地点和最大公里数建立接单边界，地图圈选后续接入。</p>
+              <p className="mt-2 text-sm leading-6 text-white/70">用 base 城市、可接地点和最大公里数建立接单边界，订单里再确认具体地址。</p>
             </div>
           </div>
         </section>
