@@ -86,6 +86,31 @@ const checks = [
     ],
   },
   {
+    file: 'src/services/userCollectionService.ts',
+    includes: [
+      'if (!isMockFallbackAllowed()) return emptyCollections()',
+      'if (!isMockFallbackAllowed()) return []',
+      'function emptyCollections',
+    ],
+  },
+  {
+    file: 'src/services/consultationService.ts',
+    includes: [
+      'function assertLocalConsultationAllowed',
+      'if (!isMockFallbackAllowed()) throw new Error',
+      'if (!isMockFallbackAllowed()) return []',
+      'if (!isMockFallbackAllowed()) return null',
+    ],
+  },
+  {
+    file: 'src/services/orderWorkService.ts',
+    includes: [
+      'function assertLocalOrderWorkAllowed',
+      'if (!isMockFallbackAllowed()) throw new Error',
+      'if (!isMockFallbackAllowed()) return []',
+    ],
+  },
+  {
     file: 'src/services/authService.ts',
     includes: [
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'))",
