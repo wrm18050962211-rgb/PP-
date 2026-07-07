@@ -58,18 +58,27 @@ assert(
     actorId: 'user-1',
     actorRole: 'consumer',
     targetType: 'admin_api',
+    targetId: 'admin-route',
+    targetKey: '/api/admin/orders',
     requiredRole: 'admin',
     actualRole: 'consumer',
     reason: 'Admin role is required',
+    metadata: { method: 'GET' },
+    ip: '127.0.0.1',
+    userAgent: 'runtime-audit-check',
   }) === true,
   'security event mirror is enabled',
 );
 assert(writes.securityEvent?.eventId === 'security-event-1', 'security event id is mapped');
 assert(writes.securityEvent?.eventType === 'permission_denied', 'security event type is mapped');
+assert(writes.securityEvent?.targetKey === '/api/admin/orders', 'security event target key is mapped');
+assert(writes.securityEvent?.metadata?.method === 'GET', 'security event metadata is mapped');
+assert(writes.securityEvent?.ip === '127.0.0.1', 'security event ip is mapped');
+assert(writes.securityEvent?.userAgent === 'runtime-audit-check', 'security event user agent is mapped');
 
 assert(mirrorAdminAction({}, { id: 'ignored', action: 'noop' }) === false, 'missing gateway is a no-op');
 
-console.log(JSON.stringify({ ok: true, checks: ['audit-log-mirror', 'admin-action-mirror', 'security-event-mirror', 'missing-gateway-noop'] }, null, 2));
+console.log(JSON.stringify({ ok: true, checks: ['audit-log-mirror', 'admin-action-mirror', 'security-event-mirror', 'security-event-context', 'missing-gateway-noop'] }, null, 2));
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Runtime audit gateway check failed: ${message}`);
