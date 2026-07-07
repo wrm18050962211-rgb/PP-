@@ -14,6 +14,7 @@
     "check:postgres-store-auth-gateway": "node scripts/check-postgres-store-auth-gateway.mjs",
     "check:postgres-store-audit-security-gateway": "node scripts/check-postgres-store-audit-security-gateway.mjs",
     "check:postgres-store-session-gateway": "node scripts/check-postgres-store-session-gateway.mjs",
+    "check:postgres-store-message-gateway": "node scripts/check-postgres-store-message-gateway.mjs",
     "check:postgres-mappers": "node scripts/check-postgres-mappers.mjs",
     "check:postgres-write-plan": "node scripts/check-postgres-write-plan.mjs",
     "check:postgres-auth-writes": "node scripts/check-postgres-auth-writes.mjs",
