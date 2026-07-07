@@ -87,7 +87,7 @@ http
       sendJson(req, res, 500, fail('SERVER_ERROR', error instanceof Error ? error.message : 'Server error'));
     }
   })
-  .listen(port, () => console.log(`PP backend MVP listening on http://127.0.0.1:${port}`));
+  .listen(port, () => console.log(`Still backend listening on http://127.0.0.1:${port}`));
 
 async function route(method, url, body, store, req) {
   const path = url.pathname;
@@ -2427,7 +2427,7 @@ async function wechatPayRequest(method, path, body, privateKey) {
       Accept: 'application/json',
       Authorization: authorization,
       'Content-Type': 'application/json',
-      'User-Agent': 'PP-Platform-MVP/1.0',
+      'User-Agent': 'Still-Platform/1.0',
     },
     body: bodyText || undefined,
   });
