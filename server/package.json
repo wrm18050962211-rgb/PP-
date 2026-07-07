@@ -10,6 +10,7 @@
     "job:retry-provider-callbacks": "node scripts/run-provider-callback-retry-job.mjs",
     "smoke": "node scripts/smoke.mjs",
     "check:mvp": "node scripts/check-mvp.mjs",
+    "check:ci-workflow": "node scripts/check-ci-workflow.mjs",
     "check:auth-schema": "node ../database/scripts/check-auth-schema.mjs",
     "check:schema-parity": "node ../database/scripts/check-schema-parity.mjs",
     "check:store-driver": "node scripts/check-store-driver.mjs",
