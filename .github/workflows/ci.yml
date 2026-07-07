@@ -1,0 +1,59 @@
+name: Still CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex/**"
+
+jobs:
+  server-check:
+    name: Server MVP Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run server MVP checks
+        working-directory: server
+        run: npm run check:mvp
+
+      - name: Run optional live PostgreSQL check
+        working-directory: server
+        run: npm run check:postgres-live
+
+  frontend-check:
+    name: Frontend Production Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: pp-app/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: pp-app
+        run: npm ci
+
+      - name: Run production guard checks
+        working-directory: pp-app
+        run: npm run check:production-guards
+
+      - name: Build mobile app bundle
+        working-directory: pp-app
+        run: npm run build:mobile
+
+      - name: Build admin web bundle
+        working-directory: pp-app
+        run: npm run build:admin
