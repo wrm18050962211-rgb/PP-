@@ -3,8 +3,9 @@ export const postgresWriteOperations = [
     name: 'createOrder',
     route: 'POST /api/orders',
     transaction: true,
-    tables: ['orders', 'order_extras', 'order_status_logs', 'payments', 'availability_slots'],
+    tables: ['idempotency_keys', 'orders', 'order_extras', 'order_status_logs', 'payments', 'availability_slots'],
     steps: [
+      'begin idempotency key for actor-scoped create order request',
       'select activity_pricings and availability_slots for update',
       'validate availability_slots.status = available',
       'insert orders with status pending_payment',
@@ -12,6 +13,7 @@ export const postgresWriteOperations = [
       'insert payments with status pending',
       'update availability_slots to locked with locked_order_id',
       'insert order_status_logs',
+      'complete idempotency key with cached response after successful order creation',
     ],
   },
   {

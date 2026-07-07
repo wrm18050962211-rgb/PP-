@@ -17,6 +17,7 @@ const requiredOperations = [
 const requiredTables = [
   'users',
   'user_auth_identities',
+  'idempotency_keys',
   'orders',
   'order_status_logs',
   'payments',
