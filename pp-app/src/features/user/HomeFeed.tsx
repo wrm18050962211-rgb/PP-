@@ -225,7 +225,7 @@ export function HomeFeed() {
     setMatchedPostIds(null);
 
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setLocationMessage('当前环境不支持定位，已使用本地附近演示排序');
+      setLocationMessage('当前环境不支持定位，已按默认位置排序');
       setFilters((current) => ({ ...current, city: '不限', district: '不限', area: '不限', locationPointName: '当前位置', nearbyOnly: true, channel: channels[2] }));
       return;
     }
@@ -253,7 +253,7 @@ export function HomeFeed() {
         }));
       },
       (error) => {
-        setLocationMessage(error.code === error.PERMISSION_DENIED ? '未获得定位授权，已使用本地附近演示排序' : '定位暂时失败，已使用本地附近演示排序');
+        setLocationMessage(error.code === error.PERMISSION_DENIED ? '未获得定位授权，已按默认位置排序' : '定位暂时失败，已按默认位置排序');
         setFilters((current) => ({ ...current, city: '不限', district: '不限', area: '不限', locationPointName: '当前位置', nearbyOnly: true, channel: channels[2] }));
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
