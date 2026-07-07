@@ -6,7 +6,7 @@ import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
 import { applyModerationActionTransaction, createReportTransaction, reviewAuditCaseTransaction } from './postgresModerationWrites.mjs';
 import { createOrderTransaction, expirePendingPaymentsTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, markRefundTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
-import { markProviderCallbackFailedTransaction, markProviderCallbackProcessedTransaction, recordProviderCallbackReceivedTransaction } from './postgresProviderCallbackWrites.mjs';
+import { claimDueProviderCallbacksTransaction, markProviderCallbackFailedTransaction, markProviderCallbackProcessedTransaction, recordProviderCallbackReceivedTransaction } from './postgresProviderCallbackWrites.mjs';
 import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from './postgresSessionWrites.mjs';
 import { recordSecurityEventTransaction } from './postgresSecurityWrites.mjs';
 import { hashSessionToken } from './sessionTokenHash.mjs';
@@ -74,6 +74,7 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
     },
     providerCallbackWrites: {
       recordReceived: (draft) => withClient((client) => recordProviderCallbackReceivedTransaction(client, draft)),
+      claimDue: (draft) => withClient((client) => claimDueProviderCallbacksTransaction(client, draft)),
       markProcessed: (draft) => withClient((client) => markProviderCallbackProcessedTransaction(client, draft)),
       markFailed: (draft) => withClient((client) => markProviderCallbackFailedTransaction(client, draft)),
     },

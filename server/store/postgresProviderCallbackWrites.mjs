@@ -105,6 +105,39 @@ export async function markProviderCallbackFailedTransaction(client, draft = {}) 
   }
 }
 
+export async function claimDueProviderCallbacksTransaction(client, draft = {}) {
+  assertClient(client);
+
+  const dueAt = draft.dueAt || new Date().toISOString();
+  const limit = normalizePositiveInteger(draft.limit, 20, 200);
+  await client.query('begin');
+  try {
+    const result = await client.query(
+      `with due as (
+         select id
+         from provider_callback_events
+         where status = 'retrying'
+           and (next_retry_at is null or next_retry_at <= $1)
+         order by coalesce(next_retry_at, created_at) asc, created_at asc
+         limit $2
+         for update skip locked
+       )
+       update provider_callback_events e
+       set status = 'processing',
+           updated_at = now()
+       from due
+       where e.id = due.id
+       returning e.*`,
+      [dueAt, limit],
+    );
+    await client.query('commit');
+    return result.rows || [];
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  }
+}
+
 function assertClient(client) {
   if (!client || typeof client.query !== 'function') {
     throw new Error('PostgreSQL client with query(sql, params) is required');
@@ -119,4 +152,10 @@ function assertReceivedDraft(draft) {
 
 function assertCallbackEventId(draft) {
   if (!draft?.callbackEventId) throw new Error('Missing provider callback draft fields: callbackEventId');
+}
+
+function normalizePositiveInteger(value, fallback, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(Math.floor(parsed), max);
 }

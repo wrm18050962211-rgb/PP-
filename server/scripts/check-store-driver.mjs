@@ -64,6 +64,7 @@ try {
   assert(
     postgresStore.capabilities?.providerCallbackWrites === true &&
       typeof postgresStore.providerCallbackWrites?.recordReceived === 'function' &&
+      typeof postgresStore.providerCallbackWrites?.claimDue === 'function' &&
       typeof postgresStore.providerCallbackWrites?.markProcessed === 'function' &&
       typeof postgresStore.providerCallbackWrites?.markFailed === 'function',
     'postgres store exposes provider callback write gateway',

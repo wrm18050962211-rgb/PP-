@@ -1,4 +1,5 @@
 import {
+  claimDueProviderCallbacksTransaction,
   markProviderCallbackFailedTransaction,
   markProviderCallbackProcessedTransaction,
   recordProviderCallbackReceivedTransaction,
@@ -53,6 +54,16 @@ await markProviderCallbackFailedTransaction(terminalFailureClient, {
 });
 assert(terminalFailureClient.calls.some((call) => call.params?.[1] === 'failed'), 'non-retryable callback failure becomes failed');
 
+const claimClient = createMockClient();
+const claimed = await claimDueProviderCallbacksTransaction(claimClient, {
+  dueAt: '2026-07-08T12:00:00.000Z',
+  limit: 10,
+});
+assert(claimed.length === 1 && claimed[0].status === 'processing', 'claim returns processing callback event');
+assert(claimClient.calls.some((call) => /status = 'retrying'/i.test(call.sql)), 'claim only selects retrying callbacks');
+assert(claimClient.calls.some((call) => /for update skip locked/i.test(call.sql)), 'claim uses row lock skip locked');
+assert(claimClient.calls.some((call) => /status = 'processing'/i.test(call.sql)), 'claim marks callbacks processing');
+
 const rollbackClient = createMockClient({ failInsert: true });
 await assertRejects(
   () =>
@@ -71,7 +82,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['received-upsert', 'processed-link', 'retryable-failure', 'terminal-failure', 'rollback'],
+      checks: ['received-upsert', 'processed-link', 'retryable-failure', 'terminal-failure', 'claim-due', 'rollback'],
     },
     null,
     2,
@@ -91,6 +102,9 @@ function createMockClient(options = {}) {
       }
       if (/update provider_callback_events/i.test(normalized) && /status = 'processed'/i.test(normalized)) {
         return { rows: [{ id: params[0], status: 'processed', payment_id: params[3], order_id: params[5] }] };
+      }
+      if (/update provider_callback_events/i.test(normalized) && /status = 'processing'/i.test(normalized)) {
+        return { rows: [{ id: '00000000-0000-4000-8000-000000000a03', status: 'processing' }] };
       }
       if (/update provider_callback_events/i.test(normalized)) {
         return { rows: [{ id: params[0], status: params[1], retry_count: 1, last_error: params[3] }] };

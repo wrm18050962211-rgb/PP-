@@ -24,6 +24,7 @@ export const postgresWriteOperations = [
     steps: [
       'record raw provider callback event before business status mutation',
       'dedupe by provider, event type, and provider event id',
+      'claim due retrying callback events with row locks before retry workers process them',
       'mark processed after the payment or refund transaction succeeds',
       'mark retrying or failed when callback processing cannot be completed',
     ],
