@@ -7,7 +7,7 @@ import {
   submitCompanionApplicationReview,
 } from '../services/companionService';
 import { completeRoleRegistration, fetchAuthSession } from '../services/authService';
-import { isApiEnabled, isProductionAppEnv } from '../services/apiClient';
+import { isApiEnabled, isMockFallbackAllowed, isProductionAppEnv } from '../services/apiClient';
 import { readDomainJson, writeDomainJson } from '../services/scopedStorage';
 import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderFunding, updateLedgerOrderStatus, upsertLedgerOrder } from '../services/virtualOrderLedger';
 import { defaultBookingSettings } from '../data/bookingSettings';
@@ -20,7 +20,7 @@ import { AppDataContext, type AppData } from './appDataContext';
 const storageKey = 'app-data-v1';
 const defaultApplication = getDefaultApplication();
 const defaultWorkDraft = getDefaultWorkDraft();
-const defaultOrders = listSeedOrders();
+const defaultOrders = isMockFallbackAllowed() ? listSeedOrders() : [];
 const orderCreateFailedMessage = '订单创建失败，请检查网络后重试。';
 const orderCreateLocalFallbackMessage = '订单没有同步到服务端，已先保存在本机。请稍后重新确认。';
 const orderStatusFailedMessage = '订单状态更新失败，请检查网络后重试。';
