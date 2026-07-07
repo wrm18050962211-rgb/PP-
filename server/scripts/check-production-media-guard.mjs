@@ -73,6 +73,10 @@ try {
     securityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'orders_api' && item.actualRole === 'admin'),
     'production records admin-token public API denial',
   );
+  assert(
+    securityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'conversation' && item.actualRole === 'admin'),
+    'production records admin-token conversations API denial',
+  );
 
   const anonymousUpload = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg' }, { omitAuth: true, expectOk: false });
   assert(anonymousUpload.error?.code === 'AUTH_REQUIRED', 'production media policy still requires auth');
