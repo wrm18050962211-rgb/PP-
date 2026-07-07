@@ -4,6 +4,7 @@ export function buildStoreFromPostgresRows(rows) {
   const posts = mapPosts(rows, companionById);
   const orders = mapOrders(rows, companionById);
   const reports = mapReports(rows, orders);
+  const settlements = mapSettlements(rows, orders);
 
   return {
     meta: { version: 3 },
@@ -22,10 +23,10 @@ export function buildStoreFromPostgresRows(rows) {
     auditLogs: mapAuditLogs(rows),
     adminActionLogs: mapAdminActionLogs(rows),
     securityEvents: mapSecurityEvents(rows),
-    settlements: [],
-    ledgerEntries: [],
-    refunds: [],
-    wallets: [],
+    settlements,
+    ledgerEntries: mapLedgerEntries(rows),
+    refunds: mapRefunds(rows, orders),
+    wallets: mapWallets(rows),
     application: { reviewStatus: 'draft', updatedAt: new Date().toISOString() },
     workDraft: { reviewStatus: 'draft', updatedAt: new Date().toISOString() },
   };
@@ -351,6 +352,83 @@ function mapAuditCases(rows, reports) {
       logs: logsByCaseId.get(id) || [],
     };
   });
+}
+
+function mapSettlements(rows, orders) {
+  const orderById = new Map(orders.map((order) => [order.id, order]));
+  return (rows.settlements || []).map((row) => {
+    const order = orderById.get(stringId(row.order_id));
+    return {
+      id: stringId(row.id),
+      orderId: stringId(row.order_id),
+      orderNo: order?.orderNo || '',
+      companionId: stringId(row.companion_id),
+      grossCents: number(row.gross_amount_cents),
+      commissionCents: number(row.platform_fee_cents),
+      payableCents: number(row.net_amount_cents),
+      status: row.status || 'pending',
+      settleAfter: toIso(row.settle_after),
+      settledAt: toOptionalIso(row.settled_at),
+      frozenReason: row.frozen_reason || '',
+      createdAt: toIso(row.created_at),
+      updatedAt: toOptionalIso(row.updated_at),
+    };
+  });
+}
+
+function mapLedgerEntries(rows) {
+  return (rows.ledgerEntries || []).map((row) => ({
+    id: stringId(row.id),
+    companionId: stringId(row.companion_id),
+    orderId: row.order_id ? stringId(row.order_id) : null,
+    settlementId: row.settlement_id ? stringId(row.settlement_id) : null,
+    entryType: row.entry_type,
+    direction: row.direction || 'in',
+    amountCents: number(row.amount_cents),
+    balanceType: row.balance_type || '',
+    balanceAfterCents: number(row.balance_after_cents),
+    status: row.status || 'posted',
+    description: row.description || '',
+    createdAt: toIso(row.created_at),
+  }));
+}
+
+function mapRefunds(rows, orders) {
+  const orderById = new Map(orders.map((order) => [order.id, order]));
+  return (rows.refunds || []).map((row) => {
+    const order = orderById.get(stringId(row.order_id));
+    return {
+      id: stringId(row.id),
+      orderId: stringId(row.order_id),
+      orderNo: order?.orderNo || '',
+      paymentId: row.payment_id ? stringId(row.payment_id) : null,
+      refundNo: row.refund_no || stringId(row.id),
+      amountCents: number(row.amount_cents),
+      penaltyCents: 0,
+      platformFeeCents: 0,
+      compensationToCounterpartyCents: 0,
+      reason: row.reason || '',
+      status: row.status || 'pending',
+      requestedBy: row.requested_by ? stringId(row.requested_by) : null,
+      processedBy: row.processed_by ? stringId(row.processed_by) : null,
+      refundedAt: toOptionalIso(row.refunded_at),
+      createdAt: toIso(row.created_at),
+      updatedAt: toOptionalIso(row.updated_at),
+    };
+  });
+}
+
+function mapWallets(rows) {
+  return (rows.wallets || []).map((row) => ({
+    id: stringId(row.companion_id),
+    companionId: stringId(row.companion_id),
+    pendingCents: number(row.pending_cents),
+    availableCents: number(row.available_cents),
+    frozenCents: number(row.frozen_cents),
+    withdrawnCents: number(row.withdrawn_cents),
+    createdAt: toIso(row.created_at),
+    updatedAt: toOptionalIso(row.updated_at),
+  }));
 }
 
 function mapAuditLogs(rows) {

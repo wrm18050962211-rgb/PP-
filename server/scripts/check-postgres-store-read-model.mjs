@@ -18,6 +18,10 @@ assert(loadedStore.conversations['00000000-0000-4000-8000-000000000901']?.messag
 assert(loadedStore.riskCases[0]?.orderId === loadedStore.orders[0]?.id, 'message risk cases are loaded');
 assert(loadedStore.reports[0]?.orderId === loadedStore.orders[0]?.id, 'reports are loaded');
 assert(loadedStore.auditCases[0]?.targetId === loadedStore.reports[0]?.id, 'audit cases are loaded');
+assert(loadedStore.refunds[0]?.orderId === loadedStore.orders[0]?.id, 'refunds are loaded');
+assert(loadedStore.settlements[0]?.orderId === loadedStore.orders[0]?.id, 'settlements are loaded');
+assert(loadedStore.ledgerEntries[0]?.settlementId === loadedStore.settlements[0]?.id, 'ledger entries are loaded');
+assert(loadedStore.wallets[0]?.companionId === loadedStore.orders[0]?.companionId, 'wallets are loaded');
 assert(pool.calls.some((call) => /from orders/i.test(call.sql)), 'orders query is issued');
 assert(pool.calls.some((call) => /from payments/i.test(call.sql)), 'payments query is issued');
 assert(pool.calls.some((call) => /from conversations/i.test(call.sql)), 'conversations query is issued');
@@ -25,18 +29,24 @@ assert(pool.calls.some((call) => /from messages/i.test(call.sql)), 'messages que
 assert(pool.calls.some((call) => /from message_risk_events/i.test(call.sql)), 'message risk events query is issued');
 assert(pool.calls.some((call) => /from reports/i.test(call.sql)), 'reports query is issued');
 assert(pool.calls.some((call) => /from audit_cases/i.test(call.sql)), 'audit cases query is issued');
+assert(pool.calls.some((call) => /from refunds/i.test(call.sql)), 'refunds query is issued');
+assert(pool.calls.some((call) => /from settlements/i.test(call.sql)), 'settlements query is issued');
+assert(pool.calls.some((call) => /from ledger_entries/i.test(call.sql)), 'ledger entries query is issued');
+assert(pool.calls.some((call) => /from companion_wallets/i.test(call.sql)), 'wallets query is issued');
 
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['store-load-read-model', 'orders-query', 'payments-query', 'conversations-query', 'messages-query', 'risk-query', 'reports-query', 'audit-cases-query'],
+      checks: ['store-load-read-model', 'orders-query', 'payments-query', 'conversations-query', 'messages-query', 'risk-query', 'reports-query', 'audit-cases-query', 'refunds-query', 'settlements-query', 'ledger-query', 'wallets-query'],
       orderCount: loadedStore.orders.length,
       paymentCount: loadedStore.payments.length,
       conversationCount: Object.keys(loadedStore.conversations).length,
       riskCaseCount: loadedStore.riskCases.length,
       reportCount: loadedStore.reports.length,
       auditCaseCount: loadedStore.auditCases.length,
+      refundCount: loadedStore.refunds.length,
+      settlementCount: loadedStore.settlements.length,
       queryCount: pool.calls.length,
     },
     null,
@@ -210,6 +220,81 @@ function createMockPool() {
               reviewed_at: null,
               created_at: '2026-07-08T09:11:00.000Z',
               updated_at: '2026-07-08T09:11:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from refunds/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000913',
+              order_id: '00000000-0000-4000-8000-000000000901',
+              payment_id: '00000000-0000-4000-8000-000000000909',
+              refund_no: 'REF2607080001',
+              amount_cents: 19900,
+              reason: 'Client cancellation',
+              status: 'pending',
+              requested_by: '00000000-0000-4000-8000-000000000904',
+              processed_by: null,
+              refunded_at: null,
+              created_at: '2026-07-08T09:20:00.000Z',
+              updated_at: '2026-07-08T09:20:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from settlements/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000914',
+              order_id: '00000000-0000-4000-8000-000000000901',
+              companion_id: '00000000-0000-4000-8000-000000000902',
+              gross_amount_cents: 39900,
+              platform_fee_cents: 3192,
+              net_amount_cents: 36708,
+              status: 'pending',
+              settle_after: '2026-07-09T09:00:00.000Z',
+              settled_at: null,
+              frozen_reason: null,
+              created_at: '2026-07-08T09:30:00.000Z',
+              updated_at: '2026-07-08T09:30:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from ledger_entries/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000915',
+              companion_id: '00000000-0000-4000-8000-000000000902',
+              order_id: '00000000-0000-4000-8000-000000000901',
+              settlement_id: '00000000-0000-4000-8000-000000000914',
+              entry_type: 'order_income',
+              direction: 'in',
+              amount_cents: 36708,
+              balance_type: 'pending',
+              balance_after_cents: 36708,
+              status: 'posted',
+              description: 'Order completed',
+              created_at: '2026-07-08T09:31:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from companion_wallets/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              companion_id: '00000000-0000-4000-8000-000000000902',
+              pending_cents: 36708,
+              available_cents: 120000,
+              frozen_cents: 0,
+              withdrawn_cents: 50000,
+              created_at: '2026-07-08T09:31:00.000Z',
+              updated_at: '2026-07-08T09:31:00.000Z',
             },
           ],
         };

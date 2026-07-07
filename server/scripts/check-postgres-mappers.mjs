@@ -238,6 +238,65 @@ const rows = {
       updated_at: '2026-06-12T06:11:00.000Z',
     },
   ],
+  refunds: [
+    {
+      id: 'refund-pg-1',
+      order_id: 'order-pg-1',
+      payment_id: 'payment-pg-1',
+      refund_no: 'REF2606120001',
+      amount_cents: 19900,
+      reason: 'Client cancellation',
+      status: 'pending',
+      requested_by: 'user-pg-1',
+      processed_by: null,
+      refunded_at: null,
+      created_at: '2026-06-12T06:20:00.000Z',
+      updated_at: '2026-06-12T06:20:00.000Z',
+    },
+  ],
+  settlements: [
+    {
+      id: 'settlement-pg-1',
+      order_id: 'order-pg-1',
+      companion_id: 'companion-pg-1',
+      gross_amount_cents: 39900,
+      platform_fee_cents: 3192,
+      net_amount_cents: 36708,
+      status: 'pending',
+      settle_after: '2026-06-13T06:00:00.000Z',
+      settled_at: null,
+      frozen_reason: null,
+      created_at: '2026-06-12T06:30:00.000Z',
+      updated_at: '2026-06-12T06:30:00.000Z',
+    },
+  ],
+  ledgerEntries: [
+    {
+      id: 'ledger-pg-1',
+      companion_id: 'companion-pg-1',
+      order_id: 'order-pg-1',
+      settlement_id: 'settlement-pg-1',
+      entry_type: 'order_income',
+      direction: 'in',
+      amount_cents: 36708,
+      balance_type: 'pending',
+      balance_after_cents: 36708,
+      status: 'posted',
+      description: 'Order completed',
+      created_at: '2026-06-12T06:31:00.000Z',
+    },
+  ],
+  wallets: [
+    {
+      companion_id: 'companion-pg-1',
+      pending_cents: 36708,
+      available_cents: 120000,
+      frozen_cents: 0,
+      withdrawn_cents: 50000,
+      created_at: '2026-06-12T06:31:00.000Z',
+      updated_at: '2026-06-12T06:31:00.000Z',
+    },
+  ],
 };
 
 const store = buildStoreFromPostgresRows(rows);
@@ -265,6 +324,10 @@ assert(store.riskCases[0].riskLevel === 'high', 'message risk cases map');
 assert(store.reports[0].description === 'Photographer was late.', 'reports map');
 assert(store.auditCases[0].targetType === 'report', 'audit cases map');
 assert(store.auditCases[0].payload.id === 'report-pg-1', 'audit case report payload links');
+assert(store.refunds[0].refundNo === 'REF2606120001', 'refunds map');
+assert(store.settlements[0].payableCents === 36708, 'settlements map');
+assert(store.ledgerEntries[0].settlementId === 'settlement-pg-1', 'ledger entries map');
+assert(store.wallets[0].availableCents === 120000, 'wallets map');
 assert(Array.isArray(store.sessions) && store.sessions.length === 0, 'sessions start empty');
 assert(store.auditLogs[0].auditCaseId === 'audit-case-pg-1', 'audit logs map');
 assert(store.adminActionLogs[0].note === 'Order marked disputed', 'admin action logs map');
@@ -274,7 +337,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'orders', 'payments', 'conversations', 'risk-cases', 'reports', 'audit-cases', 'sessions', 'audit-logs', 'admin-action-logs', 'security-events'],
+      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'orders', 'payments', 'conversations', 'risk-cases', 'reports', 'audit-cases', 'refunds', 'settlements', 'ledger-entries', 'wallets', 'sessions', 'audit-logs', 'admin-action-logs', 'security-events'],
       companionCount: store.companions.length,
       postCount: store.posts.length,
     },
