@@ -10,6 +10,7 @@
     "smoke": "node scripts/smoke.mjs",
     "check:mvp": "node scripts/check-mvp.mjs",
     "check:auth-schema": "node ../database/scripts/check-auth-schema.mjs",
+    "check:schema-parity": "node ../database/scripts/check-schema-parity.mjs",
     "check:store-driver": "node scripts/check-store-driver.mjs",
     "check:payment-expiry-job": "node scripts/check-payment-expiry-job.mjs",
     "check:session-boundary": "node scripts/check-session-boundary.mjs",

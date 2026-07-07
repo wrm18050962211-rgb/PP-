@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 const checks = [
   ['auth-schema', ['../database/scripts/check-auth-schema.mjs']],
   ['idempotency-schema', ['../database/scripts/check-idempotency-schema.mjs']],
+  ['schema-parity', ['../database/scripts/check-schema-parity.mjs']],
   ['store-driver', ['scripts/check-store-driver.mjs']],
   ['payment-expiry-job', ['scripts/check-payment-expiry-job.mjs']],
   ['session-boundary', ['scripts/check-session-boundary.mjs']],

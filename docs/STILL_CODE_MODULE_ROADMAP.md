@@ -37,6 +37,7 @@
 - 新增 `npm run check:postgres-live` 可选检查：配置 `DATABASE_URL` 时会连接真实 PostgreSQL，检查关键表、幂等表字段和 slot 锁语法；未配置时明确 skipped。
 - pending payment 超时释放已抽出 `paymentExpiryJob` 和 `npm run job:expire-payments` 独立入口；当前可由服务端请求入口或外部调度器调用，后续再接正式队列/cron/云任务。
 - 后端 admin session 默认角色已收紧为纯 `admin`：JSON/demo session 和 Postgres session 映射都不再把 `consumer/companion` 混入 admin roles，并已补 smoke 与 session gateway 检查。
+- 新增 schema parity 检查，自动比对 `database/schema.sql` 的表和 Prisma `@@map` 是否一一对应，并纳入 `server` 的 `check:mvp`。
 - 当前仍未完成生产级事项：真实数据库 CI/迁移流水线、独立队列/定时任务系统、更多退款/支付回调重试覆盖、session/admin_action_logs/audit_logs/security_events 的生产级闭环验证、后台进一步拆模块，以及初步上线前独立部署。
 
 ## 0. 当前代码状态快照
