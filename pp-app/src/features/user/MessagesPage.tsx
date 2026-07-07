@@ -145,9 +145,13 @@ export function MessagesPage() {
 
   function handleVoiceSend() {
     const durationSeconds = 6 + (conversation.messages.length % 5) * 3;
-    const result = sendVoiceMessage(durationSeconds, getMessageSender(session?.role));
-    appendLocalMessage(result.message);
-    setMediaNotice('');
+    try {
+      const result = sendVoiceMessage(durationSeconds, getMessageSender(session?.role));
+      appendLocalMessage(result.message);
+      setMediaNotice('');
+    } catch {
+      setMediaNotice('语音消息需要先接入生产语音上传接口。');
+    }
   }
 
   function appendLocalMessage(message: Message) {

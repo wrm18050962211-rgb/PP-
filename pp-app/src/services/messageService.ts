@@ -109,14 +109,14 @@ export function sendVoiceMessage(
   durationSeconds = 8,
   from: Message['from'] = 'user',
 ): { blocked: boolean; message: Message; matchedKeywords: string[] } {
-  return {
+  return getApiFallback({
     blocked: false,
     matchedKeywords: [],
     message: createLocalMessage(`[语音] ${durationSeconds}秒`, 'clean', from, {
       kind: 'voice',
       voiceDurationSeconds: durationSeconds,
     }),
-  };
+  }, 'Send voice message');
 }
 
 export async function submitOrderReport(orderId: string, description = '用户在消息页发起举报') {
