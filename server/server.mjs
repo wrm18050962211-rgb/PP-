@@ -900,7 +900,7 @@ async function mockPaymentSuccess(store, path) {
 
 async function markPostgresPaymentPaid(order, payment) {
   const paidAt = now();
-  await dataStore.orderWrites.markPaymentPaid({
+  const result = await dataStore.orderWrites.markPaymentPaid({
     paymentId: payment.id,
     conversationId: id('conversation'),
     statusLogId: id('status-log'),
@@ -918,11 +918,16 @@ async function markPostgresPaymentPaid(order, payment) {
     paidAt,
     statusLogs: [...(order.statusLogs || []), statusLog('paid_pending_confirm', 'Mock payment succeeded')],
   });
+  const paidConversation = {
+    ...createConversation(paidOrder),
+    id: String(result.conversation?.id || `conversation-${paidOrder.id}`),
+    status: result.conversation?.status || 'active',
+  };
   return json(
     {
       payment: publicPayment(paidPayment),
       order: paidOrder,
-      conversation: createConversation(paidOrder),
+      conversation: paidConversation,
     },
     200,
     false,
