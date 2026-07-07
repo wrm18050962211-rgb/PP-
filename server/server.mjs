@@ -330,6 +330,13 @@ function adminRequired() {
   return error(403, 'FORBIDDEN', 'Admin role is required');
 }
 
+function requireAdminSession(store) {
+  const session = ensureActiveSession(store, 'admin');
+  if (!session) return { response: authRequired() };
+  if (session.role !== 'admin') return { response: adminRequired() };
+  return { session };
+}
+
 function refreshSession(store, session) {
   return createSession(store, normalizeRole(session.role), session.user || null, {
     companionId: session.companionId,
@@ -909,9 +916,8 @@ function submitCompanionReview(store) {
 }
 
 function adminDashboard(store) {
-  const session = ensureActiveSession(store, 'admin');
-  if (!session) return authRequired();
-  if (session.role !== 'admin') return adminRequired();
+  const admin = requireAdminSession(store);
+  if (admin.response) return admin.response;
 
   const pendingCompanions = store.auditCases.filter((item) => item.targetType === 'companion' && item.status === 'pending').length;
   const pendingPosts = store.auditCases.filter((item) => item.targetType === 'post' && item.status === 'pending').length;
@@ -943,9 +949,8 @@ function adminDashboard(store) {
 }
 
 function adminModeration(store) {
-  const session = ensureActiveSession(store, 'admin');
-  if (!session) return authRequired();
-  if (session.role !== 'admin') return adminRequired();
+  const admin = requireAdminSession(store);
+  if (admin.response) return admin.response;
 
   return json({
     messageCases: store.riskCases,
@@ -954,9 +959,8 @@ function adminModeration(store) {
 }
 
 function listAuditCases(store, url) {
-  const session = ensureActiveSession(store, 'admin');
-  if (!session) return authRequired();
-  if (session.role !== 'admin') return adminRequired();
+  const admin = requireAdminSession(store);
+  if (admin.response) return admin.response;
 
   const targetType = normalize(url.searchParams.get('targetType'));
   const status = normalize(url.searchParams.get('status'));
@@ -967,9 +971,8 @@ function listAuditCases(store, url) {
 }
 
 function reviewAuditCase(store, path, nextStatus, body = {}) {
-  const session = ensureActiveSession(store, 'admin');
-  if (!session) return authRequired();
-  if (session.role !== 'admin') return adminRequired();
+  const admin = requireAdminSession(store);
+  if (admin.response) return admin.response;
 
   const caseId = path.split('/')[4];
   const auditCase = store.auditCases.find((item) => item.id === caseId);
@@ -1018,9 +1021,8 @@ function reviewAuditCase(store, path, nextStatus, body = {}) {
 }
 
 function applyModerationAction(store, path, body) {
-  const session = ensureActiveSession(store, 'admin');
-  if (!session) return authRequired();
-  if (session.role !== 'admin') return adminRequired();
+  const admin = requireAdminSession(store);
+  if (admin.response) return admin.response;
 
   const caseId = path.split('/')[4];
   const actionType = body.actionType || 'confirm_violation';
