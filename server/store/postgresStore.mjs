@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
+import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from './postgresSessionWrites.mjs';
+import { hashSessionToken } from './sessionTokenHash.mjs';
 
-export function createPostgresStore({ databaseUrl }) {
+export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required when STORE_DRIVER=postgres');
   }
@@ -13,6 +16,12 @@ export function createPostgresStore({ databaseUrl }) {
       readModel: true,
       writes: false,
       transactions: false,
+      sessionWrites: true,
+    },
+    sessionWrites: {
+      create: (session) => withClient((client) => createSessionTransaction(client, toSessionDraft(session))),
+      touchToken: (token, seenAt) => withClient((client) => touchSessionTransaction(client, { tokenHash: hashSessionToken(token), seenAt })),
+      revokeToken: (token, revokedAt) => withClient((client) => revokeSessionTransaction(client, { tokenHash: hashSessionToken(token), revokedAt })),
     },
     async load() {
       const pool = await getPool();
@@ -25,13 +34,55 @@ export function createPostgresStore({ databaseUrl }) {
   };
 
   async function getPool() {
-    poolPromise ||= import('pg')
-      .then(({ Pool }) => new Pool({ connectionString: databaseUrl }))
-      .catch((error) => {
-        throw new Error(`Install the "pg" package before using STORE_DRIVER=postgres. Original error: ${error.message}`);
-      });
+    poolPromise ||= poolFactory
+      ? Promise.resolve(poolFactory({ databaseUrl }))
+      : import('pg')
+          .then(({ Pool }) => new Pool({ connectionString: databaseUrl }))
+          .catch((error) => {
+            throw new Error(`Install the "pg" package before using STORE_DRIVER=postgres. Original error: ${error.message}`);
+          });
     return poolPromise;
   }
+
+  async function withClient(callback) {
+    const pool = await getPool();
+    const client = typeof pool.connect === 'function' ? await pool.connect() : pool;
+    try {
+      return await callback(client);
+    } finally {
+      client.release?.();
+    }
+  }
+}
+
+function toSessionDraft(session = {}) {
+  const isAdmin = session.role === 'admin';
+  const ownerId = session.adminId || session.user?.id;
+  return {
+    sessionId: session.id || session.sessionId || session.session_id || cryptoRandomId(),
+    tokenHash: hashSessionToken(session.token),
+    sessionScope: isAdmin ? 'admin' : 'user',
+    userId: isAdmin ? null : ownerId,
+    adminId: isAdmin ? ownerId : null,
+    companionId: isAdmin ? null : session.companionId || null,
+    role: session.role,
+    provider: session.provider || null,
+    deviceId: session.deviceId || null,
+    ip: session.ip || null,
+    userAgent: session.userAgent || null,
+    metadata: {
+      roles: session.roles || [],
+      adminScope: session.adminScope || [],
+      mode: session.mode || null,
+    },
+    loginAt: session.loginAt,
+    lastSeenAt: session.updatedAt,
+    expiresAt: session.expiresAt,
+  };
+}
+
+function cryptoRandomId() {
+  return randomUUID();
 }
 
 async function fetchReadModelRows(pool) {
