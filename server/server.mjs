@@ -198,6 +198,9 @@ function createMediaUploadPolicy(store, body = {}) {
   const publicSession = requirePublicSession(store, 'consumer', 'media_upload');
   if (publicSession.response) return publicSession.response;
   const { session } = publicSession;
+  if (isProductionServerEnv) {
+    return error(501, 'MEDIA_UPLOAD_NOT_CONFIGURED', 'Production media upload requires real object storage credentials.');
+  }
 
   const purpose = normalizeMediaPurpose(body.purpose);
   const fileName = sanitizeFileName(body.fileName || 'upload.jpg');
