@@ -72,6 +72,11 @@ const providerCallbackColumns = psqlRows(
 );
 assert(providerCallbackColumns.length === 7, 'provider_callback_events has required queue columns');
 
+checkColumns('user_sessions', ['token_hash', 'session_scope', 'user_id', 'admin_id', 'companion_id', 'role', 'metadata', 'expires_at', 'revoked_at']);
+checkColumns('audit_logs', ['audit_case_id', 'action', 'operator_id', 'operator_type', 'comment', 'metadata']);
+checkColumns('admin_action_logs', ['admin_id', 'action', 'target_type', 'target_id', 'before_data', 'after_data']);
+checkColumns('security_events', ['event_type', 'actor_id', 'actor_role', 'target_type', 'target_id', 'target_key', 'required_role', 'actual_role', 'metadata']);
+
 psqlRows(`
   begin;
   select id from availability_slots order by start_at limit 0 for update skip locked;
@@ -89,7 +94,18 @@ console.log(
     {
       ok: true,
       database: { database_name: databaseName, schema_name: schemaName },
-      checks: ['connect', 'required-tables', 'idempotency-columns', 'provider-callback-columns', 'slot-lock-syntax', 'provider-callback-lock-syntax'],
+      checks: [
+        'connect',
+        'required-tables',
+        'idempotency-columns',
+        'provider-callback-columns',
+        'session-columns',
+        'audit-log-columns',
+        'admin-action-columns',
+        'security-event-columns',
+        'slot-lock-syntax',
+        'provider-callback-lock-syntax',
+      ],
     },
     null,
     2,
@@ -115,6 +131,17 @@ function psqlRows(sql) {
 
 function sqlStringList(values) {
   return values.map((value) => `'${String(value).replace(/'/g, "''")}'`).join(', ');
+}
+
+function checkColumns(tableName, columns) {
+  const rows = psqlRows(
+    `select column_name
+     from information_schema.columns
+     where table_schema = 'public'
+       and table_name = '${tableName.replace(/'/g, "''")}'
+       and column_name in (${sqlStringList(columns)})`,
+  );
+  assert(rows.length === columns.length, `${tableName} has required columns`);
 }
 
 function assert(condition, message) {
