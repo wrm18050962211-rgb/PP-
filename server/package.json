@@ -25,6 +25,7 @@
     "check:postgres-store-idempotency-gateway": "node scripts/check-postgres-store-idempotency-gateway.mjs",
     "check:postgres-store-read-model": "node scripts/check-postgres-store-read-model.mjs",
     "check:postgres-live": "node scripts/check-postgres-live.mjs",
+    "check:postgres-id-hygiene": "node scripts/check-postgres-id-hygiene.mjs",
     "check:postgres-write-route-guard": "node scripts/check-postgres-write-route-guard.mjs",
     "check:postgres-security-boundary-route": "node scripts/check-postgres-security-boundary-route.mjs",
     "check:postgres-message-route": "node scripts/check-postgres-message-route.mjs",

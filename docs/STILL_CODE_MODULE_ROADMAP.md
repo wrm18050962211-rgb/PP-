@@ -53,6 +53,7 @@
 - 支付成功、用户订单动作和后台订单状态入口的 Postgres 副作用 ID 已改用 UUID：会话、状态日志、结算、账本和退款草稿 ID 不再使用本地演示前缀 ID，并由对应 route check 守住。
 - 消息、举报、审核处理和后台风控动作入口的 Postgres 写入 ID 已改用 UUID：消息、风控事件、举报、审核 case、审计日志和管理员动作日志 ID 不再使用本地演示前缀 ID，并由对应 route check 守住。
 - 运行时审计镜像的 Postgres 写入 ID 已改用 UUID：`recordAuditLog`、`recordAdminAction`、`recordSecurityEvent` 在 Postgres 模式下不再把演示前缀 ID 写入审计/安全表，并由 `check:runtime-audit-gateway` 守住。
+- 新增 `check:postgres-id-hygiene` 并纳入 `check:mvp`：统一防止 Postgres gateway draft 重新使用本地演示前缀 ID。
 - 新增 GitHub Actions 初步 CI：push/PR 会跑 server `check:mvp`、可选真实库检查、前端 production guard、移动端构建和后台构建；后续可继续扩展到真实 PostgreSQL service、lint/typecheck 分层和部署流水线。
 - CI 的 server job 已接入 PostgreSQL 16 service：会导入 `database/schema.sql` 后运行 `check:postgres-live`，用于提前发现 schema 无法落库、关键表缺失或锁语法不兼容的问题。
 - `check:postgres-live` 已增强 provider callback 检查：确认 `provider_callback_events` 的队列字段存在，并验证到期回调领取查询可使用 `for update skip locked`。
