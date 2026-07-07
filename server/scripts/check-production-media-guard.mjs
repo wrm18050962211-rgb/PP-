@@ -1,0 +1,132 @@
+import { spawn } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const port = Number(process.env.PRODUCTION_MEDIA_GUARD_PORT || 18788);
+const baseUrl = `http://127.0.0.1:${port}`;
+const tempDir = await mkdtemp(resolve(tmpdir(), 'pp-production-media-guard-'));
+const storePath = resolve(tempDir, 'store.json');
+const token = 'production-media-guard-token';
+
+let server;
+const logs = [];
+
+try {
+  await writeFile(storePath, JSON.stringify(createSeedStore(), null, 2));
+  server = spawn(process.execPath, ['server.mjs'], {
+    cwd: root,
+    env: {
+      ...process.env,
+      APP_ENV: 'production',
+      CORS_ALLOWED_ORIGINS: 'http://localhost',
+      PORT: String(port),
+      STORE_DRIVER: 'json',
+      STORE_PATH: storePath,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  server.stdout.on('data', (chunk) => logs.push(String(chunk)));
+  server.stderr.on('data', (chunk) => logs.push(String(chunk)));
+
+  await waitForHealth();
+
+  const anonymousUpload = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg' }, { omitAuth: true, expectOk: false });
+  assert(anonymousUpload.error?.code === 'AUTH_REQUIRED', 'production media policy still requires auth');
+
+  const uploadPolicy = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg', purpose: 'avatar' }, { expectOk: false });
+  assert(uploadPolicy.error?.code === 'MEDIA_UPLOAD_NOT_CONFIGURED', 'production media policy rejects mock upload credentials');
+
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        checks: ['auth-required', 'production-media-not-configured'],
+      },
+      null,
+      2,
+    ),
+  );
+} finally {
+  if (server) server.kill();
+  await rm(tempDir, { recursive: true, force: true });
+}
+
+function createSeedStore() {
+  const now = new Date().toISOString();
+  const user = {
+    id: 'production-media-guard-user',
+    openId: 'production-media-guard-openid',
+    nickname: 'Production Media Guard',
+    avatarUrl: '',
+    gender: 'unknown',
+    city: 'Shanghai',
+    status: 'active',
+    isCompanion: false,
+    roles: ['consumer'],
+    createdAt: now,
+    updatedAt: now,
+  };
+  return {
+    meta: { version: 3 },
+    users: [user],
+    sessions: [
+      {
+        token,
+        provider: 'wechat',
+        role: 'consumer',
+        roles: ['consumer'],
+        user,
+        loginAt: now,
+        updatedAt: now,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      },
+    ],
+  };
+}
+
+async function waitForHealth() {
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    try {
+      const health = await api('GET', '/api/health', undefined, { omitAuth: true });
+      if (health.status === 'ok') return;
+    } catch {
+      await delay(100);
+    }
+  }
+
+  throw new Error(`Production media guard server did not start:\n${server ? await readServerOutput() : ''}`);
+}
+
+async function api(method, path, body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (!options.omitAuth) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json();
+  if (options.expectOk === false) {
+    assert(!payload.success, `${method} ${path} should fail`);
+    return payload;
+  }
+  assert(response.ok && payload.success, `${method} ${path} should succeed`);
+  return payload.data;
+}
+
+async function readServerOutput() {
+  return logs.join('');
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function assert(condition, message) {
+  if (!condition) throw new Error(`Production media guard check failed: ${message}`);
+}

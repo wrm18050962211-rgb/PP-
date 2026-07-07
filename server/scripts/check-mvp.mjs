@@ -16,6 +16,7 @@ const checks = [
   ['postgres-security-writes', ['scripts/check-postgres-security-writes.mjs']],
   ['postgres-session-writes', ['scripts/check-postgres-session-writes.mjs']],
   ['runtime-audit-gateway', ['scripts/check-runtime-audit-gateway.mjs']],
+  ['production-media-guard', ['scripts/check-production-media-guard.mjs']],
   ['smoke', ['scripts/smoke.mjs']],
 ];
 
