@@ -52,11 +52,18 @@ try {
   const anonymousOrders = await api('GET', '/api/orders?role=user', undefined, { omitAuth: true, expectOk: false });
   assert(anonymousOrders.error?.code === 'AUTH_REQUIRED', 'production public orders API requires auth');
 
+  const anonymousConversations = await api('GET', '/api/conversations', undefined, { omitAuth: true, expectOk: false });
+  assert(anonymousConversations.error?.code === 'AUTH_REQUIRED', 'production conversations API requires auth');
+
   const publicTokenAdminOrders = await api('GET', '/api/admin/orders', undefined, { expectOk: false });
   assert(publicTokenAdminOrders.error?.code === 'FORBIDDEN', 'production rejects public token on admin orders API');
 
   const adminTokenPublicOrders = await api('GET', '/api/orders?role=user', undefined, { authToken: adminToken, expectOk: false });
   assert(adminTokenPublicOrders.error?.code === 'FORBIDDEN', 'production rejects admin token on public orders API');
+
+  const adminTokenConversations = await api('GET', '/api/conversations', undefined, { authToken: adminToken, expectOk: false });
+  assert(adminTokenConversations.error?.code === 'FORBIDDEN', 'production rejects admin token on conversations API');
+
   const securityStore = await readGuardStore();
   assert(
     securityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'admin_api' && item.actualRole === 'consumer'),
@@ -87,8 +94,10 @@ try {
           'local-admin-login-disabled',
           'anonymous-admin-api-auth-required',
           'anonymous-public-order-api-auth-required',
+          'anonymous-conversations-api-auth-required',
           'public-token-admin-api-forbidden',
           'admin-token-public-api-forbidden',
+          'admin-token-conversations-api-forbidden',
           'permission-denial-security-events',
           'auth-required',
           'production-media-not-configured',
