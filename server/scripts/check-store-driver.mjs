@@ -41,6 +41,9 @@ try {
   assert(postgresStore.capabilities?.auditWrites === true && typeof postgresStore.auditWrites?.recordAdminAction === 'function', 'postgres store exposes audit write gateway');
   assert(postgresStore.capabilities?.securityWrites === true && typeof postgresStore.securityWrites?.recordSecurityEvent === 'function', 'postgres store exposes security write gateway');
   assert(postgresStore.capabilities?.sessionWrites === true && typeof postgresStore.sessionWrites?.create === 'function', 'postgres store exposes session write gateway');
+  assert(postgresStore.capabilities?.orderWrites === true && typeof postgresStore.orderWrites?.createOrder === 'function', 'postgres store exposes order write gateway');
+  assert(postgresStore.capabilities?.messageWrites === true && typeof postgresStore.messageWrites?.sendMessage === 'function', 'postgres store exposes message write gateway');
+  assert(postgresStore.capabilities?.moderationWrites === true && typeof postgresStore.moderationWrites?.createReport === 'function', 'postgres store exposes moderation write gateway');
   await assertRejects(
     () => postgresStore.save({}),
     'save is not implemented',
@@ -59,6 +62,9 @@ try {
           'postgres-audit-gateway',
           'postgres-security-gateway',
           'postgres-session-gateway',
+          'postgres-order-gateway',
+          'postgres-message-gateway',
+          'postgres-moderation-gateway',
           'postgres-save-protected',
         ],
       },

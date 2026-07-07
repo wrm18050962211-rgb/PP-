@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { recordAdminActionTransaction, recordAuditLogTransaction } from './postgresAuditWrites.mjs';
 import { upsertAuthIdentityUserTransaction } from './postgresAuthWrites.mjs';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
+import { sendMessageTransaction } from './postgresMessageWrites.mjs';
+import { applyModerationActionTransaction, createReportTransaction } from './postgresModerationWrites.mjs';
+import { createOrderTransaction, markPaymentPaidTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
 import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from './postgresSessionWrites.mjs';
 import { recordSecurityEventTransaction } from './postgresSecurityWrites.mjs';
 import { hashSessionToken } from './sessionTokenHash.mjs';
@@ -23,6 +26,9 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       auditWrites: true,
       securityWrites: true,
       sessionWrites: true,
+      orderWrites: true,
+      messageWrites: true,
+      moderationWrites: true,
     },
     authWrites: {
       upsertIdentityUser: (identity) => withClient((client) => upsertAuthIdentityUserTransaction(client, toAuthIdentityDraft(identity))),
@@ -39,6 +45,18 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       findByToken: (token) => withClient((client) => findSessionByToken(client, token)),
       touchToken: (token, seenAt) => withClient((client) => touchSessionTransaction(client, { tokenHash: hashSessionToken(token), seenAt })),
       revokeToken: (token, revokedAt) => withClient((client) => revokeSessionTransaction(client, { tokenHash: hashSessionToken(token), revokedAt })),
+    },
+    orderWrites: {
+      createOrder: (draft) => withClient((client) => createOrderTransaction(client, draft)),
+      markPaymentPaid: (draft) => withClient((client) => markPaymentPaidTransaction(client, draft)),
+      transitionOrder: (draft) => withClient((client) => transitionOrderTransaction(client, draft)),
+    },
+    messageWrites: {
+      sendMessage: (draft) => withClient((client) => sendMessageTransaction(client, draft)),
+    },
+    moderationWrites: {
+      createReport: (draft) => withClient((client) => createReportTransaction(client, draft)),
+      applyAction: (draft) => withClient((client) => applyModerationActionTransaction(client, draft)),
     },
     async load() {
       const pool = await getPool();
