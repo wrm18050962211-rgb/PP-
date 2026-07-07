@@ -1,4 +1,5 @@
 import type { AppOrder, FeedPost, PostImage } from '../types/api';
+import { isMockFallbackAllowed } from './apiClient';
 
 export type WorkActor = 'creator' | 'photographer';
 export type WorkCompletionActor = WorkActor | 'auto';
@@ -53,10 +54,12 @@ const storageKey = 'order-workspaces-v1';
 const sharedStorageKey = `pp-cloud-db:shared:${storageKey}`;
 
 export function listOrderWorkRecords(): OrderWorkRecord[] {
+  if (!isMockFallbackAllowed()) return [];
   return readSharedWorkRecords();
 }
 
 export function saveOrderWorkRecord(record: OrderWorkRecord) {
+  assertLocalOrderWorkAllowed();
   const records = listOrderWorkRecords();
   const nextRecords = [normalizeOrderWorkRecord(record), ...records.filter((item) => item.orderId !== record.orderId)];
   writeSharedWorkRecords(nextRecords);
@@ -358,6 +361,7 @@ function parseDataUrlContentType(url: string) {
 }
 
 function readSharedWorkRecords(): OrderWorkRecord[] {
+  if (!isMockFallbackAllowed()) return [];
   if (typeof localStorage === 'undefined') return [];
   try {
     const raw = localStorage.getItem(sharedStorageKey);
@@ -369,6 +373,11 @@ function readSharedWorkRecords(): OrderWorkRecord[] {
 }
 
 function writeSharedWorkRecords(records: OrderWorkRecord[]) {
+  assertLocalOrderWorkAllowed();
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(sharedStorageKey, JSON.stringify(records.map(normalizeOrderWorkRecord)));
+}
+
+function assertLocalOrderWorkAllowed() {
+  if (!isMockFallbackAllowed()) throw new Error('成片协作需要先接入服务端 API，当前环境不能保存本地交付记录。');
 }
