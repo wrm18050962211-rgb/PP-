@@ -17,6 +17,11 @@
 - 订单访问和订单状态变更补了权限 smoke：Client 不能看别人订单，Photographer 不能操作别人订单，Admin 不能直接走端内订单 API。
 - 后台订单状态变更会写入 `adminActionLogs`，并在订单详情中显示该订单的操作记录。
 - 后台安全事件接口已可读取登录失败、权限拒绝等 `securityEvents`，并在后台设置页展示最近安全事件。
+- 前端生产保护继续收紧：`VITE_ENABLE_MOCK=false` 或 production 环境下，虚拟订单账本、默认演示订单、云域业务 localStorage 缓存都不再作为真实数据兜底。
+- 订单刷新失败、生产 session 获取失败会进入统一错误提示，不再静默吞掉或伪装成本地成功。
+- 前端登录态来源继续收紧：生产环境不再承认本地登录标记，Client/Photographer 需要 public token，Admin 需要 admin token；后台退出也不再生成普通本地 session。
+- 新增前端 `check:production-guards`，用于防止生产 API、mock fallback、登录态、本地云域缓存、移动端/后台入口隔离等保护被误删。
+- 后端生产 guard 已补充 mock 用户登录和本地管理员登录禁用检查，并纳入 `check:mvp`。
 - 当前仍未完成生产级事项：session/admin_action_logs/audit_logs/security_events 还没有完整从 JSON store 切到 PostgreSQL 运行时写入；后台仍需进一步拆模块、接更多真实 admin API，并在初步上线前独立部署。
 
 ## 0. 当前代码状态快照
