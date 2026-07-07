@@ -1,5 +1,5 @@
 import type { MediaUploadPolicy, MediaUploadPurpose, PostImage } from '../types/api';
-import { apiPost, getApiFallback, isApiEnabled } from './apiClient';
+import { apiPost, getApiFallback, isApiEnabled, isMockFallbackAllowed } from './apiClient';
 import { isMiniProgramRuntime, wxUploadFile } from './miniProgramBridge';
 
 type UploadInput = {
@@ -10,8 +10,11 @@ type UploadInput = {
 export async function uploadPostImage(file: File): Promise<PostImage> {
   const isVideo = file.type.startsWith('video/');
   const policy = await requestUploadPolicy(file, isVideo ? 'video' : 'post-image');
+  if (policy?.mode === 'production') throw new Error('Web 端生产媒体上传需要先接入对象存储直传。');
+  if (!isMockFallbackAllowed()) throw new Error('媒体上传需要先接入生产对象存储。');
+
   const localPreviewUrl = await readFileAsDataUrl(file);
-  const mediaUrl = policy?.mode === 'production' ? policy.publicUrl : getApiFallback(localPreviewUrl, 'Media upload');
+  const mediaUrl = getApiFallback(localPreviewUrl, 'Media upload');
 
   return {
     id: `draft-image-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -44,7 +47,8 @@ export async function requestUploadPolicy(file: File, purpose: MediaUploadPurpos
 
 export async function uploadMediaFile({ file, purpose }: UploadInput): Promise<string> {
   const policy = await requestUploadPolicy(file, purpose);
-  if (policy?.mode === 'production') return policy.publicUrl;
+  if (policy?.mode === 'production') throw new Error('Web 端生产媒体上传需要先接入对象存储直传。');
+  if (!isMockFallbackAllowed()) throw new Error('媒体上传需要先接入生产对象存储。');
   return getApiFallback(await readFileAsDataUrl(file), 'Media upload');
 }
 
