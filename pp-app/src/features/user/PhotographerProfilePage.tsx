@@ -377,7 +377,7 @@ function PhotographerReviewsSheet({
 
 function buildSlotSummary(slots: FeedPost['companion']['slots']) {
   const available = slots.filter((slot) => slot.status === 'available').slice(0, 3);
-  if (!available.length) return '近期时间待开放';
+  if (!available.length) return '近期暂无可预约时间';
   return `可约时间：${available.map((slot) => slot.label).join(' / ')}`;
 }
 
