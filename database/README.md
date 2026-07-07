@@ -22,6 +22,7 @@
 - `BACKEND_IMPLEMENTATION_PLAN.md`：后端开发 Sprint 拆分、接口优先级和验收标准。
 - `QUERY_AND_TRANSACTION_GUIDE.md`：核心 SQL 查询、下单/支付/结算/审核等事务手册。
 - `MIGRATION_PLAN.md`：MVP 到生产版的数据库演进计划，包括 PostGIS、隐私加密、索引、审计、风控和归档。
+- `POSTGRES_CLOUD_RUNBOOK.md`：腾讯云/阿里云 PostgreSQL 接入、建表、seed、检查和上线前注意事项。
 
 如果后端选择 Prisma，建议以 `prisma/schema.prisma` 作为开发入口；如果需要更精细的数据库约束、初始化数据或原生 SQL 能力，以 `schema.sql` 为准。
 
@@ -38,6 +39,18 @@ npx prisma migrate dev --schema database/prisma/schema.prisma --name init
 ```bash
 psql "$DATABASE_URL" -f database/schema.sql
 psql "$DATABASE_URL" -f database/seed_mvp.sql
+```
+
+云数据库接入前，先在 `server` 目录运行静态准备检查：
+
+```bash
+npm run check:postgres-launch-readiness
+```
+
+租好腾讯云或阿里云 PostgreSQL 后，再配置 `DATABASE_URL` 并运行真实库检查：
+
+```bash
+npm run check:postgres-live
 ```
 
 ## 表分组
