@@ -38,7 +38,22 @@ const checks = [
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'))",
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('admin'))",
       "if (!isTestRoleSwitchAllowed()) throw new Error('登录状态获取失败，请重新登录。')",
+      "ensureTestAuthAllowed('验证码登录')",
+      "ensureTestAuthAllowed('本地手机号注册')",
+      "ensureTestAuthAllowed('本地验证码登录')",
+      "ensureTestAuthAllowed('本地管理员登录')",
     ],
+  },
+  {
+    file: 'src/features/auth/AuthPages.tsx',
+    includes: [
+      'const showTestCode = isTestRoleSwitchAllowed();',
+      '{showTestCode && demoCode ?',
+    ],
+  },
+  {
+    file: 'src/features/auth/AdminAuthPages.tsx',
+    includes: ["placeholder={isTestRoleSwitchAllowed() ? '本地测试口令 000000' : '请输入管理员口令'}"],
   },
   {
     file: 'vite.mobile.config.ts',
