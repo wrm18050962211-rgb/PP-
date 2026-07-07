@@ -45,6 +45,9 @@ try {
   const localAdminLogin = await api('POST', '/api/admin/auth/login', { passcode: '000000' }, { omitAuth: true, expectOk: false });
   assert(localAdminLogin.error?.code === 'TEST_LOGIN_DISABLED', 'production rejects local admin login');
 
+  const publicTokenAdminOrders = await api('GET', '/api/admin/orders', undefined, { expectOk: false });
+  assert(publicTokenAdminOrders.error?.code === 'FORBIDDEN', 'production rejects public token on admin orders API');
+
   const anonymousUpload = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg' }, { omitAuth: true, expectOk: false });
   assert(anonymousUpload.error?.code === 'AUTH_REQUIRED', 'production media policy still requires auth');
 
@@ -58,7 +61,16 @@ try {
     JSON.stringify(
       {
         ok: true,
-        checks: ['cors-allowlist', 'cors-forbidden', 'mock-login-disabled', 'local-admin-login-disabled', 'auth-required', 'production-media-not-configured', 'mock-payment-disabled'],
+        checks: [
+          'cors-allowlist',
+          'cors-forbidden',
+          'mock-login-disabled',
+          'local-admin-login-disabled',
+          'public-token-admin-api-forbidden',
+          'auth-required',
+          'production-media-not-configured',
+          'mock-payment-disabled',
+        ],
       },
       null,
       2,
