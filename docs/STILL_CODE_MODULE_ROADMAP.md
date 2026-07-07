@@ -50,6 +50,7 @@
 - 新增 GitHub Actions 初步 CI：push/PR 会跑 server `check:mvp`、可选真实库检查、前端 production guard、移动端构建和后台构建；后续可继续扩展到真实 PostgreSQL service、lint/typecheck 分层和部署流水线。
 - CI 的 server job 已接入 PostgreSQL 16 service：会导入 `database/schema.sql` 后运行 `check:postgres-live`，用于提前发现 schema 无法落库、关键表缺失或锁语法不兼容的问题。
 - `check:postgres-live` 已增强 provider callback 检查：确认 `provider_callback_events` 的队列字段存在，并验证到期回调领取查询可使用 `for update skip locked`。
+- `check:postgres-live` 已改为使用 `psql` CLI 执行真实库检查，避免 server 包为了 CI live check 额外引入 `pg` 运行依赖；CI 会安装 PostgreSQL client 后执行。
 - 当前仍未完成生产级事项：真实数据库 CI/迁移流水线、独立队列/定时任务系统、更多退款/支付回调重试覆盖、session/admin_action_logs/audit_logs/security_events 的生产级闭环验证、后台进一步拆模块，以及初步上线前独立部署。
 
 ## 0. 当前代码状态快照

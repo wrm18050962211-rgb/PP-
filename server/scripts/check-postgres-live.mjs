@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
@@ -15,9 +17,6 @@ if (!databaseUrl) {
   );
   process.exit(0);
 }
-
-const { Pool } = await importPg();
-const pool = new Pool({ connectionString: databaseUrl });
 
 const requiredTables = [
   'users',
@@ -41,80 +40,81 @@ const requiredTables = [
   'ledger_entries',
 ];
 
-try {
-  const health = await pool.query('select current_database() as database_name, current_schema() as schema_name');
-  const tableResult = await pool.query(
+const healthRow = psqlRows(`select current_database() || '|' || current_schema()`)[0] || '';
+const [databaseName, schemaName] = healthRow.split('|');
+
+const existingTables = new Set(
+  psqlRows(
     `select table_name
      from information_schema.tables
      where table_schema = 'public'
-       and table_name = any($1::text[])`,
-    [requiredTables],
-  );
-  const existingTables = new Set(tableResult.rows.map((row) => row.table_name));
-  const missingTables = requiredTables.filter((table) => !existingTables.has(table));
-  assert(missingTables.length === 0, `missing tables: ${missingTables.join(', ')}`);
+       and table_name in (${sqlStringList(requiredTables)})`,
+  ),
+);
+const missingTables = requiredTables.filter((table) => !existingTables.has(table));
+assert(missingTables.length === 0, `missing tables: ${missingTables.join(', ')}`);
 
-  const idempotencyColumns = await pool.query(
-    `select column_name
-     from information_schema.columns
-     where table_schema = 'public'
-       and table_name = 'idempotency_keys'
-       and column_name = any($1::text[])`,
-    [['scope', 'request_key', 'actor_type', 'actor_key', 'status', 'locked_until', 'response_body']],
-  );
-  assert(idempotencyColumns.rows.length === 7, 'idempotency_keys has required columns');
+const idempotencyColumns = psqlRows(
+  `select column_name
+   from information_schema.columns
+   where table_schema = 'public'
+     and table_name = 'idempotency_keys'
+     and column_name in (${sqlStringList(['scope', 'request_key', 'actor_type', 'actor_key', 'status', 'locked_until', 'response_body'])})`,
+);
+assert(idempotencyColumns.length === 7, 'idempotency_keys has required columns');
 
-  const providerCallbackColumns = await pool.query(
-    `select column_name
-     from information_schema.columns
-     where table_schema = 'public'
-       and table_name = 'provider_callback_events'
-       and column_name = any($1::text[])`,
-    [['provider', 'event_type', 'provider_event_id', 'status', 'retry_count', 'next_retry_at', 'raw_payload']],
-  );
-  assert(providerCallbackColumns.rows.length === 7, 'provider_callback_events has required queue columns');
+const providerCallbackColumns = psqlRows(
+  `select column_name
+   from information_schema.columns
+   where table_schema = 'public'
+     and table_name = 'provider_callback_events'
+     and column_name in (${sqlStringList(['provider', 'event_type', 'provider_event_id', 'status', 'retry_count', 'next_retry_at', 'raw_payload'])})`,
+);
+assert(providerCallbackColumns.length === 7, 'provider_callback_events has required queue columns');
 
-  const client = await pool.connect();
-  try {
-    await client.query('begin');
-    await client.query('select id from availability_slots order by start_at limit 0 for update skip locked');
-    await client.query(
-      `select id
-       from provider_callback_events
-       where status = 'retrying'
-       order by coalesce(next_retry_at, created_at), created_at
-       limit 0
-       for update skip locked`,
-    );
-    await client.query('rollback');
-  } catch (error) {
-    await client.query('rollback').catch(() => {});
-    throw error;
-  } finally {
-    client.release();
+psqlRows(`
+  begin;
+  select id from availability_slots order by start_at limit 0 for update skip locked;
+  select id
+  from provider_callback_events
+  where status = 'retrying'
+  order by coalesce(next_retry_at, created_at), created_at
+  limit 0
+  for update skip locked;
+  rollback;
+`);
+
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      database: { database_name: databaseName, schema_name: schemaName },
+      checks: ['connect', 'required-tables', 'idempotency-columns', 'provider-callback-columns', 'slot-lock-syntax', 'provider-callback-lock-syntax'],
+    },
+    null,
+    2,
+  ),
+);
+
+function psqlRows(sql) {
+  const result = spawnSync('psql', [databaseUrl, '--tuples-only', '--no-align', '--set', 'ON_ERROR_STOP=1', '--command', sql], {
+    encoding: 'utf8',
+  });
+  if (result.error) {
+    throw new Error(`Unable to run psql. Install PostgreSQL client tools before running live checks. Original error: ${result.error.message}`);
   }
-
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        database: health.rows[0],
-        checks: ['connect', 'required-tables', 'idempotency-columns', 'provider-callback-columns', 'slot-lock-syntax', 'provider-callback-lock-syntax'],
-      },
-      null,
-      2,
-    ),
-  );
-} finally {
-  await pool.end();
+  if (result.status !== 0) {
+    throw new Error(`psql failed: ${result.stderr || result.stdout}`);
+  }
+  return result.stdout
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
-async function importPg() {
-  try {
-    return await import('pg');
-  } catch (error) {
-    throw new Error(`Install the "pg" package before running live PostgreSQL checks. Original error: ${error.message}`);
-  }
+function sqlStringList(values) {
+  return values.map((value) => `'${String(value).replace(/'/g, "''")}'`).join(', ');
 }
 
 function assert(condition, message) {
