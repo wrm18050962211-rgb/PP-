@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { createDecipheriv, createHash, randomBytes, sign } from 'node:crypto';
+import { createDecipheriv, createHash, randomBytes, sign, verify } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -124,8 +124,8 @@ async function route(method, url, body, store, req) {
   if (method === 'GET' && path === '/api/orders') return listOrders(store, url);
   if (method === 'GET' && isNestedRoute(path, '/api/payments/', '/status')) return getPaymentStatus(store, path);
   if (method === 'POST' && isNestedRoute(path, '/api/payments/', '/mock-success')) return mockPaymentSuccess(store, path);
-  if (method === 'POST' && path === '/api/payments/wechat/notify') return wechatPaymentNotify(store, body);
-  if (method === 'POST' && path === '/api/payments/wechat/refund-notify') return wechatRefundNotify(store, body);
+  if (method === 'POST' && path === '/api/payments/wechat/notify') return wechatPaymentNotify(store, body, req);
+  if (method === 'POST' && path === '/api/payments/wechat/refund-notify') return wechatRefundNotify(store, body, req);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/confirm')) return transitionOrder(store, path, 'confirm', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/complete')) return transitionOrder(store, path, 'complete', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/cancel')) return transitionOrder(store, path, 'cancel', body);
@@ -2935,8 +2935,10 @@ async function wechatPayRequest(method, path, body, privateKey) {
   return data;
 }
 
-async function wechatPaymentNotify(store, body = {}) {
+async function wechatPaymentNotify(store, body = {}, req = null) {
   if (!process.env.WECHAT_PAY_API_V3_KEY) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
+  const signatureCheck = verifyWechatPayNotifyRequest(req, body);
+  if (signatureCheck) return signatureCheck;
   const transaction = decryptWechatPayResource(body.resource || {});
   const payment = store.payments.find((item) => item.paymentNo === transaction.out_trade_no || item.transactionId === transaction.transaction_id);
   if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
@@ -2981,8 +2983,10 @@ async function markPostgresWechatPaymentTerminal(payment, transaction) {
   return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
 }
 
-async function wechatRefundNotify(store, body = {}) {
+async function wechatRefundNotify(store, body = {}, req = null) {
   if (!process.env.WECHAT_PAY_API_V3_KEY) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
+  const signatureCheck = verifyWechatPayNotifyRequest(req, body);
+  if (signatureCheck) return signatureCheck;
   const transaction = decryptWechatPayResource(body.resource || {});
   const refund = store.refunds.find((item) => item.refundNo === transaction.out_refund_no || item.thirdPartyRefundNo === transaction.refund_id);
   if (!refund) return error(404, 'NOT_FOUND', 'Refund not found');
@@ -3108,6 +3112,43 @@ function decryptWechatPayResource(resource) {
   return JSON.parse(plaintext.toString('utf8'));
 }
 
+function verifyWechatPayNotifyRequest(req, body) {
+  if (!process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY && !process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH) {
+    return error(501, 'WECHAT_PAY_NOTIFY_SIGNATURE_NOT_CONFIGURED', 'WECHAT_PAY_PLATFORM_PUBLIC_KEY or WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH is required');
+  }
+
+  try {
+    const timestamp = getRequestHeader(req, 'wechatpay-timestamp');
+    const nonce = getRequestHeader(req, 'wechatpay-nonce');
+    const signature = getRequestHeader(req, 'wechatpay-signature');
+    const rawBody = rawBodyText(body);
+    if (!timestamp || !nonce || !signature || !rawBody) throw new Error('Missing WeChat Pay notify signature headers or raw body');
+
+    const message = `${timestamp}\n${nonce}\n${rawBody}\n`;
+    const publicKey = getWechatPayPlatformPublicKey();
+    const verified = verify('RSA-SHA256', Buffer.from(message, 'utf8'), publicKey, Buffer.from(signature, 'base64'));
+    if (!verified) throw new Error('Invalid WeChat Pay notify signature');
+    return null;
+  } catch (signatureError) {
+    return error(401, 'WECHAT_PAY_NOTIFY_SIGNATURE_INVALID', signatureError instanceof Error ? signatureError.message : 'Invalid WeChat Pay notify signature');
+  }
+}
+
+function getWechatPayPlatformPublicKey() {
+  if (process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY) return process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY.replace(/\\n/g, '\n');
+  if (process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH) return readFileSync(resolve(process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH), 'utf8');
+  throw new Error('WECHAT_PAY_PLATFORM_PUBLIC_KEY or WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH is required');
+}
+
+function getRequestHeader(req, name) {
+  const value = req?.headers?.[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value || '';
+}
+
+function rawBodyText(body) {
+  return typeof body?.__rawBody === 'string' ? body.__rawBody : '';
+}
+
 function signWechatPayMessage(message, privateKey) {
   return sign('RSA-SHA256', Buffer.from(message, 'utf8'), privateKey).toString('base64');
 }
@@ -3151,13 +3192,14 @@ function launchCheck() {
     'WECHAT_PAY_MCH_ID',
     'WECHAT_PAY_SERIAL_NO',
     'WECHAT_PAY_PRIVATE_KEY',
+    'WECHAT_PAY_PLATFORM_PUBLIC_KEY',
     'WECHAT_PAY_NOTIFY_URL',
     'WECHAT_PAY_API_V3_KEY',
     'COS_BUCKET',
     'COS_REGION',
     'COS_PUBLIC_BASE_URL',
   ];
-  const missing = requiredForProduction.filter((name) => !process.env[name] && !(name === 'WECHAT_PAY_PRIVATE_KEY' && process.env.WECHAT_PAY_PRIVATE_KEY_PATH));
+  const missing = requiredForProduction.filter((name) => !isLaunchEnvConfigured(name));
   return json({
     ready: missing.length === 0,
     missing,
@@ -3168,6 +3210,12 @@ function launchCheck() {
       media: process.env.COS_PUBLIC_BASE_URL ? 'cos-configured' : 'mock',
     },
   });
+}
+
+function isLaunchEnvConfigured(name) {
+  if (name === 'WECHAT_PAY_PRIVATE_KEY') return Boolean(process.env.WECHAT_PAY_PRIVATE_KEY || process.env.WECHAT_PAY_PRIVATE_KEY_PATH);
+  if (name === 'WECHAT_PAY_PLATFORM_PUBLIC_KEY') return Boolean(process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY || process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH);
+  return Boolean(process.env[name]);
 }
 
 function actionLabel(actionType) {
@@ -3281,7 +3329,11 @@ async function readBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const raw = Buffer.concat(chunks).toString('utf8');
-  return raw ? JSON.parse(raw) : {};
+  const parsed = raw ? JSON.parse(raw) : {};
+  if (parsed && typeof parsed === 'object') {
+    Object.defineProperty(parsed, '__rawBody', { value: raw, enumerable: false });
+  }
+  return parsed;
 }
 
 function json(data, status = 200, changed = false) {

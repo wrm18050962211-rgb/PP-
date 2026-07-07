@@ -40,7 +40,8 @@
 - 新增 schema parity 检查，自动比对 `database/schema.sql` 的表和 Prisma `@@map` 是否一一对应，并纳入 `server` 的 `check:mvp`。
 - 新增后台路由边界检查：除 `/api/admin/auth/login` 外，所有后台处理函数必须显式调用 `requireAdminSession(store)`，防止后续新增后台入口时漏掉 admin gate。
 - Postgres 订单写入层已补 `markRefundTerminal` gateway：退款成功/失败/拒绝可写回 `refunds`，成功时把 `refunding` 订单推进到 `refunded` 并写订单状态日志；后续还需接真实退款 provider 回调或退款处理 job。
-- 新增微信退款通知入口 `/api/payments/wechat/refund-notify`，会将微信退款终态映射到 `markRefundTerminal`；当前仍需继续补正式微信回调签名/证书校验和退款重试队列。
+- 新增微信退款通知入口 `/api/payments/wechat/refund-notify`，会将微信退款终态映射到 `markRefundTerminal`；当前仍需继续补平台证书轮换和退款重试队列。
+- 微信支付/退款通知已补签名校验骨架：服务端保留 raw body，并在解密 resource 前用 `WECHAT_PAY_PLATFORM_PUBLIC_KEY(_PATH)` 校验 `Wechatpay-*` 请求头；后续还需接平台证书轮换和回调重试队列。
 - 当前仍未完成生产级事项：真实数据库 CI/迁移流水线、独立队列/定时任务系统、更多退款/支付回调重试覆盖、session/admin_action_logs/audit_logs/security_events 的生产级闭环验证、后台进一步拆模块，以及初步上线前独立部署。
 
 ## 0. 当前代码状态快照

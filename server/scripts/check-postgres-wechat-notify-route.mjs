@@ -4,6 +4,10 @@ const source = readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 
 assert(/async function wechatPaymentNotify/.test(source), 'wechat notify route can await postgres writes');
 assert(/path === '\/api\/payments\/wechat\/refund-notify'/.test(source), 'wechat refund notify route is registered');
+assert(/verifyWechatPayNotifyRequest\(req, body\)/.test(source), 'wechat notify verifies request signatures before decrypting resource');
+assert(/function verifyWechatPayNotifyRequest/.test(source), 'wechat notify signature helper exists');
+assert(/WECHAT_PAY_PLATFORM_PUBLIC_KEY/.test(source), 'wechat notify requires platform public key for signature verification');
+assert(/Object\.defineProperty\(parsed, '__rawBody'/.test(source), 'readBody preserves raw body for signature verification');
 assert(/dataStore\.kind !== 'json' && dataStore\.orderWrites\?\.markPaymentPaid/.test(source), 'wechat notify uses postgres payment gateway');
 assert(/async function markPostgresWechatPaymentPaid/.test(source), 'wechat notify has isolated postgres helper');
 assert(/async function wechatRefundNotify/.test(source), 'wechat refund notify has isolated handler');
@@ -20,7 +24,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['wechat-notify-gateway', 'terminal-payment-gateway', 'refund-notify-gateway', 'raw-callback', 'idempotent-read-model-guard', 'no-json-save'],
+      checks: ['wechat-notify-gateway', 'notify-signature-guard', 'terminal-payment-gateway', 'refund-notify-gateway', 'raw-callback', 'idempotent-read-model-guard', 'no-json-save'],
     },
     null,
     2,
