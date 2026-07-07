@@ -781,8 +781,8 @@ async function createOrder(store, input) {
   if (!reserveSlotForOrder(context.companion.id, context.slot)) return error(409, 'ORDER_SLOT_UNAVAILABLE', 'Slot is not available');
 
   const quote = buildQuote(context, input);
-  const orderId = id('order');
-  const paymentId = id('payment');
+  const orderId = dataStore.kind !== 'json' ? postgresId() : id('order');
+  const paymentId = dataStore.kind !== 'json' ? postgresId() : id('payment');
   const paymentExpiresAt = createPaymentExpiresAt();
   lockReservedSlotForOrder(context.companion.id, context.slot, orderId, paymentExpiresAt);
   const order = viewOrder({
@@ -855,7 +855,7 @@ async function createOrder(store, input) {
 async function beginPostgresOrderIdempotency(session, idempotencyKey, input) {
   try {
     const result = await dataStore.idempotencyWrites.beginRequest({
-      idempotencyId: id('idempotency'),
+      idempotencyId: postgresId(),
       scope: 'orders.create',
       requestKey: idempotencyKey,
       actorType: 'user',
@@ -904,11 +904,11 @@ async function createPostgresOrder(context, quote, order, payment, input, idempo
     paymentNo: payment.paymentNo,
     paymentChannel: payment.channel,
     lockedUntil: payment.expiresAt,
-    statusLogId: id('status-log'),
+    statusLogId: postgresId(),
     operatorType: 'user',
     statusReason: 'Order created and slot locked',
     extras: (quote.addOns || []).map((extra) => ({
-      id: id('order-extra'),
+      id: postgresId(),
       extraId: extra.extraId,
       name: extra.name,
       quantity: extra.quantity,

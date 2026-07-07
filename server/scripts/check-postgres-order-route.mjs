@@ -11,9 +11,13 @@ assert(/dataStore\.idempotencyWrites\.beginRequest/.test(source), 'postgres orde
 assert(/dataStore\.idempotencyWrites\.completeRequest/.test(source), 'postgres order route calls idempotency complete gateway');
 assert(/IDEMPOTENCY_IN_PROGRESS/.test(source), 'postgres order route handles duplicate in-progress request');
 assert(/dataStore\.orderWrites\.createOrder/.test(source), 'postgres helper calls create order transaction');
+assert(/const orderId = dataStore\.kind !== 'json' \? postgresId\(\) : id\('order'\)/.test(source), 'postgres order route uses uuid order id');
+assert(/const paymentId = dataStore\.kind !== 'json' \? postgresId\(\) : id\('payment'\)/.test(source), 'postgres order route uses uuid payment id');
+assert(/idempotencyId: postgresId\(\)/.test(source), 'postgres order route uses uuid idempotency id');
 assert(/availabilitySlotId: order\.slotId/.test(source), 'postgres order route passes slot id');
 assert(/paymentId: payment\.id/.test(source), 'postgres order route passes payment id');
-assert(/statusLogId: id\('status-log'\)/.test(source), 'postgres order route creates status log id');
+assert(/statusLogId: postgresId\(\)/.test(source), 'postgres order route creates uuid status log id');
+assert(/id: postgresId\(\),[\s\S]*extraId: extra\.extraId/.test(source), 'postgres order route creates uuid extra row ids');
 assert(/const responseBody = \{ \.\.\.order, payment: publicPayment\(payment\) \}/.test(source), 'postgres order route builds response body');
 assert(/return json\(responseBody, 201, false\)/.test(source), 'postgres order route avoids json save');
 
@@ -21,7 +25,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['order-route-gateway', 'order-idempotency-begin', 'order-idempotency-complete', 'slot-lock-draft', 'payment-draft', 'no-json-save'],
+      checks: ['order-route-gateway', 'order-idempotency-begin', 'order-idempotency-complete', 'uuid-route-ids', 'slot-lock-draft', 'payment-draft', 'no-json-save'],
     },
     null,
     2,
