@@ -1406,7 +1406,7 @@ function reviewAuditCase(store, path, nextStatus, body = {}) {
   return json({ ok: true, auditCase }, 200, true);
 }
 
-function applyModerationAction(store, path, body) {
+async function applyModerationAction(store, path, body) {
   const admin = requireAdminSession(store);
   if (admin.response) return admin.response;
 
@@ -1419,6 +1419,10 @@ function applyModerationAction(store, path, body) {
     note: body.note || actionLabel(actionType),
     createdAt: now(),
   };
+
+  if (dataStore.kind !== 'json' && dataStore.moderationWrites?.applyAction) {
+    return applyPostgresModerationAction(store, caseId, actionType, log, admin.session);
+  }
 
   const riskCase = store.riskCases.find((item) => item.id === caseId);
   if (riskCase) {
@@ -1449,6 +1453,44 @@ function applyModerationAction(store, path, body) {
   }
 
   return error(404, 'NOT_FOUND', 'Moderation case not found');
+}
+
+async function applyPostgresModerationAction(store, caseId, actionType, log, adminSession) {
+  const riskCase = store.riskCases.find((item) => item.id === caseId);
+  const reportCase = store.reports.find((item) => item.id === caseId);
+  const targetCase = riskCase || reportCase;
+  if (!targetCase) return error(404, 'NOT_FOUND', 'Moderation case not found');
+
+  await dataStore.moderationWrites.applyAction({
+    caseId,
+    actionType,
+    adminActionLogId: id('admin-action'),
+    adminId: adminSession.user?.id || adminSession.adminId || null,
+    note: log.note,
+    reviewedAt: log.createdAt,
+  });
+
+  if (riskCase) {
+    return json(
+      {
+        ...riskCase,
+        status: nextMessageCaseStatus(actionType, riskCase.status),
+        actionLogs: [log, ...(riskCase.actionLogs || [])],
+      },
+      200,
+      false,
+    );
+  }
+
+  return json(
+    {
+      ...reportCase,
+      status: nextReportCaseStatus(actionType, reportCase.status),
+      actionLogs: [log, ...(reportCase.actionLogs || [])],
+    },
+    200,
+    false,
+  );
 }
 
 function applyModerationSideEffect(store, orderId, actionType) {

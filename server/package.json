@@ -18,6 +18,7 @@
     "check:postgres-write-route-guard": "node scripts/check-postgres-write-route-guard.mjs",
     "check:postgres-message-route": "node scripts/check-postgres-message-route.mjs",
     "check:postgres-report-route": "node scripts/check-postgres-report-route.mjs",
+    "check:postgres-moderation-route": "node scripts/check-postgres-moderation-route.mjs",
     "check:postgres-store-order-gateway": "node scripts/check-postgres-store-order-gateway.mjs",
     "check:postgres-store-message-gateway": "node scripts/check-postgres-store-message-gateway.mjs",
     "check:postgres-store-moderation-gateway": "node scripts/check-postgres-store-moderation-gateway.mjs",
