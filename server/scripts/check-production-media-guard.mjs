@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,6 +51,15 @@ try {
 
   const adminTokenPublicOrders = await api('GET', '/api/orders?role=user', undefined, { authToken: adminToken, expectOk: false });
   assert(adminTokenPublicOrders.error?.code === 'FORBIDDEN', 'production rejects admin token on public orders API');
+  const securityStore = await readGuardStore();
+  assert(
+    securityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'admin_api' && item.actualRole === 'consumer'),
+    'production records public-token admin API denial',
+  );
+  assert(
+    securityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'orders_api' && item.actualRole === 'admin'),
+    'production records admin-token public API denial',
+  );
 
   const anonymousUpload = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg' }, { omitAuth: true, expectOk: false });
   assert(anonymousUpload.error?.code === 'AUTH_REQUIRED', 'production media policy still requires auth');
@@ -72,6 +81,7 @@ try {
           'local-admin-login-disabled',
           'public-token-admin-api-forbidden',
           'admin-token-public-api-forbidden',
+          'permission-denial-security-events',
           'auth-required',
           'production-media-not-configured',
           'mock-payment-disabled',
@@ -181,6 +191,10 @@ async function rawApi(method, path, body, options = {}) {
 
 async function readServerOutput() {
   return logs.join('');
+}
+
+async function readGuardStore() {
+  return JSON.parse(await readFile(storePath, 'utf8'));
 }
 
 function delay(ms) {
