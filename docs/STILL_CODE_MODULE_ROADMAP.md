@@ -30,8 +30,9 @@
 - 前端生产保护继续补齐：媒体上传、图片消息、摄影师接单设置、套餐设置、公开资料、收藏关注、咨询和成片协作都已纳入 `check:production-guards` 或 mock fallback 禁用边界，`VITE_ENABLE_MOCK=false`/production 下不再用本地共享缓存冒充真实云端数据。
 - 后端 `securityEvents` 运行时镜像已补充 `targetKey`、`metadata`、`ip`、`userAgent` 等上下文字段，并加入 `check-runtime-audit-gateway` 覆盖。
 - 后端新增 `check-session-boundary` 并纳入 `check:mvp`，用于防止后续误恢复或误持久化 ambient `activeSession`。
-- PostgreSQL store 已暴露 `orderWrites`、`messageWrites`、`moderationWrites` 三类业务写入 gateway；当前仍未切到 `server.mjs` 业务路由，但已经具备分步接入订单、消息、举报/审核事务写入的 store 出口。
-- 当前仍未完成生产级事项：session/admin_action_logs/audit_logs/security_events 还没有完整从 JSON store 切到 PostgreSQL 运行时写入；后台仍需进一步拆模块、接更多真实 admin API，并在初步上线前独立部署。
+- PostgreSQL store 已暴露并分步接入 `orderWrites`、`messageWrites`、`moderationWrites` 三类业务写入 gateway；`server.mjs` 中的订单创建、支付成功、微信支付成功回调、订单确认/完成/取消、后台订单状态、消息发送、举报创建、后台风控动作、后台审核处理已开始走 Postgres transaction。
+- Postgres 模式下，支付状态查询和订单会话读取已收紧为只读或已有读模型返回，避免 GET/读取类接口偷偷创建 JSON 本地状态。
+- 当前仍未完成生产级事项：真实数据库集成测试、支付失败/关闭态事务、订单幂等键、超时释放任务、session/admin_action_logs/audit_logs/security_events 的生产级闭环验证、后台进一步拆模块，以及初步上线前独立部署。
 
 ## 0. 当前代码状态快照
 

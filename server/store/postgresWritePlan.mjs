@@ -16,7 +16,7 @@ export const postgresWriteOperations = [
   },
   {
     name: 'markPaymentPaid',
-    route: 'POST /api/payments/:paymentId/mock-success',
+    route: 'POST /api/payments/:paymentId/mock-success and POST /api/payments/wechat/notify',
     transaction: true,
     tables: ['payments', 'orders', 'availability_slots', 'conversations', 'order_status_logs'],
     steps: [
@@ -27,6 +27,19 @@ export const postgresWriteOperations = [
       'update availability_slots to booked',
       'insert conversations if missing',
       'insert order_status_logs',
+    ],
+  },
+  {
+    name: 'setAdminOrderStatus',
+    route: 'POST /api/admin/orders/:orderId/status',
+    transaction: true,
+    tables: ['orders', 'order_status_logs', 'settlements', 'companion_wallets', 'ledger_entries'],
+    steps: [
+      'select orders for update',
+      'update orders to admin selected status',
+      'insert order_status_logs with admin operator',
+      'insert settlements, companion_wallets, and ledger_entries when admin marks completed',
+      'mirror admin_action_logs through audit gateway',
     ],
   },
   {
@@ -73,6 +86,18 @@ export const postgresWriteOperations = [
       'insert admin_action_logs',
       'update case status',
       'apply side effect such as restrict_chat or freeze_order',
+    ],
+  },
+  {
+    name: 'reviewAuditCase',
+    route: 'POST /api/admin/audit-cases/:caseId/approve or reject',
+    transaction: true,
+    tables: ['audit_cases', 'audit_logs', 'admin_action_logs', 'companions', 'posts', 'reports'],
+    steps: [
+      'select audit_cases for update',
+      'update audit_cases review status and reviewer',
+      'insert audit_logs and admin_action_logs',
+      'sync companion, post, or report target status',
     ],
   },
   {
