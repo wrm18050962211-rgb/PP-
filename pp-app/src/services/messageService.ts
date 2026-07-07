@@ -1,7 +1,7 @@
 import { mockConversation, seedOrders } from '../data/mockApi';
 import type { AppOrder, Conversation, Message } from '../types/api';
 import { blockedWords, evaluateMessageRisk, findMessageRiskWords } from '../utils/messageRisk';
-import { apiGet, apiPost, getApiFallback, isApiEnabled } from './apiClient';
+import { apiGet, apiPost, getApiFallback, isApiEnabled, isMockFallbackAllowed } from './apiClient';
 import { findLedgerOrder } from './virtualOrderLedger';
 
 const localConversationStorageKey = 'order-conversations-v1';
@@ -89,6 +89,10 @@ export async function sendImageMessage(
     return { blocked: true, matchedKeywords };
   }
 
+  if (!isMockFallbackAllowed()) {
+    throw new Error('图片消息需要先接入生产媒体上传接口。');
+  }
+
   const imageUrl = await readFileAsDataUrl(file);
   return getApiFallback({
     blocked: false,
@@ -126,7 +130,7 @@ export async function submitOrderReport(orderId: string, description = '用户�
     });
     return response.success;
   } catch {
-    return false;
+    return getApiFallback(false, 'Order report');
   }
 }
 
