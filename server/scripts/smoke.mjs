@@ -90,6 +90,15 @@ try {
   assert(logoutResult.ok === true, 'logout returns ok');
   const afterLogoutAdmin = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
   assert(afterLogoutAdmin.error?.code === 'AUTH_REQUIRED', 'logout revokes the previous token');
+  const anonymousOrders = await api('GET', '/api/orders?role=user', undefined, { omitAuth: true, expectOk: false });
+  assert(anonymousOrders.error?.code === 'AUTH_REQUIRED', 'public order API rejects missing token');
+  const anonymousMediaPolicy = await api('POST', '/api/media/upload-policy', {
+    purpose: 'post-image',
+    fileName: 'anonymous.jpg',
+    contentType: 'image/jpeg',
+    sizeBytes: 1024,
+  }, { omitAuth: true, expectOk: false });
+  assert(anonymousMediaPolicy.error?.code === 'AUTH_REQUIRED', 'media upload policy rejects missing token');
 
   const reloginConsumer = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
   assert(reloginConsumer.role === 'consumer', 'consumer can log in again after logout');
@@ -222,8 +231,12 @@ try {
   assert(typeof cancelledConfirmed.refundToCreatorCents === 'number', 'confirmed cancellation records refund amount');
 
   const conversation = await api('GET', `/api/orders/${paid.order.id}/conversation`);
+  const anonymousConversation = await api('GET', `/api/orders/${paid.order.id}/conversation`, undefined, { omitAuth: true, expectOk: false });
+  assert(anonymousConversation.error?.code === 'AUTH_REQUIRED', 'conversation API rejects missing token');
   const safeMessage = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'See you at the cafe entrance.' });
   assert(safeMessage.riskStatus === 'clean', 'safe chat message is accepted');
+  const anonymousMessage = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'anonymous hello' }, { omitAuth: true, expectOk: false });
+  assert(anonymousMessage.error?.code === 'AUTH_REQUIRED', 'message API rejects missing token');
 
   const blocked = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'Add my wechat and pay offline.' }, { expectOk: false });
   assert(blocked.error?.code === 'MESSAGE_BLOCKED' && blocked.data?.matchedKeywords?.length, 'risky chat message is blocked');
@@ -283,6 +296,7 @@ try {
           'admin-auth-boundary',
           'admin-public-api-boundary',
           'admin-logout-revokes-session',
+          'anonymous-public-api-boundary',
           'admin-permission-denial-log',
           'companion-auth-boundary',
           'companion-permission-denial-log',
@@ -306,6 +320,7 @@ try {
           'pending-payment-expiry',
           'confirmed-cancellation-settlement',
           'conversation',
+          'anonymous-message-api-boundary',
           'risk-block',
           'admin-order-mutation-boundary',
           'admin-order-api',

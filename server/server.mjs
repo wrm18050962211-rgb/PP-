@@ -404,7 +404,7 @@ function companionRequired(message = 'Companion role is required', changed = fal
 }
 
 function requirePublicSession(store, fallbackRole = 'consumer', targetType = 'public_api') {
-  const session = ensureActiveSession(store, fallbackRole);
+  const session = store.activeSession?.role ? ensureActiveSession(store, fallbackRole) : null;
   if (!session) return { response: authRequired() };
   if (session.role === 'admin') {
     recordSecurityEvent(store, session, 'permission_denied', {
