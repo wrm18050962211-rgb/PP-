@@ -1009,7 +1009,7 @@ function listConversations(store, url) {
   });
 }
 
-function sendMessage(store, path, body) {
+async function sendMessage(store, path, body) {
   const publicSession = requirePublicSession(store, 'consumer', 'conversation');
   if (publicSession.response) return publicSession.response;
   const { session } = publicSession;
@@ -1026,6 +1026,10 @@ function sendMessage(store, path, body) {
   if (!content) return error(400, 'VALIDATION_ERROR', 'Message content is required');
 
   const risk = evaluateRisk(content);
+  if (dataStore.kind !== 'json' && dataStore.messageWrites?.sendMessage) {
+    return sendPostgresMessage(conversation, session, body, content, risk);
+  }
+
   if (risk.shouldBlock) {
     const blockedMessage = {
       id: id('blocked-message'),
@@ -1081,6 +1085,50 @@ function sendMessage(store, path, body) {
   }
 
   return json(message, 200, true);
+}
+
+async function sendPostgresMessage(conversation, session, body, content, risk) {
+  const sentAt = now();
+  const messageId = id(risk.shouldBlock ? 'blocked-message' : 'message');
+  const from = body.from || messageSenderRole(session);
+  const result = await dataStore.messageWrites.sendMessage({
+    conversationId: conversation.id,
+    messageId,
+    senderId: session.user?.id,
+    senderRole: from,
+    content,
+    sentAt,
+    risk,
+    riskEventId: risk.hits.length ? id('message-risk-event') : undefined,
+  });
+
+  if (result.blocked) {
+    return {
+      status: 422,
+      changed: false,
+      payload: {
+        success: false,
+        data: {
+          riskStatus: 'blocked',
+          matchedKeywords: risk.hits.map((hit) => hit.keyword),
+          message: 'For platform safety, please keep communication and payment on PP.',
+        },
+        error: { code: 'MESSAGE_BLOCKED', message: 'Message contains contact or off-platform payment content' },
+      },
+    };
+  }
+
+  return json(
+    {
+      id: messageId,
+      from,
+      text: content,
+      sentAt,
+      riskStatus: result.riskStatus || (risk.hits.length ? 'flagged' : 'clean'),
+    },
+    200,
+    false,
+  );
 }
 
 function canOpenConversation(order) {
