@@ -5,7 +5,7 @@ import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransacti
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
 import { applyModerationActionTransaction, createReportTransaction, reviewAuditCaseTransaction } from './postgresModerationWrites.mjs';
-import { createOrderTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
+import { createOrderTransaction, expirePendingPaymentsTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
 import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from './postgresSessionWrites.mjs';
 import { recordSecurityEventTransaction } from './postgresSecurityWrites.mjs';
 import { hashSessionToken } from './sessionTokenHash.mjs';
@@ -56,6 +56,7 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       createOrder: (draft) => withClient((client) => createOrderTransaction(client, draft)),
       markPaymentPaid: (draft) => withClient((client) => markPaymentPaidTransaction(client, draft)),
       markPaymentTerminal: (draft) => withClient((client) => markPaymentTerminalTransaction(client, draft)),
+      expirePendingPayments: (draft) => withClient((client) => expirePendingPaymentsTransaction(client, draft)),
       transitionOrder: (draft) => withClient((client) => transitionOrderTransaction(client, draft)),
       setAdminOrderStatus: (draft) => withClient((client) => setAdminOrderStatusTransaction(client, draft)),
     },

@@ -79,12 +79,23 @@ assert(terminalResult.payment?.status === 'failed', 'terminal payment gateway re
 assert(terminalClient.calls.some((call) => /update payments/i.test(call.sql) && /raw_callback/i.test(call.sql)), 'terminal payment gateway updates payment');
 assert(terminalClient.released === true, 'terminal payment gateway releases client');
 
+const expiredResult = await store.orderWrites.expirePendingPayments({
+  occurredAt: '2026-07-08T09:20:00.000Z',
+  reason: 'Payment window expired',
+  limit: 25,
+});
+const expiredClient = pool.clients[3];
+assert(expiredResult.expiredCount === 1, 'expired payment gateway returns expired count');
+assert(expiredClient.calls.some((call) => /with expired as/i.test(call.sql) && /skip locked/i.test(call.sql)), 'expired payment gateway locks rows with skip locked');
+assert(expiredClient.calls.some((call) => /update availability_slots/i.test(call.sql) && /locked_order_id = null/i.test(call.sql)), 'expired payment gateway releases slot');
+assert(expiredClient.released === true, 'expired payment gateway releases client');
+
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['order-write-capability', 'create-order-gateway', 'admin-status-gateway', 'terminal-payment-gateway', 'client-release'],
-      queryCount: client.calls.length + adminClient.calls.length + terminalClient.calls.length,
+      checks: ['order-write-capability', 'create-order-gateway', 'admin-status-gateway', 'terminal-payment-gateway', 'expire-pending-payment-gateway', 'client-release'],
+      queryCount: client.calls.length + adminClient.calls.length + terminalClient.calls.length + expiredClient.calls.length,
     },
     null,
     2,
@@ -111,6 +122,19 @@ function createMockClient() {
       const normalized = sql.trim().replace(/\s+/g, ' ');
       this.calls.push({ sql: normalized, params });
       if (/from availability_slots/i.test(normalized)) return { rows: [{ id: params[0], status: 'available' }] };
+      if (/with expired as/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              expired_count: 1,
+              closed_payment_count: 1,
+              cancelled_order_count: 1,
+              released_slot_count: 1,
+              status_log_count: 1,
+            },
+          ],
+        };
+      }
       if (/from orders/i.test(normalized) && /for update/i.test(normalized)) {
         return {
           rows: [

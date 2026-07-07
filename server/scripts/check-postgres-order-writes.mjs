@@ -1,4 +1,4 @@
-import { createOrderTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from '../store/postgresOrderWrites.mjs';
+import { createOrderTransaction, expirePendingPaymentsTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from '../store/postgresOrderWrites.mjs';
 
 const draft = {
   orderId: '00000000-0000-4000-8000-000000000001',
@@ -100,6 +100,23 @@ assert(terminalPaymentSql.some((sql) => /from payments/i.test(sql) && /for updat
 assert(terminalPaymentSql.some((sql) => /update payments/i.test(sql) && /raw_callback/i.test(sql)), 'terminal payment stores raw callback');
 assert(terminalPaymentSql.at(-1) === 'commit', 'terminal payment commits');
 
+const expiredPaymentClient = createMockClient([{ expired_count: 2, closed_payment_count: 1, cancelled_order_count: 2, released_slot_count: 2, status_log_count: 2 }]);
+const expiredPayments = await expirePendingPaymentsTransaction(expiredPaymentClient, {
+  occurredAt: '2026-06-12T06:16:00.000Z',
+  reason: 'Payment window expired',
+  limit: 50,
+});
+const expiredPaymentSql = expiredPaymentClient.calls.map((call) => call.sql);
+assert(expiredPayments.expiredCount === 2, 'expired payment job returns expired count');
+assert(expiredPayments.closedPaymentCount === 1, 'expired payment job returns closed payment count');
+assert(expiredPayments.releasedSlotCount === 2, 'expired payment job returns released slot count');
+assert(expiredPaymentSql.some((sql) => /with expired as/i.test(sql) && /skip locked/i.test(sql)), 'expired payment job locks expired rows with skip locked');
+assert(expiredPaymentSql.some((sql) => /update payments/i.test(sql) && /status = 'closed'/i.test(sql)), 'expired payment job closes pending payments');
+assert(expiredPaymentSql.some((sql) => /update orders/i.test(sql) && /status = 'cancelled'/i.test(sql)), 'expired payment job cancels orders');
+assert(expiredPaymentSql.some((sql) => /update availability_slots/i.test(sql) && /locked_order_id = null/i.test(sql)), 'expired payment job releases slots');
+assert(expiredPaymentSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'expired payment job writes status logs');
+assert(expiredPaymentSql.at(-1) === 'commit', 'expired payment job commits');
+
 const confirmClient = createMockClient([{ order_status: 'paid_pending_confirm' }]);
 const confirmed = await transitionOrderTransaction(confirmClient, {
   orderId: draft.orderId,
@@ -200,6 +217,7 @@ console.log(
         'pay-commit',
         'pay-rollback',
         'terminal-payment',
+        'expire-pending-payments',
         'confirm-order',
         'complete-order',
         'complete-settlement',
@@ -215,6 +233,7 @@ console.log(
       successQueryCount: successClient.calls.length,
       paymentQueryCount: paymentClient.calls.length,
       terminalPaymentQueryCount: terminalPaymentClient.calls.length,
+      expiredPaymentQueryCount: expiredPaymentClient.calls.length,
       transitionQueryCount: confirmClient.calls.length + completeClient.calls.length + cancelClient.calls.length,
       adminStatusQueryCount: adminStatusClient.calls.length + adminCompletedClient.calls.length,
     },
@@ -266,6 +285,20 @@ function createMockClient(slotRows) {
       if (/select id, status from payments/i.test(normalized)) {
         const row = slotRows[0] || {};
         return { rows: [{ id: draft.paymentId, status: row.payment_status || 'pending' }] };
+      }
+      if (/with expired as/i.test(normalized)) {
+        const row = slotRows[0] || {};
+        return {
+          rows: [
+            {
+              expired_count: row.expired_count || 0,
+              closed_payment_count: row.closed_payment_count || 0,
+              cancelled_order_count: row.cancelled_order_count || 0,
+              released_slot_count: row.released_slot_count || 0,
+              status_log_count: row.status_log_count || 0,
+            },
+          ],
+        };
       }
       if (/insert into orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'pending_payment' }] };
       if (/insert into payments/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'pending' }] };

@@ -59,6 +59,19 @@ export const postgresWriteOperations = [
     ],
   },
   {
+    name: 'expirePendingPayments',
+    route: 'scheduled payment timeout job',
+    transaction: true,
+    tables: ['orders', 'payments', 'availability_slots', 'order_status_logs'],
+    steps: [
+      'select expired pending_payment orders with locked slots for update skip locked',
+      'close pending payments without touching already paid payments',
+      'cancel expired orders with timeout reason',
+      'release locked availability_slots',
+      'insert order_status_logs for the automatic cancellation',
+    ],
+  },
+  {
     name: 'sendMessage',
     route: 'POST /api/conversations/:conversationId/messages',
     transaction: true,

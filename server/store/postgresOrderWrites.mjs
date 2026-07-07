@@ -225,6 +225,99 @@ export async function markPaymentTerminalTransaction(client, draft) {
   }
 }
 
+export async function expirePendingPaymentsTransaction(client, draft = {}) {
+  assertClient(client);
+
+  const occurredAt = draft.occurredAt || new Date().toISOString();
+  const reason = draft.reason || 'Payment window expired';
+  const limit = normalizePositiveInteger(draft.limit, 100, 500);
+  await client.query('begin');
+  try {
+    const result = await client.query(
+      `with expired as (
+         select o.id as order_id,
+                s.id as slot_id,
+                p.id as payment_id
+         from orders o
+         join availability_slots s on s.locked_order_id = o.id
+         join payments p on p.order_id = o.id
+         where o.status = 'pending_payment'
+           and s.status = 'locked'
+           and s.locked_until is not null
+           and s.locked_until < $1
+           and p.status <> 'paid'
+         order by s.locked_until asc
+         limit $3
+         for update of o, s, p skip locked
+       ),
+       closed_payments as (
+         update payments p
+         set status = 'closed',
+             closed_at = coalesce(closed_at, $1),
+             raw_callback = case
+               when p.status = 'pending' then jsonb_build_object('source', 'timeout_job', 'reason', $2)
+               else raw_callback
+             end,
+             updated_at = now()
+         from expired e
+         where p.id = e.payment_id
+           and p.status = 'pending'
+         returning p.id
+       ),
+       cancelled_orders as (
+         update orders o
+         set status = 'cancelled',
+             cancel_reason = $2,
+             cancelled_at = $1,
+             updated_at = now()
+         from expired e
+         where o.id = e.order_id
+           and o.status = 'pending_payment'
+         returning o.id
+       ),
+       released_slots as (
+         update availability_slots s
+         set status = 'available',
+             locked_order_id = null,
+             locked_until = null,
+             updated_at = now()
+         from expired e
+         where s.id = e.slot_id
+           and s.status = 'locked'
+         returning s.id
+       ),
+       status_logs as (
+         insert into order_status_logs (
+           order_id, from_status, to_status, operator_type, operator_id, reason
+         )
+         select e.order_id, 'pending_payment', 'cancelled', 'system', $4, $2
+         from expired e
+         join cancelled_orders o on o.id = e.order_id
+         returning id
+       )
+       select
+         (select count(*)::int from expired) as expired_count,
+         (select count(*)::int from closed_payments) as closed_payment_count,
+         (select count(*)::int from cancelled_orders) as cancelled_order_count,
+         (select count(*)::int from released_slots) as released_slot_count,
+         (select count(*)::int from status_logs) as status_log_count`,
+      [occurredAt, reason, limit, draft.operatorId || null],
+    );
+    await client.query('commit');
+    const row = result.rows?.[0] || {};
+    return {
+      expiredCount: normalizeCount(row.expired_count),
+      closedPaymentCount: normalizeCount(row.closed_payment_count),
+      cancelledOrderCount: normalizeCount(row.cancelled_order_count),
+      releasedSlotCount: normalizeCount(row.released_slot_count),
+      statusLogCount: normalizeCount(row.status_log_count),
+    };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  }
+}
+
 export async function transitionOrderTransaction(client, draft) {
   assertClient(client);
   assertTransitionDraft(draft);
@@ -436,6 +529,17 @@ function assertAdminStatusDraft(draft) {
     }
   }
   if (missing.length) throw new Error(`Missing admin order status draft fields: ${missing.join(', ')}`);
+}
+
+function normalizePositiveInteger(value, fallback, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(Math.floor(parsed), max);
+}
+
+function normalizeCount(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function nextOrderStatus(status, action) {
