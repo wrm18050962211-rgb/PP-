@@ -7,6 +7,7 @@ const store = createPostgresStore({
 });
 
 assert(store.capabilities.idempotencyWrites === true, 'postgres store advertises idempotency writes');
+assert(typeof store.idempotencyWrites.findRequest === 'function', 'postgres store exposes find idempotency gateway');
 assert(typeof store.idempotencyWrites.beginRequest === 'function', 'postgres store exposes begin idempotency gateway');
 assert(typeof store.idempotencyWrites.completeRequest === 'function', 'postgres store exposes complete idempotency gateway');
 
@@ -18,14 +19,20 @@ const draft = {
   actorKey: '00000000-0000-4000-8000-000000000912',
 };
 
+const found = await store.idempotencyWrites.findRequest(draft);
+const findClient = pool.clients[0];
+assert(found?.id === 'key-1', 'find gateway returns idempotency record');
+assert(findClient.calls.some((call) => /from idempotency_keys/i.test(call.sql) && /limit 1/i.test(call.sql)), 'find gateway queries key');
+assert(findClient.released === true, 'find gateway releases client');
+
 const started = await store.idempotencyWrites.beginRequest(draft);
-const beginClient = pool.clients[0];
+const beginClient = pool.clients[1];
 assert(started.state === 'started', 'begin gateway starts request');
 assert(beginClient.calls.some((call) => /insert into idempotency_keys/i.test(call.sql)), 'begin gateway inserts key');
 assert(beginClient.released === true, 'begin gateway releases client');
 
 const completed = await store.idempotencyWrites.completeRequest({ ...draft, responseStatus: 201, responseBody: { ok: true } });
-const completeClient = pool.clients[1];
+const completeClient = pool.clients[2];
 assert(completed.status === 'completed', 'complete gateway stores completed status');
 assert(completeClient.calls.some((call) => /update idempotency_keys/i.test(call.sql)), 'complete gateway updates key');
 assert(completeClient.released === true, 'complete gateway releases client');
@@ -34,8 +41,8 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['idempotency-write-capability', 'begin-gateway', 'complete-gateway', 'client-release'],
-      queryCount: beginClient.calls.length + completeClient.calls.length,
+      checks: ['idempotency-write-capability', 'find-gateway', 'begin-gateway', 'complete-gateway', 'client-release'],
+      queryCount: findClient.calls.length + beginClient.calls.length + completeClient.calls.length,
     },
     null,
     2,
@@ -61,6 +68,7 @@ function createMockClient() {
     async query(sql, params = []) {
       const normalized = sql.trim().replace(/\s+/g, ' ');
       this.calls.push({ sql: normalized, params });
+      if (/from idempotency_keys/i.test(normalized) && /limit 1/i.test(normalized)) return { rows: [{ id: 'key-1', status: 'completed' }] };
       if (/from idempotency_keys/i.test(normalized)) return { rows: [] };
       if (/insert into idempotency_keys/i.test(normalized)) return { rows: [{ id: params[0], status: 'processing' }] };
       if (/update idempotency_keys/i.test(normalized)) return { rows: [{ id: 'key-1', status: params[0] }] };

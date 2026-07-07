@@ -1,4 +1,4 @@
-import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransaction } from '../store/postgresIdempotencyWrites.mjs';
+import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransaction, findIdempotencyRequest } from '../store/postgresIdempotencyWrites.mjs';
 
 const draft = {
   idempotencyId: '00000000-0000-4000-8000-000000000901',
@@ -17,6 +17,13 @@ assert(started.state === 'started', 'missing key starts processing');
 assert(insertSql.some((sql) => /from idempotency_keys/i.test(sql) && /for update/i.test(sql)), 'begin locks existing key lookup');
 assert(insertSql.some((sql) => /insert into idempotency_keys/i.test(sql)), 'begin inserts key');
 assert(insertSql.at(-1) === 'commit', 'begin insert commits');
+
+const findClient = createMockClient({ mode: 'completed' });
+const found = await findIdempotencyRequest(findClient, draft);
+const findSql = findClient.calls.map((call) => call.sql);
+assert(found?.status === 'completed', 'find returns existing key');
+assert(findSql.some((sql) => /from idempotency_keys/i.test(sql) && /limit 1/i.test(sql)), 'find reads key without lock');
+assert(!findSql.some((sql) => /insert into idempotency_keys/i.test(sql) || /update idempotency_keys/i.test(sql)), 'find does not mutate key');
 
 const completedClient = createMockClient({ mode: 'completed' });
 const completed = await beginIdempotencyRequestTransaction(completedClient, draft);
@@ -48,7 +55,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['begin-insert', 'completed-cache', 'stale-relock', 'active-duplicate-rollback', 'complete-response'],
+      checks: ['begin-insert', 'find-existing', 'completed-cache', 'stale-relock', 'active-duplicate-rollback', 'complete-response'],
     },
     null,
     2,

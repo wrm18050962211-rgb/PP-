@@ -89,6 +89,23 @@ export async function completeIdempotencyRequestTransaction(client, draft) {
   }
 }
 
+export async function findIdempotencyRequest(client, draft) {
+  assertClient(client);
+  assertKeyDraft(draft);
+
+  const result = await client.query(
+    `select *
+     from idempotency_keys
+     where scope = $1
+       and request_key = $2
+       and actor_type = $3
+       and actor_key = $4
+     limit 1`,
+    [draft.scope, draft.requestKey, draft.actorType, draft.actorKey],
+  );
+  return result.rows?.[0] || null;
+}
+
 function assertClient(client) {
   if (!client || typeof client.query !== 'function') {
     throw new Error('PostgreSQL client with query(sql, params) is required');

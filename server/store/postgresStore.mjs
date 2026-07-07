@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { recordAdminActionTransaction, recordAuditLogTransaction } from './postgresAuditWrites.mjs';
 import { upsertAuthIdentityUserTransaction } from './postgresAuthWrites.mjs';
-import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransaction } from './postgresIdempotencyWrites.mjs';
+import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransaction, findIdempotencyRequest } from './postgresIdempotencyWrites.mjs';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
 import { applyModerationActionTransaction, createReportTransaction, reviewAuditCaseTransaction } from './postgresModerationWrites.mjs';
@@ -49,6 +49,7 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       revokeToken: (token, revokedAt) => withClient((client) => revokeSessionTransaction(client, { tokenHash: hashSessionToken(token), revokedAt })),
     },
     idempotencyWrites: {
+      findRequest: (draft) => withClient((client) => findIdempotencyRequest(client, draft)),
       beginRequest: (draft) => withClient((client) => beginIdempotencyRequestTransaction(client, draft)),
       completeRequest: (draft) => withClient((client) => completeIdempotencyRequestTransaction(client, draft)),
     },
