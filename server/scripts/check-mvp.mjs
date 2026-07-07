@@ -8,6 +8,7 @@ const checks = [
   ['postgres-store-audit-security-gateway', ['scripts/check-postgres-store-audit-security-gateway.mjs']],
   ['postgres-store-session-gateway', ['scripts/check-postgres-store-session-gateway.mjs']],
   ['postgres-store-message-gateway', ['scripts/check-postgres-store-message-gateway.mjs']],
+  ['postgres-store-moderation-gateway', ['scripts/check-postgres-store-moderation-gateway.mjs']],
   ['postgres-mappers', ['scripts/check-postgres-mappers.mjs']],
   ['postgres-write-plan', ['scripts/check-postgres-write-plan.mjs']],
   ['postgres-auth-writes', ['scripts/check-postgres-auth-writes.mjs']],
