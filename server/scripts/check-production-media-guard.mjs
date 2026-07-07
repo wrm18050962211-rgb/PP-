@@ -34,6 +34,11 @@ try {
 
   await waitForHealth();
 
+  const allowedCorsHealth = await rawApi('GET', '/api/health', undefined, { omitAuth: true, origin: 'http://localhost' });
+  assert(allowedCorsHealth.headers.get('access-control-allow-origin') === 'http://localhost', 'production CORS allows configured origin');
+  const blockedCorsHealth = await api('GET', '/api/health', undefined, { omitAuth: true, origin: 'https://evil.example', expectOk: false });
+  assert(blockedCorsHealth.error?.code === 'CORS_FORBIDDEN', 'production CORS rejects unlisted origin');
+
   const anonymousUpload = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg' }, { omitAuth: true, expectOk: false });
   assert(anonymousUpload.error?.code === 'AUTH_REQUIRED', 'production media policy still requires auth');
 
@@ -44,7 +49,7 @@ try {
     JSON.stringify(
       {
         ok: true,
-        checks: ['auth-required', 'production-media-not-configured'],
+        checks: ['cors-allowlist', 'cors-forbidden', 'auth-required', 'production-media-not-configured'],
       },
       null,
       2,
@@ -103,13 +108,7 @@ async function waitForHealth() {
 }
 
 async function api(method, path, body, options = {}) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (!options.omitAuth) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const response = await rawApi(method, path, body, options);
   const payload = await response.json();
   if (options.expectOk === false) {
     assert(!payload.success, `${method} ${path} should fail`);
@@ -117,6 +116,17 @@ async function api(method, path, body, options = {}) {
   }
   assert(response.ok && payload.success, `${method} ${path} should succeed`);
   return payload.data;
+}
+
+async function rawApi(method, path, body, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (!options.omitAuth) headers.Authorization = `Bearer ${token}`;
+  if (options.origin) headers.Origin = options.origin;
+  return fetch(`${baseUrl}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
 }
 
 async function readServerOutput() {
