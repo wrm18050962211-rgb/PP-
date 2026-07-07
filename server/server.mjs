@@ -507,6 +507,15 @@ function canMutateOrder(order, session, action) {
   return false;
 }
 
+function requireOrderMutationAccess(store, orderOrId, session, action) {
+  const order = typeof orderOrId === 'string' ? findOrder(store, orderOrId) : orderOrId;
+  if (!order) return { response: error(404, 'NOT_FOUND', 'Order not found') };
+  if (!canMutateOrder(order, session, action)) {
+    return { response: error(403, 'FORBIDDEN', 'Order action is not allowed for current role') };
+  }
+  return { order };
+}
+
 function messageSenderRole(session) {
   return session.role === 'admin' ? 'admin' : session.role === 'companion' ? 'companion' : 'user';
 }
@@ -696,9 +705,9 @@ function transitionOrder(store, path, action, body = {}) {
   const session = ensureActiveSession(store);
   if (!session) return authRequired();
 
-  const order = findOrder(store, path.split('/')[3]);
-  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
-  if (!canMutateOrder(order, session, action)) return error(403, 'FORBIDDEN', 'Order action is not allowed for current role');
+  const access = requireOrderMutationAccess(store, path.split('/')[3], session, action);
+  if (access.response) return access.response;
+  const { order } = access;
 
   if (action === 'confirm') {
     if (order.status !== 'paid_pending_confirm') return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be confirmed');

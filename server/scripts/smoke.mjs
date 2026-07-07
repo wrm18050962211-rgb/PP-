@@ -109,6 +109,8 @@ try {
   assert(otherConsumer.user?.id !== consumerSession.user?.id, 'second consumer login creates a distinct user');
   const otherConsumerPayment = await api('GET', `/api/payments/${order.payment.paymentId}/status`, undefined, { expectOk: false });
   assert(otherConsumerPayment.error?.code === 'FORBIDDEN', 'consumer cannot view another consumer order payment status');
+  const otherConsumerCancel = await api('POST', `/api/orders/${paid.order.id}/cancel`, { reason: 'smoke test cross-user cancellation' }, { expectOk: false });
+  assert(otherConsumerCancel.error?.code === 'FORBIDDEN', 'consumer cannot cancel another consumer order');
   authToken = primaryConsumerToken;
 
   const wrongCompanionPost = await findPostWithDifferentCompanion(feed.items, paid.order.companionId);
