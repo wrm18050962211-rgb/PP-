@@ -961,12 +961,14 @@ async function getPaymentStatus(store, path) {
   const { order } = access;
 
   let refreshed = false;
-  try {
-    refreshed = await refreshWechatPaymentStatus(store, payment);
-  } catch (paymentQueryError) {
-    payment.lastQueryError = paymentQueryError instanceof Error ? paymentQueryError.message : 'Payment status query failed';
-    payment.lastQueriedAt = now();
-    refreshed = true;
+  if (dataStore.kind === 'json') {
+    try {
+      refreshed = await refreshWechatPaymentStatus(store, payment);
+    } catch (paymentQueryError) {
+      payment.lastQueryError = paymentQueryError instanceof Error ? paymentQueryError.message : 'Payment status query failed';
+      payment.lastQueriedAt = now();
+      refreshed = true;
+    }
   }
   return json(
     {
