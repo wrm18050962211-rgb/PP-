@@ -1111,6 +1111,11 @@ function getConversation(store, path) {
   if (!canOpenConversation(order)) {
     return error(409, 'ORDER_STATUS_INVALID', 'Conversation opens after payment');
   }
+  if (dataStore.kind !== 'json') {
+    const conversation = store.conversations[order.id];
+    if (!conversation) return error(404, 'CONVERSATION_NOT_FOUND', 'Conversation not found for this order');
+    return json(conversation);
+  }
   store.conversations[order.id] ||= createConversation(order);
   return json(store.conversations[order.id], 200, true);
 }
@@ -1123,10 +1128,15 @@ function listConversations(store, url) {
   const limit = clampNumber(toNumber(url.searchParams.get('limit')) ?? 20, 1, 50);
   const cursor = clampNumber(toNumber(url.searchParams.get('cursor')) ?? 0, 0, Number.MAX_SAFE_INTEGER);
   const source = store.orders
-    .filter((order) => canOpenConversation(order) && canAccessOrder(store, order, session, session.role))
+    .filter(
+      (order) =>
+        canOpenConversation(order) &&
+        canAccessOrder(store, order, session, session.role) &&
+        (dataStore.kind === 'json' || Boolean(store.conversations[order.id])),
+    )
     .sort((left, right) => conversationSortTime(store, right) - conversationSortTime(store, left));
   const items = source.slice(cursor, cursor + limit).map((order) => {
-    store.conversations[order.id] ||= createConversation(order);
+    if (dataStore.kind === 'json') store.conversations[order.id] ||= createConversation(order);
     return conversationSummary(store.conversations[order.id]);
   });
   const nextOffset = cursor + items.length;
