@@ -3,6 +3,7 @@ export function buildStoreFromPostgresRows(rows) {
   const companionById = new Map(companions.map((companion) => [companion.id, companion]));
   const posts = mapPosts(rows, companionById);
   const orders = mapOrders(rows, companionById);
+  const reports = mapReports(rows, orders);
 
   return {
     meta: { version: 3 },
@@ -14,10 +15,10 @@ export function buildStoreFromPostgresRows(rows) {
     orders,
     payments: mapPayments(rows),
     conversations: mapConversations(rows, orders),
-    riskCases: [],
-    messageRiskEvents: [],
-    reports: [],
-    auditCases: [],
+    riskCases: mapRiskCases(rows, orders),
+    messageRiskEvents: mapMessageRiskEvents(rows),
+    reports,
+    auditCases: mapAuditCases(rows, reports),
     auditLogs: mapAuditLogs(rows),
     adminActionLogs: mapAdminActionLogs(rows),
     securityEvents: mapSecurityEvents(rows),
@@ -234,6 +235,124 @@ function mapSenderRole(role) {
   return 'user';
 }
 
+function mapRiskCases(rows, orders) {
+  const orderById = new Map(orders.map((order) => [order.id, order]));
+  return (rows.messageRiskEvents || []).map((row) => {
+    const order = orderById.get(stringId(row.order_id));
+    const message = (rows.messages || []).find((item) => stringId(item.id) === stringId(row.message_id));
+    const hitWords = arrayValue(row.matched_keywords).map((keyword) => ({
+      keyword,
+      label: row.risk_type || 'message_risk',
+      level: row.risk_level || 'medium',
+    }));
+    const blockedMessage = message
+      ? mapMessage(message)
+      : {
+          id: row.message_id ? stringId(row.message_id) : stringId(row.id),
+          from: 'user',
+          text: jsonObject(row.raw_payload).content || '',
+          sentAt: toIso(row.created_at),
+          riskStatus: row.action_taken === 'block' ? 'blocked' : 'flagged',
+        };
+    return {
+      id: stringId(row.id),
+      type: 'message_risk',
+      status: row.review_status || 'pending',
+      riskLevel: row.risk_level || 'medium',
+      riskLabel: row.risk_type || 'Message risk',
+      conversationId: stringId(row.conversation_id),
+      orderId: stringId(row.order_id),
+      orderNo: order?.orderNo || '',
+      orderTitle: order?.title || '',
+      orderStatusText: order?.statusText || '',
+      orderAmountText: order?.amountText || '',
+      userName: '',
+      companionName: order?.companion || '',
+      blockedMessage,
+      hitWords,
+      contextMessages: [blockedMessage].filter((item) => item.text),
+      createdAt: toIso(row.created_at),
+      actionLogs: [],
+    };
+  });
+}
+
+function mapMessageRiskEvents(rows) {
+  return (rows.messageRiskEvents || []).map((row) => ({
+    id: stringId(row.id),
+    messageId: row.message_id ? stringId(row.message_id) : null,
+    conversationId: stringId(row.conversation_id),
+    orderId: row.order_id ? stringId(row.order_id) : null,
+    userId: row.user_id ? stringId(row.user_id) : null,
+    matchedKeywords: arrayValue(row.matched_keywords),
+    riskType: row.risk_type,
+    riskLevel: row.risk_level,
+    action: row.action_taken,
+    reviewStatus: row.review_status || 'pending',
+    rawPayload: jsonObject(row.raw_payload),
+    createdAt: toIso(row.created_at),
+  }));
+}
+
+function mapReports(rows, orders) {
+  const orderById = new Map(orders.map((order) => [order.id, order]));
+  return (rows.reports || []).map((row) => {
+    const order = orderById.get(stringId(row.order_id));
+    return {
+      id: stringId(row.id),
+      type: 'report_dispute',
+      status: row.status || 'pending',
+      riskLevel: row.risk_level || 'medium',
+      riskLabel: row.category || 'Order dispute',
+      reporterId: stringId(row.reporter_id),
+      reportedUserId: row.reported_user_id ? stringId(row.reported_user_id) : null,
+      reporterRole: '',
+      reporterName: '',
+      targetName: order?.companion || '',
+      reason: row.category || 'Order dispute',
+      description: row.description || '',
+      evidenceFiles: arrayValue(row.evidence_files),
+      orderId: row.order_id ? stringId(row.order_id) : null,
+      orderNo: order?.orderNo || '',
+      orderTitle: order?.title || '',
+      orderStatusText: order?.statusText || '',
+      orderAmountText: order?.amountText || '',
+      createdAt: toIso(row.created_at),
+      handledAt: toOptionalIso(row.handled_at),
+      result: row.result || '',
+      actionLogs: [],
+    };
+  });
+}
+
+function mapAuditCases(rows, reports) {
+  const reportById = new Map(reports.map((report) => [report.id, report]));
+  const logsByCaseId = new Map();
+  for (const log of mapAuditLogs(rows)) {
+    if (!logsByCaseId.has(log.auditCaseId)) logsByCaseId.set(log.auditCaseId, []);
+    logsByCaseId.get(log.auditCaseId).push(log);
+  }
+  return (rows.auditCases || []).map((row) => {
+    const id = stringId(row.id);
+    const targetType = row.target_type || '';
+    const targetId = stringId(row.target_id);
+    const payload = targetType === 'report' ? reportById.get(targetId) || jsonObject(row.snapshot) : jsonObject(row.snapshot);
+    return {
+      id,
+      targetType,
+      targetId,
+      title: targetType === 'report' ? `Report ${payload.reason || payload.riskLabel || ''}`.trim() : `${targetType || 'Item'} review`,
+      status: row.status || 'pending',
+      riskLevel: row.risk_level || 'low',
+      reason: row.reason || '',
+      createdAt: toIso(row.submitted_at || row.created_at),
+      resolvedAt: toOptionalIso(row.reviewed_at),
+      payload,
+      logs: logsByCaseId.get(id) || [],
+    };
+  });
+}
+
 function mapAuditLogs(rows) {
   return (rows.auditLogs || []).map((row) => ({
     id: stringId(row.id),
@@ -367,6 +486,12 @@ function number(value) {
 function jsonObject(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value;
+}
+
+function arrayValue(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string' && value) return [value];
+  return [];
 }
 
 function stringId(value) {

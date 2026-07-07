@@ -187,6 +187,57 @@ const rows = {
       sent_at: '2026-06-12T06:05:00.000Z',
     },
   ],
+  messageRiskEvents: [
+    {
+      id: 'risk-event-pg-1',
+      message_id: 'message-pg-1',
+      conversation_id: 'conversation-pg-1',
+      order_id: 'order-pg-1',
+      user_id: 'user-pg-1',
+      matched_keywords: ['wechat'],
+      risk_type: 'private_transaction',
+      risk_level: 'high',
+      action_taken: 'block',
+      review_status: 'pending',
+      raw_payload: { content: 'Add my wechat' },
+      created_at: '2026-06-12T06:06:00.000Z',
+    },
+  ],
+  reports: [
+    {
+      id: 'report-pg-1',
+      reporter_id: 'user-pg-1',
+      reported_user_id: null,
+      order_id: 'order-pg-1',
+      conversation_id: 'conversation-pg-1',
+      target_type: 'order',
+      target_id: 'order-pg-1',
+      category: 'Order dispute',
+      description: 'Photographer was late.',
+      evidence_files: ['cos://evidence-1.jpg'],
+      status: 'pending',
+      handled_at: null,
+      result: null,
+      created_at: '2026-06-12T06:10:00.000Z',
+      updated_at: '2026-06-12T06:10:00.000Z',
+    },
+  ],
+  auditCases: [
+    {
+      id: 'audit-case-pg-1',
+      target_type: 'report',
+      target_id: 'report-pg-1',
+      status: 'pending',
+      risk_level: 'medium',
+      submitted_by: 'user-pg-1',
+      reason: 'Order dispute',
+      snapshot: { reportId: 'report-pg-1' },
+      submitted_at: '2026-06-12T06:11:00.000Z',
+      reviewed_at: null,
+      created_at: '2026-06-12T06:11:00.000Z',
+      updated_at: '2026-06-12T06:11:00.000Z',
+    },
+  ],
 };
 
 const store = buildStoreFromPostgresRows(rows);
@@ -209,6 +260,11 @@ assert(store.conversations['order-pg-1'].messages[0].text === 'Hello', 'conversa
 assert(store.payments[0].paymentNo === 'PAY2606120001', 'payments map');
 assert(store.payments[0].amountText === '¥399', 'payment amount text maps');
 assert(store.payments[0].closedAt === undefined, 'nullable payment timestamps stay empty');
+assert(store.messageRiskEvents[0].matchedKeywords[0] === 'wechat', 'message risk events map');
+assert(store.riskCases[0].riskLevel === 'high', 'message risk cases map');
+assert(store.reports[0].description === 'Photographer was late.', 'reports map');
+assert(store.auditCases[0].targetType === 'report', 'audit cases map');
+assert(store.auditCases[0].payload.id === 'report-pg-1', 'audit case report payload links');
 assert(Array.isArray(store.sessions) && store.sessions.length === 0, 'sessions start empty');
 assert(store.auditLogs[0].auditCaseId === 'audit-case-pg-1', 'audit logs map');
 assert(store.adminActionLogs[0].note === 'Order marked disputed', 'admin action logs map');
@@ -218,7 +274,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'orders', 'payments', 'conversations', 'sessions', 'audit-logs', 'admin-action-logs', 'security-events'],
+      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'orders', 'payments', 'conversations', 'risk-cases', 'reports', 'audit-cases', 'sessions', 'audit-logs', 'admin-action-logs', 'security-events'],
       companionCount: store.companions.length,
       postCount: store.posts.length,
     },

@@ -15,19 +15,28 @@ assert(loadedStore.orders[0]?.companion === 'Mori', 'order companion name is att
 assert(loadedStore.payments[0]?.paymentNo === 'PAY2607080001', 'payments are loaded into read model');
 assert(loadedStore.payments[0]?.orderId === loadedStore.orders[0]?.id, 'payment order link is preserved');
 assert(loadedStore.conversations['00000000-0000-4000-8000-000000000901']?.messages[0]?.text === 'Hello from Postgres', 'conversation messages are loaded');
+assert(loadedStore.riskCases[0]?.orderId === loadedStore.orders[0]?.id, 'message risk cases are loaded');
+assert(loadedStore.reports[0]?.orderId === loadedStore.orders[0]?.id, 'reports are loaded');
+assert(loadedStore.auditCases[0]?.targetId === loadedStore.reports[0]?.id, 'audit cases are loaded');
 assert(pool.calls.some((call) => /from orders/i.test(call.sql)), 'orders query is issued');
 assert(pool.calls.some((call) => /from payments/i.test(call.sql)), 'payments query is issued');
 assert(pool.calls.some((call) => /from conversations/i.test(call.sql)), 'conversations query is issued');
 assert(pool.calls.some((call) => /from messages/i.test(call.sql)), 'messages query is issued');
+assert(pool.calls.some((call) => /from message_risk_events/i.test(call.sql)), 'message risk events query is issued');
+assert(pool.calls.some((call) => /from reports/i.test(call.sql)), 'reports query is issued');
+assert(pool.calls.some((call) => /from audit_cases/i.test(call.sql)), 'audit cases query is issued');
 
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['store-load-read-model', 'orders-query', 'payments-query', 'conversations-query', 'messages-query'],
+      checks: ['store-load-read-model', 'orders-query', 'payments-query', 'conversations-query', 'messages-query', 'risk-query', 'reports-query', 'audit-cases-query'],
       orderCount: loadedStore.orders.length,
       paymentCount: loadedStore.payments.length,
       conversationCount: Object.keys(loadedStore.conversations).length,
+      riskCaseCount: loadedStore.riskCases.length,
+      reportCount: loadedStore.reports.length,
+      auditCaseCount: loadedStore.auditCases.length,
       queryCount: pool.calls.length,
     },
     null,
@@ -138,6 +147,69 @@ function createMockPool() {
               original_content: 'Hello from Postgres',
               risk_status: 'clean',
               sent_at: '2026-07-08T09:05:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from message_risk_events/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000910',
+              message_id: '00000000-0000-4000-8000-000000000908',
+              conversation_id: '00000000-0000-4000-8000-000000000907',
+              order_id: '00000000-0000-4000-8000-000000000901',
+              user_id: '00000000-0000-4000-8000-000000000904',
+              matched_keywords: ['wechat'],
+              risk_type: 'private_transaction',
+              risk_level: 'high',
+              action_taken: 'block',
+              review_status: 'pending',
+              raw_payload: { content: 'Add my wechat' },
+              created_at: '2026-07-08T09:06:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from reports/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000911',
+              reporter_id: '00000000-0000-4000-8000-000000000904',
+              reported_user_id: null,
+              order_id: '00000000-0000-4000-8000-000000000901',
+              conversation_id: '00000000-0000-4000-8000-000000000907',
+              target_type: 'order',
+              target_id: '00000000-0000-4000-8000-000000000901',
+              category: 'Order dispute',
+              description: 'Photographer was late.',
+              evidence_files: [],
+              status: 'pending',
+              handled_at: null,
+              result: null,
+              created_at: '2026-07-08T09:10:00.000Z',
+              updated_at: '2026-07-08T09:10:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from audit_cases/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000912',
+              target_type: 'report',
+              target_id: '00000000-0000-4000-8000-000000000911',
+              status: 'pending',
+              risk_level: 'medium',
+              submitted_by: '00000000-0000-4000-8000-000000000904',
+              reason: 'Order dispute',
+              snapshot: { reportId: '00000000-0000-4000-8000-000000000911' },
+              submitted_at: '2026-07-08T09:11:00.000Z',
+              reviewed_at: null,
+              created_at: '2026-07-08T09:11:00.000Z',
+              updated_at: '2026-07-08T09:11:00.000Z',
             },
           ],
         };
