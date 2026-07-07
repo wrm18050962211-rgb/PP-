@@ -124,8 +124,8 @@ async function route(method, url, body, store, req) {
   if (method === 'GET' && isNestedRoute(path, '/api/payments/', '/status')) return getPaymentStatus(store, path);
   if (method === 'POST' && isNestedRoute(path, '/api/payments/', '/mock-success')) return mockPaymentSuccess(store, path);
   if (method === 'POST' && path === '/api/payments/wechat/notify') return wechatPaymentNotify(store, body);
-  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/confirm')) return transitionOrder(store, path, 'confirm');
-  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/complete')) return transitionOrder(store, path, 'complete');
+  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/confirm')) return transitionOrder(store, path, 'confirm', body);
+  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/complete')) return transitionOrder(store, path, 'complete', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/cancel')) return transitionOrder(store, path, 'cancel', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/status')) return setOrderStatus(store, path, body.status);
 
@@ -1060,11 +1060,16 @@ async function transitionOrder(store, path, action, body = {}) {
   const access = requireOrderMutationAccess(store, path.split('/')[3], session, action);
   if (access.response) return access.response;
   const { order } = access;
+  const idempotencyKey = normalizeOrderIdempotencyKey(body.idempotencyKey || body.clientRequestId);
+  const replay = await findPostgresOrderActionIdempotency(session, order, action, idempotencyKey);
+  if (replay.response) return replay.response;
 
   if (action === 'confirm') {
     if (order.status !== 'paid_pending_confirm') return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be confirmed');
     if (dataStore.kind !== 'json' && dataStore.orderWrites?.transitionOrder) {
-      return transitionPostgresOrder(order, action, session, 'Companion confirmed order');
+      const idempotency = await beginPostgresOrderActionIdempotency(session, order, action, idempotencyKey, body);
+      if (idempotency.response) return idempotency.response;
+      return transitionPostgresOrder(order, action, session, 'Companion confirmed order', idempotencyKey);
     }
     return updateOrder(store, order, 'confirmed', 'Companion confirmed order');
   }
@@ -1072,7 +1077,9 @@ async function transitionOrder(store, path, action, body = {}) {
   if (action === 'complete') {
     if (!['confirmed', 'in_service'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be completed');
     if (dataStore.kind !== 'json' && dataStore.orderWrites?.transitionOrder) {
-      return transitionPostgresOrder(order, action, session, 'Order completed');
+      const idempotency = await beginPostgresOrderActionIdempotency(session, order, action, idempotencyKey, body);
+      if (idempotency.response) return idempotency.response;
+      return transitionPostgresOrder(order, action, session, 'Order completed', idempotencyKey);
     }
     const result = updateOrder(store, order, 'completed', 'Order completed');
     createSettlement(store, order);
@@ -1082,7 +1089,9 @@ async function transitionOrder(store, path, action, body = {}) {
   if (action === 'cancel') {
     if (['completed', 'refunded'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be cancelled');
     if (dataStore.kind !== 'json' && dataStore.orderWrites?.transitionOrder) {
-      return transitionPostgresOrder(order, action, session, body.reason || 'Order cancelled');
+      const idempotency = await beginPostgresOrderActionIdempotency(session, order, action, idempotencyKey, body);
+      if (idempotency.response) return idempotency.response;
+      return transitionPostgresOrder(order, action, session, body.reason || 'Order cancelled', idempotencyKey);
     }
     return cancelOrder(store, order, session, body);
   }
@@ -1090,7 +1099,74 @@ async function transitionOrder(store, path, action, body = {}) {
   return error(400, 'VALIDATION_ERROR', 'Unknown action');
 }
 
-async function transitionPostgresOrder(order, action, session, reason) {
+async function findPostgresOrderActionIdempotency(session, order, action, idempotencyKey) {
+  if (!(dataStore.kind !== 'json' && idempotencyKey && dataStore.idempotencyWrites?.findRequest)) return { response: null };
+  const actor = idempotencyActorForSession(session);
+  const record = await dataStore.idempotencyWrites.findRequest({
+    scope: orderActionIdempotencyScope(action),
+    requestKey: idempotencyKey,
+    actorType: actor.actorType,
+    actorKey: actor.actorKey,
+  });
+  if (record?.status !== 'completed') return { response: null };
+  return { response: json(record.response_body || record.responseBody || {}, record.response_status || record.responseStatus || 200, false) };
+}
+
+async function beginPostgresOrderActionIdempotency(session, order, action, idempotencyKey, body = {}) {
+  if (!(dataStore.kind !== 'json' && idempotencyKey && dataStore.idempotencyWrites?.beginRequest)) return { response: null };
+  const actor = idempotencyActorForSession(session);
+  try {
+    const result = await dataStore.idempotencyWrites.beginRequest({
+      idempotencyId: id('idempotency'),
+      scope: orderActionIdempotencyScope(action),
+      requestKey: idempotencyKey,
+      actorType: actor.actorType,
+      actorKey: actor.actorKey,
+      requestHash: hashRequestPayload({ orderId: order.id, action, body }),
+    });
+    if (result.state === 'completed') {
+      return { response: json(result.record?.response_body || result.record?.responseBody || {}, result.record?.response_status || result.record?.responseStatus || 200, false) };
+    }
+    return { response: null };
+  } catch (error) {
+    if (error?.code === 'IDEMPOTENCY_IN_PROGRESS') {
+      return { response: errorResponse(409, 'IDEMPOTENCY_IN_PROGRESS', 'Request is already processing') };
+    }
+    throw error;
+  }
+}
+
+async function completePostgresOrderActionIdempotency(session, action, idempotencyKey, responseBody) {
+  if (!(idempotencyKey && dataStore.idempotencyWrites?.completeRequest)) return;
+  const actor = idempotencyActorForSession(session);
+  try {
+    await dataStore.idempotencyWrites.completeRequest({
+      scope: orderActionIdempotencyScope(action),
+      requestKey: idempotencyKey,
+      actorType: actor.actorType,
+      actorKey: actor.actorKey,
+      status: 'completed',
+      responseStatus: 200,
+      responseBody,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[idempotency] Failed to complete order action idempotency key: ${message}`);
+  }
+}
+
+function orderActionIdempotencyScope(action) {
+  return `orders.${action}`;
+}
+
+function idempotencyActorForSession(session) {
+  return {
+    actorType: session.role === 'companion' ? 'companion' : 'user',
+    actorKey: session.user?.id || session.companionId || '',
+  };
+}
+
+async function transitionPostgresOrder(order, action, session, reason, idempotencyKey = '') {
   const occurredAt = now();
   const draft = {
     orderId: order.id,
@@ -1120,6 +1196,7 @@ async function transitionPostgresOrder(order, action, session, reason) {
     status: result.toStatus || order.status,
     statusLogs: [...(order.statusLogs || []), statusLog(result.toStatus || order.status, reason)],
   });
+  await completePostgresOrderActionIdempotency(session, action, idempotencyKey, nextOrder);
   return json(nextOrder, 200, false);
 }
 
