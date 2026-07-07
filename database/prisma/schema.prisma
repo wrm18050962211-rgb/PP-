@@ -444,6 +444,7 @@ model Order {
   rating           Rating?
   settlement       Settlement?
   ledgerEntries    LedgerEntry[]
+  providerCallbackEvents ProviderCallbackEvent[]
 
   @@index([userId, status, createdAt])
   @@index([companionId, status, startAt])
@@ -501,6 +502,7 @@ model Payment {
 
   order   Order    @relation(fields: [orderId], references: [id])
   refunds Refund[]
+  providerCallbackEvents ProviderCallbackEvent[]
 
   @@index([orderId])
   @@index([status])
@@ -526,10 +528,43 @@ model Refund {
   order         Order    @relation(fields: [orderId], references: [id])
   payment       Payment? @relation(fields: [paymentId], references: [id])
   requestedUser User?    @relation("RequestedRefunds", fields: [requestedBy], references: [id])
+  providerCallbackEvents ProviderCallbackEvent[]
 
   @@index([orderId])
   @@index([status])
   @@map("refunds")
+}
+
+model ProviderCallbackEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  provider        String    @db.VarChar(40)
+  eventType       String    @map("event_type") @db.VarChar(80)
+  providerEventId String?   @map("provider_event_id") @db.VarChar(160)
+  objectType      String?   @map("object_type") @db.VarChar(40)
+  objectId        String?   @map("object_id") @db.Uuid
+  paymentId       String?   @map("payment_id") @db.Uuid
+  refundId        String?   @map("refund_id") @db.Uuid
+  orderId         String?   @map("order_id") @db.Uuid
+  status          String    @default("received") @db.VarChar(40)
+  retryCount      Int       @default(0) @map("retry_count")
+  nextRetryAt     DateTime? @map("next_retry_at") @db.Timestamptz(6)
+  lastError       String?   @map("last_error")
+  requestHeaders  Json      @default("{}") @map("request_headers")
+  rawBody         String?   @map("raw_body")
+  rawPayload      Json      @default("{}") @map("raw_payload")
+  processedAt     DateTime? @map("processed_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order   Order?   @relation(fields: [orderId], references: [id])
+  payment Payment? @relation(fields: [paymentId], references: [id])
+  refund  Refund?  @relation(fields: [refundId], references: [id])
+
+  @@unique([provider, eventType, providerEventId])
+  @@index([status, nextRetryAt, createdAt])
+  @@index([paymentId, createdAt])
+  @@index([refundId, createdAt])
+  @@map("provider_callback_events")
 }
 
 model Conversation {

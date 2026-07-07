@@ -29,6 +29,7 @@ const requiredTables = [
   'idempotency_keys',
   'orders',
   'payments',
+  'provider_callback_events',
   'availability_slots',
   'order_status_logs',
   'messages',

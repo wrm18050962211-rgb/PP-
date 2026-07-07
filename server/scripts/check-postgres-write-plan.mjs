@@ -24,6 +24,7 @@ const requiredTables = [
   'orders',
   'order_status_logs',
   'payments',
+  'provider_callback_events',
   'availability_slots',
   'conversations',
   'messages',

@@ -26,6 +26,7 @@ for (const table of [
   'orders',
   'payments',
   'refunds',
+  'provider_callback_events',
   'admin_action_logs',
   'audit_logs',
   'security_events',

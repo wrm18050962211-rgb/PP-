@@ -20,7 +20,7 @@ export const postgresWriteOperations = [
     name: 'markPaymentPaid',
     route: 'POST /api/payments/:paymentId/mock-success and POST /api/payments/wechat/notify',
     transaction: true,
-    tables: ['payments', 'orders', 'availability_slots', 'conversations', 'order_status_logs'],
+    tables: ['provider_callback_events', 'payments', 'orders', 'availability_slots', 'conversations', 'order_status_logs'],
     steps: [
       'select payments and related orders for update',
       'return success without side effects when payment is already paid',
@@ -36,7 +36,7 @@ export const postgresWriteOperations = [
     name: 'markPaymentTerminal',
     route: 'POST /api/payments/wechat/notify for CLOSED, REVOKED, and PAYERROR',
     transaction: true,
-    tables: ['payments'],
+    tables: ['provider_callback_events', 'payments'],
     steps: [
       'select payments for update',
       'return success without side effects when payment is no longer pending',
@@ -79,7 +79,7 @@ export const postgresWriteOperations = [
     name: 'markRefundTerminal',
     route: 'refund provider callback / refund processing job',
     transaction: true,
-    tables: ['refunds', 'orders', 'order_status_logs'],
+    tables: ['provider_callback_events', 'refunds', 'orders', 'order_status_logs'],
     steps: [
       'select refunds and linked orders for update',
       'return success without side effects when refund is already terminal',

@@ -457,6 +457,38 @@ create table refunds (
 create index idx_refunds_order on refunds(order_id);
 create index idx_refunds_status on refunds(status);
 
+create table provider_callback_events (
+  id uuid primary key default gen_random_uuid(),
+  provider varchar(40) not null,
+  event_type varchar(80) not null,
+  provider_event_id varchar(160),
+  object_type varchar(40),
+  object_id uuid,
+  payment_id uuid references payments(id),
+  refund_id uuid references refunds(id),
+  order_id uuid references orders(id),
+  status varchar(40) not null default 'received',
+  retry_count integer not null default 0 check (retry_count >= 0),
+  next_retry_at timestamptz,
+  last_error text,
+  request_headers jsonb not null default '{}',
+  raw_body text,
+  raw_payload jsonb not null default '{}',
+  processed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(provider, event_type, provider_event_id)
+);
+
+create index idx_provider_callback_events_status
+on provider_callback_events(status, next_retry_at, created_at);
+
+create index idx_provider_callback_events_payment
+on provider_callback_events(payment_id, created_at);
+
+create index idx_provider_callback_events_refund
+on provider_callback_events(refund_id, created_at);
+
 -- =========================
 -- Order-bound messages and risk control
 -- =========================
