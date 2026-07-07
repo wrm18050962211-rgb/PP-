@@ -1,5 +1,5 @@
 import type { AuthSession, UserRole } from '../types/api';
-import { apiGet, apiPost, clearApiAuthToken, isApiEnabled, isTestRoleSwitchAllowed, setApiAuthToken } from './apiClient';
+import { apiGet, apiPost, clearApiAuthToken, getApiAuthToken, isApiEnabled, isTestRoleSwitchAllowed, setApiAuthToken } from './apiClient';
 import { findTestAccountIdentitiesByPhone, type PublicRole, type TestAccountIdentity } from './accountDirectory';
 import { isMiniProgramRuntime, wxLogin } from './miniProgramBridge';
 
@@ -68,10 +68,11 @@ export async function fetchAuthSession(): Promise<AuthSession> {
       const response = await apiGet<AuthSession>('/api/auth/session');
       if (response.success) return persistRemoteSession(response.data);
     } catch {
-      // Fall through to local MVP session while the production auth service is not connected.
+      if (!isTestRoleSwitchAllowed()) throw new Error('登录状态获取失败，请重新登录。');
     }
   }
 
+  if (!isTestRoleSwitchAllowed()) throw new Error('登录状态获取失败，请重新登录。');
   return localSession(readStoredRole());
 }
 
@@ -104,6 +105,7 @@ export function hasRegisteredAccount() {
 }
 
 export function isAccountLoggedIn() {
+  if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'));
   if (typeof localStorage === 'undefined') return false;
   return localStorage.getItem(loginStorageKey) === '1' && hasRegisteredAccount();
 }
@@ -122,6 +124,7 @@ export function getActivePublicRole(): PublicRole | null {
 }
 
 export function isAdminSessionActive() {
+  if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('admin'));
   if (typeof localStorage === 'undefined') return false;
   return localStorage.getItem(adminLoginStorageKey) === '1';
 }

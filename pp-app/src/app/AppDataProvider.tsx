@@ -57,6 +57,10 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       }).catch(() => {
         if (mounted) setOrderActionError(orderRefreshFailedMessage);
       });
+    }).catch((error) => {
+      if (!mounted) return;
+      setSession(null);
+      setOrderActionError(error instanceof Error ? error.message : '登录状态获取失败，请重新登录。');
     });
 
     function handleSessionChanged(event: Event) {
