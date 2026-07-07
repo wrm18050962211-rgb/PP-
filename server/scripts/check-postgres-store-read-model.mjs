@@ -1,0 +1,129 @@
+import { createPostgresStore } from '../store/postgresStore.mjs';
+
+const pool = createMockPool();
+const store = createPostgresStore({
+  databaseUrl: 'postgres://user:pass@127.0.0.1:5432/pp',
+  poolFactory: () => pool,
+});
+
+const result = await store.load();
+const loadedStore = result.store;
+
+assert(result.changed === false, 'postgres load is read-only');
+assert(loadedStore.orders[0]?.orderNo === 'ST2607080001', 'orders are loaded into read model');
+assert(loadedStore.orders[0]?.companion === 'Mori', 'order companion name is attached');
+assert(loadedStore.conversations['00000000-0000-4000-8000-000000000901']?.messages[0]?.text === 'Hello from Postgres', 'conversation messages are loaded');
+assert(pool.calls.some((call) => /from orders/i.test(call.sql)), 'orders query is issued');
+assert(pool.calls.some((call) => /from conversations/i.test(call.sql)), 'conversations query is issued');
+assert(pool.calls.some((call) => /from messages/i.test(call.sql)), 'messages query is issued');
+
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      checks: ['store-load-read-model', 'orders-query', 'conversations-query', 'messages-query'],
+      orderCount: loadedStore.orders.length,
+      conversationCount: Object.keys(loadedStore.conversations).length,
+      queryCount: pool.calls.length,
+    },
+    null,
+    2,
+  ),
+);
+
+function createMockPool() {
+  return {
+    calls: [],
+    async query(sql) {
+      const normalized = sql.trim().replace(/\s+/g, ' ');
+      this.calls.push({ sql: normalized });
+      if (/from companions/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000902',
+              user_id: '00000000-0000-4000-8000-000000000903',
+              display_name: 'Mori',
+              headline: 'City portrait photographer',
+              bio: 'Good at relaxed lifestyle portraits.',
+              city: 'Shanghai',
+              gender: 'female',
+              base_price_cents: 39900,
+              rating_avg: 4.9,
+              rating_count: 12,
+              status: 'approved',
+              service_enabled: true,
+              accepts_instant: true,
+              online_status: 'online',
+              response_time_minutes: 8,
+              created_at: '2026-07-08T08:00:00.000Z',
+              updated_at: '2026-07-08T08:00:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from orders/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000901',
+              order_no: 'ST2607080001',
+              user_id: '00000000-0000-4000-8000-000000000904',
+              companion_id: '00000000-0000-4000-8000-000000000902',
+              post_id: null,
+              activity_pricing_id: '00000000-0000-4000-8000-000000000905',
+              availability_slot_id: '00000000-0000-4000-8000-000000000906',
+              city: 'Shanghai',
+              place_name: 'Wukang Road',
+              activity_name: 'Citywalk',
+              duration_minutes: 120,
+              start_at: '2026-07-08T09:00:00.000Z',
+              end_at: '2026-07-08T11:00:00.000Z',
+              total_amount_cents: 39900,
+              status: 'paid_pending_confirm',
+              created_at: '2026-07-08T08:30:00.000Z',
+              updated_at: '2026-07-08T08:45:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from conversations/i.test(normalized) && !/from messages/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000907',
+              order_id: '00000000-0000-4000-8000-000000000901',
+              user_id: '00000000-0000-4000-8000-000000000904',
+              companion_id: '00000000-0000-4000-8000-000000000902',
+              status: 'active',
+              last_message_at: '2026-07-08T09:05:00.000Z',
+              created_at: '2026-07-08T09:00:00.000Z',
+              updated_at: '2026-07-08T09:05:00.000Z',
+            },
+          ],
+        };
+      }
+      if (/from messages/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: '00000000-0000-4000-8000-000000000908',
+              conversation_id: '00000000-0000-4000-8000-000000000907',
+              sender_role: 'user',
+              message_type: 'text',
+              content: 'Hello from Postgres',
+              original_content: 'Hello from Postgres',
+              risk_status: 'clean',
+              sent_at: '2026-07-08T09:05:00.000Z',
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    },
+  };
+}
+
+function assert(condition, message) {
+  if (!condition) throw new Error(`Postgres store read model check failed: ${message}`);
+}
