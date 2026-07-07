@@ -1,4 +1,5 @@
 import { getActiveAccountStorageScope } from './authService';
+import { isMockFallbackAllowed } from './apiClient';
 import type { UserRole } from '../types/api';
 
 export type StorageLayer = 'local' | 'cloud';
@@ -144,6 +145,7 @@ export function scopedStorageKey(key: string, role?: UserRole, layer: StorageLay
 }
 
 export function readScopedJson<T>(key: string, fallback: T, role?: UserRole, layer: StorageLayer = 'local'): T {
+  if (!canUseLocalStorageLayer(layer)) return fallback;
   if (typeof localStorage === 'undefined') return fallback;
   try {
     const raw = localStorage.getItem(scopedStorageKey(key, role, layer));
@@ -154,6 +156,7 @@ export function readScopedJson<T>(key: string, fallback: T, role?: UserRole, lay
 }
 
 export function writeScopedJson<T>(key: string, value: T, role?: UserRole, layer: StorageLayer = 'local') {
+  if (!canUseLocalStorageLayer(layer)) return;
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(scopedStorageKey(key, role, layer), JSON.stringify(value));
 }
@@ -167,6 +170,7 @@ export function writeDomainJson<T>(key: string, value: T, role?: UserRole) {
 }
 
 export function readAdminSharedJson<T>(key: string, fallback: T): T {
+  if (!canUseLocalStorageLayer(getDataDomainPolicy(key).layer)) return fallback;
   if (typeof localStorage === 'undefined') return fallback;
   try {
     const raw = localStorage.getItem(adminSharedStorageKey(key, getDataDomainPolicy(key).layer));
@@ -177,8 +181,13 @@ export function readAdminSharedJson<T>(key: string, fallback: T): T {
 }
 
 export function writeAdminSharedJson<T>(key: string, value: T) {
+  if (!canUseLocalStorageLayer(getDataDomainPolicy(key).layer)) return;
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(adminSharedStorageKey(key, getDataDomainPolicy(key).layer), JSON.stringify(value));
+}
+
+function canUseLocalStorageLayer(layer: StorageLayer) {
+  return layer === 'local' || isMockFallbackAllowed();
 }
 
 function adminSharedStorageKey(key: string, layer: StorageLayer = 'cloud') {
