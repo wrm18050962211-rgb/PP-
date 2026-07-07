@@ -11,21 +11,25 @@ export async function runMaintenanceJobs({
   expirePayments = runPendingPaymentExpiryJob,
   retryProviderCallbacks = runProviderCallbackRetryJob,
 } = {}) {
-  const paymentExpiry = await expirePayments({
-    dataStore,
-    occurredAt: now,
-    reason: 'Payment window expired',
-    limit: paymentExpiryLimit,
-    logger,
-  });
+  const paymentExpiry = await runMaintenanceChild('paymentExpiry', () =>
+    expirePayments({
+      dataStore,
+      occurredAt: now,
+      reason: 'Payment window expired',
+      limit: paymentExpiryLimit,
+      logger,
+    }),
+  );
 
-  const providerCallbacks = await retryProviderCallbacks({
-    dataStore,
-    dueAt: now,
-    limit: providerCallbackLimit,
-    processors: createWechatCallbackProcessors({ dataStore }),
-    logger,
-  });
+  const providerCallbacks = await runMaintenanceChild('providerCallbacks', () =>
+    retryProviderCallbacks({
+      dataStore,
+      dueAt: now,
+      limit: providerCallbackLimit,
+      processors: createWechatCallbackProcessors({ dataStore }),
+      logger,
+    }),
+  );
 
   return {
     ok: Boolean(paymentExpiry?.ok && providerCallbacks?.ok),
@@ -35,4 +39,20 @@ export async function runMaintenanceJobs({
       providerCallbacks,
     },
   };
+}
+
+async function runMaintenanceChild(name, callback) {
+  try {
+    return await callback();
+  } catch (error) {
+    return {
+      ok: false,
+      failed: true,
+      name,
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        code: error?.code || null,
+      },
+    };
+  }
 }

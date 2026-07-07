@@ -36,11 +36,31 @@ assert(/runMaintenanceJobs/.test(cliSource), 'maintenance CLI calls maintenance 
 assert(/PAYMENT_EXPIRY_JOB_LIMIT/.test(cliSource), 'maintenance CLI forwards payment expiry limit');
 assert(/PROVIDER_CALLBACK_RETRY_JOB_LIMIT/.test(cliSource), 'maintenance CLI forwards provider callback limit');
 
+const failureCalls = [];
+const failureResult = await runMaintenanceJobs({
+  dataStore,
+  now: '2026-07-08T13:00:00.000Z',
+  logger: null,
+  expirePayments: async () => {
+    failureCalls.push('payment-expiry');
+    throw new Error('database lock timeout');
+  },
+  retryProviderCallbacks: async () => {
+    failureCalls.push('provider-callbacks');
+    return { ok: true, processedCount: 1 };
+  },
+});
+
+assert(failureResult.ok === false, 'maintenance job reports failure when one child fails');
+assert(failureCalls.join(',') === 'payment-expiry,provider-callbacks', 'maintenance job keeps running later child jobs after a failure');
+assert(failureResult.jobs.paymentExpiry.error.message === 'database lock timeout', 'maintenance job returns child failure reason');
+assert(failureResult.jobs.providerCallbacks.ok === true, 'maintenance job keeps successful child result');
+
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['runs-child-jobs', 'stable-order', 'shared-run-time', 'limit-forwarding', 'wechat-processors', 'cli-wiring'],
+      checks: ['runs-child-jobs', 'stable-order', 'shared-run-time', 'limit-forwarding', 'wechat-processors', 'fail-soft', 'cli-wiring'],
     },
     null,
     2,
