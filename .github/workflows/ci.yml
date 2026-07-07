@@ -11,6 +11,22 @@ jobs:
   server-check:
     name: Server MVP Checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pp_platform_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/pp_platform_ci
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,11 +36,17 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Load database schema
+        run: psql "$DATABASE_URL" -f database/schema.sql
+
       - name: Run server MVP checks
         working-directory: server
         run: npm run check:mvp
 
-      - name: Run optional live PostgreSQL check
+      - name: Run live PostgreSQL check
         working-directory: server
         run: npm run check:postgres-live
 
