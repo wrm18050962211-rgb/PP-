@@ -980,8 +980,8 @@ async function markPostgresPaymentPaid(order, payment) {
   const paidAt = now();
   const result = await dataStore.orderWrites.markPaymentPaid({
     paymentId: payment.id,
-    conversationId: id('conversation'),
-    statusLogId: id('status-log'),
+    conversationId: postgresId(),
+    statusLogId: postgresId(),
     paidAt,
     thirdPartyTradeNo: `mock-${payment.paymentNo || payment.id}`,
     rawCallback: { source: 'mock-success' },
@@ -1178,7 +1178,7 @@ async function transitionPostgresOrder(order, action, session, reason, idempoten
   const draft = {
     orderId: order.id,
     action,
-    statusLogId: id('status-log'),
+    statusLogId: postgresId(),
     operatorType: session.role === 'companion' ? 'companion' : 'user',
     operatorId: session.user?.id || null,
     reason,
@@ -1186,14 +1186,14 @@ async function transitionPostgresOrder(order, action, session, reason, idempoten
   };
 
   if (action === 'complete') {
-    draft.settlementId = id('settlement');
-    draft.ledgerEntryId = id('ledger');
+    draft.settlementId = postgresId();
+    draft.ledgerEntryId = postgresId();
     draft.settleAfter = occurredAt;
   }
 
   if (action === 'cancel' && order.status !== 'pending_payment') {
     draft.expectRefund = true;
-    draft.refundId = id('refund');
+    draft.refundId = postgresId();
     draft.refundNo = refundNo();
   }
 
@@ -1248,15 +1248,15 @@ async function setPostgresAdminOrderStatus(order, status, adminSession) {
   const draft = {
     orderId: order.id,
     status,
-    statusLogId: id('status-log'),
+    statusLogId: postgresId(),
     adminId: adminSession.user?.id || null,
     reason: 'Manual admin status update',
     occurredAt,
   };
 
   if (status === 'completed') {
-    draft.settlementId = id('settlement');
-    draft.ledgerEntryId = id('ledger');
+    draft.settlementId = postgresId();
+    draft.ledgerEntryId = postgresId();
     draft.settleAfter = occurredAt;
   }
 
