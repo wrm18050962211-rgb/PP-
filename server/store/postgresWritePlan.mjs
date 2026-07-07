@@ -86,6 +86,17 @@ export const postgresWriteOperations = [
       'preserve metadata for later risk review and abuse detection',
     ],
   },
+  {
+    name: 'manageSession',
+    route: 'auth login / logout / session guard',
+    transaction: true,
+    tables: ['user_sessions'],
+    steps: [
+      'create user or admin session with exactly one actor owner',
+      'touch active session on trusted authenticated requests',
+      'revoke session on logout or security invalidation',
+    ],
+  },
 ];
 
 export function getPostgresWriteOperation(name) {

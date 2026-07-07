@@ -1,6 +1,15 @@
 import { getPostgresWriteOperation, postgresWriteOperations } from '../store/postgresWritePlan.mjs';
 
-const requiredOperations = ['createOrder', 'markPaymentPaid', 'transitionOrder', 'sendMessage', 'createReport', 'applyModerationAction', 'recordSecurityEvent'];
+const requiredOperations = [
+  'createOrder',
+  'markPaymentPaid',
+  'transitionOrder',
+  'sendMessage',
+  'createReport',
+  'applyModerationAction',
+  'recordSecurityEvent',
+  'manageSession',
+];
 const requiredTables = [
   'orders',
   'order_status_logs',
@@ -13,6 +22,7 @@ const requiredTables = [
   'audit_cases',
   'admin_action_logs',
   'security_events',
+  'user_sessions',
 ];
 
 for (const name of requiredOperations) {
