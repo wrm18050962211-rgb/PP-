@@ -761,8 +761,9 @@ function sendMessage(store, path, body) {
   const conversationId = path.split('/')[3];
   const conversation = Object.values(store.conversations).find((item) => item.id === conversationId);
   if (!conversation) return error(404, 'NOT_FOUND', 'Conversation not found');
-  const order = findOrder(store, conversation.orderId);
-  if (!order || !canAccessOrder(store, order, session, session.role)) return error(403, 'FORBIDDEN', 'Conversation is not accessible for current role');
+  const access = requireOrderAccess(store, conversation.orderId, session, session.role, 'Conversation is not accessible for current role');
+  if (access.response) return access.response;
+  const { order } = access;
   if (conversation.status === 'restricted') return error(403, 'FORBIDDEN', 'Conversation is restricted');
 
   const content = String(body.content || '').trim();
@@ -831,9 +832,9 @@ function createReport(store, path, body) {
   if (!session) return authRequired();
 
   const orderId = path.split('/')[3] || body.orderId;
-  const order = findOrder(store, orderId);
-  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
-  if (!canAccessOrder(store, order, session, session.role)) return error(403, 'FORBIDDEN', 'Order is not accessible for current role');
+  const access = requireOrderAccess(store, orderId, session);
+  if (access.response) return access.response;
+  const { order } = access;
 
   const report = {
     id: id('report'),
