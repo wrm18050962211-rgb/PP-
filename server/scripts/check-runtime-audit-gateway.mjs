@@ -1,4 +1,5 @@
 import { mirrorAdminAction, mirrorAuditLog, mirrorSecurityEvent } from '../runtimeAuditGateway.mjs';
+import { readFileSync } from 'node:fs';
 
 const writes = {
   auditLog: null,
@@ -78,7 +79,21 @@ assert(writes.securityEvent?.userAgent === 'runtime-audit-check', 'security even
 
 assert(mirrorAdminAction({}, { id: 'ignored', action: 'noop' }) === false, 'missing gateway is a no-op');
 
-console.log(JSON.stringify({ ok: true, checks: ['audit-log-mirror', 'admin-action-mirror', 'security-event-mirror', 'security-event-context', 'missing-gateway-noop'] }, null, 2));
+const serverSource = readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
+assert(/id: dataStore\.kind !== 'json' \? postgresId\(\) : id\('audit-log'\)/.test(serverSource), 'runtime audit log uses uuid id in postgres mode');
+assert(/id: dataStore\.kind !== 'json' \? postgresId\(\) : id\('admin-action'\)/.test(serverSource), 'runtime admin action uses uuid id in postgres mode');
+assert(/id: dataStore\.kind !== 'json' \? postgresId\(\) : id\('security-event'\)/.test(serverSource), 'runtime security event uses uuid id in postgres mode');
+
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      checks: ['audit-log-mirror', 'admin-action-mirror', 'security-event-mirror', 'security-event-context', 'postgres-runtime-uuid-ids', 'missing-gateway-noop'],
+    },
+    null,
+    2,
+  ),
+);
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Runtime audit gateway check failed: ${message}`);

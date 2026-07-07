@@ -53,6 +53,7 @@
     "check:postgres-security-writes": "node scripts/check-postgres-security-writes.mjs",
     "check:postgres-session-writes": "node scripts/check-postgres-session-writes.mjs",
     "check:postgres-idempotency-writes": "node scripts/check-postgres-idempotency-writes.mjs",
+    "check:runtime-audit-gateway": "node scripts/check-runtime-audit-gateway.mjs",
     "db:export-seed": "node ../database/scripts/export-store-to-seed.mjs"
   }
 }

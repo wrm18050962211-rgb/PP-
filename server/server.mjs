@@ -654,7 +654,7 @@ function requireOrderMutationAccess(store, orderOrId, session, action) {
 function recordAuditLog(store, auditCase, action, session, note, metadata = {}) {
   const createdAt = now();
   const log = {
-    id: id('audit-log'),
+    id: dataStore.kind !== 'json' ? postgresId() : id('audit-log'),
     auditCaseId: auditCase.id,
     action,
     operatorId: session.user?.id || null,
@@ -675,7 +675,7 @@ function recordAuditLog(store, auditCase, action, session, note, metadata = {}) 
 
 function recordAdminAction(store, session, action, targetType, targetId, options = {}) {
   const log = {
-    id: id('admin-action'),
+    id: dataStore.kind !== 'json' ? postgresId() : id('admin-action'),
     adminId: session.user?.id || null,
     action,
     type: action,
@@ -694,7 +694,7 @@ function recordAdminAction(store, session, action, targetType, targetId, options
 function recordSecurityEvent(store, session, type, details = {}) {
   store.securityEvents ||= [];
   const event = {
-    id: id('security-event'),
+    id: dataStore.kind !== 'json' ? postgresId() : id('security-event'),
     type,
     actorId: session?.user?.id || null,
     actorRole: session?.role || 'anonymous',
