@@ -6,6 +6,19 @@ import { findLedgerOrder } from './virtualOrderLedger';
 
 const localConversationStorageKey = 'order-conversations-v1';
 const sharedConversationStorageKey = `pp-cloud-db:shared:${localConversationStorageKey}`;
+const defaultConversationPageSize = 20;
+const maxConversationPageSize = 50;
+
+export type ConversationPageRequest = {
+  limit?: number;
+  cursor?: string | null;
+};
+
+export type ConversationPage = {
+  items: Conversation[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
 
 export function getConversation(): Conversation {
   return mockConversation;
@@ -31,6 +44,28 @@ export async function fetchConversation(orderId?: string): Promise<Conversation>
   } catch {
     return getApiFallback(getLocalConversation(orderId), 'Conversation');
   }
+}
+
+export async function fetchConversationPage(options: ConversationPageRequest = {}): Promise<ConversationPage> {
+  if (!isApiEnabled()) return getApiFallback(listLocalConversationPage(options), 'Conversation list');
+
+  try {
+    const response = await apiGet<ConversationPage>(buildConversationsPath(options));
+    return response.success
+      ? {
+          items: response.data.items,
+          nextCursor: response.data.nextCursor ?? null,
+          hasMore: Boolean(response.data.hasMore),
+        }
+      : getApiFallback(listLocalConversationPage(options), 'Conversation list');
+  } catch {
+    return getApiFallback(listLocalConversationPage(options), 'Conversation list');
+  }
+}
+
+export async function fetchConversations(options: ConversationPageRequest = {}): Promise<Conversation[]> {
+  const page = await fetchConversationPage({ limit: maxConversationPageSize, ...options });
+  return page.items;
 }
 
 export async function sendMessage(
@@ -184,6 +219,46 @@ function getLocalConversation(orderId?: string): Conversation {
     orderNo: order.orderNo,
     messages: savedMessages?.length ? savedMessages : createSeedConversation(order).messages,
   };
+}
+
+function listLocalConversationPage(options: ConversationPageRequest = {}): ConversationPage {
+  const request = normalizeConversationPageRequest(options);
+  const start = parseConversationCursor(request.cursor);
+  const items = seedOrders
+    .map((order) => getLocalConversation(order.id))
+    .slice(start, start + request.limit);
+  const nextOffset = start + items.length;
+
+  return {
+    items,
+    nextCursor: nextOffset < seedOrders.length ? String(nextOffset) : null,
+    hasMore: nextOffset < seedOrders.length,
+  };
+}
+
+function normalizeConversationPageRequest(options: ConversationPageRequest) {
+  return {
+    limit: clampConversationLimit(options.limit),
+    cursor: options.cursor ?? null,
+  };
+}
+
+function clampConversationLimit(limit?: number) {
+  if (!Number.isFinite(limit)) return defaultConversationPageSize;
+  return Math.max(1, Math.min(Math.floor(limit as number), maxConversationPageSize));
+}
+
+function parseConversationCursor(cursor?: string | null) {
+  const offset = Number.parseInt(cursor || '0', 10);
+  return Number.isFinite(offset) && offset > 0 ? offset : 0;
+}
+
+function buildConversationsPath(options: ConversationPageRequest) {
+  const request = normalizeConversationPageRequest(options);
+  const params = new URLSearchParams();
+  params.set('limit', String(request.limit));
+  if (request.cursor) params.set('cursor', request.cursor);
+  return `/api/conversations?${params.toString()}`;
 }
 
 function getGenericLocalConversation(orderId?: string): Conversation {
