@@ -108,8 +108,6 @@ export function OrdersPage() {
     createOrder,
     updateOrderFunding,
     updateOrderStatus,
-    orderActionError,
-    clearOrderActionError,
   } = useAppData();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -252,15 +250,6 @@ export function OrdersPage() {
           </p>
         </section>
       )}
-
-      {orderActionError ? (
-        <div className="mt-3 flex items-center justify-between gap-3 rounded-[10px] bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
-          <span>{orderActionError}</span>
-          <button className="shrink-0 text-rose-500" type="button" onClick={clearOrderActionError}>
-            知道了
-          </button>
-        </div>
-      ) : null}
 
       <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1">
         {workMode
