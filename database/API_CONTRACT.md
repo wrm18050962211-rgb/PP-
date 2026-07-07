@@ -751,6 +751,7 @@ audit_cases target_type = report
 - `message_risk_events`
 - `reports`
 - `settlements`
+- `user_sessions`
 - `admin_action_logs`
 - `security_events`
 

@@ -708,6 +708,38 @@ create table admin_users (
 
 create index idx_admin_users_role on admin_users(role);
 
+create table user_sessions (
+  id uuid primary key default gen_random_uuid(),
+  token_hash varchar(128) not null unique,
+  session_scope varchar(40) not null default 'user',
+  user_id uuid references users(id) on delete cascade,
+  admin_id uuid references admin_users(id) on delete cascade,
+  companion_id uuid references companions(id) on delete set null,
+  role varchar(40) not null,
+  provider varchar(40),
+  device_id varchar(120),
+  ip varchar(64),
+  user_agent text,
+  metadata jsonb not null default '{}',
+  login_at timestamptz not null default now(),
+  last_seen_at timestamptz,
+  expires_at timestamptz not null,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (user_id is not null or admin_id is not null)
+);
+
+create index idx_user_sessions_user
+on user_sessions(user_id, expires_at desc);
+
+create index idx_user_sessions_admin
+on user_sessions(admin_id, expires_at desc);
+
+create index idx_user_sessions_active
+on user_sessions(session_scope, role, expires_at)
+where revoked_at is null;
+
 create table admin_action_logs (
   id uuid primary key default gen_random_uuid(),
   admin_id uuid references admin_users(id),

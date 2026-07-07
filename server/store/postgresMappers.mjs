@@ -9,6 +9,7 @@ export function buildStoreFromPostgresRows(rows) {
     posts,
     users: [],
     activeSession: null,
+    sessions: [],
     orders: [],
     payments: [],
     conversations: {},

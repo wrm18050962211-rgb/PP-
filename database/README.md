@@ -46,6 +46,7 @@ psql "$DATABASE_URL" -f database/seed_mvp.sql
 
 - `users`：所有自然人账号
 - `user_profiles`：用户偏好、简介、安全偏好
+- `user_sessions`：Client / Photographer / Admin 的登录 token 会话
 - `companions`：陪拍者身份资料
 - `companion_kyc`：实名、证件、人脸、紧急联系人
 - `companion_tags`：性格、风格、互动、安全标签
