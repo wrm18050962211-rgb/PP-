@@ -26,6 +26,7 @@ const orderCreateLocalFallbackMessage = '订单没有同步到服务端，已先
 const orderStatusFailedMessage = '订单状态更新失败，请检查网络后重试。';
 const orderStatusLocalFallbackMessage = '订单状态没有同步到服务端，已先保存在本机。';
 const orderStatusRestoredMessage = '订单状态没有同步成功，已恢复为服务端最新状态。';
+const orderRefreshFailedMessage = '订单同步失败，请检查网络后重试。';
 
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const initial = loadInitialData();
@@ -48,9 +49,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       setBookingSettings(scopedInitial.bookingSettings);
       setWorkDraft(scopedInitial.workDraft);
       return refreshOrders(nextSession.role).then((serverOrders) => {
-        if (!mounted || serverOrders.length === 0) return;
+        if (!mounted) return;
+        setOrderActionError('');
+        if (serverOrders.length === 0) return;
         setOrders(serverOrders);
         persistSnapshot(serverOrders, initialDataRef.current, nextSession.role);
+      }).catch(() => {
+        if (mounted) setOrderActionError(orderRefreshFailedMessage);
       });
     });
 
@@ -63,9 +68,12 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       setBookingSettings(scopedInitial.bookingSettings);
       setWorkDraft(scopedInitial.workDraft);
       void refreshOrders(nextSession.role).then((serverOrders) => {
+        setOrderActionError('');
         if (serverOrders.length === 0) return;
         setOrders(serverOrders);
         persistSnapshot(serverOrders, initialDataRef.current, nextSession.role);
+      }).catch(() => {
+        setOrderActionError(orderRefreshFailedMessage);
       });
     }
 
@@ -82,9 +90,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
     let mounted = true;
     refreshOrders(session.role).then((serverOrders) => {
-      if (!mounted || serverOrders.length === 0) return;
+      if (!mounted) return;
+      setOrderActionError('');
+      if (serverOrders.length === 0) return;
       setOrders(serverOrders);
       persistSnapshot(serverOrders, initialDataRef.current, session.role);
+    }).catch(() => {
+      if (mounted) setOrderActionError(orderRefreshFailedMessage);
     });
 
     return () => {

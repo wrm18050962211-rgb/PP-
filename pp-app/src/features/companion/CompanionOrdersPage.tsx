@@ -70,7 +70,7 @@ const statusMeta: Record<string, { label: string; tone: string }> = {
 };
 
 export function CompanionOrdersPage() {
-  const { orders, updateOrderFunding, updateOrderStatus } = useAppData();
+  const { orders, updateOrderFunding, updateOrderStatus, orderActionError, clearOrderActionError } = useAppData();
   const [searchParams] = useSearchParams();
   const workMode = searchParams.get('work') === '1';
   const [activeTab, setActiveTab] = useState<CompanionOrderTab>('paid_pending_confirm');
@@ -112,6 +112,15 @@ export function CompanionOrdersPage() {
           待确认先沟通接单，已确认代表款项托管并达成交易意向；完成后可共同编辑上传作品，取消会进入平台违约/退款处理。
         </p>
       </section>
+
+      {orderActionError ? (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-[10px] bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">
+          <span>{orderActionError}</span>
+          <button className="shrink-0 text-rose-500" type="button" onClick={clearOrderActionError}>
+            知道了
+          </button>
+        </div>
+      ) : null}
 
       <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1">
         {tabs.map((tab) => (
