@@ -120,3 +120,11 @@ Vibe 负责帮助用户找到适合自己生活、衣橱、场景和状态的样
 npm install
 npm run dev
 ```
+
+开发入口说明：
+
+- `npm run dev` / `npm run dev:combined`：本地混合演示入口，同时包含 Client、Studio 和 Admin，方便联调。
+- `npm run dev:mobile`：只挂载 Client / Studio 移动端路由，不加载运营后台入口。
+- `npm run dev:admin`：只挂载 Admin 后台入口。
+- `npm run build` / `npm run build:mobile`：App Store/TestFlight 移动端包使用这个构建，已通过 `vite.mobile.config.ts` 排除 Admin 路由和后台大模块。
+- `npm run build:admin`：运营后台独立 Web 构建，输出到 `dist-admin`，后续应单独部署。

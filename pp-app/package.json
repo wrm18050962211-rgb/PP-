@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "dev:combined": "vite --host 0.0.0.0",
+    "dev:mobile": "vite --host 0.0.0.0 --config vite.mobile.config.ts",
+    "dev:admin": "vite --host 0.0.0.0 --config vite.admin.config.ts",
     "build": "npm run build:mobile",
     "build:mobile": "tsc -b && vite build --config vite.mobile.config.ts",
     "build:admin": "tsc -b && vite build --config vite.admin.config.ts",
