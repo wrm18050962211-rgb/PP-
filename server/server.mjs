@@ -1099,17 +1099,29 @@ function applyModerationAction(store, path, body) {
 
   const riskCase = store.riskCases.find((item) => item.id === caseId);
   if (riskCase) {
+    const beforeData = { status: riskCase.status, orderId: riskCase.orderId };
     riskCase.status = nextMessageCaseStatus(actionType, riskCase.status);
     riskCase.actionLogs = [log, ...(riskCase.actionLogs || [])];
     applyModerationSideEffect(store, riskCase.orderId, actionType);
+    recordAdminAction(store, admin.session, actionType, 'message_risk_event', riskCase.id, {
+      note: log.note,
+      beforeData,
+      afterData: { status: riskCase.status, orderId: riskCase.orderId, actionType },
+    });
     return json(riskCase, 200, true);
   }
 
   const reportCase = store.reports.find((item) => item.id === caseId);
   if (reportCase) {
+    const beforeData = { status: reportCase.status, orderId: reportCase.orderId };
     reportCase.status = nextReportCaseStatus(actionType, reportCase.status);
     reportCase.actionLogs = [log, ...(reportCase.actionLogs || [])];
     applyModerationSideEffect(store, reportCase.orderId, actionType);
+    recordAdminAction(store, admin.session, actionType, 'report', reportCase.id, {
+      note: log.note,
+      beforeData,
+      afterData: { status: reportCase.status, orderId: reportCase.orderId, actionType },
+    });
     return json(reportCase, 200, true);
   }
 

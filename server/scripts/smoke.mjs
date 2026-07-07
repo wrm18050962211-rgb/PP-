@@ -197,6 +197,11 @@ try {
     note: 'smoke test moderation action',
   });
   assert(action.status !== 'pending', 'moderation action updates case status');
+  const moderatedStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(
+    moderatedStore.adminActionLogs?.some((item) => item.action === 'restrict_chat' && item.targetType === 'message_risk_event' && item.targetId === riskCase.id),
+    'moderation action writes admin action log',
+  );
 
   console.log(
     JSON.stringify(
@@ -230,6 +235,7 @@ try {
           'risk-block',
           'audit-review-log',
           'moderation-action',
+          'moderation-action-log',
         ],
       },
       null,
