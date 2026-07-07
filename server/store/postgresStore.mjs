@@ -3,7 +3,7 @@ import { recordAdminActionTransaction, recordAuditLogTransaction } from './postg
 import { upsertAuthIdentityUserTransaction } from './postgresAuthWrites.mjs';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
-import { applyModerationActionTransaction, createReportTransaction } from './postgresModerationWrites.mjs';
+import { applyModerationActionTransaction, createReportTransaction, reviewAuditCaseTransaction } from './postgresModerationWrites.mjs';
 import { createOrderTransaction, markPaymentPaidTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
 import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from './postgresSessionWrites.mjs';
 import { recordSecurityEventTransaction } from './postgresSecurityWrites.mjs';
@@ -58,6 +58,7 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
     moderationWrites: {
       createReport: (draft) => withClient((client) => createReportTransaction(client, draft)),
       applyAction: (draft) => withClient((client) => applyModerationActionTransaction(client, draft)),
+      reviewAuditCase: (draft) => withClient((client) => reviewAuditCaseTransaction(client, draft)),
     },
     async load() {
       const pool = await getPool();

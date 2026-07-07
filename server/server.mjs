@@ -1532,7 +1532,7 @@ function listAuditCases(store, url) {
   return json({ items });
 }
 
-function reviewAuditCase(store, path, nextStatus, body = {}) {
+async function reviewAuditCase(store, path, nextStatus, body = {}) {
   const admin = requireAdminSession(store);
   if (admin.response) return admin.response;
 
@@ -1540,6 +1540,9 @@ function reviewAuditCase(store, path, nextStatus, body = {}) {
   const auditCase = store.auditCases.find((item) => item.id === caseId);
   if (!auditCase) return error(404, 'NOT_FOUND', 'Audit case not found');
   if (auditCase.status !== 'pending') return error(409, 'AUDIT_CASE_NOT_PENDING', 'Audit case is not pending');
+  if (dataStore.kind !== 'json' && dataStore.moderationWrites?.reviewAuditCase) {
+    return reviewPostgresAuditCase(auditCase, nextStatus, body, admin.session);
+  }
 
   const beforeAuditCase = { status: auditCase.status, targetType: auditCase.targetType, targetId: auditCase.targetId };
   auditCase.status = nextStatus;
@@ -1578,6 +1581,37 @@ function reviewAuditCase(store, path, nextStatus, body = {}) {
   });
 
   return json({ ok: true, auditCase }, 200, true);
+}
+
+async function reviewPostgresAuditCase(auditCase, nextStatus, body, adminSession) {
+  const reviewedAt = now();
+  const note = body.reason || nextStatus;
+  await dataStore.moderationWrites.reviewAuditCase({
+    caseId: auditCase.id,
+    nextStatus,
+    auditLogId: id('audit-log'),
+    adminActionLogId: id('admin-action'),
+    adminId: adminSession.user?.id || null,
+    note,
+    reviewedAt,
+  });
+
+  const reviewedCase = {
+    ...auditCase,
+    status: nextStatus,
+    resolvedAt: reviewedAt,
+    logs: [
+      {
+        id: id('audit-log-view'),
+        action: nextStatus,
+        note,
+        operatorType: 'admin',
+        createdAt: reviewedAt,
+      },
+      ...(auditCase.logs || []),
+    ],
+  };
+  return json({ ok: true, auditCase: reviewedCase }, 200, false);
 }
 
 async function applyModerationAction(store, path, body) {

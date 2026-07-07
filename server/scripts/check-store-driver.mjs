@@ -48,7 +48,12 @@ try {
     'postgres store exposes order write gateway',
   );
   assert(postgresStore.capabilities?.messageWrites === true && typeof postgresStore.messageWrites?.sendMessage === 'function', 'postgres store exposes message write gateway');
-  assert(postgresStore.capabilities?.moderationWrites === true && typeof postgresStore.moderationWrites?.createReport === 'function', 'postgres store exposes moderation write gateway');
+  assert(
+    postgresStore.capabilities?.moderationWrites === true &&
+      typeof postgresStore.moderationWrites?.createReport === 'function' &&
+      typeof postgresStore.moderationWrites?.reviewAuditCase === 'function',
+    'postgres store exposes moderation write gateway',
+  );
   await assertRejects(
     () => postgresStore.save({}),
     'save is not implemented',

@@ -24,6 +24,7 @@
     "check:postgres-conversation-route": "node scripts/check-postgres-conversation-route.mjs",
     "check:postgres-transition-route": "node scripts/check-postgres-transition-route.mjs",
     "check:postgres-admin-order-route": "node scripts/check-postgres-admin-order-route.mjs",
+    "check:postgres-audit-review-route": "node scripts/check-postgres-audit-review-route.mjs",
     "check:postgres-store-order-gateway": "node scripts/check-postgres-store-order-gateway.mjs",
     "check:postgres-store-message-gateway": "node scripts/check-postgres-store-message-gateway.mjs",
     "check:postgres-store-moderation-gateway": "node scripts/check-postgres-store-moderation-gateway.mjs",

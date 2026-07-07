@@ -146,6 +146,116 @@ export async function applyModerationActionTransaction(client, draft) {
   }
 }
 
+export async function reviewAuditCaseTransaction(client, draft) {
+  assertClient(client);
+  assertReviewAuditDraft(draft);
+
+  await client.query('begin');
+  try {
+    const caseResult = await client.query(
+      `select id, target_type, target_id, status
+       from audit_cases
+       where id = $1
+       for update`,
+      [draft.caseId],
+    );
+    const auditCase = caseResult.rows?.[0];
+    if (!auditCase) throw conflict('AUDIT_CASE_NOT_FOUND', 'Audit case not found');
+    if (auditCase.status !== 'pending') throw conflict('AUDIT_CASE_NOT_PENDING', 'Audit case is not pending');
+
+    const reviewedAt = draft.reviewedAt || new Date().toISOString();
+    const reviewedCaseResult = await client.query(
+      `update audit_cases
+       set status = $1,
+           reviewed_by = $2,
+           reviewed_at = $3,
+           updated_at = now()
+       where id = $4
+       returning *`,
+      [draft.nextStatus, draft.adminId || null, reviewedAt, draft.caseId],
+    );
+
+    await client.query(
+      `insert into audit_logs (
+        id, audit_case_id, action, operator_id, operator_type, comment, metadata
+      ) values ($1, $2, $3, $4, 'admin', $5, $6)`,
+      [
+        draft.auditLogId,
+        draft.caseId,
+        draft.nextStatus,
+        draft.adminId || null,
+        draft.note || draft.nextStatus,
+        {
+          targetType: auditCase.target_type,
+          targetId: auditCase.target_id,
+        },
+      ],
+    );
+
+    if (auditCase.target_type === 'companion') {
+      await client.query(
+        `update companions
+         set status = $1,
+             service_enabled = $2,
+             updated_at = now()
+         where id = $3`,
+        [draft.nextStatus === 'approved' ? 'approved' : 'needs_change', draft.nextStatus === 'approved', auditCase.target_id],
+      );
+    }
+
+    if (auditCase.target_type === 'post') {
+      await client.query(
+        `update posts
+         set status = $1,
+             is_feed_visible = $2,
+             published_at = case when $2 then coalesce(published_at, $3) else published_at end,
+             updated_at = now()
+         where id = $4`,
+        [draft.nextStatus === 'approved' ? 'approved' : 'rejected', draft.nextStatus === 'approved', reviewedAt, auditCase.target_id],
+      );
+    }
+
+    if (auditCase.target_type === 'report') {
+      await client.query(
+        `update reports
+         set status = $1,
+             handled_by = $2,
+             handled_at = $3,
+             result = $4,
+             updated_at = now()
+         where id = $5`,
+        [draft.nextStatus === 'approved' ? 'resolved' : 'rejected', draft.adminId || null, reviewedAt, draft.note || draft.nextStatus, auditCase.target_id],
+      );
+    }
+
+    await client.query(
+      `insert into admin_action_logs (
+        id, admin_id, action, target_type, target_id, before_data, after_data
+      ) values ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        draft.adminActionLogId,
+        draft.adminId || null,
+        `audit_${draft.nextStatus}`,
+        auditCase.target_type,
+        auditCase.target_id,
+        { status: auditCase.status, targetType: auditCase.target_type, targetId: auditCase.target_id },
+        { status: draft.nextStatus, targetType: auditCase.target_type, targetId: auditCase.target_id },
+      ],
+    );
+
+    await client.query('commit');
+    return {
+      auditCase: reviewedCaseResult.rows?.[0] || null,
+      targetType: auditCase.target_type,
+      targetId: auditCase.target_id,
+      nextStatus: draft.nextStatus,
+    };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  }
+}
+
 async function findModerationContext(client, draft) {
   const riskResult = await client.query(
     `select id, order_id, review_status, raw_payload
@@ -212,6 +322,12 @@ function assertModerationDraft(draft) {
   const required = ['caseId', 'actionType', 'adminActionLogId'];
   const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
   if (missing.length) throw new Error(`Missing moderation action draft fields: ${missing.join(', ')}`);
+}
+
+function assertReviewAuditDraft(draft) {
+  const required = ['caseId', 'nextStatus', 'auditLogId', 'adminActionLogId'];
+  const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
+  if (missing.length) throw new Error(`Missing review audit draft fields: ${missing.join(', ')}`);
 }
 
 function conflict(code, message) {

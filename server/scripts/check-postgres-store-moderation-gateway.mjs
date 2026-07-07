@@ -7,6 +7,7 @@ const store = createPostgresStore({
 });
 
 assert(store.capabilities.moderationWrites === true, 'postgres store advertises moderation writes');
+assert(typeof store.moderationWrites.reviewAuditCase === 'function', 'postgres store exposes audit review gateway');
 
 const result = await store.moderationWrites.createReport({
   reportId: '00000000-0000-4000-8000-000000000811',
@@ -28,12 +29,28 @@ assert(client.calls.some((call) => /insert into audit_cases/i.test(call.sql)), '
 assert(client.calls.some((call) => /^commit$/i.test(call.sql)), 'moderation gateway commits transaction');
 assert(client.released === true, 'moderation gateway releases client');
 
+const reviewResult = await store.moderationWrites.reviewAuditCase({
+  caseId: '00000000-0000-4000-8000-000000000812',
+  nextStatus: 'approved',
+  auditLogId: '00000000-0000-4000-8000-000000000817',
+  adminActionLogId: '00000000-0000-4000-8000-000000000818',
+  adminId: '00000000-0000-4000-8000-000000000819',
+  note: 'Looks good',
+});
+const reviewClient = pool.clients[1];
+assert(reviewResult.nextStatus === 'approved', 'audit review gateway returns next status');
+assert(reviewClient.calls.some((call) => /from audit_cases/i.test(call.sql) && /for update/i.test(call.sql)), 'audit review gateway locks case');
+assert(reviewClient.calls.some((call) => /update audit_cases/i.test(call.sql)), 'audit review gateway updates case');
+assert(reviewClient.calls.some((call) => /insert into audit_logs/i.test(call.sql)), 'audit review gateway writes audit log');
+assert(reviewClient.calls.some((call) => /insert into admin_action_logs/i.test(call.sql)), 'audit review gateway writes admin action log');
+assert(reviewClient.released === true, 'audit review gateway releases client');
+
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['moderation-write-capability', 'create-report-gateway', 'client-release'],
-      queryCount: client.calls.length,
+      checks: ['moderation-write-capability', 'create-report-gateway', 'audit-review-gateway', 'client-release'],
+      queryCount: client.calls.length + reviewClient.calls.length,
     },
     null,
     2,
@@ -72,6 +89,8 @@ function createMockClient() {
       }
       if (/insert into reports/i.test(normalized)) return { rows: [{ id: params[0], category: params[7] }] };
       if (/insert into audit_cases/i.test(normalized)) return { rows: [{ id: params[0], target_id: params[1] }] };
+      if (/from audit_cases/i.test(normalized)) return { rows: [{ id: params[0], target_type: 'report', target_id: '00000000-0000-4000-8000-000000000811', status: 'pending' }] };
+      if (/update audit_cases/i.test(normalized)) return { rows: [{ id: params[3], status: params[0] }] };
       return { rows: [] };
     },
     release() {

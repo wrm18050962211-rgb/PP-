@@ -1,4 +1,4 @@
-import { applyModerationActionTransaction, createReportTransaction } from '../store/postgresModerationWrites.mjs';
+import { applyModerationActionTransaction, createReportTransaction, reviewAuditCaseTransaction } from '../store/postgresModerationWrites.mjs';
 
 const ids = {
   orderId: '00000000-0000-4000-8000-000000000201',
@@ -73,14 +73,67 @@ await assertRejects(
 );
 assert(missingClient.calls.at(-1).sql === 'rollback', 'missing case rolls back');
 
+const reviewReportClient = createMockClient({ mode: 'audit-report' });
+const reviewedReport = await reviewAuditCaseTransaction(reviewReportClient, {
+  caseId: ids.auditCaseId,
+  nextStatus: 'approved',
+  auditLogId: '00000000-0000-4000-8000-000000000211',
+  adminActionLogId: '00000000-0000-4000-8000-000000000212',
+  adminId: ids.adminId,
+  note: 'Report resolved',
+});
+const reviewReportSql = reviewReportClient.calls.map((call) => call.sql);
+assert(reviewedReport.nextStatus === 'approved', 'audit review returns next status');
+assert(reviewReportSql.some((sql) => /from audit_cases/i.test(sql) && /for update/i.test(sql)), 'audit review locks case');
+assert(reviewReportSql.some((sql) => /update audit_cases/i.test(sql)), 'audit review updates case');
+assert(reviewReportSql.some((sql) => /insert into audit_logs/i.test(sql)), 'audit review writes audit log');
+assert(reviewReportSql.some((sql) => /update reports/i.test(sql) && /status = \$1/i.test(sql)), 'audit review updates report target');
+assert(reviewReportSql.some((sql) => /insert into admin_action_logs/i.test(sql)), 'audit review writes admin action log');
+assert(reviewReportSql.at(-1) === 'commit', 'audit review commits');
+
+const reviewPostClient = createMockClient({ mode: 'audit-post' });
+await reviewAuditCaseTransaction(reviewPostClient, {
+  caseId: ids.auditCaseId,
+  nextStatus: 'approved',
+  auditLogId: '00000000-0000-4000-8000-000000000213',
+  adminActionLogId: '00000000-0000-4000-8000-000000000214',
+});
+const reviewPostSql = reviewPostClient.calls.map((call) => call.sql);
+assert(reviewPostSql.some((sql) => /update posts/i.test(sql) && /is_feed_visible/i.test(sql)), 'audit review updates post visibility');
+
+const reviewCompanionClient = createMockClient({ mode: 'audit-companion' });
+await reviewAuditCaseTransaction(reviewCompanionClient, {
+  caseId: ids.auditCaseId,
+  nextStatus: 'rejected',
+  auditLogId: '00000000-0000-4000-8000-000000000215',
+  adminActionLogId: '00000000-0000-4000-8000-000000000216',
+});
+const reviewCompanionSql = reviewCompanionClient.calls.map((call) => call.sql);
+assert(reviewCompanionSql.some((sql) => /update companions/i.test(sql) && /service_enabled/i.test(sql)), 'audit review updates companion service status');
+
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['create-report', 'audit-case', 'risk-action', 'restrict-chat', 'report-action', 'freeze-order', 'missing-rollback'],
+      checks: [
+        'create-report',
+        'audit-case',
+        'risk-action',
+        'restrict-chat',
+        'report-action',
+        'freeze-order',
+        'missing-rollback',
+        'review-audit-case',
+        'review-audit-log',
+        'review-admin-action-log',
+        'review-report-target',
+        'review-post-target',
+        'review-companion-target',
+      ],
       reportQueryCount: reportClient.calls.length,
       riskQueryCount: riskClient.calls.length,
       freezeQueryCount: freezeClient.calls.length,
+      reviewQueryCount: reviewReportClient.calls.length + reviewPostClient.calls.length + reviewCompanionClient.calls.length,
     },
     null,
     2,
@@ -103,6 +156,12 @@ function createMockClient({ mode }) {
       if (/from reports/i.test(normalized)) {
         return mode === 'report-action' ? { rows: [{ id: ids.reportId, order_id: ids.orderId, status: 'pending' }] } : { rows: [] };
       }
+      if (/from audit_cases/i.test(normalized)) {
+        const targetType = mode === 'audit-post' ? 'post' : mode === 'audit-companion' ? 'companion' : 'report';
+        const targetId = targetType === 'companion' ? ids.companionId : targetType === 'post' ? ids.riskCaseId : ids.reportId;
+        return mode.startsWith('audit-') ? { rows: [{ id: ids.auditCaseId, target_type: targetType, target_id: targetId, status: 'pending' }] } : { rows: [] };
+      }
+      if (/update audit_cases/i.test(normalized)) return { rows: [{ id: params[3], status: params[0], reviewed_at: params[2] }] };
       return { rows: [] };
     },
   };
