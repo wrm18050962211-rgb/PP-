@@ -50,7 +50,7 @@ try {
 
   const consumerSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
   assert(consumerSession.role === 'consumer', 'mock login can switch back to consumer role');
-  const primaryConsumerToken = consumerSession.token;
+  let primaryConsumerToken = consumerSession.token;
   const consumerAdmin = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
   assert(consumerAdmin.error?.code === 'FORBIDDEN', 'admin API rejects consumer token');
   const securityStore = JSON.parse(await readFile(storePath, 'utf8'));
@@ -65,6 +65,15 @@ try {
     companionSecurityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'companion_api' && item.actualRole === 'consumer'),
     'companion API permission denial is logged as security event',
   );
+
+  const logoutResult = await api('POST', '/api/auth/logout');
+  assert(logoutResult.ok === true, 'logout returns ok');
+  const afterLogoutAdmin = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
+  assert(afterLogoutAdmin.error?.code === 'AUTH_REQUIRED', 'logout revokes the previous token');
+
+  const reloginConsumer = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
+  assert(reloginConsumer.role === 'consumer', 'consumer can log in again after logout');
+  primaryConsumerToken = reloginConsumer.token;
 
   const mediaPolicy = await api('POST', '/api/media/upload-policy', {
     purpose: 'post-image',
@@ -247,6 +256,7 @@ try {
           'admin-permission-denial-log',
           'companion-auth-boundary',
           'companion-permission-denial-log',
+          'logout-revokes-session',
           'media-upload-policy',
           'feed',
           'matching',

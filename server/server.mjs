@@ -285,10 +285,12 @@ async function wechatLogin(store, body = {}) {
   return json(saveSession(store, session), 200, true);
 }
 
-function logout(store) {
-  revokeSession(store, store.activeSession?.token);
+async function logout(store) {
+  const token = store.activeSession?.token;
+  revokeSession(store, token);
+  if (token && dataStore.sessionWrites?.revokeToken) await dataStore.sessionWrites.revokeToken(token);
   store.activeSession = null;
-  return json({ ok: true }, 200, true);
+  return json({ ok: true }, 200, dataStore.kind === 'json');
 }
 
 function createSession(store, role, existingUser = null, options = {}) {
