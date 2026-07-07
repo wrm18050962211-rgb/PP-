@@ -135,6 +135,8 @@ export async function submitOrderReport(orderId: string, description = '用户�
 }
 
 export function saveLocalConversation(conversation: Conversation) {
+  if (!isMockFallbackAllowed()) return;
+
   try {
     const conversations = readLocalConversationMessages();
     conversations[conversation.orderId] = conversation.messages;
@@ -247,6 +249,7 @@ function readLocalConversationMessages(): Record<string, Message[]> {
 }
 
 function readSharedConversationMessages(): Record<string, Message[]> {
+  if (!isMockFallbackAllowed()) return {};
   if (typeof localStorage === 'undefined') return {};
   try {
     const raw = localStorage.getItem(sharedConversationStorageKey);
@@ -257,6 +260,7 @@ function readSharedConversationMessages(): Record<string, Message[]> {
 }
 
 function writeSharedConversationMessages(messages: Record<string, Message[]>) {
+  if (!isMockFallbackAllowed()) return;
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(sharedConversationStorageKey, JSON.stringify(messages));
 }
