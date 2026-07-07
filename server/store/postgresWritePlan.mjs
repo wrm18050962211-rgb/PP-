@@ -76,6 +76,19 @@ export const postgresWriteOperations = [
     ],
   },
   {
+    name: 'markRefundTerminal',
+    route: 'refund provider callback / refund processing job',
+    transaction: true,
+    tables: ['refunds', 'orders', 'order_status_logs'],
+    steps: [
+      'select refunds and linked orders for update',
+      'return success without side effects when refund is already terminal',
+      'update refunds to succeeded, failed, or rejected with raw callback',
+      'update refunding orders to refunded when refund succeeds',
+      'insert order_status_logs when order reaches refunded',
+    ],
+  },
+  {
     name: 'expirePendingPayments',
     route: 'scheduled payment timeout job',
     transaction: true,

@@ -90,12 +90,24 @@ assert(expiredClient.calls.some((call) => /with expired as/i.test(call.sql) && /
 assert(expiredClient.calls.some((call) => /update availability_slots/i.test(call.sql) && /locked_order_id = null/i.test(call.sql)), 'expired payment gateway releases slot');
 assert(expiredClient.released === true, 'expired payment gateway releases client');
 
+const refundTerminalResult = await store.orderWrites.markRefundTerminal({
+  refundId: '00000000-0000-4000-8000-000000000833',
+  status: 'succeeded',
+  statusLogId: '00000000-0000-4000-8000-000000000834',
+  rawCallback: { refund_status: 'SUCCESS' },
+});
+const refundClient = pool.clients[4];
+assert(refundTerminalResult.toStatus === 'refunded', 'refund terminal gateway returns refunded status');
+assert(refundClient.calls.some((call) => /update refunds/i.test(call.sql) && /raw_callback/i.test(call.sql)), 'refund terminal gateway updates refund');
+assert(refundClient.calls.some((call) => /update orders/i.test(call.sql) && /status = 'refunded'/i.test(call.sql)), 'refund terminal gateway updates linked order');
+assert(refundClient.released === true, 'refund terminal gateway releases client');
+
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['order-write-capability', 'create-order-gateway', 'admin-status-gateway', 'terminal-payment-gateway', 'expire-pending-payment-gateway', 'client-release'],
-      queryCount: client.calls.length + adminClient.calls.length + terminalClient.calls.length + expiredClient.calls.length,
+      checks: ['order-write-capability', 'create-order-gateway', 'admin-status-gateway', 'terminal-payment-gateway', 'expire-pending-payment-gateway', 'refund-terminal-gateway', 'client-release'],
+      queryCount: client.calls.length + adminClient.calls.length + terminalClient.calls.length + expiredClient.calls.length + refundClient.calls.length,
     },
     null,
     2,
@@ -135,6 +147,18 @@ function createMockClient() {
           ],
         };
       }
+      if (/from refunds r/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: params[0],
+              status: 'pending',
+              order_id: '00000000-0000-4000-8000-000000000821',
+              order_status: 'refunding',
+            },
+          ],
+        };
+      }
       if (/from orders/i.test(normalized) && /for update/i.test(normalized)) {
         return {
           rows: [
@@ -152,6 +176,8 @@ function createMockClient() {
       if (/from payments/i.test(normalized) && /for update/i.test(normalized)) return { rows: [{ id: params[0], status: 'pending' }] };
       if (/insert into orders/i.test(normalized)) return { rows: [{ id: params[0], order_no: params[1] }] };
       if (/insert into payments/i.test(normalized)) return { rows: [{ id: params[0], status: 'pending' }] };
+      if (/update refunds/i.test(normalized)) return { rows: [{ id: params[5], status: params[0] }] };
+      if (/update orders/i.test(normalized) && /status = 'refunded'/i.test(normalized)) return { rows: [{ id: '00000000-0000-4000-8000-000000000821', status: 'refunded' }] };
       if (/update orders/i.test(normalized)) return { rows: [{ id: params[3], status: params[0] }] };
       if (/update payments/i.test(normalized)) return { rows: [{ id: params[4], status: params[0] }] };
       return { rows: [] };

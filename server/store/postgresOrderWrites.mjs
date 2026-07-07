@@ -327,6 +327,87 @@ export async function expirePendingPaymentsTransaction(client, draft = {}) {
   }
 }
 
+export async function markRefundTerminalTransaction(client, draft = {}) {
+  assertClient(client);
+  assertRefundTerminalDraft(draft);
+
+  const occurredAt = draft.occurredAt || new Date().toISOString();
+  await client.query('begin');
+  try {
+    const refundResult = await client.query(
+      `select r.id,
+              r.status,
+              r.order_id,
+              o.status as order_status
+       from refunds r
+       join orders o on o.id = r.order_id
+       where r.id = $1
+       for update of r, o`,
+      [draft.refundId],
+    );
+    const refund = refundResult.rows?.[0];
+    if (!refund) throw conflict('REFUND_NOT_FOUND', 'Refund not found');
+
+    if (['succeeded', 'failed', 'rejected'].includes(refund.status)) {
+      await client.query('commit');
+      return {
+        refund,
+        fromStatus: refund.order_status,
+        toStatus: refund.order_status,
+        skipped: true,
+      };
+    }
+
+    const updatedRefund = await client.query(
+      `update refunds
+       set status = $1,
+           processed_by = $2,
+           third_party_refund_no = $3,
+           raw_callback = $4,
+           refunded_at = case when $1 = 'succeeded' then $5 else refunded_at end,
+           updated_at = now()
+       where id = $6
+       returning *`,
+      [draft.status, draft.processedBy || null, draft.thirdPartyRefundNo || null, draft.rawCallback || {}, occurredAt, draft.refundId],
+    );
+
+    let updatedOrder = null;
+    if (draft.status === 'succeeded') {
+      const orderResult = await client.query(
+        `update orders
+         set status = 'refunded',
+             updated_at = now()
+         where id = $1
+           and status = 'refunding'
+         returning *`,
+        [refund.order_id],
+      );
+      updatedOrder = orderResult.rows?.[0] || null;
+
+      if (updatedOrder) {
+        await client.query(
+          `insert into order_status_logs (
+            id, order_id, from_status, to_status, operator_type, operator_id, reason
+          ) values ($1, $2, $3, 'refunded', $4, $5, $6)`,
+          [draft.statusLogId, refund.order_id, refund.order_status, draft.operatorType || 'system', draft.operatorId || null, draft.reason || 'Refund succeeded'],
+        );
+      }
+    }
+
+    await client.query('commit');
+    return {
+      refund: updatedRefund.rows?.[0] || null,
+      order: updatedOrder,
+      fromStatus: refund.order_status,
+      toStatus: updatedOrder?.status || refund.order_status,
+      skipped: false,
+    };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  }
+}
+
 export async function transitionOrderTransaction(client, draft) {
   assertClient(client);
   assertTransitionDraft(draft);
@@ -548,6 +629,14 @@ function assertAdminStatusDraft(draft) {
     }
   }
   if (missing.length) throw new Error(`Missing admin order status draft fields: ${missing.join(', ')}`);
+}
+
+function assertRefundTerminalDraft(draft) {
+  const required = ['refundId', 'status'];
+  const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
+  if (!['succeeded', 'failed', 'rejected'].includes(draft?.status)) missing.push('status:succeeded_failed_or_rejected');
+  if (draft?.status === 'succeeded' && !draft?.statusLogId) missing.push('statusLogId');
+  if (missing.length) throw new Error(`Missing refund terminal draft fields: ${missing.join(', ')}`);
 }
 
 function normalizePositiveInteger(value, fallback, max) {

@@ -4,6 +4,7 @@ const requiredOperations = [
   'createOrder',
   'markPaymentPaid',
   'markPaymentTerminal',
+  'markRefundTerminal',
   'transitionOrder',
   'expirePendingPayments',
   'setAdminOrderStatus',

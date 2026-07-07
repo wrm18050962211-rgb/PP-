@@ -50,7 +50,8 @@ try {
   assert(
     postgresStore.capabilities?.orderWrites === true &&
       typeof postgresStore.orderWrites?.createOrder === 'function' &&
-      typeof postgresStore.orderWrites?.setAdminOrderStatus === 'function',
+      typeof postgresStore.orderWrites?.setAdminOrderStatus === 'function' &&
+      typeof postgresStore.orderWrites?.markRefundTerminal === 'function',
     'postgres store exposes order write gateway',
   );
   assert(postgresStore.capabilities?.messageWrites === true && typeof postgresStore.messageWrites?.sendMessage === 'function', 'postgres store exposes message write gateway');

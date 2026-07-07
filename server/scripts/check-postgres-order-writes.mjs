@@ -1,4 +1,4 @@
-import { createOrderTransaction, expirePendingPaymentsTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from '../store/postgresOrderWrites.mjs';
+import { createOrderTransaction, expirePendingPaymentsTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, markRefundTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from '../store/postgresOrderWrites.mjs';
 
 const draft = {
   orderId: '00000000-0000-4000-8000-000000000001',
@@ -208,6 +208,31 @@ const adminCompletedSql = adminCompletedClient.calls.map((call) => call.sql);
 assert(adminCompletedSql.some((sql) => /insert into settlements/i.test(sql)), 'admin completed inserts settlement');
 assert(adminCompletedSql.some((sql) => /insert into ledger_entries/i.test(sql)), 'admin completed inserts ledger entry');
 
+const refundTerminalClient = createMockClient([{ refund_status: 'pending', order_status: 'refunding' }]);
+const refundTerminal = await markRefundTerminalTransaction(refundTerminalClient, {
+  refundId: '00000000-0000-4000-8000-000000000025',
+  status: 'succeeded',
+  statusLogId: '00000000-0000-4000-8000-000000000026',
+  thirdPartyRefundNo: 'wx-refund-0001',
+  rawCallback: { refund_status: 'SUCCESS' },
+});
+const refundTerminalSql = refundTerminalClient.calls.map((call) => call.sql);
+assert(refundTerminal.toStatus === 'refunded', 'refund terminal success transitions order to refunded');
+assert(refundTerminalSql.some((sql) => /from refunds r/i.test(sql) && /for update of r, o/i.test(sql)), 'refund terminal locks refund and order');
+assert(refundTerminalSql.some((sql) => /update refunds/i.test(sql) && /raw_callback/i.test(sql)), 'refund terminal updates refund audit fields');
+assert(refundTerminalSql.some((sql) => /update orders/i.test(sql) && /status = 'refunded'/i.test(sql)), 'refund terminal updates order to refunded');
+assert(refundTerminalSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'refund terminal writes order status log');
+assert(refundTerminalSql.at(-1) === 'commit', 'refund terminal commits');
+
+const duplicateRefundClient = createMockClient([{ refund_status: 'succeeded', order_status: 'refunded' }]);
+const duplicateRefund = await markRefundTerminalTransaction(duplicateRefundClient, {
+  refundId: '00000000-0000-4000-8000-000000000025',
+  status: 'succeeded',
+  statusLogId: '00000000-0000-4000-8000-000000000026',
+});
+assert(duplicateRefund.skipped === true, 'duplicate terminal refund is idempotent');
+assert(!duplicateRefundClient.calls.some((call) => /update refunds/i.test(call.sql)), 'duplicate terminal refund skips updates');
+
 console.log(
   JSON.stringify(
     {
@@ -246,6 +271,8 @@ console.log(
         'admin-status-update',
         'admin-status-log',
         'admin-complete-settlement',
+        'refund-terminal',
+        'refund-terminal-idempotent',
       ],
       successQueryCount: successClient.calls.length,
       paymentQueryCount: paymentClient.calls.length,
@@ -254,6 +281,7 @@ console.log(
       expiredPaymentQueryCount: expiredPaymentClient.calls.length,
       transitionQueryCount: confirmClient.calls.length + duplicateConfirmClient.calls.length + completeClient.calls.length + cancelClient.calls.length,
       adminStatusQueryCount: adminStatusClient.calls.length + adminCompletedClient.calls.length,
+      refundTerminalQueryCount: refundTerminalClient.calls.length + duplicateRefundClient.calls.length,
     },
     null,
     2,
@@ -318,11 +346,26 @@ function createMockClient(slotRows) {
           ],
         };
       }
+      if (/from refunds r/i.test(normalized)) {
+        const row = slotRows[0] || {};
+        return {
+          rows: [
+            {
+              id: params[0],
+              status: row.refund_status || 'pending',
+              order_id: draft.orderId,
+              order_status: row.order_status || 'refunding',
+            },
+          ],
+        };
+      }
       if (/insert into orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'pending_payment' }] };
       if (/insert into payments/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'pending' }] };
       if (/update payments/i.test(normalized) && /status = 'paid'/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: 'paid' }] };
       if (/update payments/i.test(normalized) && /raw_callback/i.test(normalized)) return { rows: [{ id: draft.paymentId, status: params[0] }] };
       if (/update orders/i.test(normalized) && /paid_pending_confirm/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'paid_pending_confirm' }] };
+      if (/update refunds/i.test(normalized)) return { rows: [{ id: params[5], status: params[0] }] };
+      if (/update orders/i.test(normalized) && /status = 'refunded'/i.test(normalized)) return { rows: [{ id: draft.orderId, status: 'refunded' }] };
       if (/update orders/i.test(normalized)) return { rows: [{ id: draft.orderId, status: params[0] }] };
       if (/insert into conversations/i.test(normalized)) return { rows: [{ id: paymentDraft.conversationId, order_id: draft.orderId, status: 'active' }] };
       return { rows: [] };
