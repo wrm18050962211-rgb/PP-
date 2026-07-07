@@ -2,6 +2,7 @@ export function buildStoreFromPostgresRows(rows) {
   const companions = mapCompanions(rows);
   const companionById = new Map(companions.map((companion) => [companion.id, companion]));
   const posts = mapPosts(rows, companionById);
+  const orders = mapOrders(rows, companionById);
 
   return {
     meta: { version: 3 },
@@ -10,9 +11,9 @@ export function buildStoreFromPostgresRows(rows) {
     users: [],
     activeSession: null,
     sessions: [],
-    orders: [],
+    orders,
     payments: [],
-    conversations: {},
+    conversations: mapConversations(rows, orders),
     riskCases: [],
     messageRiskEvents: [],
     reports: [],
@@ -28,6 +29,30 @@ export function buildStoreFromPostgresRows(rows) {
     workDraft: { reviewStatus: 'draft', updatedAt: new Date().toISOString() },
   };
 }
+
+const orderStatusText = {
+  pending_payment: 'Pending payment',
+  paid_pending_confirm: 'Pending confirmation',
+  confirmed: 'Confirmed',
+  in_service: 'In service',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  refunding: 'Refunding',
+  refunded: 'Refunded',
+  disputed: 'Disputed',
+};
+
+const orderStepIndex = {
+  pending_payment: 0,
+  paid_pending_confirm: 1,
+  confirmed: 2,
+  in_service: 2,
+  completed: 3,
+  cancelled: 0,
+  refunding: 1,
+  refunded: 1,
+  disputed: 1,
+};
 
 function mapCompanions(rows) {
   return (rows.companions || []).map((row) => {
@@ -98,6 +123,91 @@ function mapPosts(rows, companionById) {
       companion,
     };
   });
+}
+
+function mapOrders(rows, companionById) {
+  return (rows.orders || []).map((row) => {
+    const id = stringId(row.id);
+    const status = row.status || 'pending_payment';
+    const startAt = toIso(row.start_at);
+    const endAt = toIso(row.end_at);
+    const companion = companionById.get(stringId(row.companion_id));
+    const amountCents = number(row.total_amount_cents);
+    return {
+      id,
+      orderNo: row.order_no || id,
+      status,
+      title: row.activity_name || 'Order',
+      time: `${startAt.slice(0, 10)} ${startAt.slice(11, 16)}-${endAt.slice(11, 16)}`,
+      place: row.place_name || row.city || '',
+      amountCents,
+      amountText: formatMoney(amountCents),
+      companion: companion?.name || '',
+      companionId: stringId(row.companion_id),
+      postId: row.post_id ? stringId(row.post_id) : undefined,
+      activityId: row.activity_pricing_id ? stringId(row.activity_pricing_id) : undefined,
+      activityName: row.activity_name || '',
+      slotId: row.availability_slot_id ? stringId(row.availability_slot_id) : undefined,
+      userId: stringId(row.user_id),
+      startAt,
+      endAt,
+      dateLabel: startAt.slice(0, 10),
+      timeLabel: `${startAt.slice(11, 16)}-${endAt.slice(11, 16)}`,
+      durationMinutes: number(row.duration_minutes),
+      durationLabel: formatDuration(number(row.duration_minutes)),
+      statusText: orderStatusText[status] || status,
+      steps: ['Created', 'Paid', 'Confirmed', 'Completed'],
+      currentStep: orderStepIndex[status] ?? 0,
+      createdAt: toIso(row.created_at),
+      updatedAt: toIso(row.updated_at),
+    };
+  });
+}
+
+function mapConversations(rows, orders) {
+  const orderById = new Map(orders.map((order) => [order.id, order]));
+  return Object.fromEntries(
+    (rows.conversations || []).map((row) => {
+      const id = stringId(row.id);
+      const orderId = stringId(row.order_id);
+      const order = orderById.get(orderId);
+      return [
+        orderId,
+        {
+          id,
+          orderId,
+          orderNo: order?.orderNo || '',
+          userId: stringId(row.user_id),
+          companionId: stringId(row.companion_id),
+          status: row.status || 'active',
+          safetyNotice: 'Keep all communication and payments inside Still for safety.',
+          messages: (rows.messages || [])
+            .filter((message) => stringId(message.conversation_id) === id)
+            .sort((left, right) => new Date(toIso(left.sent_at)).getTime() - new Date(toIso(right.sent_at)).getTime())
+            .map(mapMessage),
+        },
+      ];
+    }),
+  );
+}
+
+function mapMessage(row) {
+  const text = row.content ?? row.original_content ?? '';
+  return {
+    id: stringId(row.id),
+    from: mapSenderRole(row.sender_role),
+    kind: row.message_type || 'text',
+    text,
+    sentAt: toIso(row.sent_at),
+    riskStatus: row.risk_status || 'clean',
+  };
+}
+
+function mapSenderRole(role) {
+  if (role === 'companion') return 'companion';
+  if (role === 'admin') return 'admin';
+  if (role === 'system') return 'system';
+  return 'user';
 }
 
 function mapAuditLogs(rows) {

@@ -131,6 +131,47 @@ const rows = {
     },
   ],
   postTags: [{ post_id: 'post-pg-1', tag_name: '胶片感' }],
+  orders: [
+    {
+      id: 'order-pg-1',
+      order_no: 'ST2606120001',
+      user_id: 'user-pg-1',
+      companion_id: 'companion-pg-1',
+      post_id: 'post-pg-1',
+      activity_pricing_id: 'activity-pg-1',
+      availability_slot_id: 'slot-pg-1',
+      city: 'Shanghai',
+      place_name: 'Wukang Road',
+      activity_name: 'Citywalk',
+      duration_minutes: 120,
+      start_at: '2026-06-12T06:00:00.000Z',
+      end_at: '2026-06-12T08:00:00.000Z',
+      total_amount_cents: 39900,
+      status: 'confirmed',
+      created_at: '2026-06-12T05:00:00.000Z',
+      updated_at: '2026-06-12T05:30:00.000Z',
+    },
+  ],
+  conversations: [
+    {
+      id: 'conversation-pg-1',
+      order_id: 'order-pg-1',
+      user_id: 'user-pg-1',
+      companion_id: 'companion-pg-1',
+      status: 'active',
+    },
+  ],
+  messages: [
+    {
+      id: 'message-pg-1',
+      conversation_id: 'conversation-pg-1',
+      sender_role: 'user',
+      message_type: 'text',
+      content: 'Hello',
+      risk_status: 'clean',
+      sent_at: '2026-06-12T06:05:00.000Z',
+    },
+  ],
 };
 
 const store = buildStoreFromPostgresRows(rows);
@@ -147,7 +188,10 @@ assert(companion.slots[0].dateLabel === '2026-06-12', 'slot date maps');
 assert(post.companion.id === companion.id, 'post embeds companion');
 assert(post.images[0].url.includes('post.jpg'), 'post image maps');
 assert(post.styleTags.includes('胶片感'), 'post tags map');
-assert(store.orders.length === 0 && store.payments.length === 0, 'transactional write models start empty');
+assert(store.orders[0].orderNo === 'ST2606120001', 'orders map');
+assert(store.orders[0].statusText === 'Confirmed', 'order status text maps');
+assert(store.conversations['order-pg-1'].messages[0].text === 'Hello', 'conversation messages map');
+assert(store.payments.length === 0, 'payments start empty');
 assert(Array.isArray(store.sessions) && store.sessions.length === 0, 'sessions start empty');
 assert(store.auditLogs[0].auditCaseId === 'audit-case-pg-1', 'audit logs map');
 assert(store.adminActionLogs[0].note === 'Order marked disputed', 'admin action logs map');
@@ -157,7 +201,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'sessions', 'audit-logs', 'admin-action-logs', 'security-events'],
+      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'orders', 'conversations', 'sessions', 'audit-logs', 'admin-action-logs', 'security-events'],
       companionCount: store.companions.length,
       postCount: store.posts.length,
     },
