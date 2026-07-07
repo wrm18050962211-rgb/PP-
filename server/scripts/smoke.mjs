@@ -229,6 +229,8 @@ try {
   assert(blocked.error?.code === 'MESSAGE_BLOCKED' && blocked.data?.matchedKeywords?.length, 'risky chat message is blocked');
 
   await api('POST', '/api/admin/auth/login', { passcode: '000000' });
+  const adminDirectCancel = await api('POST', `/api/orders/${paid.order.id}/cancel`, { reason: 'admin should use admin order API' }, { expectOk: false });
+  assert(adminDirectCancel.error?.code === 'FORBIDDEN', 'admin token cannot mutate orders through public order API');
   const auditCases = await api('GET', '/api/admin/audit-cases');
   const auditCase = auditCases.items?.find((item) => item.status === 'pending');
   assert(auditCase?.id, 'admin audit queue exposes pending case');
@@ -301,6 +303,7 @@ try {
           'confirmed-cancellation-settlement',
           'conversation',
           'risk-block',
+          'admin-order-mutation-boundary',
           'audit-review-log',
           'moderation-action',
           'moderation-action-log',

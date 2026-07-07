@@ -582,8 +582,7 @@ function normalizeRole(role) {
 
 function canAccessOrder(store, order, session, requestedRole = session.role) {
   const role = normalizeRole(requestedRole);
-  if (session.role === 'admin') return true;
-  if (role === 'admin') return false;
+  if (session.role === 'admin' || role === 'admin') return false;
   if (role === 'companion') return Boolean(order.companionId && order.companionId === session.companionId);
   return !order.userId || order.userId === session.user.id;
 }
@@ -605,7 +604,7 @@ function requireOrderAccess(store, orderOrId, session, requestedRole = session.r
 }
 
 function canMutateOrder(order, session, action) {
-  if (session.role === 'admin') return true;
+  if (session.role === 'admin') return false;
   if (action === 'confirm' || action === 'complete') return session.role === 'companion' && order.companionId === session.companionId;
   if (action === 'cancel') return order.userId === session.user.id || (session.role === 'companion' && order.companionId === session.companionId);
   return false;
