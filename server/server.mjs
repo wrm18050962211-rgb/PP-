@@ -1801,7 +1801,7 @@ function normalizeStore(store) {
   next.companions = Array.isArray(store.companions) && store.companions.length ? store.companions : initialStore().companions;
   next.posts = Array.isArray(store.posts) && store.posts.length ? store.posts : initialStore().posts;
   next.users = Array.isArray(store.users) ? store.users : [];
-  next.activeSession = store.activeSession || null;
+  next.activeSession = null;
   next.sessions = Array.isArray(store.sessions) ? store.sessions : [];
   next.orders = Array.isArray(store.orders) ? store.orders : [];
   next.payments = Array.isArray(store.payments) ? store.payments : [];
