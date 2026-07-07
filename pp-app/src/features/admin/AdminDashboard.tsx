@@ -23,7 +23,7 @@ import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
 import { logoutAdmin } from '../../services/authService';
 import { listAccountDeletionRequests, updateAccountDeletionRequestStatus, type AccountDeletionRequest, type AccountDeletionRequestStatus } from '../../services/accountDeletionService';
-import { fetchAdminModerationData, syncAdminModerationAction } from '../../services/adminService';
+import { fetchAdminModerationData, fetchAdminOrders, syncAdminModerationAction } from '../../services/adminService';
 import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import { getSupportRequestCategoryLabel, listSupportRequests, updateSupportRequestStatus, type SupportRequest, type SupportRequestStatus } from '../../services/supportRequestService';
@@ -175,10 +175,27 @@ export function AdminDashboard() {
   const [selectedAccountId, setSelectedAccountId] = useState(accountSeed[0]?.id ?? '');
   const [configs, setConfigs] = useState(configSeed);
   const [selectedConfigId, setSelectedConfigId] = useState(configSeed[0]?.id ?? '');
+  const [adminOrders, setAdminOrders] = useState<AppOrder[]>(orders);
+  const visibleOrders = adminOrders.length ? adminOrders : orders;
 
   useEffect(() => {
     let mounted = true;
-    fetchAdminModerationData(orders).then((data) => {
+    fetchAdminOrders(orders).then((items) => {
+      if (!mounted) return;
+      setAdminOrders(items);
+      setSelectedOrderId((current) => current || items[0]?.id || '');
+    }).catch(() => {
+      if (mounted) setAdminOrders(orders);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [orders]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchAdminModerationData(visibleOrders).then((data) => {
       if (!mounted) return;
       const mapped = mapRemoteModerationData(data);
       setRiskCases(mapped.riskCases);
@@ -190,7 +207,7 @@ export function AdminDashboard() {
     return () => {
       mounted = false;
     };
-  }, [orders]);
+  }, [visibleOrders]);
 
   useEffect(() => {
     const refreshAdminRequests = () => {
@@ -205,8 +222,8 @@ export function AdminDashboard() {
     };
   }, []);
 
-  const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0];
-  const localDisputeReports = useMemo(() => buildLocalDisputeReports(orders), [orders]);
+  const selectedOrder = visibleOrders.find((order) => order.id === selectedOrderId) ?? visibleOrders[0];
+  const localDisputeReports = useMemo(() => buildLocalDisputeReports(visibleOrders), [visibleOrders]);
   const supportReportCases = useMemo(() => supportRequests.map(mapSupportRequestToReportCase), [supportRequests]);
   const visibleReportCases = useMemo(
     () => [
@@ -233,10 +250,10 @@ export function AdminDashboard() {
     () => [
       { label: '待审陪拍者', value: application.reviewStatus === '待审核' ? '1' : '0', module: 'companions' as const },
       { label: '待审作品', value: workDraft.reviewStatus === '待审核' ? '1' : '0', module: 'works' as const },
-      { label: '订单总数', value: String(orders.length), module: 'orders' as const },
+      { label: '订单总数', value: String(visibleOrders.length), module: 'orders' as const },
       { label: '风控待处理', value: String(riskCases.filter((item) => item.status === '待处理').length), module: 'risk' as const },
     ],
-    [application.reviewStatus, orders.length, riskCases, workDraft.reviewStatus],
+    [application.reviewStatus, visibleOrders.length, riskCases, workDraft.reviewStatus],
   );
 
   const pendingReports = visibleReportCases.filter((item) => item.status !== '已完结').length;
@@ -334,19 +351,19 @@ export function AdminDashboard() {
           )}
           {activeModule === 'works' && <WorkAuditPanel workDraft={workDraft} onApprove={() => reviewWork('已通过')} onReject={() => reviewWork('需修改')} />}
           {activeModule === 'orders' && selectedOrder && (
-            <OrderPanel orders={orders} selectedOrder={selectedOrder} onSelect={setSelectedOrderId} onUpdateStatus={updateOrderStatus} onUpdateFunding={updateOrderFunding} />
+            <OrderPanel orders={visibleOrders} selectedOrder={selectedOrder} onSelect={setSelectedOrderId} onUpdateStatus={updateOrderStatus} onUpdateFunding={updateOrderFunding} />
           )}
           {activeModule === 'risk' && selectedRisk && (
             <RiskPanel
               cases={riskCases}
               selectedCase={selectedRisk}
-              selectedOrder={orders.find((order) => order.orderNo === selectedRisk.orderNo)}
+              selectedOrder={visibleOrders.find((order) => order.orderNo === selectedRisk.orderNo)}
               actionLogs={riskActionLogs[selectedRisk.id] ?? []}
               onSelect={setSelectedRiskId}
               onUpdate={(id, status) => setRiskCases((items) => items.map((item) => (item.id === id ? { ...item, status } : item)))}
               onRecordAction={recordRiskAction}
               onFreezeOrder={(orderNo) => {
-                const order = orders.find((item) => item.orderNo === orderNo);
+                const order = visibleOrders.find((item) => item.orderNo === orderNo);
                 if (order) updateOrderStatus(order.id, 'disputed');
               }}
             />
@@ -355,13 +372,13 @@ export function AdminDashboard() {
             <ReportPanel
               reports={visibleReportCases}
               selectedReport={selectedReport}
-              selectedOrder={orders.find((order) => order.orderNo === selectedReport.orderNo)}
+              selectedOrder={visibleOrders.find((order) => order.orderNo === selectedReport.orderNo)}
               actionLogs={reportActionLogs[selectedReport.id] ?? []}
               onSelect={setSelectedReportId}
               onUpdate={updateReportStatus}
               onRecordAction={recordReportAction}
               onFreezeOrder={(orderNo) => {
-                const order = orders.find((item) => item.orderNo === orderNo);
+                const order = visibleOrders.find((item) => item.orderNo === orderNo);
                 if (order) updateOrderStatus(order.id, 'disputed');
               }}
             />

@@ -39,6 +39,17 @@ export async function fetchAdminDashboardData(application: CompanionApplication,
   }
 }
 
+export async function fetchAdminOrders(fallback: AppOrder[] = seedOrders): Promise<AppOrder[]> {
+  if (!isApiEnabled()) return getApiFallback(fallback, 'Admin orders');
+
+  try {
+    const response = await apiGet<{ items: AppOrder[] }>('/api/admin/orders');
+    return response.success ? response.data.items : getApiFallback(fallback, 'Admin orders');
+  } catch {
+    return getApiFallback(fallback, 'Admin orders');
+  }
+}
+
 export async function approveAuditCase(caseId: string) {
   if (!isApiEnabled()) return getApiFallback(true, 'Approve audit case');
 
