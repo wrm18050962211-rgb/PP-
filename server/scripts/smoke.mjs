@@ -70,6 +70,9 @@ try {
 
   const consumerSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
   assert(consumerSession.role === 'consumer', 'mock login can switch back to consumer role');
+  const consumerSessionStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(consumerSessionStore.activeSession === null, 'json store does not persist ambient active session');
+  assert(consumerSessionStore.sessions?.some((item) => item.token === consumerSession.token), 'json store persists token sessions');
   let primaryConsumerToken = consumerSession.token;
   const consumerAdmin = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
   assert(consumerAdmin.error?.code === 'FORBIDDEN', 'admin API rejects consumer token');

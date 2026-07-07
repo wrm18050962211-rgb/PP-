@@ -25,7 +25,8 @@ export function createJsonStore({ storePath, initialStore, normalizeStore }) {
     },
     async save(store) {
       await mkdir(dirname(storePath), { recursive: true });
-      await writeFile(storePath, JSON.stringify(store, null, 2), 'utf8');
+      const persistedStore = { ...store, activeSession: null };
+      await writeFile(storePath, JSON.stringify(persistedStore, null, 2), 'utf8');
     },
   };
 }
