@@ -15,6 +15,7 @@ const checks = [
   ['postgres-order-route', ['scripts/check-postgres-order-route.mjs']],
   ['postgres-payment-route', ['scripts/check-postgres-payment-route.mjs']],
   ['postgres-payment-status-route', ['scripts/check-postgres-payment-status-route.mjs']],
+  ['postgres-wechat-notify-route', ['scripts/check-postgres-wechat-notify-route.mjs']],
   ['postgres-conversation-route', ['scripts/check-postgres-conversation-route.mjs']],
   ['postgres-transition-route', ['scripts/check-postgres-transition-route.mjs']],
   ['postgres-admin-order-route', ['scripts/check-postgres-admin-order-route.mjs']],

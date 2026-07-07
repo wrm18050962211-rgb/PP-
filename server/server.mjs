@@ -2765,15 +2765,35 @@ async function wechatPayRequest(method, path, body, privateKey) {
   return data;
 }
 
-function wechatPaymentNotify(store, body = {}) {
+async function wechatPaymentNotify(store, body = {}) {
   if (!process.env.WECHAT_PAY_API_V3_KEY) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
   const transaction = decryptWechatPayResource(body.resource || {});
   const payment = store.payments.find((item) => item.paymentNo === transaction.out_trade_no || item.transactionId === transaction.transaction_id);
   if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
+  if (dataStore.kind !== 'json' && dataStore.orderWrites?.markPaymentPaid) {
+    if (transaction.trade_state === 'SUCCESS') return markPostgresWechatPaymentPaid(payment, transaction);
+    return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
+  }
   payment.transactionId = transaction.transaction_id;
   payment.wechatTradeState = transaction.trade_state;
   if (transaction.trade_state === 'SUCCESS') return markPaymentPaid(store, payment, 'WeChat Pay callback succeeded');
   return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, true);
+}
+
+async function markPostgresWechatPaymentPaid(payment, transaction) {
+  if (payment.status === 'paid' || payment.status === 'closed') return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
+  await dataStore.orderWrites.markPaymentPaid({
+    paymentId: payment.id,
+    conversationId: id('conversation'),
+    statusLogId: id('status-log'),
+    paidAt: transaction.success_time || now(),
+    thirdPartyTradeNo: transaction.transaction_id || null,
+    thirdPartyBuyerId: transaction.payer?.openid || null,
+    rawCallback: transaction,
+    operatorType: 'system',
+    statusReason: 'WeChat Pay callback succeeded',
+  });
+  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
 }
 
 async function refreshWechatPaymentStatus(store, payment) {
