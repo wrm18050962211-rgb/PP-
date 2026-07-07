@@ -510,7 +510,14 @@ function requireOrderAccess(store, orderOrId, session, requestedRole = session.r
   const order = typeof orderOrId === 'string' ? findOrder(store, orderOrId) : orderOrId;
   if (!order) return { response: error(404, 'NOT_FOUND', 'Order not found') };
   if (!canAccessOrder(store, order, session, requestedRole)) {
-    return { response: error(403, 'FORBIDDEN', forbiddenMessage) };
+    recordSecurityEvent(store, session, 'permission_denied', {
+      targetType: 'order',
+      targetId: order.id,
+      requiredRole: normalizeRole(requestedRole),
+      actualRole: session.role,
+      reason: forbiddenMessage,
+    });
+    return { response: error(403, 'FORBIDDEN', forbiddenMessage, true) };
   }
   return { order };
 }

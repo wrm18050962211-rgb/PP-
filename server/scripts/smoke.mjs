@@ -119,6 +119,11 @@ try {
   assert(otherConsumer.user?.id !== consumerSession.user?.id, 'second consumer login creates a distinct user');
   const otherConsumerPayment = await api('GET', `/api/payments/${order.payment.paymentId}/status`, undefined, { expectOk: false });
   assert(otherConsumerPayment.error?.code === 'FORBIDDEN', 'consumer cannot view another consumer order payment status');
+  const crossUserSecurityStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(
+    crossUserSecurityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'order' && item.targetId === paid.order.id),
+    'cross-user order access denial is logged as security event',
+  );
   const otherConsumerCancel = await api('POST', `/api/orders/${paid.order.id}/cancel`, { reason: 'smoke test cross-user cancellation' }, { expectOk: false });
   assert(otherConsumerCancel.error?.code === 'FORBIDDEN', 'consumer cannot cancel another consumer order');
   authToken = primaryConsumerToken;
@@ -239,6 +244,7 @@ try {
           'orders',
           'admin-order-status-boundary',
           'cross-user-order-boundary',
+          'cross-user-order-denial-log',
           'cross-companion-order-boundary',
           'role-scoped-orders',
           'pending-payment-expiry',
