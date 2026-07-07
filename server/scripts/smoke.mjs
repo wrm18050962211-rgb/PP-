@@ -49,6 +49,10 @@ try {
   assert(adminSession.role === 'admin' && adminSession.adminScope?.includes('risk'), 'admin login endpoint creates admin role');
   const anonymousAdmin = await api('GET', '/api/admin/dashboard', undefined, { omitAuth: true, expectOk: false });
   assert(anonymousAdmin.error?.code === 'AUTH_REQUIRED', 'admin API rejects missing token instead of using ambient session');
+  const adminLogoutResult = await api('POST', '/api/admin/auth/logout');
+  assert(adminLogoutResult.ok === true, 'admin logout returns ok');
+  const afterAdminLogout = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
+  assert(afterAdminLogout.error?.code === 'AUTH_REQUIRED', 'admin logout revokes the admin token');
 
   const consumerSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
   assert(consumerSession.role === 'consumer', 'mock login can switch back to consumer role');
@@ -256,6 +260,7 @@ try {
           'mock-login',
           'admin-login',
           'admin-auth-boundary',
+          'admin-logout-revokes-session',
           'admin-permission-denial-log',
           'companion-auth-boundary',
           'companion-permission-denial-log',

@@ -107,6 +107,7 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/logout') return logout(store);
   if (method === 'POST' && path === '/api/admin/auth/login') return adminLogin(store, body);
+  if (method === 'POST' && path === '/api/admin/auth/logout') return adminLogout(store);
   if (method === 'POST' && path === '/api/media/upload-policy') return createMediaUploadPolicy(store, body);
   if (method === 'GET' && path === '/api/feed/posts') return json(listFeedPostPage(store, url));
   if (method === 'GET' && path === '/api/matching/companions') return matchCompanions(store, url);
@@ -269,6 +270,12 @@ function adminLogin(store, body = {}) {
   const session = createSession(store, 'admin');
   session.provider = 'local_admin';
   return json(saveSession(store, session), 200, true);
+}
+
+async function adminLogout(store) {
+  const gate = requireAdminSession(store);
+  if (gate.response) return gate.response;
+  return logout(store);
 }
 
 async function wechatLogin(store, body = {}) {

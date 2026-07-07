@@ -294,6 +294,17 @@ export function logoutLocalAdmin(): AuthSession {
   return session;
 }
 
+export async function logoutAdmin(): Promise<AuthSession> {
+  if (isApiEnabled()) {
+    try {
+      await apiPost('/api/admin/auth/logout');
+    } catch {
+      // Local admin logout should still clear the browser state if the API is unavailable.
+    }
+  }
+  return logoutLocalAdmin();
+}
+
 export function addRoleToCurrentAccount(role: PublicRole) {
   return completeRoleRegistration(role);
 }

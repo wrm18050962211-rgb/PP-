@@ -21,7 +21,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
-import { logoutLocalAdmin } from '../../services/authService';
+import { logoutAdmin } from '../../services/authService';
 import { listAccountDeletionRequests, updateAccountDeletionRequestStatus, type AccountDeletionRequest, type AccountDeletionRequestStatus } from '../../services/accountDeletionService';
 import { fetchAdminModerationData, syncAdminModerationAction } from '../../services/adminService';
 import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
@@ -284,7 +284,7 @@ export function AdminDashboard() {
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-white/78 px-3 text-xs font-bold text-[#6f625d] ring-1 ring-[#eadfd8]"
             type="button"
             onClick={() => {
-              logoutLocalAdmin();
+              void logoutAdmin();
               navigate('/admin/login', { replace: true });
             }}
             aria-label="退出后台"
