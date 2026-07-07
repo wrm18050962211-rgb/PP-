@@ -21,6 +21,7 @@
     "check:postgres-moderation-route": "node scripts/check-postgres-moderation-route.mjs",
     "check:postgres-order-route": "node scripts/check-postgres-order-route.mjs",
     "check:postgres-payment-route": "node scripts/check-postgres-payment-route.mjs",
+    "check:postgres-transition-route": "node scripts/check-postgres-transition-route.mjs",
     "check:postgres-store-order-gateway": "node scripts/check-postgres-store-order-gateway.mjs",
     "check:postgres-store-message-gateway": "node scripts/check-postgres-store-message-gateway.mjs",
     "check:postgres-store-moderation-gateway": "node scripts/check-postgres-store-moderation-gateway.mjs",

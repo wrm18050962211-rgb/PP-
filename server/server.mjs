@@ -974,7 +974,7 @@ async function getPaymentStatus(store, path) {
   );
 }
 
-function transitionOrder(store, path, action, body = {}) {
+async function transitionOrder(store, path, action, body = {}) {
   const publicSession = requirePublicSession(store, 'consumer', 'order');
   if (publicSession.response) return publicSession.response;
   const { session } = publicSession;
@@ -985,21 +985,64 @@ function transitionOrder(store, path, action, body = {}) {
 
   if (action === 'confirm') {
     if (order.status !== 'paid_pending_confirm') return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be confirmed');
+    if (dataStore.kind !== 'json' && dataStore.orderWrites?.transitionOrder) {
+      return transitionPostgresOrder(order, action, session, 'Companion confirmed order');
+    }
     return updateOrder(store, order, 'confirmed', 'Companion confirmed order');
   }
 
   if (action === 'complete') {
     if (!['confirmed', 'in_service'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be completed');
+    if (dataStore.kind !== 'json' && dataStore.orderWrites?.transitionOrder) {
+      return transitionPostgresOrder(order, action, session, 'Order completed');
+    }
     const result = updateOrder(store, order, 'completed', 'Order completed');
     createSettlement(store, order);
     return result;
   }
 
   if (action === 'cancel') {
+    if (['completed', 'refunded'].includes(order.status)) return error(409, 'ORDER_STATUS_INVALID', 'Order cannot be cancelled');
+    if (dataStore.kind !== 'json' && dataStore.orderWrites?.transitionOrder) {
+      return transitionPostgresOrder(order, action, session, body.reason || 'Order cancelled');
+    }
     return cancelOrder(store, order, session, body);
   }
 
   return error(400, 'VALIDATION_ERROR', 'Unknown action');
+}
+
+async function transitionPostgresOrder(order, action, session, reason) {
+  const occurredAt = now();
+  const draft = {
+    orderId: order.id,
+    action,
+    statusLogId: id('status-log'),
+    operatorType: session.role === 'companion' ? 'companion' : 'user',
+    operatorId: session.user?.id || null,
+    reason,
+    occurredAt,
+  };
+
+  if (action === 'complete') {
+    draft.settlementId = id('settlement');
+    draft.ledgerEntryId = id('ledger');
+    draft.settleAfter = occurredAt;
+  }
+
+  if (action === 'cancel' && order.status !== 'pending_payment') {
+    draft.expectRefund = true;
+    draft.refundId = id('refund');
+    draft.refundNo = refundNo();
+  }
+
+  const result = await dataStore.orderWrites.transitionOrder(draft);
+  const nextOrder = viewOrder({
+    ...order,
+    status: result.toStatus || order.status,
+    statusLogs: [...(order.statusLogs || []), statusLog(result.toStatus || order.status, reason)],
+  });
+  return json(nextOrder, 200, false);
 }
 
 function setOrderStatus(store, path, status) {
