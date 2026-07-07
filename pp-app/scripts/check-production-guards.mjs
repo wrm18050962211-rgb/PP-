@@ -42,6 +42,15 @@ const checks = [
     ],
   },
   {
+    file: 'src/services/mediaService.ts',
+    includes: [
+      "if (policy?.mode === 'production') throw new Error",
+      'if (!isMockFallbackAllowed()) throw new Error',
+      "return getApiFallback(await readFileAsDataUrl(file), 'Media upload')",
+      'await wxUploadFile(policy.uploadUrl, filePath, { key: policy.objectKey })',
+    ],
+  },
+  {
     file: 'src/services/authService.ts',
     includes: [
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'))",
