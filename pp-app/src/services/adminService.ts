@@ -26,6 +26,19 @@ export type AdminActionLogItem = {
   createdAt: string;
 };
 
+export type AdminSecurityEventItem = {
+  id: string;
+  type: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  actorRole?: string;
+  actualRole?: string;
+  requiredRole?: string | null;
+  reason?: string;
+  action?: string | null;
+  createdAt: string;
+};
+
 export function getAdminDashboardData(application: CompanionApplication, workDraft: PublishedWorkDraft, orders: AppOrder[]): AdminDashboardData {
   return {
     metrics: [
@@ -86,6 +99,23 @@ export async function fetchAdminActionLogs(params: { targetType?: string; action
     return response.success ? response.data.items : getApiFallback([], 'Admin action logs');
   } catch {
     return getApiFallback([], 'Admin action logs');
+  }
+}
+
+export async function fetchAdminSecurityEvents(params: { type?: string; targetType?: string; limit?: number } = {}): Promise<AdminSecurityEventItem[]> {
+  if (!isApiEnabled()) return getApiFallback([], 'Admin security events');
+
+  const searchParams = new URLSearchParams();
+  if (params.type) searchParams.set('type', params.type);
+  if (params.targetType) searchParams.set('targetType', params.targetType);
+  if (params.limit) searchParams.set('limit', String(params.limit));
+  const query = searchParams.toString();
+
+  try {
+    const response = await apiGet<{ items: AdminSecurityEventItem[] }>(`/api/admin/security-events${query ? `?${query}` : ''}`);
+    return response.success ? response.data.items : getApiFallback([], 'Admin security events');
+  } catch {
+    return getApiFallback([], 'Admin security events');
   }
 }
 

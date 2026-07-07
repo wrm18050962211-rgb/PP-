@@ -27,9 +27,11 @@ import {
   fetchAdminActionLogs,
   fetchAdminModerationData,
   fetchAdminOrders,
+  fetchAdminSecurityEvents,
   syncAdminModerationAction,
   updateAdminOrderStatus,
   type AdminActionLogItem,
+  type AdminSecurityEventItem,
 } from '../../services/adminService';
 import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
@@ -185,6 +187,7 @@ export function AdminDashboard() {
   const [selectedConfigId, setSelectedConfigId] = useState(configSeed[0]?.id ?? '');
   const [adminOrders, setAdminOrders] = useState<AppOrder[]>(orders);
   const [adminActionLogs, setAdminActionLogs] = useState<AdminActionLogItem[]>([]);
+  const [adminSecurityEvents, setAdminSecurityEvents] = useState<AdminSecurityEventItem[]>([]);
   const visibleOrders = adminOrders.length ? adminOrders : orders;
 
   useEffect(() => {
@@ -220,6 +223,7 @@ export function AdminDashboard() {
 
   useEffect(() => {
     void refreshAdminActionLogs();
+    void refreshAdminSecurityEvents();
   }, []);
 
   useEffect(() => {
@@ -314,6 +318,12 @@ export function AdminDashboard() {
     return fetchAdminActionLogs({ targetType: 'order', limit: 50 })
       .then(setAdminActionLogs)
       .catch(() => setAdminActionLogs([]));
+  }
+
+  function refreshAdminSecurityEvents() {
+    return fetchAdminSecurityEvents({ limit: 20 })
+      .then(setAdminSecurityEvents)
+      .catch(() => setAdminSecurityEvents([]));
   }
 
   function handleAdminOrderStatus(orderId: string, status: OrderStatus) {
@@ -449,6 +459,7 @@ export function AdminDashboard() {
             <SettingsPanel
               configs={configs}
               selectedConfig={selectedConfig}
+              securityEvents={adminSecurityEvents.map(formatAdminSecurityEvent)}
               onSelect={setSelectedConfigId}
               onUpdate={(id) => setConfigs((items) => items.map((item) => (item.id === id ? { ...item, status: '已启用' } : item)))}
             />
@@ -970,11 +981,13 @@ function FinancePanel({
 function SettingsPanel({
   configs,
   selectedConfig,
+  securityEvents,
   onSelect,
   onUpdate,
 }: {
   configs: SystemConfig[];
   selectedConfig: SystemConfig;
+  securityEvents: string[];
   onSelect: (id: string) => void;
   onUpdate: (id: string) => void;
 }) {
@@ -996,6 +1009,7 @@ function SettingsPanel({
                 编辑占位
               </AdminButton>
             </div>
+            <ActionLogList logs={securityEvents} />
           </DetailCard>
         }
       />
@@ -1013,6 +1027,12 @@ function mapRemoteModerationData(data: AdminModerationData): { riskCases: RiskCa
 function formatAdminActionLog(log: AdminActionLogItem) {
   const note = log.note || log.action;
   return `${formatDate(log.createdAt)} · ${note}`;
+}
+
+function formatAdminSecurityEvent(event: AdminSecurityEventItem) {
+  const target = event.targetType ? ` / ${event.targetType}` : '';
+  const reason = event.reason || event.type;
+  return `${formatDate(event.createdAt)} · ${event.actualRole || event.actorRole || 'unknown'}${target} · ${reason}`;
 }
 
 function mapDeletionRequestToAccountCase(request: AccountDeletionRequest): AccountCase {
