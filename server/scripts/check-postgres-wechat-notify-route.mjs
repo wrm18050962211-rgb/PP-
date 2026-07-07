@@ -8,6 +8,10 @@ assert(/verifyWechatPayNotifyRequest\(req, body\)/.test(source), 'wechat notify 
 assert(/function verifyWechatPayNotifyRequest/.test(source), 'wechat notify signature helper exists');
 assert(/WECHAT_PAY_PLATFORM_PUBLIC_KEY/.test(source), 'wechat notify requires platform public key for signature verification');
 assert(/Object\.defineProperty\(parsed, '__rawBody'/.test(source), 'readBody preserves raw body for signature verification');
+assert(/recordWechatProviderCallback\(body, req\)/.test(source), 'wechat notify records provider callback event');
+assert(/dataStore\.providerCallbackWrites\.recordReceived/.test(source), 'wechat notify uses provider callback received gateway');
+assert(/markWechatProviderCallbackProcessed/.test(source), 'wechat notify marks callback processed after business write');
+assert(/markWechatProviderCallbackFailed/.test(source), 'wechat notify marks callback failed for retryable failures');
 assert(/dataStore\.kind !== 'json' && dataStore\.orderWrites\?\.markPaymentPaid/.test(source), 'wechat notify uses postgres payment gateway');
 assert(/async function markPostgresWechatPaymentPaid/.test(source), 'wechat notify has isolated postgres helper');
 assert(/async function wechatRefundNotify/.test(source), 'wechat refund notify has isolated handler');
@@ -24,7 +28,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['wechat-notify-gateway', 'notify-signature-guard', 'terminal-payment-gateway', 'refund-notify-gateway', 'raw-callback', 'idempotent-read-model-guard', 'no-json-save'],
+      checks: ['wechat-notify-gateway', 'notify-signature-guard', 'provider-callback-event', 'terminal-payment-gateway', 'refund-notify-gateway', 'raw-callback', 'idempotent-read-model-guard', 'no-json-save'],
     },
     null,
     2,
