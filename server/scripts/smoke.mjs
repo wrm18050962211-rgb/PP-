@@ -49,6 +49,10 @@ try {
   assert(adminSession.role === 'admin' && adminSession.adminScope?.includes('risk'), 'admin login endpoint creates admin role');
   const anonymousAdmin = await api('GET', '/api/admin/dashboard', undefined, { omitAuth: true, expectOk: false });
   assert(anonymousAdmin.error?.code === 'AUTH_REQUIRED', 'admin API rejects missing token instead of using ambient session');
+  const adminPublicOrders = await api('GET', '/api/orders?role=user', undefined, { expectOk: false });
+  assert(adminPublicOrders.error?.code === 'FORBIDDEN', 'admin token cannot use public order API');
+  const adminCompanionMe = await api('GET', '/api/companion/me', undefined, { expectOk: false });
+  assert(adminCompanionMe.error?.code === 'FORBIDDEN', 'admin token cannot use companion app API');
   const adminLogoutResult = await api('POST', '/api/admin/auth/logout');
   assert(adminLogoutResult.ok === true, 'admin logout returns ok');
   const afterAdminLogout = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
@@ -260,6 +264,7 @@ try {
           'mock-login',
           'admin-login',
           'admin-auth-boundary',
+          'admin-public-api-boundary',
           'admin-logout-revokes-session',
           'admin-permission-denial-log',
           'companion-auth-boundary',

@@ -189,8 +189,9 @@ function shortPostLocation(post = {}) {
 }
 
 function createMediaUploadPolicy(store, body = {}) {
-  const session = ensureActiveSession(store);
-  if (!session) return authRequired();
+  const publicSession = requirePublicSession(store, 'consumer', 'media_upload');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
 
   const purpose = normalizeMediaPurpose(body.purpose);
   const fileName = sanitizeFileName(body.fileName || 'upload.jpg');
@@ -382,6 +383,21 @@ function adminRequired(changed = false) {
 
 function companionRequired(message = 'Companion role is required', changed = false) {
   return error(403, 'FORBIDDEN', message, changed);
+}
+
+function requirePublicSession(store, fallbackRole = 'consumer', targetType = 'public_api') {
+  const session = ensureActiveSession(store, fallbackRole);
+  if (!session) return { response: authRequired() };
+  if (session.role === 'admin') {
+    recordSecurityEvent(store, session, 'permission_denied', {
+      targetType,
+      requiredRole: 'consumer_or_companion',
+      actualRole: 'admin',
+      reason: 'Admin session cannot access public app API',
+    });
+    return { response: error(403, 'FORBIDDEN', 'Admin session cannot access public app API', true) };
+  }
+  return { session };
 }
 
 function requireAdminSession(store) {
@@ -687,8 +703,9 @@ function quoteOrder(store, input) {
 }
 
 async function createOrder(store, input) {
-  const session = ensureActiveSession(store, 'consumer');
-  if (!session) return authRequired();
+  const publicSession = requirePublicSession(store, 'consumer', 'order');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
 
   const idempotencyKey = normalizeOrderIdempotencyKey(input.idempotencyKey || input.clientRequestId);
   const existingOrder = idempotencyKey ? findIdempotentOrder(store, session, idempotencyKey) : null;
@@ -768,18 +785,20 @@ async function createOrder(store, input) {
 
 function mockPaymentSuccess(store, path) {
   if (!isTestRoleSwitchAllowed()) return error(403, 'MOCK_PAYMENT_DISABLED', 'Mock payment success is disabled in this environment');
+  const publicSession = requirePublicSession(store, 'consumer', 'payment');
+  if (publicSession.response) return publicSession.response;
 
   const paymentId = path.split('/')[3];
   const payment = store.payments.find((item) => item.id === paymentId || item.paymentId === paymentId);
   if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
-  if (payment.status === 'closed') return error(409, 'PAYMENT_CLOSED', 'Payment has expired or closed');
-  if (payment.status === 'paid') {
-    const paidOrder = store.orders.find((item) => item.id === payment.orderId);
-    return json({ payment: publicPayment(payment), order: paidOrder ? viewOrder(paidOrder) : null });
-  }
-
   const order = store.orders.find((item) => item.id === payment.orderId);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  const access = requireOrderAccess(store, order, publicSession.session, publicSession.session.role, 'Payment is not accessible for current role');
+  if (access.response) return access.response;
+  if (payment.status === 'closed') return error(409, 'PAYMENT_CLOSED', 'Payment has expired or closed');
+  if (payment.status === 'paid') {
+    return json({ payment: publicPayment(payment), order: viewOrder(order) });
+  }
   if (order.status !== 'pending_payment') return error(409, 'ORDER_STATUS_INVALID', 'Order is not pending payment');
 
   payment.status = 'paid';
@@ -796,8 +815,9 @@ function mockPaymentSuccess(store, path) {
 }
 
 function listOrders(store, url) {
-  const session = ensureActiveSession(store);
-  if (!session) return authRequired();
+  const publicSession = requirePublicSession(store, 'consumer', 'orders_api');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
 
   const role = normalize(url.searchParams.get('role') || session.role || 'user');
   const status = normalize(url.searchParams.get('status'));
@@ -809,8 +829,9 @@ function listOrders(store, url) {
 }
 
 async function getPaymentStatus(store, path) {
-  const session = ensureActiveSession(store);
-  if (!session) return authRequired();
+  const publicSession = requirePublicSession(store, 'consumer', 'payment');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
 
   const payment = findPayment(store, path.split('/')[3]);
   if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
@@ -839,8 +860,9 @@ async function getPaymentStatus(store, path) {
 }
 
 function transitionOrder(store, path, action, body = {}) {
-  const session = ensureActiveSession(store);
-  if (!session) return authRequired();
+  const publicSession = requirePublicSession(store, 'consumer', 'order');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
 
   const access = requireOrderMutationAccess(store, path.split('/')[3], session, action);
   if (access.response) return access.response;
@@ -901,8 +923,9 @@ function cancelOrder(store, order, session, body = {}) {
 }
 
 function getConversation(store, path) {
-  const session = ensureActiveSession(store);
-  if (!session) return authRequired();
+  const publicSession = requirePublicSession(store, 'consumer', 'conversation');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
 
   const access = requireOrderAccess(store, path.split('/')[3], session);
   if (access.response) return access.response;
@@ -915,8 +938,9 @@ function getConversation(store, path) {
 }
 
 function sendMessage(store, path, body) {
-  const session = ensureActiveSession(store);
-  if (!session) return authRequired();
+  const publicSession = requirePublicSession(store, 'consumer', 'conversation');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
 
   const conversationId = path.split('/')[3];
   const conversation = Object.values(store.conversations).find((item) => item.id === conversationId);
@@ -988,8 +1012,9 @@ function sendMessage(store, path, body) {
 }
 
 function createReport(store, path, body) {
-  const session = ensureActiveSession(store);
-  if (!session) return authRequired();
+  const publicSession = requirePublicSession(store, 'consumer', 'report');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
 
   const orderId = path.split('/')[3] || body.orderId;
   const access = requireOrderAccess(store, orderId, session);
@@ -1032,7 +1057,7 @@ function createReport(store, path, body) {
 }
 
 function companionDashboard(store) {
-  const companion = requireCompanionSession(store, { allowAdmin: true });
+  const companion = requireCompanionSession(store);
   if (companion.response) return companion.response;
 
   const completed = store.orders.filter((order) => order.status === 'completed');
