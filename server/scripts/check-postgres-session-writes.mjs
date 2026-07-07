@@ -1,4 +1,5 @@
 import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from '../store/postgresSessionWrites.mjs';
+import { hashSessionToken } from '../store/sessionTokenHash.mjs';
 
 const ids = {
   sessionId: '00000000-0000-4000-8000-000000000401',
@@ -9,9 +10,13 @@ const ids = {
 };
 
 const userClient = createMockClient();
+const userTokenHash = hashSessionToken('raw-user-token');
+assert(userTokenHash.length === 64 && userTokenHash !== 'raw-user-token', 'session token is hashed before persistence');
+assert(userTokenHash === hashSessionToken('raw-user-token'), 'session token hash is deterministic');
+
 const userSession = await createSessionTransaction(userClient, {
   sessionId: ids.sessionId,
-  tokenHash: 'user-token-hash',
+  tokenHash: userTokenHash,
   sessionScope: 'user',
   userId: ids.userId,
   companionId: ids.companionId,
@@ -40,19 +45,19 @@ assert(adminClient.calls.some((call) => call.params[2] === 'admin' && call.param
 
 const touchClient = createMockClient();
 const touched = await touchSessionTransaction(touchClient, {
-  tokenHash: 'user-token-hash',
+  tokenHash: userTokenHash,
   seenAt: '2026-07-08T10:00:00.000Z',
 });
-assert(touched.token_hash === 'user-token-hash', 'returns touched session');
+assert(touched.token_hash === userTokenHash, 'returns touched session');
 assert(touchClient.calls.some((call) => /update user_sessions/i.test(call.sql) && /last_seen_at/i.test(call.sql)), 'touch updates last seen');
 assert(touchClient.calls.at(-1).sql === 'commit', 'touch transaction commits');
 
 const revokeClient = createMockClient();
 const revoked = await revokeSessionTransaction(revokeClient, {
-  tokenHash: 'user-token-hash',
+  tokenHash: userTokenHash,
   revokedAt: '2026-07-08T11:00:00.000Z',
 });
-assert(revoked.token_hash === 'user-token-hash', 'returns revoked session');
+assert(revoked.token_hash === userTokenHash, 'returns revoked session');
 assert(revokeClient.calls.some((call) => /update user_sessions/i.test(call.sql) && /revoked_at/i.test(call.sql)), 'revoke marks revoked');
 assert(revokeClient.calls.at(-1).sql === 'commit', 'revoke transaction commits');
 
@@ -80,7 +85,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['create-user-session', 'create-admin-session', 'touch-session', 'revoke-session', 'session-boundary-validation'],
+      checks: ['hash-token', 'create-user-session', 'create-admin-session', 'touch-session', 'revoke-session', 'session-boundary-validation'],
       createQueryCount: userClient.calls.length + adminClient.calls.length,
       touchQueryCount: touchClient.calls.length,
       revokeQueryCount: revokeClient.calls.length,
