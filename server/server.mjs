@@ -477,6 +477,15 @@ function canAccessOrder(store, order, session, requestedRole = session.role) {
   return !order.userId || order.userId === session.user.id;
 }
 
+function requireOrderAccess(store, orderOrId, session, requestedRole = session.role, forbiddenMessage = 'Order is not accessible for current role') {
+  const order = typeof orderOrId === 'string' ? findOrder(store, orderOrId) : orderOrId;
+  if (!order) return { response: error(404, 'NOT_FOUND', 'Order not found') };
+  if (!canAccessOrder(store, order, session, requestedRole)) {
+    return { response: error(403, 'FORBIDDEN', forbiddenMessage) };
+  }
+  return { order };
+}
+
 function canMutateOrder(order, session, action) {
   if (session.role === 'admin') return true;
   if (action === 'confirm' || action === 'complete') return session.role === 'companion' && order.companionId === session.companionId;
@@ -646,11 +655,9 @@ async function getPaymentStatus(store, path) {
   const payment = findPayment(store, path.split('/')[3]);
   if (!payment) return error(404, 'NOT_FOUND', 'Payment not found');
 
-  const order = store.orders.find((item) => item.id === payment.orderId);
-  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
-  if (!canAccessOrder(store, order, session, session.role)) {
-    return error(403, 'FORBIDDEN', 'Payment is not accessible for current role');
-  }
+  const access = requireOrderAccess(store, payment.orderId, session, session.role, 'Payment is not accessible for current role');
+  if (access.response) return access.response;
+  const { order } = access;
 
   let refreshed = false;
   try {
@@ -737,9 +744,9 @@ function getConversation(store, path) {
   const session = ensureActiveSession(store);
   if (!session) return authRequired();
 
-  const order = findOrder(store, path.split('/')[3]);
-  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
-  if (!canAccessOrder(store, order, session, session.role)) return error(403, 'FORBIDDEN', 'Order is not accessible for current role');
+  const access = requireOrderAccess(store, path.split('/')[3], session);
+  if (access.response) return access.response;
+  const { order } = access;
   if (!['paid_pending_confirm', 'confirmed', 'in_service', 'completed', 'disputed'].includes(order.status)) {
     return error(409, 'ORDER_STATUS_INVALID', 'Conversation opens after payment');
   }
