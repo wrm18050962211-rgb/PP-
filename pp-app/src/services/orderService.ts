@@ -59,6 +59,7 @@ export async function submitOrder(input: CreateOrderInput): Promise<AppOrder> {
 export async function updateRemoteOrderStatus(orderId: string, status: OrderStatus): Promise<AppOrder | null> {
   if (!isApiEnabled()) return null;
 
+  const actionIdempotencyKey = buildOrderActionIdempotencyKey(orderId, status);
   const actionPath =
     status === 'confirmed'
       ? `/api/orders/${orderId}/confirm`
@@ -69,9 +70,13 @@ export async function updateRemoteOrderStatus(orderId: string, status: OrderStat
           : `/api/orders/${orderId}/status`;
 
   try {
+    const actionBody =
+      status === 'confirmed' || status === 'completed' || status === 'cancelled'
+        ? { idempotencyKey: actionIdempotencyKey, clientRequestId: actionIdempotencyKey }
+        : { status, idempotencyKey: actionIdempotencyKey, clientRequestId: actionIdempotencyKey };
     const response = await apiPost<AppOrder>(
       actionPath,
-      status === 'confirmed' || status === 'completed' || status === 'cancelled' ? undefined : { status },
+      actionBody,
     );
     return response.success ? response.data : null;
   } catch {
@@ -88,4 +93,8 @@ function buildOrderIdempotencyKey(input: CreateOrderInput) {
     input.consultationId ?? '',
     input.amountCents,
   ].join(':');
+}
+
+function buildOrderActionIdempotencyKey(orderId: string, status: OrderStatus) {
+  return ['order-action', orderId, status].join(':');
 }
