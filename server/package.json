@@ -16,6 +16,7 @@
     "check:postgres-store-session-gateway": "node scripts/check-postgres-store-session-gateway.mjs",
     "check:postgres-store-read-model": "node scripts/check-postgres-store-read-model.mjs",
     "check:postgres-write-route-guard": "node scripts/check-postgres-write-route-guard.mjs",
+    "check:postgres-security-boundary-route": "node scripts/check-postgres-security-boundary-route.mjs",
     "check:postgres-message-route": "node scripts/check-postgres-message-route.mjs",
     "check:postgres-report-route": "node scripts/check-postgres-report-route.mjs",
     "check:postgres-moderation-route": "node scripts/check-postgres-moderation-route.mjs",

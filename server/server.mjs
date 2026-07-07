@@ -405,6 +405,10 @@ function authRequired() {
   return error(401, 'AUTH_REQUIRED', 'Authentication is required');
 }
 
+function runtimeSecurityChanged() {
+  return dataStore.kind === 'json';
+}
+
 function adminRequired(changed = false) {
   return error(403, 'FORBIDDEN', 'Admin role is required', changed);
 }
@@ -423,7 +427,7 @@ function requirePublicSession(store, fallbackRole = 'consumer', targetType = 'pu
       actualRole: 'admin',
       reason: 'Admin session cannot access public app API',
     });
-    return { response: error(403, 'FORBIDDEN', 'Admin session cannot access public app API', true) };
+    return { response: error(403, 'FORBIDDEN', 'Admin session cannot access public app API', runtimeSecurityChanged()) };
   }
   return { session };
 }
@@ -438,7 +442,7 @@ function requireAdminSession(store) {
       actualRole: session.role,
       reason: 'Admin role is required',
     });
-    return { response: adminRequired(true) };
+    return { response: adminRequired(runtimeSecurityChanged()) };
   }
   return { session };
 }
@@ -455,7 +459,7 @@ function requireCompanionSession(store, options = {}) {
       actualRole: session.role,
       reason,
     });
-    return { response: companionRequired(reason, true) };
+    return { response: companionRequired(reason, runtimeSecurityChanged()) };
   }
   return { session };
 }
@@ -610,7 +614,7 @@ function requireOrderAccess(store, orderOrId, session, requestedRole = session.r
       actualRole: session.role,
       reason: forbiddenMessage,
     });
-    return { response: error(403, 'FORBIDDEN', forbiddenMessage, true) };
+    return { response: error(403, 'FORBIDDEN', forbiddenMessage, runtimeSecurityChanged()) };
   }
   return { order };
 }
@@ -634,7 +638,7 @@ function requireOrderMutationAccess(store, orderOrId, session, action) {
       reason: 'Order action is not allowed for current role',
       action,
     });
-    return { response: error(403, 'FORBIDDEN', 'Order action is not allowed for current role', true) };
+    return { response: error(403, 'FORBIDDEN', 'Order action is not allowed for current role', runtimeSecurityChanged()) };
   }
   return { order };
 }

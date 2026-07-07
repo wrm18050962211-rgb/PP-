@@ -9,6 +9,7 @@ const checks = [
   ['postgres-store-session-gateway', ['scripts/check-postgres-store-session-gateway.mjs']],
   ['postgres-store-read-model', ['scripts/check-postgres-store-read-model.mjs']],
   ['postgres-write-route-guard', ['scripts/check-postgres-write-route-guard.mjs']],
+  ['postgres-security-boundary-route', ['scripts/check-postgres-security-boundary-route.mjs']],
   ['postgres-message-route', ['scripts/check-postgres-message-route.mjs']],
   ['postgres-report-route', ['scripts/check-postgres-report-route.mjs']],
   ['postgres-moderation-route', ['scripts/check-postgres-moderation-route.mjs']],
