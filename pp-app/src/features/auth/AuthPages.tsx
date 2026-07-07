@@ -343,7 +343,7 @@ export function AccountSettingsPage() {
 
       <section className="mt-5 divide-y divide-zinc-100 rounded-[10px] border border-zinc-200 bg-white">
         <SettingRow icon={<Smartphone size={19} />} title="手机号" desc={account?.phone ?? '未绑定'} />
-        <SettingRow icon={<ShieldCheck size={19} />} title="实名认证" desc="MVP 本地模拟，后续接入微信与平台审核" />
+        <SettingRow icon={<ShieldCheck size={19} />} title="实名认证" desc="用于账号安全、服务履约与平台审核" />
         <SettingRow icon={<MessageSquareText size={19} />} title="验证码登录" desc="用于手机号登录与账号安全验证" />
       </section>
 
