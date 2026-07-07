@@ -90,6 +90,46 @@ const rows = {
       sort_order: 0,
     },
   ],
+  auditLogs: [
+    {
+      id: 'audit-log-pg-1',
+      audit_case_id: 'audit-case-pg-1',
+      action: 'approved',
+      operator_id: 'admin-pg-1',
+      operator_type: 'admin',
+      comment: 'Approved in mapper check',
+      metadata: { source: 'mapper-check' },
+      created_at: '2026-06-12T09:00:00.000Z',
+    },
+  ],
+  adminActionLogs: [
+    {
+      id: 'admin-action-pg-1',
+      admin_id: 'admin-pg-1',
+      action: 'order_status_update',
+      target_type: 'order',
+      target_id: 'order-pg-1',
+      before_data: { status: 'confirmed' },
+      after_data: { status: 'disputed', note: 'Order marked disputed' },
+      created_at: '2026-06-12T09:05:00.000Z',
+    },
+  ],
+  securityEvents: [
+    {
+      id: 'security-event-pg-1',
+      event_type: 'permission_denied',
+      actor_id: 'user-pg-1',
+      actor_role: 'consumer',
+      target_type: 'admin_api',
+      target_id: null,
+      required_role: 'admin',
+      actual_role: 'consumer',
+      action: 'read',
+      reason: 'Admin role is required',
+      metadata: { source: 'mapper-check' },
+      created_at: '2026-06-12T09:10:00.000Z',
+    },
+  ],
   postTags: [{ post_id: 'post-pg-1', tag_name: '胶片感' }],
 };
 
@@ -109,13 +149,15 @@ assert(post.images[0].url.includes('post.jpg'), 'post image maps');
 assert(post.styleTags.includes('胶片感'), 'post tags map');
 assert(store.orders.length === 0 && store.payments.length === 0, 'transactional write models start empty');
 assert(Array.isArray(store.sessions) && store.sessions.length === 0, 'sessions start empty');
-assert(Array.isArray(store.securityEvents) && store.securityEvents.length === 0, 'security events start empty');
+assert(store.auditLogs[0].auditCaseId === 'audit-case-pg-1', 'audit logs map');
+assert(store.adminActionLogs[0].note === 'Order marked disputed', 'admin action logs map');
+assert(store.securityEvents[0].type === 'permission_denied', 'security events map');
 
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'sessions', 'security-events'],
+      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'sessions', 'audit-logs', 'admin-action-logs', 'security-events'],
       companionCount: store.companions.length,
       postCount: store.posts.length,
     },

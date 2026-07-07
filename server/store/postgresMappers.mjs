@@ -17,9 +17,9 @@ export function buildStoreFromPostgresRows(rows) {
     messageRiskEvents: [],
     reports: [],
     auditCases: [],
-    auditLogs: [],
-    adminActionLogs: [],
-    securityEvents: [],
+    auditLogs: mapAuditLogs(rows),
+    adminActionLogs: mapAdminActionLogs(rows),
+    securityEvents: mapSecurityEvents(rows),
     settlements: [],
     ledgerEntries: [],
     refunds: [],
@@ -100,6 +100,56 @@ function mapPosts(rows, companionById) {
   });
 }
 
+function mapAuditLogs(rows) {
+  return (rows.auditLogs || []).map((row) => ({
+    id: stringId(row.id),
+    auditCaseId: stringId(row.audit_case_id),
+    action: row.action,
+    operatorId: row.operator_id ? stringId(row.operator_id) : null,
+    operatorType: row.operator_type || 'admin',
+    comment: row.comment || '',
+    note: row.comment || '',
+    metadata: jsonObject(row.metadata),
+    createdAt: toIso(row.created_at),
+  }));
+}
+
+function mapAdminActionLogs(rows) {
+  return (rows.adminActionLogs || []).map((row) => {
+    const afterData = jsonObject(row.after_data);
+    return {
+      id: stringId(row.id),
+      adminId: row.admin_id ? stringId(row.admin_id) : null,
+      action: row.action,
+      type: row.action,
+      targetType: row.target_type || null,
+      targetId: row.target_id ? stringId(row.target_id) : null,
+      note: typeof afterData.note === 'string' ? afterData.note : '',
+      beforeData: jsonObject(row.before_data),
+      afterData,
+      createdAt: toIso(row.created_at),
+    };
+  });
+}
+
+function mapSecurityEvents(rows) {
+  return (rows.securityEvents || []).map((row) => ({
+    id: stringId(row.id),
+    type: row.event_type,
+    actorId: row.actor_id ? stringId(row.actor_id) : null,
+    actorRole: row.actor_role || 'anonymous',
+    targetType: row.target_type || null,
+    targetId: row.target_id ? stringId(row.target_id) : null,
+    targetKey: row.target_key || null,
+    requiredRole: row.required_role || null,
+    actualRole: row.actual_role || null,
+    action: row.action || null,
+    reason: row.reason || '',
+    metadata: jsonObject(row.metadata),
+    createdAt: toIso(row.created_at),
+  }));
+}
+
 function mapServiceArea(row) {
   return {
     id: stringId(row.id),
@@ -172,6 +222,11 @@ function toIso(value) {
 function number(value) {
   const parsed = Number(value || 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function jsonObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
 }
 
 function stringId(value) {

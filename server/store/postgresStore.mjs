@@ -224,6 +224,9 @@ async function fetchReadModelRows(pool) {
     posts,
     postImages,
     postTags,
+    auditLogs,
+    adminActionLogs,
+    securityEvents,
   ] = await Promise.all([
     queryRows(pool, `select * from companions where status = 'approved' and service_enabled = true order by created_at desc limit 100`),
     queryRows(pool, `select * from companion_tags order by created_at asc`),
@@ -234,6 +237,9 @@ async function fetchReadModelRows(pool) {
     queryRows(pool, `select * from posts where status = 'approved' and is_feed_visible = true order by is_featured desc, published_at desc nulls last, created_at desc limit 100`),
     queryRows(pool, `select * from post_images where audit_status = 'approved' order by sort_order asc, created_at asc`),
     queryRows(pool, `select * from post_tags`),
+    queryRows(pool, `select * from audit_logs order by created_at desc limit 100`),
+    queryRows(pool, `select * from admin_action_logs order by created_at desc limit 100`),
+    queryRows(pool, `select * from security_events order by created_at desc limit 100`),
   ]);
 
   return {
@@ -246,6 +252,9 @@ async function fetchReadModelRows(pool) {
     posts,
     postImages,
     postTags,
+    auditLogs,
+    adminActionLogs,
+    securityEvents,
   };
 }
 
