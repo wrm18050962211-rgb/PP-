@@ -32,6 +32,14 @@ const checks = [
       'if (!isMockFallbackAllowed()) return []',
     ],
   },
+  {
+    file: 'src/services/authService.ts',
+    includes: [
+      "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'))",
+      "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('admin'))",
+      "if (!isTestRoleSwitchAllowed()) throw new Error('登录状态获取失败，请重新登录。')",
+    ],
+  },
 ];
 
 const failures = [];
