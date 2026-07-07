@@ -330,10 +330,24 @@ function adminRequired() {
   return error(403, 'FORBIDDEN', 'Admin role is required');
 }
 
+function companionRequired(message = 'Companion role is required') {
+  return error(403, 'FORBIDDEN', message);
+}
+
 function requireAdminSession(store) {
   const session = ensureActiveSession(store, 'admin');
   if (!session) return { response: authRequired() };
   if (session.role !== 'admin') return { response: adminRequired() };
+  return { session };
+}
+
+function requireCompanionSession(store, options = {}) {
+  const session = ensureActiveSession(store, 'companion');
+  if (!session) return { response: authRequired() };
+  const allowAdmin = Boolean(options.allowAdmin);
+  if (session.role !== 'companion' && !(allowAdmin && session.role === 'admin')) {
+    return { response: companionRequired(allowAdmin ? 'Companion or admin role is required' : undefined) };
+  }
   return { session };
 }
 
@@ -872,9 +886,8 @@ function createReport(store, path, body) {
 }
 
 function companionDashboard(store) {
-  const session = ensureActiveSession(store, 'companion');
-  if (!session) return authRequired();
-  if (session.role !== 'companion' && session.role !== 'admin') return error(403, 'FORBIDDEN', 'Companion or admin role is required');
+  const companion = requireCompanionSession(store, { allowAdmin: true });
+  if (companion.response) return companion.response;
 
   const completed = store.orders.filter((order) => order.status === 'completed');
   const pending = store.settlements.filter((item) => item.status === 'pending').reduce((sum, item) => sum + item.payableCents, 0);
@@ -892,18 +905,16 @@ function companionDashboard(store) {
 }
 
 function saveApplication(store, body) {
-  const session = ensureActiveSession(store, 'companion');
-  if (!session) return authRequired();
-  if (session.role !== 'companion') return error(403, 'FORBIDDEN', 'Companion role is required');
+  const companion = requireCompanionSession(store);
+  if (companion.response) return companion.response;
 
   store.application = { ...store.application, ...body, submitted: false, reviewStatus: 'draft', updatedAt: now() };
   return json(store.application, 200, true);
 }
 
 function submitCompanionReview(store) {
-  const session = ensureActiveSession(store, 'companion');
-  if (!session) return authRequired();
-  if (session.role !== 'companion') return error(403, 'FORBIDDEN', 'Companion role is required');
+  const companion = requireCompanionSession(store);
+  if (companion.response) return companion.response;
 
   store.application = { ...store.application, submitted: true, reviewStatus: 'pending_review', updatedAt: now() };
   const existing = store.auditCases.find((item) => item.targetType === 'companion' && item.targetId === 'companion-mori' && item.status === 'pending');

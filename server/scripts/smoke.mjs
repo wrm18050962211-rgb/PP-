@@ -53,6 +53,8 @@ try {
   const primaryConsumerToken = consumerSession.token;
   const consumerAdmin = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
   assert(consumerAdmin.error?.code === 'FORBIDDEN', 'admin API rejects consumer token');
+  const consumerCompanion = await api('GET', '/api/companion/me', undefined, { expectOk: false });
+  assert(consumerCompanion.error?.code === 'FORBIDDEN', 'companion API rejects consumer token');
 
   const mediaPolicy = await api('POST', '/api/media/upload-policy', {
     purpose: 'post-image',
@@ -189,6 +191,7 @@ try {
           'wechat-login',
           'mock-login',
           'admin-auth-boundary',
+          'companion-auth-boundary',
           'media-upload-policy',
           'feed',
           'matching',
