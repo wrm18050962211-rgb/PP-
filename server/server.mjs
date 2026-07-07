@@ -330,8 +330,8 @@ function adminRequired(changed = false) {
   return error(403, 'FORBIDDEN', 'Admin role is required', changed);
 }
 
-function companionRequired(message = 'Companion role is required') {
-  return error(403, 'FORBIDDEN', message);
+function companionRequired(message = 'Companion role is required', changed = false) {
+  return error(403, 'FORBIDDEN', message, changed);
 }
 
 function requireAdminSession(store) {
@@ -354,7 +354,14 @@ function requireCompanionSession(store, options = {}) {
   if (!session) return { response: authRequired() };
   const allowAdmin = Boolean(options.allowAdmin);
   if (session.role !== 'companion' && !(allowAdmin && session.role === 'admin')) {
-    return { response: companionRequired(allowAdmin ? 'Companion or admin role is required' : undefined) };
+    const reason = allowAdmin ? 'Companion or admin role is required' : 'Companion role is required';
+    recordSecurityEvent(store, session, 'permission_denied', {
+      targetType: 'companion_api',
+      requiredRole: allowAdmin ? 'companion_or_admin' : 'companion',
+      actualRole: session.role,
+      reason,
+    });
+    return { response: companionRequired(reason, true) };
   }
   return { session };
 }

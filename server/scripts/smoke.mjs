@@ -60,6 +60,11 @@ try {
   );
   const consumerCompanion = await api('GET', '/api/companion/me', undefined, { expectOk: false });
   assert(consumerCompanion.error?.code === 'FORBIDDEN', 'companion API rejects consumer token');
+  const companionSecurityStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(
+    companionSecurityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'companion_api' && item.actualRole === 'consumer'),
+    'companion API permission denial is logged as security event',
+  );
 
   const mediaPolicy = await api('POST', '/api/media/upload-policy', {
     purpose: 'post-image',
@@ -222,6 +227,7 @@ try {
           'admin-auth-boundary',
           'admin-permission-denial-log',
           'companion-auth-boundary',
+          'companion-permission-denial-log',
           'media-upload-policy',
           'feed',
           'matching',
