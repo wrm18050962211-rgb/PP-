@@ -1,6 +1,7 @@
 import type { AppOrder, AuthSession, CreateOrderInput, OrderStatus } from '../types/api';
 import { getOrderSteps, orderStatusText } from '../utils/status';
 import { listTestAccounts } from './accountDirectory';
+import { isMockFallbackAllowed } from './apiClient';
 import { listFeedPosts } from './feedService';
 import { createLocalOrder, listSeedOrders } from './orderService';
 
@@ -14,6 +15,7 @@ type OrderActor = {
 };
 
 export function createLedgerOrder(input: CreateOrderInput, session: AuthSession | null, initialStatus: OrderStatus = 'paid_pending_confirm'): AppOrder {
+  if (!isMockFallbackAllowed()) throw new Error('Local order ledger is disabled when mock fallback is disabled.');
   const order = createLocalOrder(input, initialStatus);
   const actor = getOrderActor(input.companionId, session);
   const nextOrder = { ...order, ...actor };
@@ -22,6 +24,7 @@ export function createLedgerOrder(input: CreateOrderInput, session: AuthSession 
 }
 
 export function listLedgerOrdersForSession(session: AuthSession | null): AppOrder[] {
+  if (!isMockFallbackAllowed()) return [];
   const orders = readLedgerOrders();
   if (!session) return [];
   if (session.role === 'admin') return orders;
@@ -32,16 +35,19 @@ export function listLedgerOrdersForSession(session: AuthSession | null): AppOrde
 }
 
 export function listLedgerOrdersForCompanion(companionId?: string | null): AppOrder[] {
+  if (!isMockFallbackAllowed()) return [];
   if (!companionId) return [];
   return readLedgerOrders().filter((order) => order.companionId === companionId);
 }
 
 export function findLedgerOrder(orderId?: string) {
+  if (!isMockFallbackAllowed()) return null;
   if (!orderId) return null;
   return readLedgerOrders().find((order) => order.id === orderId) ?? null;
 }
 
 export function updateLedgerOrderStatus(orderId: string, status: OrderStatus) {
+  if (!isMockFallbackAllowed()) return null;
   const steps = getOrderSteps(status);
   const nextOrders = readLedgerOrders().map((order) =>
     order.id === orderId
@@ -58,17 +64,20 @@ export function updateLedgerOrderStatus(orderId: string, status: OrderStatus) {
 }
 
 export function updateLedgerOrderFunding(orderId: string, patch: Partial<AppOrder>) {
+  if (!isMockFallbackAllowed()) return null;
   const nextOrders = readLedgerOrders().map((order) => (order.id === orderId ? { ...order, ...patch } : order));
   writeLedgerOrders(nextOrders);
   return nextOrders.find((order) => order.id === orderId) ?? null;
 }
 
 export function upsertLedgerOrder(order: AppOrder) {
+  if (!isMockFallbackAllowed()) return;
   const orders = readLedgerOrders();
   writeLedgerOrders([order, ...orders.filter((item) => item.id !== order.id)]);
 }
 
 function readLedgerOrders(): AppOrder[] {
+  if (!isMockFallbackAllowed()) return [];
   if (typeof localStorage === 'undefined') return seedLedgerOrders();
   try {
     const raw = localStorage.getItem(ledgerStorageKey);
@@ -86,6 +95,7 @@ function readLedgerOrders(): AppOrder[] {
 }
 
 function writeLedgerOrders(orders: AppOrder[]) {
+  if (!isMockFallbackAllowed()) return;
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(ledgerStorageKey, JSON.stringify(orders));
 }
