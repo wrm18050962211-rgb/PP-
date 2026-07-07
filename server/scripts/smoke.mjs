@@ -248,6 +248,11 @@ try {
   assert(Array.isArray(adminOrders.items) && adminOrders.items.some((item) => item.id === paid.order.id), 'admin order API lists platform orders');
   const adminStatusUpdate = await api('POST', `/api/admin/orders/${paid.order.id}/status`, { status: 'disputed' });
   assert(adminStatusUpdate.status === 'disputed', 'admin order API updates order status');
+  const adminActionLogs = await api('GET', '/api/admin/action-logs?targetType=order&limit=10');
+  assert(
+    adminActionLogs.items?.some((item) => item.action === 'order_status_update' && item.targetId === paid.order.id),
+    'admin action log API exposes order status updates',
+  );
   const auditCases = await api('GET', '/api/admin/audit-cases');
   const auditCase = auditCases.items?.find((item) => item.status === 'pending');
   assert(auditCase?.id, 'admin audit queue exposes pending case');
@@ -325,6 +330,7 @@ try {
           'admin-order-mutation-boundary',
           'admin-order-api',
           'admin-order-status-api',
+          'admin-action-log-api',
           'audit-review-log',
           'moderation-action',
           'moderation-action-log',
