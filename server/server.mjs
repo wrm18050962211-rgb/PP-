@@ -1124,7 +1124,7 @@ async function beginPostgresOrderActionIdempotency(session, order, action, idemp
   const actor = idempotencyActorForSession(session);
   try {
     const result = await dataStore.idempotencyWrites.beginRequest({
-      idempotencyId: id('idempotency'),
+      idempotencyId: postgresId(),
       scope: orderActionIdempotencyScope(action),
       requestKey: idempotencyKey,
       actorType: actor.actorType,
@@ -1420,7 +1420,7 @@ async function sendMessage(store, path, body) {
 
 async function sendPostgresMessage(conversation, session, body, content, risk) {
   const sentAt = now();
-  const messageId = id(risk.shouldBlock ? 'blocked-message' : 'message');
+  const messageId = postgresId();
   const from = body.from || messageSenderRole(session);
   const result = await dataStore.messageWrites.sendMessage({
     conversationId: conversation.id,
@@ -1430,7 +1430,7 @@ async function sendPostgresMessage(conversation, session, body, content, risk) {
     content,
     sentAt,
     risk,
-    riskEventId: risk.hits.length ? id('message-risk-event') : undefined,
+    riskEventId: risk.hits.length ? postgresId() : undefined,
   });
 
   if (result.blocked) {
@@ -1491,7 +1491,7 @@ async function createReport(store, path, body) {
   const { order } = access;
 
   const report = {
-    id: id('report'),
+    id: dataStore.kind !== 'json' ? postgresId() : id('report'),
     type: 'report_dispute',
     status: 'pending',
     riskLevel: body.riskLevel || 'medium',
@@ -1532,7 +1532,7 @@ async function createReport(store, path, body) {
 async function createPostgresReport(store, report, session, body) {
   await dataStore.moderationWrites.createReport({
     reportId: report.id,
-    auditCaseId: id('audit-case'),
+    auditCaseId: postgresId(),
     reporterId: session.user?.id,
     reportedUserId: body.reportedUserId || null,
     orderId: report.orderId,
@@ -1752,8 +1752,8 @@ async function reviewPostgresAuditCase(auditCase, nextStatus, body, adminSession
   await dataStore.moderationWrites.reviewAuditCase({
     caseId: auditCase.id,
     nextStatus,
-    auditLogId: id('audit-log'),
-    adminActionLogId: id('admin-action'),
+    auditLogId: postgresId(),
+    adminActionLogId: postgresId(),
     adminId: adminSession.user?.id || null,
     note,
     reviewedAt,
@@ -1835,7 +1835,7 @@ async function applyPostgresModerationAction(store, caseId, actionType, log, adm
   await dataStore.moderationWrites.applyAction({
     caseId,
     actionType,
-    adminActionLogId: id('admin-action'),
+    adminActionLogId: postgresId(),
     adminId: adminSession.user?.id || adminSession.adminId || null,
     note: log.note,
     reviewedAt: log.createdAt,

@@ -6,14 +6,15 @@ assert(/async function sendMessage/.test(source), 'sendMessage can await store g
 assert(/dataStore\.kind !== 'json' && dataStore\.messageWrites\?\.sendMessage/.test(source), 'postgres message route uses message write gateway');
 assert(/async function sendPostgresMessage/.test(source), 'postgres message route has isolated helper');
 assert(/dataStore\.messageWrites\.sendMessage/.test(source), 'postgres helper calls message write transaction');
-assert(/riskEventId: risk\.hits\.length/.test(source), 'risk messages carry a risk event id');
+assert(/const messageId = postgresId\(\)/.test(source), 'postgres message route uses uuid message id');
+assert(/riskEventId: risk\.hits\.length \? postgresId\(\) : undefined/.test(source), 'risk messages carry a uuid risk event id');
 assert(/changed: false[\s\S]*MESSAGE_BLOCKED/.test(source), 'blocked postgres messages do not trigger json save');
 
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['message-route-gateway', 'risk-event-id', 'blocked-no-json-save'],
+      checks: ['message-route-gateway', 'uuid-message-id', 'risk-event-id', 'blocked-no-json-save'],
     },
     null,
     2,

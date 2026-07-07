@@ -6,14 +6,14 @@ assert(/async function applyModerationAction/.test(source), 'applyModerationActi
 assert(/dataStore\.kind !== 'json' && dataStore\.moderationWrites\?\.applyAction/.test(source), 'postgres moderation route uses applyAction gateway');
 assert(/async function applyPostgresModerationAction/.test(source), 'postgres moderation route has isolated helper');
 assert(/dataStore\.moderationWrites\.applyAction/.test(source), 'postgres helper calls moderation transaction');
-assert(/adminActionLogId: id\('admin-action'\)/.test(source), 'postgres moderation route creates admin action log id');
+assert(/adminActionLogId: postgresId\(\)/.test(source), 'postgres moderation route creates uuid admin action log id');
 assert(/return json\([\s\S]*200,\s*false[\s\S]*\)/.test(source), 'postgres moderation route avoids json save');
 
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['moderation-route-gateway', 'admin-action-log-id', 'no-json-save'],
+      checks: ['moderation-route-gateway', 'uuid-admin-action-log-id', 'no-json-save'],
     },
     null,
     2,

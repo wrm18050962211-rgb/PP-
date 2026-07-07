@@ -11,6 +11,7 @@ assert(/async function completePostgresOrderActionIdempotency/.test(source), 'po
 assert(/dataStore\.idempotencyWrites\.findRequest/.test(source), 'postgres transition route uses idempotency find gateway');
 assert(/dataStore\.idempotencyWrites\.beginRequest/.test(source), 'postgres transition route uses idempotency begin gateway');
 assert(/dataStore\.idempotencyWrites\.completeRequest/.test(source), 'postgres transition route uses idempotency complete gateway');
+assert(/idempotencyId: postgresId\(\)/.test(source), 'postgres transition route uses uuid idempotency id');
 assert(/dataStore\.orderWrites\.transitionOrder/.test(source), 'postgres helper calls transition transaction');
 assert(/statusLogId: postgresId\(\)/.test(source), 'postgres transition route uses uuid status log id');
 assert(/draft\.settlementId = postgresId\(\)/.test(source), 'complete transition carries uuid settlement id');

@@ -6,14 +6,15 @@ assert(/async function createReport/.test(source), 'createReport can await moder
 assert(/dataStore\.kind !== 'json' && dataStore\.moderationWrites\?\.createReport/.test(source), 'postgres report route uses moderation write gateway');
 assert(/async function createPostgresReport/.test(source), 'postgres report route has isolated helper');
 assert(/dataStore\.moderationWrites\.createReport/.test(source), 'postgres helper calls createReport transaction');
-assert(/auditCaseId: id\('audit-case'\)/.test(source), 'postgres report route creates linked audit case id');
+assert(/id: dataStore\.kind !== 'json' \? postgresId\(\) : id\('report'\)/.test(source), 'postgres report route uses uuid report id');
+assert(/auditCaseId: postgresId\(\)/.test(source), 'postgres report route creates linked uuid audit case id');
 assert(/return json\(report, 201, false\)/.test(source), 'postgres report route avoids json save');
 
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['report-route-gateway', 'audit-case-link', 'no-json-save'],
+      checks: ['report-route-gateway', 'uuid-report-id', 'audit-case-link', 'no-json-save'],
     },
     null,
     2,
