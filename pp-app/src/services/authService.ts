@@ -287,17 +287,18 @@ export async function loginAdmin(passcode: string): Promise<AuthSession> {
   return loginLocalAdmin(passcode);
 }
 
-export function logoutLocalAdmin(): AuthSession {
+export function logoutLocalAdmin(): AuthSession | null {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(adminLoginStorageKey);
   }
   clearApiAuthToken('admin');
+  if (!isTestRoleSwitchAllowed()) return null;
   const session = localSession(readStoredRole());
   notifySessionChanged(session);
   return session;
 }
 
-export async function logoutAdmin(): Promise<AuthSession> {
+export async function logoutAdmin(): Promise<AuthSession | null> {
   if (isApiEnabled()) {
     try {
       await apiPost('/api/admin/auth/logout');
