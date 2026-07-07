@@ -4,7 +4,7 @@ const source = readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 
 assert(/dataStore\.kind === 'json'\s*\?\s*expirePendingPaymentOrders\(store\)\s*:\s*false/.test(source), 'postgres mode skips JSON cleanup mutation');
 assert(/if \(dataStore\.kind !== 'json'\) await expirePostgresPendingPaymentOrders\(\)/.test(source), 'postgres mode runs payment expiry gateway separately');
-assert(/dataStore\.orderWrites\?\.expirePendingPayments/.test(source), 'postgres payment expiry uses order write gateway');
+assert(/runPendingPaymentExpiryJob/.test(source), 'postgres payment expiry delegates to reusable job');
 assert(source.includes('POSTGRES_WRITE_ROUTE_NOT_CONNECTED'), 'postgres write route guard returns explicit error code');
 assert(/dataStore\.kind !== 'json'[\s\S]*result\.changed/.test(source), 'postgres mode blocks unconnected changed routes before save');
 assert(/if \(storeChanged \|\| cleanupChanged \|\| result\.changed\) await dataStore\.save\(store\)/.test(source), 'json mode still persists changed routes');
@@ -13,7 +13,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['skip-json-cleanup-in-postgres', 'postgres-expiry-gateway', 'postgres-write-route-guard', 'json-save-preserved'],
+      checks: ['skip-json-cleanup-in-postgres', 'postgres-expiry-job', 'postgres-write-route-guard', 'json-save-preserved'],
     },
     null,
     2,

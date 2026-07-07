@@ -4,6 +4,7 @@ const checks = [
   ['auth-schema', ['../database/scripts/check-auth-schema.mjs']],
   ['idempotency-schema', ['../database/scripts/check-idempotency-schema.mjs']],
   ['store-driver', ['scripts/check-store-driver.mjs']],
+  ['payment-expiry-job', ['scripts/check-payment-expiry-job.mjs']],
   ['session-boundary', ['scripts/check-session-boundary.mjs']],
   ['postgres-store-auth-gateway', ['scripts/check-postgres-store-auth-gateway.mjs']],
   ['postgres-store-audit-security-gateway', ['scripts/check-postgres-store-audit-security-gateway.mjs']],

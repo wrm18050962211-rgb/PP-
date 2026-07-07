@@ -35,6 +35,7 @@
 - 订单幂等已补数据库结构、Prisma model、Postgres `idempotencyWrites` gateway，并接入 `POST /api/orders` 创建路径和 `confirm/complete/cancel` 订单动作；支付成功回调和订单动作事务内部也补了重复请求幂等跳过。
 - Postgres 模式已补支付关闭/失败终态回调事务，并补了 pending payment 超时释放事务与运行时入口：超时订单会关闭 pending payment、取消订单、释放 slot 并写入状态日志。
 - 新增 `npm run check:postgres-live` 可选检查：配置 `DATABASE_URL` 时会连接真实 PostgreSQL，检查关键表、幂等表字段和 slot 锁语法；未配置时明确 skipped。
+- pending payment 超时释放已抽出 `paymentExpiryJob` 和 `npm run job:expire-payments` 独立入口；当前可由服务端请求入口或外部调度器调用，后续再接正式队列/cron/云任务。
 - 当前仍未完成生产级事项：真实数据库 CI/迁移流水线、独立队列/定时任务系统、更多退款/支付回调重试覆盖、session/admin_action_logs/audit_logs/security_events 的生产级闭环验证、后台进一步拆模块，以及初步上线前独立部署。
 
 ## 0. 当前代码状态快照

@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
+    "job:expire-payments": "node scripts/run-payment-expiry-job.mjs",
     "smoke": "node scripts/smoke.mjs",
     "check:mvp": "node scripts/check-mvp.mjs",
     "check:auth-schema": "node ../database/scripts/check-auth-schema.mjs",
     "check:store-driver": "node scripts/check-store-driver.mjs",
+    "check:payment-expiry-job": "node scripts/check-payment-expiry-job.mjs",
     "check:session-boundary": "node scripts/check-session-boundary.mjs",
     "check:postgres-store-auth-gateway": "node scripts/check-postgres-store-auth-gateway.mjs",
     "check:postgres-store-audit-security-gateway": "node scripts/check-postgres-store-audit-security-gateway.mjs",

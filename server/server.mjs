@@ -3,6 +3,7 @@ import { createDecipheriv, createHash, randomBytes, sign } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { runPendingPaymentExpiryJob } from './jobs/paymentExpiryJob.mjs';
 import { mirrorAdminAction, mirrorAuditLog, mirrorSecurityEvent } from './runtimeAuditGateway.mjs';
 import { createDataStore } from './store/index.mjs';
 
@@ -2106,15 +2107,12 @@ function expirePendingPaymentOrders(store) {
 }
 
 async function expirePostgresPendingPaymentOrders() {
-  if (!dataStore.orderWrites?.expirePendingPayments) return;
-  const result = await dataStore.orderWrites.expirePendingPayments({
+  await runPendingPaymentExpiryJob({
+    dataStore,
     occurredAt: now(),
     reason: 'Payment window expired',
     limit: 100,
   });
-  if (result.expiredCount > 0) {
-    console.log(`[orders] released ${result.expiredCount} expired pending payment order(s).`);
-  }
 }
 
 function getPendingPaymentExpiresAt(order, payment) {
