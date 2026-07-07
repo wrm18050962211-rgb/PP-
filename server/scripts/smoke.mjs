@@ -233,6 +233,8 @@ try {
   assert(adminDirectCancel.error?.code === 'FORBIDDEN', 'admin token cannot mutate orders through public order API');
   const adminOrders = await api('GET', '/api/admin/orders');
   assert(Array.isArray(adminOrders.items) && adminOrders.items.some((item) => item.id === paid.order.id), 'admin order API lists platform orders');
+  const adminStatusUpdate = await api('POST', `/api/admin/orders/${paid.order.id}/status`, { status: 'disputed' });
+  assert(adminStatusUpdate.status === 'disputed', 'admin order API updates order status');
   const auditCases = await api('GET', '/api/admin/audit-cases');
   const auditCase = auditCases.items?.find((item) => item.status === 'pending');
   assert(auditCase?.id, 'admin audit queue exposes pending case');
@@ -307,6 +309,7 @@ try {
           'risk-block',
           'admin-order-mutation-boundary',
           'admin-order-api',
+          'admin-order-status-api',
           'audit-review-log',
           'moderation-action',
           'moderation-action-log',

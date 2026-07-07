@@ -136,6 +136,7 @@ async function route(method, url, body, store, req) {
 
   if (method === 'GET' && path === '/api/admin/dashboard') return adminDashboard(store);
   if (method === 'GET' && path === '/api/admin/orders') return adminOrders(store, url);
+  if (method === 'POST' && isNestedRoute(path, '/api/admin/orders/', '/status')) return setAdminOrderStatus(store, path, body.status);
   if (method === 'GET' && path === '/api/admin/moderation') return adminModeration(store);
   if (method === 'GET' && path === '/api/admin/audit-cases') return listAuditCases(store, url);
   if (method === 'POST' && isNestedRoute(path, '/api/admin/audit-cases/', '/approve')) return reviewAuditCase(store, path, 'approved');
@@ -912,6 +913,21 @@ function setOrderStatus(store, path, status) {
   if (!orderStatusText[status]) return error(400, 'VALIDATION_ERROR', 'Unknown order status');
   const result = updateOrder(store, order, status, 'Manual status update');
   if (status === 'completed') createSettlement(store, order);
+  return result;
+}
+
+function setAdminOrderStatus(store, path, status) {
+  const admin = requireAdminSession(store);
+  if (admin.response) return admin.response;
+
+  const order = findOrder(store, path.split('/')[4]);
+  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+  if (!orderStatusText[status]) return error(400, 'VALIDATION_ERROR', 'Unknown order status');
+  const result = updateOrder(store, order, status, 'Manual admin status update');
+  if (status === 'completed') createSettlement(store, order);
+  recordAdminAction(store, admin.session, 'order_status_update', 'order', order.id, {
+    note: `Order status set to ${status}`,
+  });
   return result;
 }
 
