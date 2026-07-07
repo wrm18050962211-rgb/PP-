@@ -14,6 +14,7 @@
     "check:postgres-store-auth-gateway": "node scripts/check-postgres-store-auth-gateway.mjs",
     "check:postgres-store-audit-security-gateway": "node scripts/check-postgres-store-audit-security-gateway.mjs",
     "check:postgres-store-session-gateway": "node scripts/check-postgres-store-session-gateway.mjs",
+    "check:postgres-store-idempotency-gateway": "node scripts/check-postgres-store-idempotency-gateway.mjs",
     "check:postgres-store-read-model": "node scripts/check-postgres-store-read-model.mjs",
     "check:postgres-write-route-guard": "node scripts/check-postgres-write-route-guard.mjs",
     "check:postgres-security-boundary-route": "node scripts/check-postgres-security-boundary-route.mjs",
@@ -41,6 +42,7 @@
     "check:postgres-audit-writes": "node scripts/check-postgres-audit-writes.mjs",
     "check:postgres-security-writes": "node scripts/check-postgres-security-writes.mjs",
     "check:postgres-session-writes": "node scripts/check-postgres-session-writes.mjs",
+    "check:postgres-idempotency-writes": "node scripts/check-postgres-idempotency-writes.mjs",
     "db:export-seed": "node ../database/scripts/export-store-to-seed.mjs"
   }
 }

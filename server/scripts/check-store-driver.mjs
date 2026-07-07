@@ -41,6 +41,7 @@ try {
   assert(postgresStore.capabilities?.auditWrites === true && typeof postgresStore.auditWrites?.recordAdminAction === 'function', 'postgres store exposes audit write gateway');
   assert(postgresStore.capabilities?.securityWrites === true && typeof postgresStore.securityWrites?.recordSecurityEvent === 'function', 'postgres store exposes security write gateway');
   assert(postgresStore.capabilities?.sessionWrites === true && typeof postgresStore.sessionWrites?.create === 'function', 'postgres store exposes session write gateway');
+  assert(postgresStore.capabilities?.idempotencyWrites === true && typeof postgresStore.idempotencyWrites?.beginRequest === 'function', 'postgres store exposes idempotency write gateway');
   assert(
     postgresStore.capabilities?.orderWrites === true &&
       typeof postgresStore.orderWrites?.createOrder === 'function' &&
@@ -72,6 +73,7 @@ try {
           'postgres-audit-gateway',
           'postgres-security-gateway',
           'postgres-session-gateway',
+          'postgres-idempotency-gateway',
           'postgres-order-gateway',
           'postgres-message-gateway',
           'postgres-moderation-gateway',
