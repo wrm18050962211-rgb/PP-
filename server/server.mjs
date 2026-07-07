@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { createDecipheriv, randomBytes, sign } from 'node:crypto';
+import { createDecipheriv, createHash, randomBytes, sign } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -715,6 +715,21 @@ function normalizeOrderIdempotencyKey(value) {
   return String(value || '').trim().slice(0, 120);
 }
 
+function hashRequestPayload(value) {
+  return createHash('sha256').update(stableJson(value || {})).digest('hex');
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map((item) => stableJson(item)).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function findIdempotentOrder(store, session, idempotencyKey) {
   if (!idempotencyKey) return null;
   return store.orders.find(
@@ -748,6 +763,10 @@ async function createOrder(store, input) {
   const idempotencyKey = normalizeOrderIdempotencyKey(input.idempotencyKey || input.clientRequestId);
   const existingOrder = idempotencyKey ? findIdempotentOrder(store, session, idempotencyKey) : null;
   if (existingOrder) return json(publicOrderWithPayment(store, existingOrder));
+  if (dataStore.kind !== 'json' && idempotencyKey && dataStore.idempotencyWrites?.beginRequest) {
+    const idempotency = await beginPostgresOrderIdempotency(session, idempotencyKey, input);
+    if (idempotency.response) return idempotency.response;
+  }
 
   const context = resolveOrderContext(store, input);
   if (context.error) return context.error;
@@ -816,7 +835,7 @@ async function createOrder(store, input) {
   }
 
   if (dataStore.kind !== 'json' && dataStore.orderWrites?.createOrder) {
-    return createPostgresOrder(context, quote, order, payment, input);
+    return createPostgresOrder(context, quote, order, payment, input, idempotencyKey);
   }
 
   store.orders.unshift(order);
@@ -825,7 +844,33 @@ async function createOrder(store, input) {
   return json({ ...order, payment: publicPayment(payment) }, 201, true);
 }
 
-async function createPostgresOrder(context, quote, order, payment, input) {
+async function beginPostgresOrderIdempotency(session, idempotencyKey, input) {
+  try {
+    const result = await dataStore.idempotencyWrites.beginRequest({
+      idempotencyId: id('idempotency'),
+      scope: 'orders.create',
+      requestKey: idempotencyKey,
+      actorType: 'user',
+      actorKey: session.user.id,
+      requestHash: hashRequestPayload(input),
+    });
+    if (result.state === 'completed') {
+      return { response: json(result.record?.response_body || result.record?.responseBody || {}, result.record?.response_status || result.record?.responseStatus || 200, false) };
+    }
+    return { response: null };
+  } catch (error) {
+    if (error?.code === 'IDEMPOTENCY_IN_PROGRESS') {
+      return { response: errorResponse(409, 'IDEMPOTENCY_IN_PROGRESS', 'Request is already processing') };
+    }
+    throw error;
+  }
+}
+
+function errorResponse(status, code, message) {
+  return error(status, code, message);
+}
+
+async function createPostgresOrder(context, quote, order, payment, input, idempotencyKey = '') {
   await dataStore.orderWrites.createOrder({
     orderId: order.id,
     orderNo: order.orderNo,
@@ -864,7 +909,28 @@ async function createPostgresOrder(context, quote, order, payment, input) {
     })),
   });
 
-  return json({ ...order, payment: publicPayment(payment) }, 201, false);
+  const responseBody = { ...order, payment: publicPayment(payment) };
+  if (idempotencyKey && dataStore.idempotencyWrites?.completeRequest) {
+    await completePostgresOrderIdempotency(order, idempotencyKey, responseBody);
+  }
+  return json(responseBody, 201, false);
+}
+
+async function completePostgresOrderIdempotency(order, idempotencyKey, responseBody) {
+  try {
+    await dataStore.idempotencyWrites.completeRequest({
+      scope: 'orders.create',
+      requestKey: idempotencyKey,
+      actorType: 'user',
+      actorKey: order.userId,
+      status: 'completed',
+      responseStatus: 201,
+      responseBody,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[idempotency] Failed to complete order idempotency key: ${message}`);
+  }
 }
 
 async function mockPaymentSuccess(store, path) {
