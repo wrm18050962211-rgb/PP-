@@ -50,6 +50,7 @@ try {
 
   const consumerSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
   assert(consumerSession.role === 'consumer', 'mock login can switch back to consumer role');
+  const primaryConsumerToken = consumerSession.token;
   const consumerAdmin = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
   assert(consumerAdmin.error?.code === 'FORBIDDEN', 'admin API rejects consumer token');
 
@@ -102,7 +103,17 @@ try {
   assert(orders.items.some((item) => item.id === paid.order.id), 'paid order appears in order list');
   const consumerStatusUpdate = await api('POST', `/api/orders/${paid.order.id}/status`, { status: 'disputed' }, { expectOk: false });
   assert(consumerStatusUpdate.error?.code === 'FORBIDDEN', 'consumer token cannot use admin order status endpoint');
+  const otherConsumer = await api('POST', '/api/auth/wechat/login', { code: 'mock-other-consumer' });
+  assert(otherConsumer.user?.id !== consumerSession.user?.id, 'second consumer login creates a distinct user');
+  const otherConsumerPayment = await api('GET', `/api/payments/${order.payment.paymentId}/status`, undefined, { expectOk: false });
+  assert(otherConsumerPayment.error?.code === 'FORBIDDEN', 'consumer cannot view another consumer order payment status');
+  authToken = primaryConsumerToken;
 
+  const wrongCompanionPost = await findPostWithDifferentCompanion(feed.items, paid.order.companionId);
+  assert(wrongCompanionPost?.companion?.id, 'smoke data has a second companion for order boundary checks');
+  await api('POST', '/api/auth/wechat/mock-login', { role: 'companion', companionId: wrongCompanionPost.companion.id });
+  const wrongCompanionConfirm = await api('POST', `/api/orders/${paid.order.id}/confirm`, undefined, { expectOk: false });
+  assert(wrongCompanionConfirm.error?.code === 'FORBIDDEN', 'photographer cannot confirm another photographer order');
   await api('POST', '/api/auth/wechat/mock-login', { role: 'companion', companionId: paid.order.companionId });
   const companionOrders = await api('GET', '/api/orders?role=companion');
   assert(companionOrders.items.every((item) => item.companionId === paid.order.companionId), 'companion order list is scoped to current companion');
@@ -188,6 +199,8 @@ try {
           'payment-status',
           'orders',
           'admin-order-status-boundary',
+          'cross-user-order-boundary',
+          'cross-companion-order-boundary',
           'role-scoped-orders',
           'pending-payment-expiry',
           'confirmed-cancellation-settlement',
@@ -249,6 +262,14 @@ async function findBookablePost(feedItems) {
     if (slot?.id && activity?.id) return { post, slot, activity };
   }
   throw new Error('No available slot found for expiry smoke check');
+}
+
+async function findPostWithDifferentCompanion(feedItems, companionId) {
+  for (const item of feedItems) {
+    const post = await api('GET', `/api/posts/${item.id}`);
+    if (post.companion?.id && post.companion.id !== companionId) return post;
+  }
+  return null;
 }
 
 async function expirePendingOrderInStore(orderId) {
