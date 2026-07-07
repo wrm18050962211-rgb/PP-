@@ -40,6 +40,7 @@ export function MessagesPage() {
   const [threadConversations, setThreadConversations] = useState<Record<string, Conversation>>({});
   const [allowMediumRisk, setAllowMediumRisk] = useState(false);
   const [reportSent, setReportSent] = useState(false);
+  const [reportNotice, setReportNotice] = useState('');
   const [sendBlocked, setSendBlocked] = useState(false);
   const [mediaNotice, setMediaNotice] = useState('');
   const [callNotice, setCallNotice] = useState('');
@@ -272,9 +273,21 @@ export function MessagesPage() {
             <button
               className={`grid h-9 w-9 place-items-center rounded-full ${reportSent ? 'bg-[#fff1f2] text-[#e85d75]' : 'bg-white/78 text-[#3f302c] ring-1 ring-[#eadfd8]'}`}
               aria-label="举报"
-              onClick={() => {
-                setReportSent(true);
-                if (activeOrder) void submitOrderReport(activeOrder.id);
+              onClick={async () => {
+                setReportNotice('');
+                if (!activeOrder) {
+                  setReportNotice('咨询会话举报入口待接入订单风控，请先通过平台客服处理。');
+                  return;
+                }
+
+                try {
+                  const ok = await submitOrderReport(activeOrder.id);
+                  setReportSent(ok);
+                  if (!ok) setReportNotice('举报提交失败，请稍后重试。');
+                } catch {
+                  setReportSent(false);
+                  setReportNotice('举报提交失败，请稍后重试。');
+                }
               }}
               type="button"
             >
@@ -283,6 +296,7 @@ export function MessagesPage() {
           </div>
         </div>
         {reportSent && <p className="mt-2 text-center text-xs font-semibold text-rose-500">举报已记录，平台会优先复核这笔订单沟通。</p>}
+        {reportNotice && <p className="mt-2 text-center text-xs font-semibold text-rose-500">{reportNotice}</p>}
         {callNotice && <p className="mt-2 text-center text-xs font-semibold text-[#8f8078]">{callNotice}</p>}
       </header>
 
