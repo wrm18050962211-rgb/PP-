@@ -26,7 +26,11 @@
 - 用户端、摄影师端、后台和 feed 样例中的生产可见“演示/MVP/待开放/虚拟样例”文案已清理，前端 `check:production-guards` 已增加可见源码扫描，防止这些词重新进入生产可见页面。
 - 后端种子 feed 返回文案已同步改为“精选样片/可预约参考”，服务启动日志和微信支付 User-Agent 已去掉 `MVP` 标识。
 - 后端生产 guard 已继续补充匿名访问、public token 访问 admin API、admin token 访问 public API 的权限矩阵检查，并断言权限拒绝会写入 `securityEvents`。
-- JSON store 保存时已不再持久化 `activeSession`；当前 `activeSession` 只作为请求处理过程中的临时上下文，真实恢复登录依赖 `sessions[]` token。
+- JSON store 保存时已不再持久化 `activeSession`，加载旧 store 时也会强制清空 `activeSession`；当前 `activeSession` 只作为请求处理过程中的临时上下文，真实恢复登录依赖 `sessions[]` token。
+- 前端生产保护继续补齐：媒体上传、图片消息、摄影师接单设置、套餐设置、公开资料、收藏关注、咨询和成片协作都已纳入 `check:production-guards` 或 mock fallback 禁用边界，`VITE_ENABLE_MOCK=false`/production 下不再用本地共享缓存冒充真实云端数据。
+- 后端 `securityEvents` 运行时镜像已补充 `targetKey`、`metadata`、`ip`、`userAgent` 等上下文字段，并加入 `check-runtime-audit-gateway` 覆盖。
+- 后端新增 `check-session-boundary` 并纳入 `check:mvp`，用于防止后续误恢复或误持久化 ambient `activeSession`。
+- PostgreSQL store 已暴露 `orderWrites`、`messageWrites`、`moderationWrites` 三类业务写入 gateway；当前仍未切到 `server.mjs` 业务路由，但已经具备分步接入订单、消息、举报/审核事务写入的 store 出口。
 - 当前仍未完成生产级事项：session/admin_action_logs/audit_logs/security_events 还没有完整从 JSON store 切到 PostgreSQL 运行时写入；后台仍需进一步拆模块、接更多真实 admin API，并在初步上线前独立部署。
 
 ## 0. 当前代码状态快照
