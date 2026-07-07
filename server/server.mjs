@@ -326,8 +326,8 @@ function authRequired() {
   return error(401, 'AUTH_REQUIRED', 'Authentication is required');
 }
 
-function adminRequired() {
-  return error(403, 'FORBIDDEN', 'Admin role is required');
+function adminRequired(changed = false) {
+  return error(403, 'FORBIDDEN', 'Admin role is required', changed);
 }
 
 function companionRequired(message = 'Companion role is required') {
@@ -337,7 +337,15 @@ function companionRequired(message = 'Companion role is required') {
 function requireAdminSession(store) {
   const session = ensureActiveSession(store, 'admin');
   if (!session) return { response: authRequired() };
-  if (session.role !== 'admin') return { response: adminRequired() };
+  if (session.role !== 'admin') {
+    recordSecurityEvent(store, session, 'permission_denied', {
+      targetType: 'admin_api',
+      requiredRole: 'admin',
+      actualRole: session.role,
+      reason: 'Admin role is required',
+    });
+    return { response: adminRequired(true) };
+  }
   return { session };
 }
 
@@ -552,6 +560,24 @@ function recordAdminAction(store, session, action, targetType, targetId, options
   };
   store.adminActionLogs.unshift(log);
   return log;
+}
+
+function recordSecurityEvent(store, session, type, details = {}) {
+  store.securityEvents ||= [];
+  const event = {
+    id: id('security-event'),
+    type,
+    actorId: session?.user?.id || null,
+    actorRole: session?.role || 'anonymous',
+    targetType: details.targetType || null,
+    targetId: details.targetId || null,
+    requiredRole: details.requiredRole || null,
+    actualRole: details.actualRole || session?.role || 'anonymous',
+    reason: details.reason || '',
+    createdAt: now(),
+  };
+  store.securityEvents.unshift(event);
+  return event;
 }
 
 function messageSenderRole(session) {
@@ -1562,6 +1588,7 @@ function normalizeStore(store) {
   next.auditCases = Array.isArray(store.auditCases) ? store.auditCases : seedAuditCases(next);
   next.auditLogs = Array.isArray(store.auditLogs) ? store.auditLogs : [];
   next.adminActionLogs = Array.isArray(store.adminActionLogs) ? store.adminActionLogs : [];
+  next.securityEvents = Array.isArray(store.securityEvents) ? store.securityEvents : [];
   next.settlements = Array.isArray(store.settlements) ? store.settlements : [];
   next.ledgerEntries = Array.isArray(store.ledgerEntries) ? store.ledgerEntries : [];
   next.refunds = Array.isArray(store.refunds) ? store.refunds : [];
@@ -1661,6 +1688,7 @@ function initialStore() {
     auditCases: [],
     auditLogs: [],
     adminActionLogs: [],
+    securityEvents: [],
     settlements: [],
     ledgerEntries: [],
     refunds: [],

@@ -53,6 +53,11 @@ try {
   const primaryConsumerToken = consumerSession.token;
   const consumerAdmin = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
   assert(consumerAdmin.error?.code === 'FORBIDDEN', 'admin API rejects consumer token');
+  const securityStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(
+    securityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'admin_api' && item.actualRole === 'consumer'),
+    'admin API permission denial is logged as security event',
+  );
   const consumerCompanion = await api('GET', '/api/companion/me', undefined, { expectOk: false });
   assert(consumerCompanion.error?.code === 'FORBIDDEN', 'companion API rejects consumer token');
 
@@ -215,6 +220,7 @@ try {
           'wechat-login',
           'mock-login',
           'admin-auth-boundary',
+          'admin-permission-denial-log',
           'companion-auth-boundary',
           'media-upload-policy',
           'feed',
