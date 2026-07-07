@@ -26,6 +26,7 @@
 - 用户端、摄影师端、后台和 feed 样例中的生产可见“演示/MVP/待开放/虚拟样例”文案已清理，前端 `check:production-guards` 已增加可见源码扫描，防止这些词重新进入生产可见页面。
 - 后端种子 feed 返回文案已同步改为“精选样片/可预约参考”，服务启动日志和微信支付 User-Agent 已去掉 `MVP` 标识。
 - 后端生产 guard 已继续补充匿名访问、public token 访问 admin API、admin token 访问 public API 的权限矩阵检查，并断言权限拒绝会写入 `securityEvents`。
+- JSON store 保存时已不再持久化 `activeSession`；当前 `activeSession` 只作为请求处理过程中的临时上下文，真实恢复登录依赖 `sessions[]` token。
 - 当前仍未完成生产级事项：session/admin_action_logs/audit_logs/security_events 还没有完整从 JSON store 切到 PostgreSQL 运行时写入；后台仍需进一步拆模块、接更多真实 admin API，并在初步上线前独立部署。
 
 ## 0. 当前代码状态快照
@@ -51,7 +52,7 @@
 - `pp-app/src/services/apiClient.ts` 生产环境仍会默认回退到 `http://127.0.0.1:8787`。
 - 多数 service 仍是 API 优先、失败回退 mock，本地体验友好，但生产包不能这样。
 - `pp-app/src/app/AppDataProvider.tsx` 的 `refreshOrders()` 仍返回空数组，订单状态没有真正从服务端刷新。
-- 登录主要依赖 localStorage、本地验证码、mock role/session；后端 `activeSession` 是全局 store 状态，不是生产级 session。
+- 登录主要依赖 localStorage、本地验证码、mock role/session；后端 `activeSession` 已不再落盘，但仍是请求处理内的临时上下文，还需要继续抽象成统一鉴权中间层。
 - `server/store/postgresStore.mjs` 当前 `writes: false`、`transactions: false`，`save()` 未实现，线上不能只靠 JSON store。
 - `pp-app/src/services/paymentService.ts` 在非小程序 runtime 下会直接调用 mock success path，生产 iOS App 不能这样处理真实支付。
 - `pp-app/src/services/mediaService.ts` 本地会把图片读成 data URL，生产必须上传对象存储并入库。
@@ -768,7 +769,7 @@
 这些不改，不建议真实上线或提交正式审核：
 
 - API 与环境层：`pp-app/src/services/apiClient.ts` 默认 `http://127.0.0.1:8787`，生产构建必须改成 `VITE_API_BASE_URL` 必填，并禁止 mock fallback。
-- 登录与 session：`pp-app/src/services/authService.ts` 依赖 localStorage、本地验证码、`switchMockRole()`；`server/server.mjs` 依赖 `store.activeSession` 全局状态。生产必须改成真实 token/session。
+- 登录与 session：`pp-app/src/services/authService.ts` 依赖 localStorage、本地验证码、`switchMockRole()`；`server/server.mjs` 仍使用 `store.activeSession` 作为请求内上下文。JSON store 已不再持久化该字段，但生产仍必须继续收敛到真实 token/session 与统一鉴权中间层。
 - 订单刷新：`pp-app/src/app/AppDataProvider.tsx` 的 `refreshOrders()` 还是空数组，订单状态无法真实恢复。
 - 支付：`pp-app/src/services/paymentService.ts` 非小程序 runtime 会调用 `/mock-success`；生产支付必须改成服务端状态查询 + 支付回调验签。
 - PostgreSQL 写入：`server/store/postgresStore.mjs` 标记 `writes: false`、`transactions: false`，`save()` 未实现。生产不能继续用 JSON store 承载订单、支付、消息、审核。
