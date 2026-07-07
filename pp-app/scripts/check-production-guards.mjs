@@ -92,6 +92,11 @@ if (roleShellSource.includes('敬请期待')) {
   failures.push('src/layouts/RoleShell.tsx must not include production-visible coming-soon tabs');
 }
 
+const adminDashboardSource = readFileSync(resolve(root, 'src/features/admin/AdminDashboard.tsx'), 'utf8');
+if (adminDashboardSource.includes('Demo Creator')) {
+  failures.push('src/features/admin/AdminDashboard.tsx must not include production-visible demo account names');
+}
+
 if (existsSync(resolve(root, 'src/features/companion/CompanionComingSoonPage.tsx'))) {
   failures.push('src/features/companion/CompanionComingSoonPage.tsx should be removed from production mobile app');
 }

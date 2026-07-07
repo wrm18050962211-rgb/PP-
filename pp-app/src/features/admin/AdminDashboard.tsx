@@ -154,7 +154,7 @@ const settlementSeed: SettlementCase[] = [
 ];
 
 const accountSeed: AccountCase[] = [
-  { id: 'account-creator-1', name: 'Demo Creator', role: '创作者', status: '正常', risk: '内容发布稳定', lastActive: '今天 18:10' },
+  { id: 'account-creator-1', name: 'Client 201', role: '创作者', status: '正常', risk: '内容发布稳定', lastActive: '今天 18:10' },
   { id: 'account-photographer-1', name: 'Mori', role: '摄影师', status: '观察中', risk: '近期出现 1 次联系方式拦截', lastActive: '今天 17:42' },
   { id: 'account-user-1', name: '用户 203', role: '普通用户', status: '限制中', risk: '举报处理中，聊天能力已临时限制', lastActive: '昨天 21:36' },
 ];

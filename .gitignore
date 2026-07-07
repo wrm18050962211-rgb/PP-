@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-admin/
 database/generated/
 pp-app/ios/App/Pods/
 pp-app/ios/App/build/
