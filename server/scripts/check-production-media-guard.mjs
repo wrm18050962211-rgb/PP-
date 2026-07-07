@@ -46,6 +46,12 @@ try {
   const localAdminLogin = await api('POST', '/api/admin/auth/login', { passcode: '000000' }, { omitAuth: true, expectOk: false });
   assert(localAdminLogin.error?.code === 'TEST_LOGIN_DISABLED', 'production rejects local admin login');
 
+  const anonymousAdminOrders = await api('GET', '/api/admin/orders', undefined, { omitAuth: true, expectOk: false });
+  assert(anonymousAdminOrders.error?.code === 'AUTH_REQUIRED', 'production admin orders API requires auth');
+
+  const anonymousOrders = await api('GET', '/api/orders?role=user', undefined, { omitAuth: true, expectOk: false });
+  assert(anonymousOrders.error?.code === 'AUTH_REQUIRED', 'production public orders API requires auth');
+
   const publicTokenAdminOrders = await api('GET', '/api/admin/orders', undefined, { expectOk: false });
   assert(publicTokenAdminOrders.error?.code === 'FORBIDDEN', 'production rejects public token on admin orders API');
 
@@ -79,6 +85,8 @@ try {
           'cors-forbidden',
           'mock-login-disabled',
           'local-admin-login-disabled',
+          'anonymous-admin-api-auth-required',
+          'anonymous-public-order-api-auth-required',
           'public-token-admin-api-forbidden',
           'admin-token-public-api-forbidden',
           'permission-denial-security-events',
