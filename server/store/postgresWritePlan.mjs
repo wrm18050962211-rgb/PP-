@@ -75,6 +75,17 @@ export const postgresWriteOperations = [
       'apply side effect such as restrict_chat or freeze_order',
     ],
   },
+  {
+    name: 'recordSecurityEvent',
+    route: 'permission boundary / auth guard',
+    transaction: true,
+    tables: ['security_events'],
+    steps: [
+      'build security event from denied session and target context',
+      'insert security_events with event_type permission_denied or login anomaly',
+      'preserve metadata for later risk review and abuse detection',
+    ],
+  },
 ];
 
 export function getPostgresWriteOperation(name) {
