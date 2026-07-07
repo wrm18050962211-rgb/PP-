@@ -112,6 +112,7 @@ export function OrdersPage() {
   const [activeAction, setActiveAction] = useState<OrderAction>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<string[]>(() => loadReviewedOrderIds());
   const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
+  const [workError, setWorkError] = useState('');
   const [, setConsultationVersion] = useState(0);
   const posts = useMemo(() => listFeedPosts(), []);
 
@@ -141,9 +142,13 @@ export function OrdersPage() {
       const record = workByOrderId.get(order.id);
       if (!record || !shouldAutoCompleteOrderWork(record) || order.settlementStatus === 'settled') return;
       const completedRecord = completeOrderWork(record, 'auto');
-      saveOrderWorkRecord(completedRecord);
-      updateOrderFunding(order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
-      autoCompletedRecords.push(completedRecord);
+      try {
+        saveOrderWorkRecord(completedRecord);
+        updateOrderFunding(order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
+        autoCompletedRecords.push(completedRecord);
+      } catch (error) {
+        setWorkError(error instanceof Error ? error.message : '成片协作保存失败，请稍后再试。');
+      }
     });
     if (autoCompletedRecords.length) {
       queueMicrotask(() => {
@@ -175,12 +180,20 @@ export function OrdersPage() {
   }
 
   function syncWorkRecord(record: OrderWorkRecord) {
-    setWorkRecords(saveOrderWorkRecord(record));
+    try {
+      setWorkRecords(saveOrderWorkRecord(record));
+      setWorkError('');
+      return true;
+    } catch (error) {
+      setWorkError(error instanceof Error ? error.message : '成片协作保存失败，请稍后再试。');
+      return false;
+    }
   }
 
   function submitWorkRecord(record: OrderWorkRecord) {
-    syncWorkRecord(record);
+    if (!syncWorkRecord(record)) return false;
     setActiveAction(null);
+    return true;
   }
 
   async function acceptConsultationQuote(consultation: ConsultationRecord) {
@@ -262,6 +275,7 @@ export function OrdersPage() {
       </div>
 
       {workMode ? <p className="mt-3 text-xs font-semibold leading-5 text-white/45">{workTabs.find((tab) => tab.key === activeWorkTab)?.desc}</p> : null}
+      {workError ? <p className="mt-3 rounded-[10px] bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">{workError}</p> : null}
 
       <div className="mt-4 space-y-4">
         {workMode
@@ -271,6 +285,7 @@ export function OrdersPage() {
                 order={order}
                 record={workByOrderId.get(order.id)}
                 onManage={() => {
+                  setWorkError('');
                   setWorkRecords(listOrderWorkRecords());
                   setActiveAction({ type: 'work', order });
                 }}
@@ -300,6 +315,7 @@ export function OrdersPage() {
             onCancel={() => setActiveAction({ type: 'cancel', order })}
             onReview={() => setActiveAction({ type: 'review', order })}
             onManageWork={() => {
+              setWorkError('');
               setWorkRecords(listOrderWorkRecords());
               setActiveAction({ type: 'work', order });
             }}
@@ -339,12 +355,14 @@ export function OrdersPage() {
           onDraftChange={syncWorkRecord}
           onSubmit={submitWorkRecord}
           onCompleteOrder={(record) => {
-            submitWorkRecord(completeOrderWork(record, 'creator'));
-            updateOrderFunding(activeAction.order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
+            if (submitWorkRecord(completeOrderWork(record, 'creator'))) {
+              updateOrderFunding(activeAction.order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
+            }
           }}
           onDispute={(record, reason) => {
-            submitWorkRecord(markOrderWorkDisputed(record, reason));
-            updateOrderFunding(activeAction.order.id, { fundsStatus: 'frozen', settlementStatus: 'frozen' });
+            if (submitWorkRecord(markOrderWorkDisputed(record, reason))) {
+              updateOrderFunding(activeAction.order.id, { fundsStatus: 'frozen', settlementStatus: 'frozen' });
+            }
           }}
         />
       )}
