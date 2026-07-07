@@ -12,6 +12,7 @@
     "build:mobile": "tsc -b && vite build --config vite.mobile.config.ts",
     "build:admin": "tsc -b && vite build --config vite.admin.config.ts",
     "build:dev": "tsc -b && vite build",
+    "check:production-guards": "node scripts/check-production-guards.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint .",
     "ios:add": "npm run build && npx cap add ios",
