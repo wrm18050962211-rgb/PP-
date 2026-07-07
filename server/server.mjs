@@ -78,9 +78,12 @@ http
     try {
       const url = new URL(req.url || '/', 'http://local');
       const { store, changed: storeChanged } = await dataStore.load();
-      const cleanupChanged = expirePendingPaymentOrders(store);
+      const cleanupChanged = dataStore.kind === 'json' ? expirePendingPaymentOrders(store) : false;
       const body = await readBody(req);
       const result = await route(req.method || 'GET', url, body, store, req);
+      if (dataStore.kind !== 'json' && (storeChanged || cleanupChanged || result.changed)) {
+        return sendJson(req, res, 501, fail('POSTGRES_WRITE_ROUTE_NOT_CONNECTED', 'This write route has not been connected to the PostgreSQL transaction gateway yet.'));
+      }
       if (storeChanged || cleanupChanged || result.changed) await dataStore.save(store);
       sendJson(req, res, result.status, result.payload);
     } catch (error) {
