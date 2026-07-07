@@ -1,6 +1,7 @@
 import type { AuthSession, Companion, CreateOrderInput, FeedPost, OrderImageQuantityMode } from '../types/api';
 import { evaluateMessageRisk } from '../utils/messageRisk';
 import { listTestAccounts } from './accountDirectory';
+import { isMockFallbackAllowed } from './apiClient';
 import { readCompanionPackageSettings } from './companionPackageService';
 
 export type ConsultationRequestCard = {
@@ -80,6 +81,8 @@ const storageKey = 'consultations-v1';
 const sharedConsultationStorageKey = `pp-cloud-db:shared:${storageKey}`;
 
 export function listConsultations(session?: AuthSession | null) {
+  if (!isMockFallbackAllowed()) return [];
+
   const records = readConsultations();
   if (!session) return [];
   if (session.role === 'companion') return records.filter((item) => item.photographerId === session.companionId);
@@ -88,11 +91,13 @@ export function listConsultations(session?: AuthSession | null) {
 }
 
 export function getConsultation(id?: string) {
+  if (!isMockFallbackAllowed()) return null;
   if (!id) return null;
   return readConsultations().find((item) => item.id === id) ?? null;
 }
 
 export function createConsultation(post: FeedPost, card: ConsultationRequestCard, session: AuthSession | null) {
+  assertLocalConsultationAllowed();
   if (isSelfConsultation(post, session)) {
     throw new Error('不能用自己的创作者身份预约自己的摄影师身份');
   }
@@ -167,6 +172,7 @@ export function estimateConsultationQuote(record: ConsultationRecord, companion:
 }
 
 export function sendQuoteForConsultation(id: string, companion: Companion | undefined, override: ConsultationQuoteOverride = {}) {
+  assertLocalConsultationAllowed();
   const settings = readCompanionPackageSettings(companion);
   const records = readConsultations();
   const nextRecords = records.map((item) => {
@@ -226,6 +232,7 @@ export function sendQuoteForConsultation(id: string, companion: Companion | unde
 }
 
 export function closeConsultation(id: string) {
+  assertLocalConsultationAllowed();
   const nextRecords = readConsultations().map((item) => (item.id === id ? { ...item, status: 'closed' as const, updatedAt: new Date().toISOString() } : item));
   writeConsultations(nextRecords);
 }
@@ -273,6 +280,7 @@ export function getConsultationRiskText(record: ConsultationRecord) {
 }
 
 function readConsultations() {
+  if (!isMockFallbackAllowed()) return [];
   if (typeof localStorage === 'undefined') return [];
   const records = new Map<string, ConsultationRecord>();
 
@@ -292,8 +300,13 @@ function readConsultations() {
 }
 
 function writeConsultations(records: ConsultationRecord[]) {
+  assertLocalConsultationAllowed();
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(sharedConsultationStorageKey, JSON.stringify(records));
+}
+
+function assertLocalConsultationAllowed() {
+  if (!isMockFallbackAllowed()) throw new Error('咨询报价需要先接入服务端 API，当前环境不能保存本地咨询。');
 }
 
 function readConsultationStorageValue(key: string) {
