@@ -150,7 +150,7 @@ const feedCacheTtlMs = 1000 * 60 * 5;
 const searchHistoryKey = 'pp:consumer-search-history';
 const searchSuggestions = ['杂志街拍', '回忆胶片', '餐厅酒咖', '艺术展区', '夜景', '武康路', '酒店民宿', '海边'];
 
-const demoMapPoints = [
+const fallbackMapPoints = [
   { city: '上海', district: '徐汇区', name: '武康路定位点', address: '武康路 / 安福路', lat: 31.2087, lng: 121.4456, x: 34, y: 36 },
   { city: '上海', district: '徐汇区', name: '西岸定位点', address: '龙美术馆 / 油罐艺术中心', lat: 31.1745, lng: 121.4617, x: 55, y: 72 },
   { city: '上海', district: '静安区', name: '巨鹿路定位点', address: '巨鹿路 / 富民路', lat: 31.2246, lng: 121.4569, x: 45, y: 42 },
@@ -161,7 +161,7 @@ const demoMapPoints = [
   { city: '成都', district: '锦江区', name: '太古里定位点', address: '春熙路 / 太古里', lat: 30.6536, lng: 104.0807, x: 52, y: 45 },
 ];
 
-type DemoMapPoint = (typeof demoMapPoints)[number];
+type FallbackMapPoint = (typeof fallbackMapPoints)[number];
 
 export function HomeFeed() {
   const { homeChromeCompact = false } = useOutletContext<ConsumerShellContext>();
@@ -998,9 +998,9 @@ function MapPointPicker({
   onSelect,
   onClose,
 }: {
-  points: DemoMapPoint[];
+  points: FallbackMapPoint[];
   selectedName: string;
-  onSelect: (point: DemoMapPoint) => void;
+  onSelect: (point: FallbackMapPoint) => void;
   onClose: () => void;
 }) {
   return (
@@ -1256,10 +1256,10 @@ function getNearbyScore(
   const matchedScore = matchedRank >= 0 ? 520 - matchedRank * 24 : 0;
   const selectedAreaScore = locationKeywords.some((keyword) => keyword !== '不限' && text.includes(keyword.toLowerCase())) ? 210 : 0;
   const cityScore = filters.city !== '不限' && text.includes(filters.city.toLowerCase()) ? 54 : 0;
-  const nearbyDemoScore = ['外滩', '武康路', '安福路', '静安寺', '新天地', '徐汇', '黄浦'].some((keyword) => text.includes(keyword.toLowerCase())) ? 70 : 0;
+  const namedLocationScore = ['外滩', '武康路', '安福路', '静安寺', '新天地', '徐汇', '黄浦'].some((keyword) => text.includes(keyword.toLowerCase())) ? 70 : 0;
   const availabilityScore = post.companion.slots.some((slot) => slot.status === 'available') ? 36 : 0;
   const distancePreferenceScore = filters.maxDistanceKm ? Math.max(0, 80 - filters.maxDistanceKm * 4) : 0;
-  return matchedScore + selectedAreaScore + cityScore + nearbyDemoScore + availabilityScore + distancePreferenceScore - index * 0.2;
+  return matchedScore + selectedAreaScore + cityScore + namedLocationScore + availabilityScore + distancePreferenceScore - index * 0.2;
 }
 
 function getPostSearchText(post: FeedPost) {
@@ -1428,9 +1428,9 @@ function getActiveLocation(filters: Pick<FeedFilters, 'locationLat' | 'locationL
 }
 
 function getMapPointOptions(city: string, district: string) {
-  const cityMatched = demoMapPoints.filter((point) => city === '不限' || point.city === city);
+  const cityMatched = fallbackMapPoints.filter((point) => city === '不限' || point.city === city);
   const districtMatched = cityMatched.filter((point) => district === '不限' || point.district === district);
-  return districtMatched.length ? districtMatched : cityMatched.length ? cityMatched : demoMapPoints;
+  return districtMatched.length ? districtMatched : cityMatched.length ? cityMatched : fallbackMapPoints;
 }
 
 function cleanLocationPointName(name: string) {
