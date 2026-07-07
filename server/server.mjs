@@ -267,14 +267,14 @@ async function wechatLogin(store, body = {}) {
 
   if (hasWechatAuthConfig() && !code.startsWith('mock-')) {
     const identity = await exchangeWechatCode(code);
-    const user = ensureWechatUser(store, identity);
+    const user = await resolveWechatUser(store, identity);
     const session = createSession(store, 'consumer', user);
     session.provider = 'wechat';
     session.openId = user.openId;
-    return json(saveSession(store, session), 200, true);
+    return json(await persistSession(store, session), 200, dataStore.kind === 'json');
   }
 
-  const user = ensureWechatUser(store, {
+  const user = await resolveWechatUser(store, {
     openid: `mock-openid-${code.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'consumer'}`,
     unionid: null,
   });
@@ -282,7 +282,32 @@ async function wechatLogin(store, body = {}) {
   session.provider = 'wechat';
   session.mode = 'mock';
   session.loginCode = code.startsWith('mock-') ? code : undefined;
-  return json(saveSession(store, session), 200, true);
+  return json(await persistSession(store, session), 200, dataStore.kind === 'json');
+}
+
+async function resolveWechatUser(store, identity) {
+  if (dataStore.authWrites?.upsertIdentityUser) {
+    const openId = String(identity.openid || '').trim();
+    if (!openId) throw new Error('WeChat code2session did not return openid');
+    const user = await dataStore.authWrites.upsertIdentityUser({
+      provider: 'wechat',
+      openid: openId,
+      unionid: identity.unionid || null,
+      nickname: identity.nickname || 'WeChat User',
+      avatarUrl: identity.avatarUrl || '',
+      metadata: { source: 'wechat_login' },
+    });
+    user.openId = openId;
+    user.unionId = identity.unionid || null;
+    return user;
+  }
+  return ensureWechatUser(store, identity);
+}
+
+async function persistSession(store, session) {
+  const storedSession = saveSession(store, session);
+  if (dataStore.sessionWrites?.create) await dataStore.sessionWrites.create(storedSession);
+  return storedSession;
 }
 
 async function logout(store) {
