@@ -45,11 +45,14 @@ try {
   const uploadPolicy = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg', purpose: 'avatar' }, { expectOk: false });
   assert(uploadPolicy.error?.code === 'MEDIA_UPLOAD_NOT_CONFIGURED', 'production media policy rejects mock upload credentials');
 
+  const mockPayment = await api('POST', '/api/payments/production-guard-payment/mock-success', undefined, { expectOk: false });
+  assert(mockPayment.error?.code === 'MOCK_PAYMENT_DISABLED', 'production rejects mock payment success endpoint');
+
   console.log(
     JSON.stringify(
       {
         ok: true,
-        checks: ['cors-allowlist', 'cors-forbidden', 'auth-required', 'production-media-not-configured'],
+        checks: ['cors-allowlist', 'cors-forbidden', 'auth-required', 'production-media-not-configured', 'mock-payment-disabled'],
       },
       null,
       2,
