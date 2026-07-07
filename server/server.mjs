@@ -90,7 +90,7 @@ http
 
 async function route(method, url, body, store, req) {
   const path = url.pathname;
-  applyRequestSession(store, req);
+  await applyRequestSession(store, req);
 
   if (method === 'GET' && path === '/api/health') {
     return json({
@@ -227,18 +227,22 @@ function sanitizeFileName(fileName) {
     .slice(0, 80);
 }
 
-function applyRequestSession(store, req) {
+async function applyRequestSession(store, req) {
   const token = getBearerToken(req);
   if (!token) {
     store.activeSession = null;
     return null;
   }
-  const session = findStoredSession(store, token);
+  let session = findStoredSession(store, token);
+  if (!session && dataStore.sessionWrites?.findByToken) {
+    session = await dataStore.sessionWrites.findByToken(token);
+  }
   if (!session) {
     store.activeSession = null;
     return null;
   }
   store.activeSession = refreshSession(store, session);
+  if (dataStore.sessionWrites?.touchToken) await dataStore.sessionWrites.touchToken(token);
   return store.activeSession;
 }
 
