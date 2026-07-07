@@ -9,7 +9,8 @@ const port = Number(process.env.PRODUCTION_MEDIA_GUARD_PORT || 18788);
 const baseUrl = `http://127.0.0.1:${port}`;
 const tempDir = await mkdtemp(resolve(tmpdir(), 'pp-production-media-guard-'));
 const storePath = resolve(tempDir, 'store.json');
-const token = 'production-media-guard-token';
+const publicToken = 'production-media-guard-public-token';
+const adminToken = 'production-media-guard-admin-token';
 
 let server;
 const logs = [];
@@ -48,6 +49,9 @@ try {
   const publicTokenAdminOrders = await api('GET', '/api/admin/orders', undefined, { expectOk: false });
   assert(publicTokenAdminOrders.error?.code === 'FORBIDDEN', 'production rejects public token on admin orders API');
 
+  const adminTokenPublicOrders = await api('GET', '/api/orders?role=user', undefined, { authToken: adminToken, expectOk: false });
+  assert(adminTokenPublicOrders.error?.code === 'FORBIDDEN', 'production rejects admin token on public orders API');
+
   const anonymousUpload = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg' }, { omitAuth: true, expectOk: false });
   assert(anonymousUpload.error?.code === 'AUTH_REQUIRED', 'production media policy still requires auth');
 
@@ -67,6 +71,7 @@ try {
           'mock-login-disabled',
           'local-admin-login-disabled',
           'public-token-admin-api-forbidden',
+          'admin-token-public-api-forbidden',
           'auth-required',
           'production-media-not-configured',
           'mock-payment-disabled',
@@ -96,16 +101,40 @@ function createSeedStore() {
     createdAt: now,
     updatedAt: now,
   };
+  const adminUser = {
+    id: 'production-media-guard-admin',
+    openId: 'production-media-guard-admin-openid',
+    nickname: 'Production Admin Guard',
+    avatarUrl: '',
+    gender: 'unknown',
+    city: 'Shanghai',
+    status: 'active',
+    isCompanion: false,
+    roles: ['admin'],
+    createdAt: now,
+    updatedAt: now,
+  };
   return {
     meta: { version: 3 },
-    users: [user],
+    users: [user, adminUser],
     sessions: [
       {
-        token,
+        token: publicToken,
         provider: 'wechat',
         role: 'consumer',
         roles: ['consumer'],
         user,
+        loginAt: now,
+        updatedAt: now,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      },
+      {
+        token: adminToken,
+        provider: 'admin',
+        role: 'admin',
+        roles: ['admin'],
+        user: adminUser,
+        adminScope: ['audit', 'orders', 'risk', 'finance'],
         loginAt: now,
         updatedAt: now,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
@@ -141,7 +170,7 @@ async function api(method, path, body, options = {}) {
 
 async function rawApi(method, path, body, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (!options.omitAuth) headers.Authorization = `Bearer ${token}`;
+  if (!options.omitAuth) headers.Authorization = `Bearer ${options.authToken || publicToken}`;
   if (options.origin) headers.Origin = options.origin;
   return fetch(`${baseUrl}${path}`, {
     method,
