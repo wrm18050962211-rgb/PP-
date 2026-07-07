@@ -1,4 +1,5 @@
 import type { Companion } from '../types/api';
+import { isMockFallbackAllowed } from './apiClient';
 import { readDomainJson, writeDomainJson } from './scopedStorage';
 
 export type CompanionPackage = {
@@ -146,7 +147,7 @@ export function formatCents(cents: number) {
 }
 
 function readSharedCompanionPackageSettings(companionId?: string | null) {
-  if (!companionId || typeof localStorage === 'undefined') return null;
+  if (!canUseSharedPackageStorage() || !companionId || typeof localStorage === 'undefined') return null;
   try {
     const raw = localStorage.getItem(sharedPackageStorageKey);
     const records = raw ? (JSON.parse(raw) as Record<string, CompanionPackageSettings>) : {};
@@ -157,7 +158,7 @@ function readSharedCompanionPackageSettings(companionId?: string | null) {
 }
 
 function writeSharedCompanionPackageSettings(companionId: string, settings: CompanionPackageSettings) {
-  if (typeof localStorage === 'undefined') return;
+  if (!canUseSharedPackageStorage() || typeof localStorage === 'undefined') return;
   try {
     const raw = localStorage.getItem(sharedPackageStorageKey);
     const records = raw ? (JSON.parse(raw) as Record<string, CompanionPackageSettings>) : {};
@@ -168,7 +169,7 @@ function writeSharedCompanionPackageSettings(companionId: string, settings: Comp
 }
 
 function readLegacyScopedCompanionPackageSettings(companionId?: string | null) {
-  if (!companionId || typeof localStorage === 'undefined') return null;
+  if (!canUseSharedPackageStorage() || !companionId || typeof localStorage === 'undefined') return null;
   try {
     const scopedSuffix = `:${storageKey}`;
     for (let index = 0; index < localStorage.length; index += 1) {
@@ -181,4 +182,8 @@ function readLegacyScopedCompanionPackageSettings(companionId?: string | null) {
   } catch {
     return null;
   }
+}
+
+function canUseSharedPackageStorage() {
+  return isMockFallbackAllowed();
 }
