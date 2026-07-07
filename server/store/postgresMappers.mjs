@@ -18,6 +18,7 @@ export function buildStoreFromPostgresRows(rows) {
     auditCases: [],
     auditLogs: [],
     adminActionLogs: [],
+    securityEvents: [],
     settlements: [],
     ledgerEntries: [],
     refunds: [],

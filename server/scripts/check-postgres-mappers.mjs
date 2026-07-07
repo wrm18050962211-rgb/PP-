@@ -108,12 +108,13 @@ assert(post.companion.id === companion.id, 'post embeds companion');
 assert(post.images[0].url.includes('post.jpg'), 'post image maps');
 assert(post.styleTags.includes('胶片感'), 'post tags map');
 assert(store.orders.length === 0 && store.payments.length === 0, 'transactional write models start empty');
+assert(Array.isArray(store.securityEvents) && store.securityEvents.length === 0, 'security events start empty');
 
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images'],
+      checks: ['companions', 'tags', 'service-areas', 'activities', 'extras', 'slots', 'posts', 'images', 'security-events'],
       companionCount: store.companions.length,
       postCount: store.posts.length,
     },

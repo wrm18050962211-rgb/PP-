@@ -106,6 +106,7 @@ order by is_featured desc, quality_score desc, published_at desc;
 - `messages`：聊天消息
 - `risk_keywords`：屏蔽词和风险规则
 - `message_risk_events`：消息风控事件
+- `security_events`：权限拒绝、异常访问、登录异常等安全审计事件
 
 消息必须绑定订单，不做开放私信。这对防跳单、客服介入、举报取证都很关键。
 

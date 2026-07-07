@@ -727,6 +727,33 @@ on admin_action_logs(admin_id, created_at desc);
 create index idx_admin_action_logs_target
 on admin_action_logs(target_type, target_id);
 
+create table security_events (
+  id uuid primary key default gen_random_uuid(),
+  event_type varchar(80) not null,
+  actor_id uuid,
+  actor_role varchar(40) not null default 'anonymous',
+  target_type varchar(60),
+  target_id uuid,
+  target_key text,
+  required_role varchar(80),
+  actual_role varchar(40),
+  action varchar(80),
+  reason text,
+  metadata jsonb not null default '{}',
+  ip varchar(64),
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+
+create index idx_security_events_actor
+on security_events(actor_id, created_at desc);
+
+create index idx_security_events_target
+on security_events(target_type, target_id);
+
+create index idx_security_events_type_time
+on security_events(event_type, created_at desc);
+
 create table system_configs (
   key varchar(120) primary key,
   value jsonb not null,

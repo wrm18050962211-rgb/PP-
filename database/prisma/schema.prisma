@@ -819,6 +819,29 @@ model AdminActionLog {
   @@map("admin_action_logs")
 }
 
+model SecurityEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  eventType    String   @map("event_type") @db.VarChar(80)
+  actorId      String?  @map("actor_id") @db.Uuid
+  actorRole    String   @default("anonymous") @map("actor_role") @db.VarChar(40)
+  targetType   String?  @map("target_type") @db.VarChar(60)
+  targetId     String?  @map("target_id") @db.Uuid
+  targetKey    String?  @map("target_key")
+  requiredRole String?  @map("required_role") @db.VarChar(80)
+  actualRole   String?  @map("actual_role") @db.VarChar(40)
+  action       String?  @db.VarChar(80)
+  reason       String?
+  metadata     Json     @default("{}")
+  ip           String?  @db.VarChar(64)
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@index([eventType, createdAt])
+  @@map("security_events")
+}
+
 model SystemConfig {
   key         String   @id @db.VarChar(120)
   value       Json

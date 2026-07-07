@@ -752,6 +752,7 @@ audit_cases target_type = report
 - `reports`
 - `settlements`
 - `admin_action_logs`
+- `security_events`
 
 ### GET `/api/admin/dashboard`
 
