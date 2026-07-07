@@ -31,6 +31,7 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
     },
     sessionWrites: {
       create: (session) => withClient((client) => createSessionTransaction(client, toSessionDraft(session))),
+      findByToken: (token) => withClient((client) => findSessionByToken(client, token)),
       touchToken: (token, seenAt) => withClient((client) => touchSessionTransaction(client, { tokenHash: hashSessionToken(token), seenAt })),
       revokeToken: (token, revokedAt) => withClient((client) => revokeSessionTransaction(client, { tokenHash: hashSessionToken(token), revokedAt })),
     },
@@ -94,6 +95,100 @@ function toSessionDraft(session = {}) {
 
 function cryptoRandomId() {
   return randomUUID();
+}
+
+async function findSessionByToken(client, token) {
+  const tokenHash = hashSessionToken(token);
+  const result = await client.query(
+    `select s.id as session_id,
+            s.session_scope,
+            s.user_id as session_user_id,
+            s.admin_id as session_admin_id,
+            s.companion_id as session_companion_id,
+            s.role as session_role,
+            s.provider,
+            s.metadata,
+            s.login_at,
+            s.last_seen_at,
+            s.expires_at,
+            u.id as user_id,
+            u.nickname,
+            u.avatar_url,
+            u.gender,
+            u.city,
+            u.status as user_status,
+            u.is_companion,
+            a.id as admin_id,
+            a.username as admin_username,
+            a.name as admin_name,
+            a.role as admin_role,
+            a.status as admin_status,
+            coalesce(s.companion_id, c.id) as companion_id
+     from user_sessions s
+     left join users u on u.id = s.user_id
+     left join admin_users a on a.id = s.admin_id
+     left join companions c on c.user_id = u.id
+     where s.token_hash = $1
+       and s.revoked_at is null
+       and s.expires_at > now()
+     limit 1`,
+    [tokenHash],
+  );
+  const row = result.rows?.[0];
+  return row ? mapSessionRow(row, token) : null;
+}
+
+function mapSessionRow(row, token) {
+  const metadata = normalizeJsonObject(row.metadata);
+  const role = row.session_role || (row.session_scope === 'admin' ? 'admin' : 'consumer');
+  const isAdmin = row.session_scope === 'admin' || role === 'admin';
+  const user = isAdmin
+    ? {
+        id: row.admin_id,
+        nickname: row.admin_name || row.admin_username || 'Admin',
+        avatarUrl: '',
+        gender: 'unknown',
+        city: '',
+        status: row.admin_status || 'active',
+        roles: ['admin'],
+      }
+    : {
+        id: row.user_id,
+        nickname: row.nickname || 'User',
+        avatarUrl: row.avatar_url || '',
+        gender: row.gender || 'unknown',
+        city: row.city || '',
+        status: row.user_status || 'active',
+        isCompanion: Boolean(row.is_companion),
+        roles: metadata.roles || (role === 'companion' ? ['consumer', 'companion'] : ['consumer']),
+      };
+
+  return {
+    id: row.session_id,
+    token,
+    provider: row.provider || null,
+    role,
+    roles: metadata.roles || (isAdmin ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer']),
+    user,
+    companionId: isAdmin ? null : row.companion_id || row.session_companion_id || null,
+    adminId: isAdmin ? row.admin_id || row.session_admin_id || null : null,
+    adminScope: isAdmin ? metadata.adminScope || ['audit', 'orders', 'risk', 'finance'] : [],
+    mode: metadata.mode || null,
+    loginAt: toIsoString(row.login_at),
+    updatedAt: toIsoString(row.last_seen_at),
+    expiresAt: toIsoString(row.expires_at),
+  };
+}
+
+function normalizeJsonObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
+}
+
+function toIsoString(value) {
+  if (!value) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
 }
 
 async function fetchReadModelRows(pool) {
