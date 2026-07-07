@@ -760,6 +760,30 @@ create index idx_user_sessions_active
 on user_sessions(session_scope, role, expires_at)
 where revoked_at is null;
 
+create table idempotency_keys (
+  id uuid primary key default gen_random_uuid(),
+  scope varchar(80) not null,
+  request_key varchar(160) not null,
+  actor_type varchar(40) not null,
+  actor_key varchar(160) not null,
+  request_hash text,
+  status varchar(40) not null default 'processing',
+  response_status integer,
+  response_body jsonb,
+  locked_until timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(scope, request_key, actor_type, actor_key)
+);
+
+create index idx_idempotency_keys_actor
+on idempotency_keys(actor_type, actor_key, created_at desc);
+
+create index idx_idempotency_keys_processing
+on idempotency_keys(status, locked_until)
+where status = 'processing';
+
 create table admin_action_logs (
   id uuid primary key default gen_random_uuid(),
   admin_id uuid references admin_users(id),

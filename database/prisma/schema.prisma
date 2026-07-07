@@ -854,6 +854,27 @@ model UserSession {
   @@map("user_sessions")
 }
 
+model IdempotencyKey {
+  id             String    @id @default(uuid()) @db.Uuid
+  scope          String    @db.VarChar(80)
+  requestKey     String    @map("request_key") @db.VarChar(160)
+  actorType      String    @map("actor_type") @db.VarChar(40)
+  actorKey       String    @map("actor_key") @db.VarChar(160)
+  requestHash    String?   @map("request_hash")
+  status         String    @default("processing") @db.VarChar(40)
+  responseStatus Int?      @map("response_status")
+  responseBody   Json?     @map("response_body")
+  lockedUntil    DateTime? @map("locked_until") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([scope, requestKey, actorType, actorKey])
+  @@index([actorType, actorKey, createdAt])
+  @@index([status, lockedUntil])
+  @@map("idempotency_keys")
+}
+
 model AdminActionLog {
   id         String   @id @default(uuid()) @db.Uuid
   adminId    String?  @map("admin_id") @db.Uuid
