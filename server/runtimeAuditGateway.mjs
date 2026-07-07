@@ -43,11 +43,14 @@ export function mirrorSecurityEvent(dataStore, event) {
     actorRole: event.actorRole || 'anonymous',
     targetType: event.targetType || null,
     targetId: event.targetId || null,
+    targetKey: event.targetKey || null,
     requiredRole: event.requiredRole || null,
     actualRole: event.actualRole || null,
     action: event.action || null,
     reason: event.reason || null,
     metadata: event.metadata || {},
+    ip: event.ip || null,
+    userAgent: event.userAgent || null,
   }).catch((error) => warnMirrorFailure('security event', error));
   return true;
 }

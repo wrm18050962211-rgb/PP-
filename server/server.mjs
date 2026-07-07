@@ -685,10 +685,14 @@ function recordSecurityEvent(store, session, type, details = {}) {
     actorRole: session?.role || 'anonymous',
     targetType: details.targetType || null,
     targetId: details.targetId || null,
+    targetKey: details.targetKey || null,
     requiredRole: details.requiredRole || null,
     actualRole: details.actualRole || session?.role || 'anonymous',
     reason: details.reason || '',
     action: details.action || null,
+    metadata: details.metadata || {},
+    ip: details.ip || null,
+    userAgent: details.userAgent || null,
     createdAt: now(),
   };
   store.securityEvents.unshift(event);
