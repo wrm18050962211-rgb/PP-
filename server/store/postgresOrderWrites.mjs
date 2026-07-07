@@ -349,6 +349,16 @@ export async function transitionOrderTransaction(client, draft) {
     const order = orderResult.rows?.[0];
     if (!order) throw conflict('ORDER_NOT_FOUND', 'Order not found');
 
+    if (isIdempotentTransition(order.status, draft.action)) {
+      await client.query('commit');
+      return {
+        order,
+        fromStatus: order.status,
+        toStatus: order.status,
+        skipped: true,
+      };
+    }
+
     const nextStatus = nextOrderStatus(order.status, draft.action);
     const occurredAt = draft.occurredAt || new Date().toISOString();
     const paidOrderResult = await client.query(
@@ -549,6 +559,13 @@ function normalizePositiveInteger(value, fallback, max) {
 function normalizeCount(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isIdempotentTransition(status, action) {
+  if (action === 'confirm') return status === 'confirmed';
+  if (action === 'complete') return status === 'completed';
+  if (action === 'cancel') return ['cancelled', 'refunding'].includes(status);
+  return false;
 }
 
 function nextOrderStatus(status, action) {

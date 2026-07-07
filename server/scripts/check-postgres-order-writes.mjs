@@ -136,6 +136,16 @@ assert(confirmSql.some((sql) => /from orders/i.test(sql) && /for update/i.test(s
 assert(confirmSql.some((sql) => /update orders/i.test(sql) && /confirmed_at/i.test(sql)), 'confirm updates order');
 assert(confirmSql.at(-1) === 'commit', 'confirm commits');
 
+const duplicateConfirmClient = createMockClient([{ order_status: 'confirmed' }]);
+const duplicateConfirmed = await transitionOrderTransaction(duplicateConfirmClient, {
+  orderId: draft.orderId,
+  action: 'confirm',
+  statusLogId: '00000000-0000-4000-8000-000000000025',
+});
+assert(duplicateConfirmed.skipped === true && duplicateConfirmed.toStatus === 'confirmed', 'duplicate confirm is idempotent');
+assert(!duplicateConfirmClient.calls.some((call) => /insert into order_status_logs/i.test(call.sql)), 'duplicate confirm does not write status log');
+assert(duplicateConfirmClient.calls.at(-1).sql === 'commit', 'duplicate confirm commits without side effects');
+
 const completeClient = createMockClient([{ order_status: 'confirmed' }]);
 const completed = await transitionOrderTransaction(completeClient, {
   orderId: draft.orderId,
@@ -225,6 +235,7 @@ console.log(
         'terminal-payment',
         'expire-pending-payments',
         'confirm-order',
+        'confirm-idempotent-skip',
         'complete-order',
         'complete-settlement',
         'complete-wallet',
@@ -241,7 +252,7 @@ console.log(
       duplicatePaymentQueryCount: duplicatePaymentClient.calls.length,
       terminalPaymentQueryCount: terminalPaymentClient.calls.length,
       expiredPaymentQueryCount: expiredPaymentClient.calls.length,
-      transitionQueryCount: confirmClient.calls.length + completeClient.calls.length + cancelClient.calls.length,
+      transitionQueryCount: confirmClient.calls.length + duplicateConfirmClient.calls.length + completeClient.calls.length + cancelClient.calls.length,
       adminStatusQueryCount: adminStatusClient.calls.length + adminCompletedClient.calls.length,
     },
     null,
