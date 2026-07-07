@@ -9,6 +9,7 @@ const checks = [
   ['admin-route-boundary', ['scripts/check-admin-route-boundary.mjs']],
   ['payment-expiry-job', ['scripts/check-payment-expiry-job.mjs']],
   ['provider-callback-retry-job', ['scripts/check-provider-callback-retry-job.mjs']],
+  ['wechat-callback-processors', ['scripts/check-wechat-callback-processors.mjs']],
   ['session-boundary', ['scripts/check-session-boundary.mjs']],
   ['postgres-store-auth-gateway', ['scripts/check-postgres-store-auth-gateway.mjs']],
   ['postgres-store-audit-security-gateway', ['scripts/check-postgres-store-audit-security-gateway.mjs']],

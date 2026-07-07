@@ -1,4 +1,5 @@
 import { runProviderCallbackRetryJob } from '../jobs/providerCallbackRetryJob.mjs';
+import { createWechatCallbackProcessors } from '../jobs/wechatCallbackProcessors.mjs';
 import { createPostgresStore } from '../store/postgresStore.mjs';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -8,8 +9,10 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
+const dataStore = createPostgresStore({ databaseUrl });
 const result = await runProviderCallbackRetryJob({
-  dataStore: createPostgresStore({ databaseUrl }),
+  dataStore,
+  processors: createWechatCallbackProcessors({ dataStore }),
   dueAt: new Date().toISOString(),
   limit: process.env.PROVIDER_CALLBACK_RETRY_JOB_LIMIT || 20,
 });

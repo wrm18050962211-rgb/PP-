@@ -46,7 +46,8 @@
 - Postgres 已新增 `providerCallbackWrites` gateway：可以记录 provider 原始回调、标记 processed、标记 retrying/failed；下一步把微信支付/退款通知入口接入该 gateway。
 - 微信支付/退款通知入口已接入 `providerCallbackWrites`：签名通过后先记录回调事件，业务写入成功后标记 processed，找不到业务对象或写入失败时标记 retrying；下一步再补独立重试 job。
 - `providerCallbackWrites` 已补 `claimDue`：后续重试任务可以用 `for update skip locked` 安全领取到期 retrying 回调，避免多 worker 重复处理同一条事件。
-- 新增 `providerCallbackRetryJob` 和 `npm run job:retry-provider-callbacks`：可领取到期回调、调用 provider processor、成功标记 processed、失败按退避时间重新排队；后续还需补微信支付/退款事件的具体重放 processor。
+- 新增 `providerCallbackRetryJob` 和 `npm run job:retry-provider-callbacks`：可领取到期回调、调用 provider processor、成功标记 processed、失败按退避时间重新排队。
+- 新增微信支付/退款回调重放 processor：`job:retry-provider-callbacks` 已显式接入 `createWechatCallbackProcessors`，可从原始回调事件解密 resource、重放支付成功/关闭和退款成功/失败/关闭，并用 `check:wechat-callback-processors` 纳入 `check:mvp`。
 - 新增 GitHub Actions 初步 CI：push/PR 会跑 server `check:mvp`、可选真实库检查、前端 production guard、移动端构建和后台构建；后续可继续扩展到真实 PostgreSQL service、lint/typecheck 分层和部署流水线。
 - CI 的 server job 已接入 PostgreSQL 16 service：会导入 `database/schema.sql` 后运行 `check:postgres-live`，用于提前发现 schema 无法落库、关键表缺失或锁语法不兼容的问题。
 - `check:postgres-live` 已增强 provider callback 检查：确认 `provider_callback_events` 的队列字段存在，并验证到期回调领取查询可使用 `for update skip locked`。

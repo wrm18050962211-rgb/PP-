@@ -17,6 +17,7 @@
     "check:admin-route-boundary": "node scripts/check-admin-route-boundary.mjs",
     "check:payment-expiry-job": "node scripts/check-payment-expiry-job.mjs",
     "check:provider-callback-retry-job": "node scripts/check-provider-callback-retry-job.mjs",
+    "check:wechat-callback-processors": "node scripts/check-wechat-callback-processors.mjs",
     "check:session-boundary": "node scripts/check-session-boundary.mjs",
     "check:postgres-store-auth-gateway": "node scripts/check-postgres-store-auth-gateway.mjs",
     "check:postgres-store-audit-security-gateway": "node scripts/check-postgres-store-audit-security-gateway.mjs",
