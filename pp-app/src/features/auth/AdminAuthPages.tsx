@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { isAdminSessionActive, loginLocalAdmin } from '../../services/authService';
+import { isAdminSessionActive, loginAdmin } from '../../services/authService';
 import { isTestRoleSwitchAllowed } from '../../services/apiClient';
 
 export function RequireAdmin({ children }: { children: React.ReactNode }) {
@@ -12,16 +12,21 @@ export function AdminLoginPage() {
   const navigate = useNavigate();
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   if (isAdminSessionActive()) return <Navigate to="/admin" replace />;
 
-  function login() {
+  async function login() {
+    if (submitting) return;
     setError('');
+    setSubmitting(true);
     try {
-      loginLocalAdmin(passcode);
+      await loginAdmin(passcode);
       navigate('/admin', { replace: true });
     } catch (nextError) {
       setError(getAdminErrorMessage(nextError));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -42,7 +47,7 @@ export function AdminLoginPage() {
         />
       </label>
       {error ? <AdminErrorLine text={error} /> : null}
-      <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={login}>
+      <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white disabled:opacity-60" type="button" onClick={login} disabled={submitting}>
         进入后台
       </button>
     </AdminAuthFrame>

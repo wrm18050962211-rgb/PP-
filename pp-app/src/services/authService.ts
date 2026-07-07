@@ -263,6 +263,27 @@ export function loginLocalAdmin(passcode: string): AuthSession {
   return session;
 }
 
+export async function loginAdmin(passcode: string): Promise<AuthSession> {
+  if (isApiEnabled()) {
+    try {
+      const response = await apiPost<AuthSession>('/api/admin/auth/login', { passcode });
+      if (response.success) {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(adminLoginStorageKey, '1');
+        }
+        const session = persistRemoteSession(response.data);
+        notifySessionChanged(session);
+        return session;
+      }
+      throw new Error(response.error?.message || 'Admin login failed');
+    } catch (error) {
+      if (!isTestRoleSwitchAllowed()) throw error;
+    }
+  }
+
+  return loginLocalAdmin(passcode);
+}
+
 export function logoutLocalAdmin(): AuthSession {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(adminLoginStorageKey);
