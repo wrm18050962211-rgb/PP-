@@ -23,7 +23,14 @@ import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
 import { logoutAdmin } from '../../services/authService';
 import { listAccountDeletionRequests, updateAccountDeletionRequestStatus, type AccountDeletionRequest, type AccountDeletionRequestStatus } from '../../services/accountDeletionService';
-import { fetchAdminModerationData, fetchAdminOrders, syncAdminModerationAction, updateAdminOrderStatus } from '../../services/adminService';
+import {
+  fetchAdminActionLogs,
+  fetchAdminModerationData,
+  fetchAdminOrders,
+  syncAdminModerationAction,
+  updateAdminOrderStatus,
+  type AdminActionLogItem,
+} from '../../services/adminService';
 import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import { getSupportRequestCategoryLabel, listSupportRequests, updateSupportRequestStatus, type SupportRequest, type SupportRequestStatus } from '../../services/supportRequestService';
@@ -177,6 +184,7 @@ export function AdminDashboard() {
   const [configs, setConfigs] = useState(configSeed);
   const [selectedConfigId, setSelectedConfigId] = useState(configSeed[0]?.id ?? '');
   const [adminOrders, setAdminOrders] = useState<AppOrder[]>(orders);
+  const [adminActionLogs, setAdminActionLogs] = useState<AdminActionLogItem[]>([]);
   const visibleOrders = adminOrders.length ? adminOrders : orders;
 
   useEffect(() => {
@@ -211,6 +219,10 @@ export function AdminDashboard() {
   }, [visibleOrders]);
 
   useEffect(() => {
+    void refreshAdminActionLogs();
+  }, []);
+
+  useEffect(() => {
     const refreshAdminRequests = () => {
       setAccountDeletionRequests(listAccountDeletionRequests());
       setSupportRequests(listSupportRequests());
@@ -224,6 +236,15 @@ export function AdminDashboard() {
   }, []);
 
   const selectedOrder = visibleOrders.find((order) => order.id === selectedOrderId) ?? visibleOrders[0];
+  const selectedOrderActionLogs = useMemo(
+    () =>
+      selectedOrder
+        ? adminActionLogs
+            .filter((item) => item.targetType === 'order' && item.targetId === selectedOrder.id)
+            .map(formatAdminActionLog)
+        : [],
+    [adminActionLogs, selectedOrder],
+  );
   const localDisputeReports = useMemo(() => buildLocalDisputeReports(visibleOrders), [visibleOrders]);
   const supportReportCases = useMemo(() => supportRequests.map(mapSupportRequestToReportCase), [supportRequests]);
   const visibleReportCases = useMemo(
@@ -289,6 +310,12 @@ export function AdminDashboard() {
     setAccounts((items) => items.map((item) => (item.id === id ? { ...item, status } : item)));
   }
 
+  function refreshAdminActionLogs() {
+    return fetchAdminActionLogs({ targetType: 'order', limit: 50 })
+      .then(setAdminActionLogs)
+      .catch(() => setAdminActionLogs([]));
+  }
+
   function handleAdminOrderStatus(orderId: string, status: OrderStatus) {
     setAdminOrders((items) =>
       items.map((order) => (order.id === orderId ? { ...order, status, statusText: orderStatusText[status] } : order)),
@@ -296,6 +323,7 @@ export function AdminDashboard() {
     void updateAdminOrderStatus(orderId, status).then((updatedOrder) => {
       if (!updatedOrder) return;
       setAdminOrders((items) => items.map((order) => (order.id === orderId ? updatedOrder : order)));
+      void refreshAdminActionLogs();
     });
   }
 
@@ -362,7 +390,14 @@ export function AdminDashboard() {
           )}
           {activeModule === 'works' && <WorkAuditPanel workDraft={workDraft} onApprove={() => reviewWork('已通过')} onReject={() => reviewWork('需修改')} />}
           {activeModule === 'orders' && selectedOrder && (
-            <OrderPanel orders={visibleOrders} selectedOrder={selectedOrder} onSelect={setSelectedOrderId} onUpdateStatus={handleAdminOrderStatus} onUpdateFunding={updateOrderFunding} />
+            <OrderPanel
+              orders={visibleOrders}
+              selectedOrder={selectedOrder}
+              actionLogs={selectedOrderActionLogs}
+              onSelect={setSelectedOrderId}
+              onUpdateStatus={handleAdminOrderStatus}
+              onUpdateFunding={updateOrderFunding}
+            />
           )}
           {activeModule === 'risk' && selectedRisk && (
             <RiskPanel
@@ -492,12 +527,14 @@ function WorkAuditPanel({ workDraft, onApprove, onReject }: { workDraft: Publish
 function OrderPanel({
   orders,
   selectedOrder,
+  actionLogs,
   onSelect,
   onUpdateStatus,
   onUpdateFunding,
 }: {
   orders: AppOrder[];
   selectedOrder: AppOrder;
+  actionLogs: string[];
   onSelect: (id: string) => void;
   onUpdateStatus: (orderId: string, status: OrderStatus) => void;
   onUpdateFunding: ReturnType<typeof useAppData>['updateOrderFunding'];
@@ -600,6 +637,7 @@ function OrderPanel({
                 结算摄影师
               </AdminButton>
             </div>
+            <ActionLogList logs={actionLogs} />
           </DetailCard>
         }
       />
@@ -970,6 +1008,11 @@ function mapRemoteModerationData(data: AdminModerationData): { riskCases: RiskCa
     riskCases: data.messageCases.map(mapRemoteRiskCase),
     reportCases: data.reportCases.map(mapRemoteReportCase),
   };
+}
+
+function formatAdminActionLog(log: AdminActionLogItem) {
+  const note = log.note || log.action;
+  return `${formatDate(log.createdAt)} · ${note}`;
 }
 
 function mapDeletionRequestToAccountCase(request: AccountDeletionRequest): AccountCase {

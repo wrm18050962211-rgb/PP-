@@ -16,6 +16,16 @@ import { apiGet, apiPost, getApiFallback, isApiEnabled } from './apiClient';
 
 const moderationStorageKey = 'pp-admin-moderation-v1';
 
+export type AdminActionLogItem = {
+  id: string;
+  action: string;
+  type?: string;
+  targetType?: string;
+  targetId?: string | null;
+  note?: string;
+  createdAt: string;
+};
+
 export function getAdminDashboardData(application: CompanionApplication, workDraft: PublishedWorkDraft, orders: AppOrder[]): AdminDashboardData {
   return {
     metrics: [
@@ -59,6 +69,23 @@ export async function updateAdminOrderStatus(orderId: string, status: OrderStatu
     return response.success ? response.data : null;
   } catch {
     return null;
+  }
+}
+
+export async function fetchAdminActionLogs(params: { targetType?: string; action?: string; limit?: number } = {}): Promise<AdminActionLogItem[]> {
+  if (!isApiEnabled()) return getApiFallback([], 'Admin action logs');
+
+  const searchParams = new URLSearchParams();
+  if (params.targetType) searchParams.set('targetType', params.targetType);
+  if (params.action) searchParams.set('action', params.action);
+  if (params.limit) searchParams.set('limit', String(params.limit));
+  const query = searchParams.toString();
+
+  try {
+    const response = await apiGet<{ items: AdminActionLogItem[] }>(`/api/admin/action-logs${query ? `?${query}` : ''}`);
+    return response.success ? response.data.items : getApiFallback([], 'Admin action logs');
+  } catch {
+    return getApiFallback([], 'Admin action logs');
   }
 }
 
