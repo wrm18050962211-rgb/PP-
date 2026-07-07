@@ -3,6 +3,7 @@ import { getPostgresWriteOperation, postgresWriteOperations } from '../store/pos
 const requiredOperations = [
   'createOrder',
   'markPaymentPaid',
+  'markPaymentTerminal',
   'transitionOrder',
   'expirePendingPayments',
   'setAdminOrderStatus',

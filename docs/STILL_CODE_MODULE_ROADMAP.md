@@ -30,10 +30,11 @@
 - 前端生产保护继续补齐：媒体上传、图片消息、摄影师接单设置、套餐设置、公开资料、收藏关注、咨询和成片协作都已纳入 `check:production-guards` 或 mock fallback 禁用边界，`VITE_ENABLE_MOCK=false`/production 下不再用本地共享缓存冒充真实云端数据。
 - 后端 `securityEvents` 运行时镜像已补充 `targetKey`、`metadata`、`ip`、`userAgent` 等上下文字段，并加入 `check-runtime-audit-gateway` 覆盖。
 - 后端新增 `check-session-boundary` 并纳入 `check:mvp`，用于防止后续误恢复或误持久化 ambient `activeSession`。
-- PostgreSQL store 已暴露并分步接入 `orderWrites`、`messageWrites`、`moderationWrites` 三类业务写入 gateway；`server.mjs` 中的订单创建、支付成功、微信支付成功回调、订单确认/完成/取消、后台订单状态、消息发送、举报创建、后台风控动作、后台审核处理已开始走 Postgres transaction。
+- PostgreSQL store 已暴露并分步接入 `orderWrites`、`messageWrites`、`moderationWrites` 三类业务写入 gateway；`server.mjs` 中的订单创建、支付成功、微信支付成功/关闭/失败回调、订单确认/完成/取消、后台订单状态、消息发送、举报创建、后台风控动作、后台审核处理已开始走 Postgres transaction。
 - Postgres 模式下，支付状态查询和订单会话读取已收紧为只读或已有读模型返回，避免 GET/读取类接口偷偷创建 JSON 本地状态。
-- 订单幂等已补数据库结构、Prisma model、Postgres `idempotencyWrites` gateway，并初步接入 `POST /api/orders` 的 Postgres 创建路径。
-- 当前仍未完成生产级事项：真实数据库集成测试、支付失败/关闭态事务、订单幂等强一致事务集成与更多接口覆盖、超时释放任务、session/admin_action_logs/audit_logs/security_events 的生产级闭环验证、后台进一步拆模块，以及初步上线前独立部署。
+- 订单幂等已补数据库结构、Prisma model、Postgres `idempotencyWrites` gateway，并接入 `POST /api/orders` 创建路径和 `confirm/complete/cancel` 订单动作；支付成功回调和订单动作事务内部也补了重复请求幂等跳过。
+- Postgres 模式已补支付关闭/失败终态回调事务，并补了 pending payment 超时释放事务与运行时入口：超时订单会关闭 pending payment、取消订单、释放 slot 并写入状态日志。
+- 当前仍未完成生产级事项：真实数据库集成测试、独立队列/定时任务系统、更多退款/支付回调重试覆盖、session/admin_action_logs/audit_logs/security_events 的生产级闭环验证、后台进一步拆模块，以及初步上线前独立部署。
 
 ## 0. 当前代码状态快照
 
