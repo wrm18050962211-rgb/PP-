@@ -113,6 +113,7 @@ const checks = [
   {
     file: 'src/services/authService.ts',
     includes: [
+      "const sessionRoles: UserRole[] = activeRole === 'admin' ? ['admin']",
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'))",
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('admin'))",
       "if (!isTestRoleSwitchAllowed()) throw new Error('登录状态获取失败，请重新登录。')",
@@ -168,6 +169,11 @@ if (mobileAppSource.includes('CompanionComingSoonPage')) {
 const roleShellSource = readFileSync(resolve(root, 'src/layouts/RoleShell.tsx'), 'utf8');
 if (roleShellSource.includes('敬请期待')) {
   failures.push('src/layouts/RoleShell.tsx must not include production-visible coming-soon tabs');
+}
+
+const authServiceSource = readFileSync(resolve(root, 'src/services/authService.ts'), 'utf8');
+if (authServiceSource.includes("['consumer', 'companion', 'admin']")) {
+  failures.push('src/services/authService.ts must not expose public roles on admin sessions');
 }
 
 const adminDashboardSource = readFileSync(resolve(root, 'src/features/admin/AdminDashboard.tsx'), 'utf8');

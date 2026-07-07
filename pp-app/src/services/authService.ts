@@ -407,11 +407,12 @@ function localSession(role: UserRole): AuthSession {
         ? account?.photographerName || account?.nickname
         : account?.nickname;
   const avatarUrl = activeRole === 'consumer' ? account?.creatorAvatarUrl || '' : activeRole === 'companion' ? account?.photographerAvatarUrl || '' : '';
+  const sessionRoles: UserRole[] = activeRole === 'admin' ? ['admin'] : account ? getUsableRoles(account) : activeRole === 'companion' ? ['companion'] : ['consumer'];
   return {
     token: `local-${activeRole}-session`,
     provider: 'mock_wechat',
     role: activeRole,
-    roles: activeRole === 'admin' ? ['consumer', 'companion', 'admin'] : account ? getUsableRoles(account) : activeRole === 'companion' ? ['companion'] : ['consumer'],
+    roles: sessionRoles,
     user: {
       id: userId || `local-${activeRole}-user`,
       openId: `mock-openid-${userId || activeRole}`,
@@ -422,7 +423,7 @@ function localSession(role: UserRole): AuthSession {
       city: 'Shanghai',
       status: 'active',
       isCompanion: activeRole === 'companion',
-      roles: activeRole === 'admin' ? ['consumer', 'companion', 'admin'] : account ? getUsableRoles(account) : activeRole === 'companion' ? ['companion'] : ['consumer'],
+      roles: sessionRoles,
     },
     companionId,
     adminScope: activeRole === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
