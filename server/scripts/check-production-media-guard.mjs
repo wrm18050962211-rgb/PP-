@@ -39,6 +39,12 @@ try {
   const blockedCorsHealth = await api('GET', '/api/health', undefined, { omitAuth: true, origin: 'https://evil.example', expectOk: false });
   assert(blockedCorsHealth.error?.code === 'CORS_FORBIDDEN', 'production CORS rejects unlisted origin');
 
+  const mockLogin = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' }, { omitAuth: true, expectOk: false });
+  assert(mockLogin.error?.code === 'TEST_LOGIN_DISABLED', 'production rejects mock user login');
+
+  const localAdminLogin = await api('POST', '/api/admin/auth/login', { passcode: '000000' }, { omitAuth: true, expectOk: false });
+  assert(localAdminLogin.error?.code === 'TEST_LOGIN_DISABLED', 'production rejects local admin login');
+
   const anonymousUpload = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg' }, { omitAuth: true, expectOk: false });
   assert(anonymousUpload.error?.code === 'AUTH_REQUIRED', 'production media policy still requires auth');
 
@@ -52,7 +58,7 @@ try {
     JSON.stringify(
       {
         ok: true,
-        checks: ['cors-allowlist', 'cors-forbidden', 'auth-required', 'production-media-not-configured', 'mock-payment-disabled'],
+        checks: ['cors-allowlist', 'cors-forbidden', 'mock-login-disabled', 'local-admin-login-disabled', 'auth-required', 'production-media-not-configured', 'mock-payment-disabled'],
       },
       null,
       2,
