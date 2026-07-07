@@ -7,6 +7,7 @@ const checks = [
   ['postgres-order-writes', ['scripts/check-postgres-order-writes.mjs']],
   ['postgres-message-writes', ['scripts/check-postgres-message-writes.mjs']],
   ['postgres-moderation-writes', ['scripts/check-postgres-moderation-writes.mjs']],
+  ['postgres-audit-writes', ['scripts/check-postgres-audit-writes.mjs']],
   ['postgres-security-writes', ['scripts/check-postgres-security-writes.mjs']],
   ['postgres-session-writes', ['scripts/check-postgres-session-writes.mjs']],
   ['smoke', ['scripts/smoke.mjs']],

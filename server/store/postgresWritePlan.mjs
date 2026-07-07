@@ -76,6 +76,17 @@ export const postgresWriteOperations = [
     ],
   },
   {
+    name: 'recordAuditTrail',
+    route: 'admin audit / admin action boundary',
+    transaction: true,
+    tables: ['audit_logs', 'admin_action_logs'],
+    steps: [
+      'insert audit_logs for manual review decisions',
+      'insert admin_action_logs for sensitive admin operations',
+      'preserve before_data and after_data snapshots for rollback review',
+    ],
+  },
+  {
     name: 'recordSecurityEvent',
     route: 'permission boundary / auth guard',
     transaction: true,

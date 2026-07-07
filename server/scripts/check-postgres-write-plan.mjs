@@ -7,6 +7,7 @@ const requiredOperations = [
   'sendMessage',
   'createReport',
   'applyModerationAction',
+  'recordAuditTrail',
   'recordSecurityEvent',
   'manageSession',
 ];
@@ -20,6 +21,7 @@ const requiredTables = [
   'message_risk_events',
   'reports',
   'audit_cases',
+  'audit_logs',
   'admin_action_logs',
   'security_events',
   'user_sessions',
