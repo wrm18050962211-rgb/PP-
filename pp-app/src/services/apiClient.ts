@@ -7,8 +7,16 @@ const appEnv = normalizeEnvValue(import.meta.env.VITE_APP_ENV).toLowerCase();
 const viteMode = normalizeEnvValue(import.meta.env.MODE).toLowerCase();
 const enableMockFallback = normalizeEnvValue(import.meta.env.VITE_ENABLE_MOCK).toLowerCase();
 const enableTestRoleSwitch = normalizeEnvValue(import.meta.env.VITE_ENABLE_TEST_ROLE_SWITCH).toLowerCase();
-const authTokenStorageKey = 'pp-auth-token-v1';
-let currentAuthToken = readStoredAuthToken();
+export type ApiAuthTokenScope = 'public' | 'admin';
+
+const authTokenStorageKeys: Record<ApiAuthTokenScope, string> = {
+  public: 'pp-auth-token-v1',
+  admin: 'pp-admin-auth-token-v1',
+};
+const currentAuthTokens: Record<ApiAuthTokenScope, string> = {
+  public: readStoredAuthToken('public'),
+  admin: readStoredAuthToken('admin'),
+};
 
 export const isProductionAppEnv = appEnv === 'production' || (!appEnv && (import.meta.env.PROD || viteMode === 'production'));
 export const apiBaseUrl = configuredApiBaseUrl || (isProductionAppEnv ? '' : localApiBaseUrl);
@@ -36,26 +44,31 @@ export function getApiFallback<T>(fallback: T, context: string): T {
   throw new Error(`${context} API failed and mock fallback is disabled.`);
 }
 
-export function setApiAuthToken(token?: string | null) {
-  currentAuthToken = normalizeEnvValue(token);
+export function setApiAuthToken(token?: string | null, scope: ApiAuthTokenScope = 'public') {
+  currentAuthTokens[scope] = normalizeEnvValue(token);
   if (typeof localStorage === 'undefined') return;
 
-  if (currentAuthToken) localStorage.setItem(authTokenStorageKey, currentAuthToken);
-  else localStorage.removeItem(authTokenStorageKey);
+  if (currentAuthTokens[scope]) localStorage.setItem(authTokenStorageKeys[scope], currentAuthTokens[scope]);
+  else localStorage.removeItem(authTokenStorageKeys[scope]);
 }
 
-export function clearApiAuthToken() {
-  setApiAuthToken(null);
+export function clearApiAuthToken(scope: ApiAuthTokenScope | 'all' = 'public') {
+  if (scope === 'all') {
+    setApiAuthToken(null, 'public');
+    setApiAuthToken(null, 'admin');
+    return;
+  }
+  setApiAuthToken(null, scope);
 }
 
-export function getApiAuthToken() {
-  currentAuthToken ||= readStoredAuthToken();
-  return currentAuthToken;
+export function getApiAuthToken(scope: ApiAuthTokenScope = 'public') {
+  currentAuthTokens[scope] ||= readStoredAuthToken(scope);
+  return currentAuthTokens[scope];
 }
 
 export async function apiGet<T>(path: string): Promise<ApiResponse<T>> {
   const url = buildApiUrl(path);
-  const headers = buildApiHeaders();
+  const headers = buildApiHeaders(path);
   if (isMiniProgramRuntime()) {
     return wxRequest<ApiResponse<T>>(url, 'GET', undefined, headers);
   }
@@ -65,7 +78,7 @@ export async function apiGet<T>(path: string): Promise<ApiResponse<T>> {
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
   const url = buildApiUrl(path);
-  const headers = buildApiHeaders({ 'Content-Type': 'application/json' });
+  const headers = buildApiHeaders(path, { 'Content-Type': 'application/json' });
   if (isMiniProgramRuntime()) {
     return wxRequest<ApiResponse<T>>(url, 'POST', body, headers);
   }
@@ -84,16 +97,20 @@ function buildApiUrl(path: string) {
   return `${apiBaseUrl}${path}`;
 }
 
-function buildApiHeaders(baseHeaders: Record<string, string> = {}) {
-  const token = getApiAuthToken();
+function buildApiHeaders(path: string, baseHeaders: Record<string, string> = {}) {
+  const token = getApiAuthToken(resolveAuthScope(path));
   return token ? { ...baseHeaders, Authorization: `Bearer ${token}` } : baseHeaders;
+}
+
+function resolveAuthScope(path: string): ApiAuthTokenScope {
+  return path.startsWith('/api/admin/') ? 'admin' : 'public';
 }
 
 function normalizeEnvValue(value: unknown) {
   return String(value ?? '').trim();
 }
 
-function readStoredAuthToken() {
+function readStoredAuthToken(scope: ApiAuthTokenScope) {
   if (typeof localStorage === 'undefined') return '';
-  return normalizeEnvValue(localStorage.getItem(authTokenStorageKey));
+  return normalizeEnvValue(localStorage.getItem(authTokenStorageKeys[scope]));
 }

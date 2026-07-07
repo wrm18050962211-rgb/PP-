@@ -288,6 +288,7 @@ export function logoutLocalAdmin(): AuthSession {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(adminLoginStorageKey);
   }
+  clearApiAuthToken('admin');
   const session = localSession(readStoredRole());
   notifySessionChanged(session);
   return session;
@@ -365,7 +366,7 @@ function notifySessionChanged(session: AuthSession) {
 }
 
 function persistRemoteSession(session: AuthSession) {
-  if (session.token) setApiAuthToken(session.token);
+  if (session.token) setApiAuthToken(session.token, session.role === 'admin' ? 'admin' : 'public');
   persistRole(session.role);
   return session;
 }
