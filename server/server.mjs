@@ -3,6 +3,7 @@ import { createDecipheriv, randomBytes, sign } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { mirrorAdminAction, mirrorAuditLog, mirrorSecurityEvent } from './runtimeAuditGateway.mjs';
 import { createDataStore } from './store/index.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -649,6 +650,7 @@ function recordAuditLog(store, auditCase, action, session, note, metadata = {}) 
     { id: log.id, action, note, operatorType: log.operatorType, createdAt },
     ...(auditCase.logs || []),
   ];
+  mirrorAuditLog(dataStore, log);
   return log;
 }
 
@@ -666,6 +668,7 @@ function recordAdminAction(store, session, action, targetType, targetId, options
     createdAt: now(),
   };
   store.adminActionLogs.unshift(log);
+  mirrorAdminAction(dataStore, log);
   return log;
 }
 
@@ -685,6 +688,7 @@ function recordSecurityEvent(store, session, type, details = {}) {
     createdAt: now(),
   };
   store.securityEvents.unshift(event);
+  mirrorSecurityEvent(dataStore, event);
   return event;
 }
 
