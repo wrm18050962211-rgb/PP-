@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { createDecipheriv, createHash, randomBytes, sign, verify } from 'node:crypto';
+import { createDecipheriv, createHash, randomBytes, randomUUID, sign, verify } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -2978,8 +2978,8 @@ async function markPostgresWechatPaymentPaid(payment, transaction, callbackEvent
   try {
     await dataStore.orderWrites.markPaymentPaid({
       paymentId: payment.id,
-      conversationId: id('conversation'),
-      statusLogId: id('status-log'),
+      conversationId: postgresId(),
+      statusLogId: postgresId(),
       paidAt: transaction.success_time || now(),
       thirdPartyTradeNo: transaction.transaction_id || null,
       thirdPartyBuyerId: transaction.payer?.openid || null,
@@ -3059,7 +3059,7 @@ async function markPostgresWechatRefundTerminal(refund, transaction, callbackEve
     await dataStore.orderWrites.markRefundTerminal({
       refundId: refund.id,
       status,
-      statusLogId: status === 'succeeded' ? id('status-log') : undefined,
+      statusLogId: status === 'succeeded' ? postgresId() : undefined,
       occurredAt: transaction.success_time || now(),
       thirdPartyRefundNo: transaction.refund_id || null,
       rawCallback: transaction,
@@ -3082,7 +3082,7 @@ async function markPostgresWechatRefundTerminal(refund, transaction, callbackEve
 async function recordWechatProviderCallback(body = {}, req = null) {
   if (!(dataStore.kind !== 'json' && dataStore.providerCallbackWrites?.recordReceived)) return null;
   return dataStore.providerCallbackWrites.recordReceived({
-    callbackEventId: id('provider-callback'),
+    callbackEventId: postgresId(),
     provider: 'wechat_pay',
     eventType: body.event_type || 'UNKNOWN',
     providerEventId: body.id || id('wechat-event'),
@@ -3371,6 +3371,10 @@ function statusLog(status, note) {
 
 function id(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function postgresId() {
+  return randomUUID();
 }
 
 function orderNo() {
