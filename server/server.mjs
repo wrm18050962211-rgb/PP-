@@ -106,6 +106,7 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && path === '/api/auth/wechat/login') return wechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/logout') return logout(store);
+  if (method === 'POST' && path === '/api/admin/auth/login') return adminLogin(store, body);
   if (method === 'POST' && path === '/api/media/upload-policy') return createMediaUploadPolicy(store, body);
   if (method === 'GET' && path === '/api/feed/posts') return json(listFeedPostPage(store, url));
   if (method === 'GET' && path === '/api/matching/companions') return matchCompanions(store, url);
@@ -256,7 +257,17 @@ function mockWechatLogin(store, body = {}) {
   if (!isTestRoleSwitchAllowed()) return error(403, 'TEST_LOGIN_DISABLED', 'Mock login is disabled in this environment');
   if (dataStore.kind !== 'json') return error(403, 'TEST_LOGIN_JSON_ONLY', 'Mock role switching is only available with the JSON store');
   const role = normalizeRole(body.role);
+  if (role === 'admin') return error(403, 'ADMIN_LOGIN_REQUIRED', 'Use the admin login endpoint');
   const session = createSession(store, role, null, { companionId: body.companionId });
+  return json(saveSession(store, session), 200, true);
+}
+
+function adminLogin(store, body = {}) {
+  if (dataStore.kind !== 'json') return error(501, 'ADMIN_PASSWORD_LOGIN_NOT_CONFIGURED', 'Admin password login is not connected to PostgreSQL yet');
+  if (!isTestRoleSwitchAllowed()) return error(403, 'TEST_LOGIN_DISABLED', 'Local admin login is disabled in this environment');
+  if (String(body.passcode || '') !== '000000') return error(401, 'INVALID_ADMIN_PASSCODE', 'Invalid admin passcode');
+  const session = createSession(store, 'admin');
+  session.provider = 'local_admin';
   return json(saveSession(store, session), 200, true);
 }
 

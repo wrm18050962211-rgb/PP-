@@ -43,8 +43,10 @@ try {
   const companionSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'companion' });
   assert(companionSession.role === 'companion' && companionSession.companionId, 'mock login can switch to companion role');
 
-  const adminSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'admin' });
-  assert(adminSession.role === 'admin' && adminSession.adminScope?.includes('risk'), 'mock login can switch to admin role');
+  const rejectedMockAdmin = await api('POST', '/api/auth/wechat/mock-login', { role: 'admin' }, { expectOk: false });
+  assert(rejectedMockAdmin.error?.code === 'ADMIN_LOGIN_REQUIRED', 'wechat mock login cannot switch to admin role');
+  const adminSession = await api('POST', '/api/admin/auth/login', { passcode: '000000' });
+  assert(adminSession.role === 'admin' && adminSession.adminScope?.includes('risk'), 'admin login endpoint creates admin role');
   const anonymousAdmin = await api('GET', '/api/admin/dashboard', undefined, { omitAuth: true, expectOk: false });
   assert(anonymousAdmin.error?.code === 'AUTH_REQUIRED', 'admin API rejects missing token instead of using ambient session');
 
@@ -208,7 +210,7 @@ try {
   const blocked = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'Add my wechat and pay offline.' }, { expectOk: false });
   assert(blocked.error?.code === 'MESSAGE_BLOCKED' && blocked.data?.matchedKeywords?.length, 'risky chat message is blocked');
 
-  await api('POST', '/api/auth/wechat/mock-login', { role: 'admin' });
+  await api('POST', '/api/admin/auth/login', { passcode: '000000' });
   const auditCases = await api('GET', '/api/admin/audit-cases');
   const auditCase = auditCases.items?.find((item) => item.status === 'pending');
   assert(auditCase?.id, 'admin audit queue exposes pending case');
@@ -252,6 +254,7 @@ try {
           'auth-session',
           'wechat-login',
           'mock-login',
+          'admin-login',
           'admin-auth-boundary',
           'admin-permission-denial-log',
           'companion-auth-boundary',
