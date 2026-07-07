@@ -288,7 +288,8 @@ function loadInitialData(role?: UserRole, session?: AuthSession | null) {
 
 async function refreshOrders(role: UserRole = 'consumer') {
   if (!isApiEnabled()) return [];
-  const orderRole = role === 'companion' ? 'companion' : role === 'admin' ? 'admin' : 'user';
+  if (role === 'admin') return [];
+  const orderRole = role === 'companion' ? 'companion' : 'user';
   return fetchOrders(orderRole);
 }
 
