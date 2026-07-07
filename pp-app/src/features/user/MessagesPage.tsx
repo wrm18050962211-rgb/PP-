@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { closeConsultation, consultationToOrderInput, getConsultation, getConsultationRiskText, listConsultations, sendQuoteForConsultation, type ConsultationRecord } from '../../services/consultationService';
 import { listTestAccounts } from '../../services/accountDirectory';
+import { isMockFallbackAllowed } from '../../services/apiClient';
 import { listFeedPosts } from '../../services/feedService';
 import { evaluateMessageRisk, fetchConversation, fetchConversations, getConversation, getConversationForOrder, saveLocalConversation, sendImageMessage, sendMessage, sendVoiceMessage, submitOrderReport } from '../../services/messageService';
 import { readDomainJson, writeDomainJson } from '../../services/scopedStorage';
@@ -190,6 +191,10 @@ export function MessagesPage() {
   function handleCall() {
     if (!callTarget.realPhone) {
       setCallNotice('对方还没有绑定可转接电话。');
+      return;
+    }
+    if (!isMockFallbackAllowed()) {
+      setCallNotice('平台虚拟号转接需要先接入生产通信服务，暂不能直接拨打对方真实号码。');
       return;
     }
 
