@@ -11,7 +11,6 @@ import {
   RequireAuth,
   RequireRegistrationDraft,
   RequireRole,
-  RequireUserSettings,
 } from '../features/auth/AuthPages';
 import { getActivePublicRole, getRegisteredAccount } from '../services/authService';
 
@@ -187,6 +186,14 @@ export function mobileRouteElements(includeCatchAll = true) {
             </RequireRole>
           }
         />
+        <Route
+          path="settings"
+          element={
+            <RequireRole role="consumer" fallback="/companion/settings">
+              <AccountSettingsPage />
+            </RequireRole>
+          }
+        />
       </Route>
 
       <Route
@@ -218,16 +225,10 @@ export function mobileRouteElements(includeCatchAll = true) {
         <Route path="publish" element={<PublishPost />} />
         <Route path="orders" element={<CompanionOrdersPage />} />
         <Route path="income" element={<CompanionIncomePage />} />
+        <Route path="settings" element={<AccountSettingsPage />} />
       </Route>
 
-      <Route
-        path="/settings"
-        element={
-          <RequireUserSettings>
-            <AccountSettingsPage />
-          </RequireUserSettings>
-        }
-      />
+      <Route path="/settings" element={<LegacySettingsRedirect />} />
 
       <Route path="/post/:postId" element={<LegacyConsumerRedirect target="post" />} />
       <Route path="/checkout/:postId" element={<LegacyConsumerRedirect target="checkout" />} />
@@ -256,4 +257,9 @@ function LegacyRoleRedirect({ target }: { target: 'orders' | 'messages' | 'mine'
   const role = getActivePublicRole() ?? getRegisteredAccount()?.role;
   const basePath = role === 'companion' ? '/companion' : '/consumer';
   return <Navigate to={`${basePath}/${target}`} replace />;
+}
+
+function LegacySettingsRedirect() {
+  const role = getActivePublicRole() ?? getRegisteredAccount()?.role;
+  return <Navigate to={role === 'companion' ? '/companion/settings' : '/consumer/settings'} replace />;
 }

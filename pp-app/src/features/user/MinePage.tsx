@@ -16,7 +16,7 @@ const creatorMenuItems: CreatorMenuItem[] = [
   { icon: FileQuestion, label: '我的询价', desc: '已提交的咨询需求卡', to: '/consumer/inquiries' },
   { icon: ReceiptText, label: '我的订单', desc: '预约、支付、售后', to: '/consumer/orders' },
   { icon: ImagePlus, label: '编辑作品', desc: '已完成订单的共同成片', to: '/consumer/orders?tab=completed&work=1' },
-  { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/settings' },
+  { icon: Settings, label: '设置', desc: '账号、安全与实名认证', to: '/consumer/settings' },
 ];
 
 export function MinePage() {
