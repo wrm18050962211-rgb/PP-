@@ -200,6 +200,7 @@ function CompanionWorkEditPage() {
   const [activeTab, setActiveTab] = useState<WorkEditTab>('not_started');
   const [activeWorkOrder, setActiveWorkOrder] = useState<AppOrder | null>(null);
   const [workRecords, setWorkRecords] = useState<OrderWorkRecord[]>(() => listOrderWorkRecords());
+  const [workError, setWorkError] = useState('');
   const posts = useMemo(() => listFeedPosts(), []);
   const workByOrderId = useMemo(() => new Map(workRecords.map((record) => [record.orderId, record])), [workRecords]);
   const completedOrders = useMemo(() => orders.filter((order) => getDisplayOrderStatus(order.status) === 'completed'), [orders]);
@@ -222,9 +223,13 @@ function CompanionWorkEditPage() {
       const record = workByOrderId.get(order.id);
       if (!record || !shouldAutoCompleteOrderWork(record) || order.settlementStatus === 'settled') return;
       const completedRecord = completeOrderWork(record, 'auto');
-      saveOrderWorkRecord(completedRecord);
-      updateOrderFunding(order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
-      autoCompletedRecords.push(completedRecord);
+      try {
+        saveOrderWorkRecord(completedRecord);
+        updateOrderFunding(order.id, { fundsStatus: 'settled', settlementStatus: 'settled' });
+        autoCompletedRecords.push(completedRecord);
+      } catch (error) {
+        setWorkError(error instanceof Error ? error.message : '成片协作保存失败，请稍后再试。');
+      }
     });
     if (autoCompletedRecords.length) {
       queueMicrotask(() => {
@@ -249,12 +254,20 @@ function CompanionWorkEditPage() {
   }, []);
 
   function syncWorkRecord(record: OrderWorkRecord) {
-    setWorkRecords(saveOrderWorkRecord(record));
+    try {
+      setWorkRecords(saveOrderWorkRecord(record));
+      setWorkError('');
+      return true;
+    } catch (error) {
+      setWorkError(error instanceof Error ? error.message : '成片协作保存失败，请稍后再试。');
+      return false;
+    }
   }
 
   function submitWorkRecord(record: OrderWorkRecord) {
-    syncWorkRecord(record);
+    if (!syncWorkRecord(record)) return false;
     setActiveWorkOrder(null);
+    return true;
   }
 
   return (
@@ -296,6 +309,7 @@ function CompanionWorkEditPage() {
       </div>
 
       <p className="mt-3 text-xs font-semibold leading-5 text-zinc-400">{workTabs.find((tab) => tab.key === activeTab)?.desc}</p>
+      {workError ? <p className="mt-3 rounded-[10px] bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600">{workError}</p> : null}
 
       <div className="mt-4 space-y-4">
         {visibleOrders.map((order) => (
@@ -304,6 +318,7 @@ function CompanionWorkEditPage() {
             order={order}
             record={workByOrderId.get(order.id)}
             onManage={() => {
+              setWorkError('');
               setWorkRecords(listOrderWorkRecords());
               setActiveWorkOrder(order);
             }}
@@ -328,8 +343,9 @@ function CompanionWorkEditPage() {
           onDraftChange={syncWorkRecord}
           onSubmit={submitWorkRecord}
           onDispute={(record, reason) => {
-            submitWorkRecord(markOrderWorkDisputed(record, reason));
-            updateOrderFunding(activeWorkOrder.id, { fundsStatus: 'frozen', settlementStatus: 'frozen' });
+            if (submitWorkRecord(markOrderWorkDisputed(record, reason))) {
+              updateOrderFunding(activeWorkOrder.id, { fundsStatus: 'frozen', settlementStatus: 'frozen' });
+            }
           }}
         />
       ) : null}
