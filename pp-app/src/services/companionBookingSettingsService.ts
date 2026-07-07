@@ -1,15 +1,16 @@
 import type { CompanionBookingSettings } from '../types/api';
+import { isMockFallbackAllowed } from './apiClient';
 
 const appDataStorageKey = 'app-data-v1';
 const sharedBookingStorageKey = 'pp-cloud-db:shared:companion-booking-settings-by-companion-v1';
 
 export function readCompanionBookingSettings(companionId?: string | null): CompanionBookingSettings | null {
-  if (!companionId || typeof localStorage === 'undefined') return null;
+  if (!canUseSharedBookingStorage() || !companionId || typeof localStorage === 'undefined') return null;
   return readSharedCompanionBookingSettings(companionId) ?? readLegacyScopedCompanionBookingSettings(companionId);
 }
 
 export function saveCompanionBookingSettings(settings: CompanionBookingSettings, companionId?: string | null) {
-  if (!companionId || typeof localStorage === 'undefined') return;
+  if (!canUseSharedBookingStorage() || !companionId || typeof localStorage === 'undefined') return;
   writeSharedCompanionBookingSettings(companionId, {
     ...settings,
     companionId,
@@ -52,4 +53,8 @@ function readLegacyScopedCompanionBookingSettings(companionId: string) {
   } catch {
     return null;
   }
+}
+
+function canUseSharedBookingStorage() {
+  return isMockFallbackAllowed();
 }
