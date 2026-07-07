@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const root = process.cwd();
@@ -97,6 +97,20 @@ if (adminDashboardSource.includes('Demo Creator')) {
   failures.push('src/features/admin/AdminDashboard.tsx must not include production-visible demo account names');
 }
 
+const visibleSourceFiles = [
+  ...collectSourceFiles('src/app'),
+  ...collectSourceFiles('src/components'),
+  ...collectSourceFiles('src/features'),
+  'src/services/feedService.ts',
+];
+const forbiddenVisibleCopy = ['MVP', '本地模拟', '演示', '敬请期待', '待开放', '虚拟样例', '资料待替换', '流程演示'];
+for (const file of visibleSourceFiles) {
+  const source = readFileSync(resolve(root, file), 'utf8');
+  for (const forbidden of forbiddenVisibleCopy) {
+    if (source.includes(forbidden)) failures.push(`${file} must not include production-visible copy: ${forbidden}`);
+  }
+}
+
 if (existsSync(resolve(root, 'src/features/companion/CompanionComingSoonPage.tsx'))) {
   failures.push('src/features/companion/CompanionComingSoonPage.tsx should be removed from production mobile app');
 }
@@ -108,3 +122,20 @@ if (failures.length) {
 }
 
 console.log('Production guard check passed.');
+
+function collectSourceFiles(relativeDir) {
+  const dir = resolve(root, relativeDir);
+  if (!existsSync(dir)) return [];
+
+  const files = [];
+  for (const entry of readdirSync(dir)) {
+    const absolute = resolve(dir, entry);
+    const relative = `${relativeDir}/${entry}`;
+    if (statSync(absolute).isDirectory()) {
+      files.push(...collectSourceFiles(relative));
+    } else if (/\.(tsx?|jsx?)$/.test(entry)) {
+      files.push(relative);
+    }
+  }
+  return files;
+}
