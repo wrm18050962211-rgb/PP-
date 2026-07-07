@@ -235,6 +235,13 @@ try {
   assert(anonymousConversation.error?.code === 'AUTH_REQUIRED', 'conversation API rejects missing token');
   const safeMessage = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'See you at the cafe entrance.' });
   assert(safeMessage.riskStatus === 'clean', 'safe chat message is accepted');
+  const conversationList = await api('GET', '/api/conversations?limit=10');
+  assert(
+    conversationList.items?.some((item) => item.id === conversation.id && item.messages?.[0]?.id === safeMessage.id),
+    'conversation list returns accessible threads with latest message',
+  );
+  const anonymousConversationList = await api('GET', '/api/conversations', undefined, { omitAuth: true, expectOk: false });
+  assert(anonymousConversationList.error?.code === 'AUTH_REQUIRED', 'conversation list rejects missing token');
   const anonymousMessage = await api('POST', `/api/conversations/${conversation.id}/messages`, { content: 'anonymous hello' }, { omitAuth: true, expectOk: false });
   assert(anonymousMessage.error?.code === 'AUTH_REQUIRED', 'message API rejects missing token');
 

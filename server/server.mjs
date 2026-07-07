@@ -125,6 +125,7 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/cancel')) return transitionOrder(store, path, 'cancel', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/status')) return setOrderStatus(store, path, body.status);
 
+  if (method === 'GET' && path === '/api/conversations') return listConversations(store, url);
   if (method === 'GET' && isNestedRoute(path, '/api/orders/', '/conversation')) return getConversation(store, path);
   if (method === 'POST' && isNestedRoute(path, '/api/conversations/', '/messages')) return sendMessage(store, path, body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/report')) return createReport(store, path, body);
@@ -968,11 +969,34 @@ function getConversation(store, path) {
   const access = requireOrderAccess(store, path.split('/')[3], session);
   if (access.response) return access.response;
   const { order } = access;
-  if (!['paid_pending_confirm', 'confirmed', 'in_service', 'completed', 'disputed'].includes(order.status)) {
+  if (!canOpenConversation(order)) {
     return error(409, 'ORDER_STATUS_INVALID', 'Conversation opens after payment');
   }
   store.conversations[order.id] ||= createConversation(order);
   return json(store.conversations[order.id], 200, true);
+}
+
+function listConversations(store, url) {
+  const publicSession = requirePublicSession(store, 'consumer', 'conversation');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
+
+  const limit = clampNumber(toNumber(url.searchParams.get('limit')) ?? 20, 1, 50);
+  const cursor = clampNumber(toNumber(url.searchParams.get('cursor')) ?? 0, 0, Number.MAX_SAFE_INTEGER);
+  const source = store.orders
+    .filter((order) => canOpenConversation(order) && canAccessOrder(store, order, session, session.role))
+    .sort((left, right) => conversationSortTime(store, right) - conversationSortTime(store, left));
+  const items = source.slice(cursor, cursor + limit).map((order) => {
+    store.conversations[order.id] ||= createConversation(order);
+    return conversationSummary(store.conversations[order.id]);
+  });
+  const nextOffset = cursor + items.length;
+
+  return json({
+    items,
+    nextCursor: nextOffset < source.length ? String(nextOffset) : null,
+    hasMore: nextOffset < source.length,
+  });
 }
 
 function sendMessage(store, path, body) {
@@ -1047,6 +1071,24 @@ function sendMessage(store, path, body) {
   }
 
   return json(message, 200, true);
+}
+
+function canOpenConversation(order) {
+  return ['paid_pending_confirm', 'confirmed', 'in_service', 'completed', 'disputed'].includes(order.status);
+}
+
+function conversationSummary(conversation) {
+  const lastMessage = conversation.messages.at(-1);
+  return {
+    ...conversation,
+    messages: lastMessage ? [lastMessage] : [],
+  };
+}
+
+function conversationSortTime(store, order) {
+  const conversation = store.conversations[order.id];
+  const lastMessageAt = conversation?.messages?.at(-1)?.sentAt;
+  return toTimestamp(lastMessageAt) ?? toTimestamp(order.createdAt) ?? 0;
 }
 
 function createReport(store, path, body) {
