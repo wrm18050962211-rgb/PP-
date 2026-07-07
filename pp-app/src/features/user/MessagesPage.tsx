@@ -37,6 +37,7 @@ export function MessagesPage() {
   const activePost = useMemo(() => findPostForOrder(activeOrder, listFeedPosts()), [activeOrder]);
   const [draft, setDraft] = useState('');
   const [conversation, setConversation] = useState<Conversation>(() => getConversation());
+  const [threadConversations, setThreadConversations] = useState<Record<string, Conversation>>({});
   const [allowMediumRisk, setAllowMediumRisk] = useState(false);
   const [reportSent, setReportSent] = useState(false);
   const [sendBlocked, setSendBlocked] = useState(false);
@@ -88,6 +89,33 @@ export function MessagesPage() {
       mounted = false;
     };
   }, [activeConsultation, activeOrder]);
+
+  useEffect(() => {
+    if (orderId) return () => undefined;
+    if (!orders.length) {
+      setThreadConversations({});
+      return () => undefined;
+    }
+
+    let mounted = true;
+    Promise.all(
+      orders.map(async (order) => {
+        try {
+          const nextConversation = await fetchConversation(order.id);
+          return [order.id, nextConversation] as const;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((entries) => {
+      if (!mounted) return;
+      setThreadConversations(Object.fromEntries(entries.filter(Boolean) as Array<readonly [string, Conversation]>));
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [orderId, orders]);
 
   function updatePrefs(updater: (current: ThreadPrefs) => ThreadPrefs) {
     setThreadPrefs((current) => normalizeThreadPrefs(updater(current)));
@@ -180,6 +208,7 @@ export function MessagesPage() {
       <MessageThreadList
         orders={orders}
         consultations={listConsultations(session).filter((item) => item.status !== 'closed')}
+        threadConversations={threadConversations}
         prefs={threadPrefs}
         sessionRole={session?.role}
         basePath={messagesBasePath}
@@ -416,6 +445,7 @@ export function MessagesPage() {
 function MessageThreadList({
   orders,
   consultations,
+  threadConversations,
   prefs,
   sessionRole,
   basePath,
@@ -423,6 +453,7 @@ function MessageThreadList({
 }: {
   orders: ReturnType<typeof useAppData>['orders'];
   consultations: ConsultationRecord[];
+  threadConversations: Record<string, Conversation>;
   prefs: ThreadPrefs;
   sessionRole?: string;
   basePath: string;
@@ -436,8 +467,8 @@ function MessageThreadList({
     [orders],
   );
   const threads = useMemo(
-    () => groupThreadsByParticipant([...buildConsultationThreads(consultations, sessionRole), ...buildMessageThreads(sortedOrders, posts, sessionRole)]),
-    [consultations, posts, sessionRole, sortedOrders],
+    () => groupThreadsByParticipant([...buildConsultationThreads(consultations, sessionRole), ...buildMessageThreads(sortedOrders, posts, sessionRole, threadConversations)]),
+    [consultations, posts, sessionRole, sortedOrders, threadConversations],
   );
   const visibleThreads = useMemo(
     () =>
@@ -647,10 +678,10 @@ function MessageBubbleContent({ message, mine }: { message: Message; mine: boole
   return <p>{message.text}</p>;
 }
 
-function buildMessageThreads(orders: AppOrder[], posts: FeedPost[], sessionRole?: string): MessageThread[] {
+function buildMessageThreads(orders: AppOrder[], posts: FeedPost[], sessionRole?: string, conversations: Record<string, Conversation> = {}): MessageThread[] {
   return orders.map((order, index) => {
     const post = findPostForOrder(order, posts);
-    return createThreadFromOrder(order, post, index, sessionRole);
+    return createThreadFromOrder(order, post, index, sessionRole, conversations[order.id]);
   });
 }
 
@@ -701,9 +732,9 @@ function createConversationFromConsultation(consultation: ConsultationRecord): C
   };
 }
 
-function createThreadFromOrder(order: AppOrder, post: FeedPost | undefined, index: number, sessionRole?: string): MessageThread {
+function createThreadFromOrder(order: AppOrder, post: FeedPost | undefined, index: number, sessionRole?: string, threadConversation?: Conversation): MessageThread {
   const time = demoThreadTimes[index % demoThreadTimes.length];
-  const conversation = getConversationForOrder(order.id);
+  const conversation = threadConversation ?? getConversationForOrder(order.id);
   const lastMessage = conversation.messages.at(-1);
   const participant = getOtherParticipant(order, post, sessionRole);
   const sentAt = lastMessage?.sentAt ? new Date(lastMessage.sentAt) : null;
