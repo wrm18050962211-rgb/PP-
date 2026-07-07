@@ -1418,6 +1418,9 @@ function companionDashboard(store) {
 function saveApplication(store, body) {
   const companion = requireCompanionSession(store);
   if (companion.response) return companion.response;
+  if (dataStore.kind !== 'json') {
+    return error(501, 'POSTGRES_COMPANION_APPLICATION_NOT_CONNECTED', 'Companion application writes are not connected to PostgreSQL yet');
+  }
 
   store.application = { ...store.application, ...body, submitted: false, reviewStatus: 'draft', updatedAt: now() };
   return json(store.application, 200, true);
@@ -1426,6 +1429,9 @@ function saveApplication(store, body) {
 function submitCompanionReview(store) {
   const companion = requireCompanionSession(store);
   if (companion.response) return companion.response;
+  if (dataStore.kind !== 'json') {
+    return error(501, 'POSTGRES_COMPANION_APPLICATION_NOT_CONNECTED', 'Companion application review submission is not connected to PostgreSQL yet');
+  }
 
   store.application = { ...store.application, submitted: true, reviewStatus: 'pending_review', updatedAt: now() };
   const existing = store.auditCases.find((item) => item.targetType === 'companion' && item.targetId === 'companion-mori' && item.status === 'pending');

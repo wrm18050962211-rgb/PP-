@@ -21,6 +21,7 @@ const checks = [
   ['postgres-transition-route', ['scripts/check-postgres-transition-route.mjs']],
   ['postgres-admin-order-route', ['scripts/check-postgres-admin-order-route.mjs']],
   ['postgres-audit-review-route', ['scripts/check-postgres-audit-review-route.mjs']],
+  ['postgres-companion-application-route', ['scripts/check-postgres-companion-application-route.mjs']],
   ['postgres-store-order-gateway', ['scripts/check-postgres-store-order-gateway.mjs']],
   ['postgres-store-message-gateway', ['scripts/check-postgres-store-message-gateway.mjs']],
   ['postgres-store-moderation-gateway', ['scripts/check-postgres-store-moderation-gateway.mjs']],
