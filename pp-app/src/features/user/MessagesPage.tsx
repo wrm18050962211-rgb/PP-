@@ -5,7 +5,7 @@ import { useAppData } from '../../app/useAppData';
 import { closeConsultation, consultationToOrderInput, getConsultation, getConsultationRiskText, listConsultations, sendQuoteForConsultation, type ConsultationRecord } from '../../services/consultationService';
 import { listTestAccounts } from '../../services/accountDirectory';
 import { listFeedPosts } from '../../services/feedService';
-import { evaluateMessageRisk, fetchConversation, getConversation, getConversationForOrder, saveLocalConversation, sendImageMessage, sendMessage, sendVoiceMessage, submitOrderReport } from '../../services/messageService';
+import { evaluateMessageRisk, fetchConversation, fetchConversations, getConversation, getConversationForOrder, saveLocalConversation, sendImageMessage, sendMessage, sendVoiceMessage, submitOrderReport } from '../../services/messageService';
 import { readDomainJson, writeDomainJson } from '../../services/scopedStorage';
 import type { AppOrder, Conversation, FeedPost, Message } from '../../types/api';
 import { formatMoney } from '../../utils/money';
@@ -98,18 +98,11 @@ export function MessagesPage() {
     }
 
     let mounted = true;
-    Promise.all(
-      orders.map(async (order) => {
-        try {
-          const nextConversation = await fetchConversation(order.id);
-          return [order.id, nextConversation] as const;
-        } catch {
-          return null;
-        }
-      }),
-    ).then((entries) => {
+    fetchConversations({ limit: 50 }).then((conversations) => {
       if (!mounted) return;
-      setThreadConversations(Object.fromEntries(entries.filter(Boolean) as Array<readonly [string, Conversation]>));
+      setThreadConversations(Object.fromEntries(conversations.map((item) => [item.orderId, item] as const)));
+    }).catch(() => {
+      if (mounted) setThreadConversations({});
     });
 
     return () => {
