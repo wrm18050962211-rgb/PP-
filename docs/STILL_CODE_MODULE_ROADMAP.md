@@ -46,6 +46,7 @@
 - Postgres 已新增 `providerCallbackWrites` gateway：可以记录 provider 原始回调、标记 processed、标记 retrying/failed；下一步把微信支付/退款通知入口接入该 gateway。
 - 微信支付/退款通知入口已接入 `providerCallbackWrites`：签名通过后先记录回调事件，业务写入成功后标记 processed，找不到业务对象或写入失败时标记 retrying；下一步再补独立重试 job。
 - `providerCallbackWrites` 已补 `claimDue`：后续重试任务可以用 `for update skip locked` 安全领取到期 retrying 回调，避免多 worker 重复处理同一条事件。
+- 新增 `providerCallbackRetryJob` 和 `npm run job:retry-provider-callbacks`：可领取到期回调、调用 provider processor、成功标记 processed、失败按退避时间重新排队；后续还需补微信支付/退款事件的具体重放 processor。
 - 当前仍未完成生产级事项：真实数据库 CI/迁移流水线、独立队列/定时任务系统、更多退款/支付回调重试覆盖、session/admin_action_logs/audit_logs/security_events 的生产级闭环验证、后台进一步拆模块，以及初步上线前独立部署。
 
 ## 0. 当前代码状态快照
