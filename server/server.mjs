@@ -135,6 +135,7 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && path === '/api/companion/me/submit-review') return submitCompanionReview(store);
 
   if (method === 'GET' && path === '/api/admin/dashboard') return adminDashboard(store);
+  if (method === 'GET' && path === '/api/admin/orders') return adminOrders(store, url);
   if (method === 'GET' && path === '/api/admin/moderation') return adminModeration(store);
   if (method === 'GET' && path === '/api/admin/audit-cases') return listAuditCases(store, url);
   if (method === 'POST' && isNestedRoute(path, '/api/admin/audit-cases/', '/approve')) return reviewAuditCase(store, path, 'approved');
@@ -1150,6 +1151,17 @@ function adminDashboard(store) {
     },
     recentOrders: store.orders.slice(0, 5).map(viewOrder),
   });
+}
+
+function adminOrders(store, url) {
+  const admin = requireAdminSession(store);
+  if (admin.response) return admin.response;
+
+  const status = normalize(url.searchParams.get('status'));
+  const items = store.orders
+    .filter((order) => !status || normalize(order.status) === status)
+    .map(viewOrder);
+  return json({ items });
 }
 
 function adminModeration(store) {
