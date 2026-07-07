@@ -8,6 +8,7 @@ import type {
   AppOrder,
   CompanionApplication,
   Message,
+  OrderStatus,
   PublishedWorkDraft,
 } from '../types/api';
 import { evaluateMessageRisk } from '../utils/messageRisk';
@@ -47,6 +48,17 @@ export async function fetchAdminOrders(fallback: AppOrder[] = seedOrders): Promi
     return response.success ? response.data.items : getApiFallback(fallback, 'Admin orders');
   } catch {
     return getApiFallback(fallback, 'Admin orders');
+  }
+}
+
+export async function updateAdminOrderStatus(orderId: string, status: OrderStatus): Promise<AppOrder | null> {
+  if (!isApiEnabled()) return null;
+
+  try {
+    const response = await apiPost<AppOrder>(`/api/admin/orders/${orderId}/status`, { status });
+    return response.success ? response.data : null;
+  } catch {
+    return null;
   }
 }
 

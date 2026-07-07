@@ -23,13 +23,14 @@ import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
 import { logoutAdmin } from '../../services/authService';
 import { listAccountDeletionRequests, updateAccountDeletionRequestStatus, type AccountDeletionRequest, type AccountDeletionRequestStatus } from '../../services/accountDeletionService';
-import { fetchAdminModerationData, fetchAdminOrders, syncAdminModerationAction } from '../../services/adminService';
+import { fetchAdminModerationData, fetchAdminOrders, syncAdminModerationAction, updateAdminOrderStatus } from '../../services/adminService';
 import { isOrderWorkConfirmed, listOrderWorkRecords } from '../../services/orderWorkService';
 import { calculateCancellationSettlement } from '../../services/orderSettlementService';
 import { getSupportRequestCategoryLabel, listSupportRequests, updateSupportRequestStatus, type SupportRequest, type SupportRequestStatus } from '../../services/supportRequestService';
 import type { AdminActionType, AdminModerationData, AdminReportCase, AdminRiskMessageCase } from '../../types/api';
 import type { AppOrder, OrderStatus, PublishedWorkDraft } from '../../types/domain';
 import { formatMoney } from '../../utils/money';
+import { orderStatusText } from '../../utils/status';
 
 type AdminModuleKey = 'companions' | 'works' | 'orders' | 'risk' | 'reports' | 'accounts' | 'finance' | 'settings';
 
@@ -158,7 +159,7 @@ const configSeed: SystemConfig[] = [
 
 export function AdminDashboard() {
   const navigate = useNavigate();
-  const { application, workDraft, orders, reviewApplication, reviewWork, updateOrderStatus, updateOrderFunding } = useAppData();
+  const { application, workDraft, orders, reviewApplication, reviewWork, updateOrderFunding } = useAppData();
   const [activeModule, setActiveModule] = useState<AdminModuleKey>('companions');
   const [selectedOrderId, setSelectedOrderId] = useState(orders[0]?.id ?? '');
   const [riskCases, setRiskCases] = useState(riskSeed);
@@ -288,6 +289,16 @@ export function AdminDashboard() {
     setAccounts((items) => items.map((item) => (item.id === id ? { ...item, status } : item)));
   }
 
+  function handleAdminOrderStatus(orderId: string, status: OrderStatus) {
+    setAdminOrders((items) =>
+      items.map((order) => (order.id === orderId ? { ...order, status, statusText: orderStatusText[status] } : order)),
+    );
+    void updateAdminOrderStatus(orderId, status).then((updatedOrder) => {
+      if (!updatedOrder) return;
+      setAdminOrders((items) => items.map((order) => (order.id === orderId ? updatedOrder : order)));
+    });
+  }
+
   return (
     <div className="min-h-dvh pp-page pb-8 text-[#27211f]">
       <header className="sticky top-0 z-20 border-b border-[#eadfd8] bg-[#fbf7f2]/95 backdrop-blur">
@@ -351,7 +362,7 @@ export function AdminDashboard() {
           )}
           {activeModule === 'works' && <WorkAuditPanel workDraft={workDraft} onApprove={() => reviewWork('已通过')} onReject={() => reviewWork('需修改')} />}
           {activeModule === 'orders' && selectedOrder && (
-            <OrderPanel orders={visibleOrders} selectedOrder={selectedOrder} onSelect={setSelectedOrderId} onUpdateStatus={updateOrderStatus} onUpdateFunding={updateOrderFunding} />
+            <OrderPanel orders={visibleOrders} selectedOrder={selectedOrder} onSelect={setSelectedOrderId} onUpdateStatus={handleAdminOrderStatus} onUpdateFunding={updateOrderFunding} />
           )}
           {activeModule === 'risk' && selectedRisk && (
             <RiskPanel
@@ -364,7 +375,7 @@ export function AdminDashboard() {
               onRecordAction={recordRiskAction}
               onFreezeOrder={(orderNo) => {
                 const order = visibleOrders.find((item) => item.orderNo === orderNo);
-                if (order) updateOrderStatus(order.id, 'disputed');
+                if (order) handleAdminOrderStatus(order.id, 'disputed');
               }}
             />
           )}
@@ -379,7 +390,7 @@ export function AdminDashboard() {
               onRecordAction={recordReportAction}
               onFreezeOrder={(orderNo) => {
                 const order = visibleOrders.find((item) => item.orderNo === orderNo);
-                if (order) updateOrderStatus(order.id, 'disputed');
+                if (order) handleAdminOrderStatus(order.id, 'disputed');
               }}
             />
           )}
