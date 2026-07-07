@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const root = process.cwd();
@@ -66,6 +66,19 @@ for (const check of checks) {
 const mobileAppSource = readFileSync(resolve(root, 'src/app/MobileApp.tsx'), 'utf8');
 if (mobileAppSource.includes('AdminDashboard') || mobileAppSource.includes('/admin/login')) {
   failures.push('src/app/MobileApp.tsx must not include admin dashboard or admin login routes');
+}
+
+if (mobileAppSource.includes('CompanionComingSoonPage')) {
+  failures.push('src/app/MobileApp.tsx must not include companion coming-soon routes');
+}
+
+const roleShellSource = readFileSync(resolve(root, 'src/layouts/RoleShell.tsx'), 'utf8');
+if (roleShellSource.includes('敬请期待')) {
+  failures.push('src/layouts/RoleShell.tsx must not include production-visible coming-soon tabs');
+}
+
+if (existsSync(resolve(root, 'src/features/companion/CompanionComingSoonPage.tsx'))) {
+  failures.push('src/features/companion/CompanionComingSoonPage.tsx should be removed from production mobile app');
 }
 
 if (failures.length) {
