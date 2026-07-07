@@ -6,6 +6,19 @@
 
 运营后台不属于 C 端 App。MVP 本地阶段可以同仓开发、同端口演示，但初步上线或提交 TestFlight/App Store 前，后台必须从移动端用户包中拆出，作为单独的 Web Admin 发布、单独登录、单独权限和单独部署。
 
+## 0A. 近期推进记录
+
+本轮按“小步修改 + 验证 + 本地检查点”的节奏，优先推进了 `1.2A`、`1.2B` 和 `2.2` 中与后台隔离、权限边界、订单管理、审计可见性相关的事项：
+
+- 前端已经区分移动端构建和后台构建：移动端构建排除 admin 入口，后台可单独 `build:admin`。
+- Client、Photographer、Admin 的设置页路径和 token storage 已初步隔离，后台退出不再清理普通用户 token。
+- 后端 admin 登录、退出、订单读取、订单状态变更已走 admin 专用 API。
+- public app API 已阻断 admin token；订单、消息、上传等端内业务 API 已阻断匿名访问。
+- 订单访问和订单状态变更补了权限 smoke：Client 不能看别人订单，Photographer 不能操作别人订单，Admin 不能直接走端内订单 API。
+- 后台订单状态变更会写入 `adminActionLogs`，并在订单详情中显示该订单的操作记录。
+- 后台安全事件接口已可读取登录失败、权限拒绝等 `securityEvents`，并在后台设置页展示最近安全事件。
+- 当前仍未完成生产级事项：session/admin_action_logs/audit_logs/security_events 还没有完整从 JSON store 切到 PostgreSQL 运行时写入；后台仍需进一步拆模块、接更多真实 admin API，并在初步上线前独立部署。
+
 ## 0. 当前代码状态快照
 
 ### 已有基础
