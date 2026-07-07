@@ -3,6 +3,7 @@ import { getPostTitle } from './feedService';
 import { readDomainJson, writeDomainJson } from './scopedStorage';
 import { getActiveAccountStorageScope } from './authService';
 import { listTestAccounts, type PublicRole } from './accountDirectory';
+import { isMockFallbackAllowed } from './apiClient';
 
 export type UserCollectionState = {
   likedPostIds: string[];
@@ -13,6 +14,8 @@ export type UserCollectionState = {
 const storageKey = 'user-collections-v1';
 
 function seedCollections(posts: FeedPost[]): UserCollectionState {
+  if (!isMockFallbackAllowed()) return emptyCollections();
+
   const account = getActiveTestAccount();
   if (account) return seedAccountCollections(posts, account);
 
@@ -149,6 +152,8 @@ function seedAccountCollections(posts: FeedPost[], account: { role: PublicRole; 
 }
 
 function getAllVirtualCollections(posts: FeedPost[]): UserCollectionState[] {
+  if (!isMockFallbackAllowed()) return [];
+
   const activeAccount = getActiveTestAccount();
   const activeStored = readStoredCollections();
   return listTestAccounts().map((account) => {
@@ -211,4 +216,12 @@ function normalizeIds(stored: string[] | undefined, fallback: string[]) {
 
 function uniqueIds(ids: string[]) {
   return Array.from(new Set(ids.filter(Boolean)));
+}
+
+function emptyCollections(): UserCollectionState {
+  return {
+    likedPostIds: [],
+    favoritePostIds: [],
+    followingIds: [],
+  };
 }
