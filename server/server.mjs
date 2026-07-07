@@ -516,6 +516,44 @@ function requireOrderMutationAccess(store, orderOrId, session, action) {
   return { order };
 }
 
+function recordAuditLog(store, auditCase, action, session, note, metadata = {}) {
+  const createdAt = now();
+  const log = {
+    id: id('audit-log'),
+    auditCaseId: auditCase.id,
+    action,
+    operatorId: session.user?.id || null,
+    operatorType: session.role || 'admin',
+    comment: note,
+    note,
+    metadata,
+    createdAt,
+  };
+  store.auditLogs.unshift(log);
+  auditCase.logs = [
+    { id: log.id, action, note, operatorType: log.operatorType, createdAt },
+    ...(auditCase.logs || []),
+  ];
+  return log;
+}
+
+function recordAdminAction(store, session, action, targetType, targetId, options = {}) {
+  const log = {
+    id: id('admin-action'),
+    adminId: session.user?.id || null,
+    action,
+    type: action,
+    targetType,
+    targetId,
+    note: options.note || '',
+    beforeData: options.beforeData || null,
+    afterData: options.afterData || null,
+    createdAt: now(),
+  };
+  store.adminActionLogs.unshift(log);
+  return log;
+}
+
 function messageSenderRole(session) {
   return session.role === 'admin' ? 'admin' : session.role === 'companion' ? 'companion' : 'user';
 }
@@ -1006,12 +1044,13 @@ function reviewAuditCase(store, path, nextStatus, body = {}) {
   if (!auditCase) return error(404, 'NOT_FOUND', 'Audit case not found');
   if (auditCase.status !== 'pending') return error(409, 'AUDIT_CASE_NOT_PENDING', 'Audit case is not pending');
 
+  const beforeAuditCase = { status: auditCase.status, targetType: auditCase.targetType, targetId: auditCase.targetId };
   auditCase.status = nextStatus;
   auditCase.resolvedAt = now();
-  auditCase.logs = [
-    { id: id('audit-log'), action: nextStatus, note: body.reason || nextStatus, createdAt: now() },
-    ...(auditCase.logs || []),
-  ];
+  recordAuditLog(store, auditCase, nextStatus, admin.session, body.reason || nextStatus, {
+    targetType: auditCase.targetType,
+    targetId: auditCase.targetId,
+  });
 
   if (auditCase.targetType === 'companion') {
     const companion = store.companions.find((item) => item.id === auditCase.targetId);
@@ -1035,13 +1074,10 @@ function reviewAuditCase(store, path, nextStatus, body = {}) {
     if (report) report.status = nextStatus === 'approved' ? 'resolved' : 'rejected';
   }
 
-  store.adminActionLogs.unshift({
-    id: id('admin-action'),
-    type: `audit_${nextStatus}`,
-    targetType: auditCase.targetType,
-    targetId: auditCase.targetId,
+  recordAdminAction(store, admin.session, `audit_${nextStatus}`, auditCase.targetType, auditCase.targetId, {
     note: body.reason || nextStatus,
-    createdAt: now(),
+    beforeData: beforeAuditCase,
+    afterData: { status: auditCase.status, targetType: auditCase.targetType, targetId: auditCase.targetId },
   });
 
   return json({ ok: true, auditCase }, 200, true);

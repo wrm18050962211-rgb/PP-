@@ -171,6 +171,23 @@ try {
   assert(blocked.error?.code === 'MESSAGE_BLOCKED' && blocked.data?.matchedKeywords?.length, 'risky chat message is blocked');
 
   await api('POST', '/api/auth/wechat/mock-login', { role: 'admin' });
+  const auditCases = await api('GET', '/api/admin/audit-cases');
+  const auditCase = auditCases.items?.find((item) => item.status === 'pending');
+  assert(auditCase?.id, 'admin audit queue exposes pending case');
+  const reviewedAudit = await api('POST', `/api/admin/audit-cases/${auditCase.id}/reject`, {
+    reason: 'smoke test audit rejection',
+  });
+  assert(reviewedAudit.auditCase?.logs?.[0]?.action === 'rejected', 'audit review writes case log');
+  const auditedStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(
+    auditedStore.auditLogs?.some((item) => item.auditCaseId === auditCase.id && item.action === 'rejected'),
+    'audit review writes global audit log',
+  );
+  assert(
+    auditedStore.adminActionLogs?.some((item) => item.action === 'audit_rejected' && item.targetId === auditCase.targetId),
+    'audit review writes admin action log',
+  );
+
   const moderation = await api('GET', '/api/admin/moderation');
   const riskCase = moderation.messageCases?.[0];
   assert(riskCase?.id, 'admin moderation exposes risk case');
@@ -211,6 +228,7 @@ try {
           'confirmed-cancellation-settlement',
           'conversation',
           'risk-block',
+          'audit-review-log',
           'moderation-action',
         ],
       },
