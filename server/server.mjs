@@ -533,7 +533,15 @@ function requireOrderMutationAccess(store, orderOrId, session, action) {
   const order = typeof orderOrId === 'string' ? findOrder(store, orderOrId) : orderOrId;
   if (!order) return { response: error(404, 'NOT_FOUND', 'Order not found') };
   if (!canMutateOrder(order, session, action)) {
-    return { response: error(403, 'FORBIDDEN', 'Order action is not allowed for current role') };
+    recordSecurityEvent(store, session, 'permission_denied', {
+      targetType: 'order',
+      targetId: order.id,
+      requiredRole: `order_${action}`,
+      actualRole: session.role,
+      reason: 'Order action is not allowed for current role',
+      action,
+    });
+    return { response: error(403, 'FORBIDDEN', 'Order action is not allowed for current role', true) };
   }
   return { order };
 }
@@ -588,6 +596,7 @@ function recordSecurityEvent(store, session, type, details = {}) {
     requiredRole: details.requiredRole || null,
     actualRole: details.actualRole || session?.role || 'anonymous',
     reason: details.reason || '',
+    action: details.action || null,
     createdAt: now(),
   };
   store.securityEvents.unshift(event);

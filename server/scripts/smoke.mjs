@@ -126,6 +126,13 @@ try {
   );
   const otherConsumerCancel = await api('POST', `/api/orders/${paid.order.id}/cancel`, { reason: 'smoke test cross-user cancellation' }, { expectOk: false });
   assert(otherConsumerCancel.error?.code === 'FORBIDDEN', 'consumer cannot cancel another consumer order');
+  const crossUserMutationSecurityStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(
+    crossUserMutationSecurityStore.securityEvents?.some(
+      (item) => item.type === 'permission_denied' && item.targetType === 'order' && item.targetId === paid.order.id && item.action === 'cancel',
+    ),
+    'cross-user order mutation denial is logged as security event',
+  );
   authToken = primaryConsumerToken;
 
   const wrongCompanionPost = await findPostWithDifferentCompanion(feed.items, paid.order.companionId);
@@ -133,6 +140,13 @@ try {
   await api('POST', '/api/auth/wechat/mock-login', { role: 'companion', companionId: wrongCompanionPost.companion.id });
   const wrongCompanionConfirm = await api('POST', `/api/orders/${paid.order.id}/confirm`, undefined, { expectOk: false });
   assert(wrongCompanionConfirm.error?.code === 'FORBIDDEN', 'photographer cannot confirm another photographer order');
+  const crossCompanionSecurityStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(
+    crossCompanionSecurityStore.securityEvents?.some(
+      (item) => item.type === 'permission_denied' && item.targetType === 'order' && item.targetId === paid.order.id && item.action === 'confirm',
+    ),
+    'cross-companion order mutation denial is logged as security event',
+  );
   await api('POST', '/api/auth/wechat/mock-login', { role: 'companion', companionId: paid.order.companionId });
   const companionOrders = await api('GET', '/api/orders?role=companion');
   assert(companionOrders.items.every((item) => item.companionId === paid.order.companionId), 'companion order list is scoped to current companion');
@@ -245,7 +259,9 @@ try {
           'admin-order-status-boundary',
           'cross-user-order-boundary',
           'cross-user-order-denial-log',
+          'cross-user-order-mutation-denial-log',
           'cross-companion-order-boundary',
+          'cross-companion-order-mutation-denial-log',
           'role-scoped-orders',
           'pending-payment-expiry',
           'confirmed-cancellation-settlement',
