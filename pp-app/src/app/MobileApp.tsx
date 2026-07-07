@@ -17,7 +17,6 @@ import { getActivePublicRole, getRegisteredAccount } from '../services/authServi
 const CompanionOnboarding = lazy(() => import('../features/companion/CompanionOnboarding').then((module) => ({ default: module.CompanionOnboarding })));
 const CompanionBookingSettingsPage = lazy(() => import('../features/companion/CompanionBookingSettingsPage').then((module) => ({ default: module.CompanionBookingSettingsPage })));
 const CompanionIncomePage = lazy(() => import('../features/companion/CompanionIncomePage').then((module) => ({ default: module.CompanionIncomePage })));
-const CompanionComingSoonPage = lazy(() => import('../features/companion/CompanionComingSoonPage').then((module) => ({ default: module.CompanionComingSoonPage })));
 const CompanionConsultationsPage = lazy(() => import('../features/companion/CompanionConsultationsPage').then((module) => ({ default: module.CompanionConsultationsPage })));
 const CompanionOrdersPage = lazy(() => import('../features/companion/CompanionOrdersPage').then((module) => ({ default: module.CompanionOrdersPage })));
 const CompanionPackageSettings = lazy(() => import('../features/companion/CompanionPackageSettings').then((module) => ({ default: module.CompanionPackageSettings })));
@@ -207,7 +206,7 @@ export function mobileRouteElements(includeCatchAll = true) {
         }
       >
         <Route index element={<HomeFeed />} />
-        <Route path="creators" element={<CompanionComingSoonPage />} />
+        <Route path="creators" element={<Navigate to="/companion/consultations" replace />} />
         <Route path="post/:postId" element={<PostDetail />} />
         <Route path="creator/:creatorId" element={<CreatorProfilePage />} />
         <Route path="photographer/:photographerId" element={<PhotographerProfilePage />} />
