@@ -33,6 +33,15 @@ const checks = [
     ],
   },
   {
+    file: 'src/services/paymentService.ts',
+    includes: [
+      "const mockPaymentSuccessSuffix = import.meta.env.PROD ? '' : '/mock-success'",
+      "if (payment.mode === 'mock' && !isMockFallbackAllowed())",
+      "if (payment.mode !== 'mock' && !isMockFallbackAllowed())",
+      'return fetchPaymentStatus(payment.paymentId)',
+    ],
+  },
+  {
     file: 'src/services/authService.ts',
     includes: [
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'))",
