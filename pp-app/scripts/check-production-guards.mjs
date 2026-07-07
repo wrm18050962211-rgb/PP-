@@ -40,6 +40,18 @@ const checks = [
       "if (!isTestRoleSwitchAllowed()) throw new Error('登录状态获取失败，请重新登录。')",
     ],
   },
+  {
+    file: 'vite.mobile.config.ts',
+    includes: ["replacement: fileURLToPath(new URL('./src/app/MobileApp.tsx', import.meta.url))"],
+  },
+  {
+    file: 'vite.admin.config.ts',
+    includes: ["replacement: fileURLToPath(new URL('./src/app/AdminApp.tsx', import.meta.url))"],
+  },
+  {
+    file: 'src/app/AdminApp.tsx',
+    includes: ["<Route path=\"/admin/login\" element={<AdminLoginPage />} />"],
+  },
 ];
 
 const failures = [];
@@ -49,6 +61,11 @@ for (const check of checks) {
   for (const expected of check.includes) {
     if (!source.includes(expected)) failures.push(`${check.file} missing: ${expected}`);
   }
+}
+
+const mobileAppSource = readFileSync(resolve(root, 'src/app/MobileApp.tsx'), 'utf8');
+if (mobileAppSource.includes('AdminDashboard') || mobileAppSource.includes('/admin/login')) {
+  failures.push('src/app/MobileApp.tsx must not include admin dashboard or admin login routes');
 }
 
 if (failures.length) {
