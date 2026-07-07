@@ -8,6 +8,7 @@
     "start": "node server.mjs",
     "smoke": "node scripts/smoke.mjs",
     "check:mvp": "node scripts/check-mvp.mjs",
+    "check:auth-schema": "node ../database/scripts/check-auth-schema.mjs",
     "check:store-driver": "node scripts/check-store-driver.mjs",
     "check:postgres-store-audit-security-gateway": "node scripts/check-postgres-store-audit-security-gateway.mjs",
     "check:postgres-store-session-gateway": "node scripts/check-postgres-store-session-gateway.mjs",

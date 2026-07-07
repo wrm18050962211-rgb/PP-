@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 
 const checks = [
+  ['auth-schema', ['../database/scripts/check-auth-schema.mjs']],
   ['store-driver', ['scripts/check-store-driver.mjs']],
   ['postgres-store-audit-security-gateway', ['scripts/check-postgres-store-audit-security-gateway.mjs']],
   ['postgres-store-session-gateway', ['scripts/check-postgres-store-session-gateway.mjs']],

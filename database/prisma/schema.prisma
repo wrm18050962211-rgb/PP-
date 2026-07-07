@@ -90,7 +90,7 @@ enum SettlementStatus {
 
 model User {
   id          String     @id @default(uuid()) @db.Uuid
-  phone       String     @unique @db.VarChar(32)
+  phone       String?    @unique @db.VarChar(32)
   email       String?    @db.VarChar(255)
   nickname    String     @db.VarChar(80)
   avatarUrl   String?    @map("avatar_url")
@@ -107,6 +107,7 @@ model User {
   updatedAt   DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   profile              UserProfile?
+  authIdentities       UserAuthIdentity[]
   companion            Companion?
   orders               Order[]             @relation("UserOrders")
   requestedRefunds     Refund[]            @relation("RequestedRefunds")
@@ -123,6 +124,26 @@ model User {
   @@index([city])
   @@index([status])
   @@map("users")
+}
+
+model UserAuthIdentity {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  provider       String    @db.VarChar(40)
+  providerUserId String    @map("provider_user_id") @db.VarChar(160)
+  unionId        String?   @map("union_id") @db.VarChar(160)
+  phone          String?   @db.VarChar(32)
+  metadata       Json      @default("{}")
+  lastLoginAt    DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@index([phone])
+  @@map("user_auth_identities")
 }
 
 model UserProfile {

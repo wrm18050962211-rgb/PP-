@@ -95,7 +95,7 @@ create type settlement_status as enum (
 
 create table users (
   id uuid primary key default gen_random_uuid(),
-  phone varchar(32) not null unique,
+  phone varchar(32) unique,
   email varchar(255),
   nickname varchar(80) not null,
   avatar_url text,
@@ -125,6 +125,26 @@ create table user_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table user_auth_identities (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  provider varchar(40) not null,
+  provider_user_id varchar(160) not null,
+  union_id varchar(160),
+  phone varchar(32),
+  metadata jsonb not null default '{}',
+  last_login_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(provider, provider_user_id)
+);
+
+create index idx_user_auth_identities_user
+on user_auth_identities(user_id);
+
+create index idx_user_auth_identities_phone
+on user_auth_identities(phone);
 
 -- =========================
 -- Companions
