@@ -9,6 +9,7 @@
     "smoke": "node scripts/smoke.mjs",
     "check:mvp": "node scripts/check-mvp.mjs",
     "check:store-driver": "node scripts/check-store-driver.mjs",
+    "check:postgres-store-audit-security-gateway": "node scripts/check-postgres-store-audit-security-gateway.mjs",
     "check:postgres-store-session-gateway": "node scripts/check-postgres-store-session-gateway.mjs",
     "check:postgres-mappers": "node scripts/check-postgres-mappers.mjs",
     "check:postgres-write-plan": "node scripts/check-postgres-write-plan.mjs",

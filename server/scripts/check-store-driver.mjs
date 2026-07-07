@@ -37,6 +37,8 @@ try {
   });
   assert(postgresStore.kind === 'postgres', 'postgres driver can be selected when DATABASE_URL exists');
   assert(postgresStore.capabilities?.readModel === true && postgresStore.capabilities?.writes === false, 'postgres store advertises read-only MVP state');
+  assert(postgresStore.capabilities?.auditWrites === true && typeof postgresStore.auditWrites?.recordAdminAction === 'function', 'postgres store exposes audit write gateway');
+  assert(postgresStore.capabilities?.securityWrites === true && typeof postgresStore.securityWrites?.recordSecurityEvent === 'function', 'postgres store exposes security write gateway');
   assert(postgresStore.capabilities?.sessionWrites === true && typeof postgresStore.sessionWrites?.create === 'function', 'postgres store exposes session write gateway');
   await assertRejects(
     () => postgresStore.save({}),
@@ -44,7 +46,16 @@ try {
     'postgres save remains protected until write DAO exists',
   );
 
-  console.log(JSON.stringify({ ok: true, checks: ['default-json', 'postgres-requires-database-url', 'postgres-selectable', 'postgres-session-gateway', 'postgres-save-protected'] }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        checks: ['default-json', 'postgres-requires-database-url', 'postgres-selectable', 'postgres-audit-gateway', 'postgres-security-gateway', 'postgres-session-gateway', 'postgres-save-protected'],
+      },
+      null,
+      2,
+    ),
+  );
 } finally {
   delete process.env.STORE_DRIVER;
   delete process.env.DATABASE_URL;

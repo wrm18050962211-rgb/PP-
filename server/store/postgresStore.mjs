@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { recordAdminActionTransaction, recordAuditLogTransaction } from './postgresAuditWrites.mjs';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from './postgresSessionWrites.mjs';
+import { recordSecurityEventTransaction } from './postgresSecurityWrites.mjs';
 import { hashSessionToken } from './sessionTokenHash.mjs';
 
 export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
@@ -16,7 +18,16 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       readModel: true,
       writes: false,
       transactions: false,
+      auditWrites: true,
+      securityWrites: true,
       sessionWrites: true,
+    },
+    auditWrites: {
+      recordAuditLog: (draft) => withClient((client) => recordAuditLogTransaction(client, draft)),
+      recordAdminAction: (draft) => withClient((client) => recordAdminActionTransaction(client, draft)),
+    },
+    securityWrites: {
+      recordSecurityEvent: (draft) => withClient((client) => recordSecurityEventTransaction(client, draft)),
     },
     sessionWrites: {
       create: (session) => withClient((client) => createSessionTransaction(client, toSessionDraft(session))),
