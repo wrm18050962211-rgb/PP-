@@ -375,7 +375,7 @@ function createSession(store, role, existingUser = null, options = {}) {
     token: options.token || buildSessionToken(role, existingUser),
     provider: existingUser?.openId ? 'wechat' : 'mock_wechat',
     role,
-    roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
+    roles: rolesForSessionRole(role),
     user,
     companionId,
     adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
@@ -578,7 +578,7 @@ function ensureDemoUser(store, role) {
       city: 'Shanghai',
       status: 'active',
       isCompanion: role === 'companion',
-      roles: role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'],
+      roles: rolesForSessionRole(role),
       createdAt: now(),
       updatedAt: now(),
     };
@@ -588,9 +588,14 @@ function ensureDemoUser(store, role) {
   user.nickname ||= role === 'admin' ? 'Demo Admin' : role === 'companion' ? 'Demo Companion' : 'Demo Consumer';
   user.status = user.status || 'active';
   user.isCompanion = role === 'companion';
-  user.roles = role === 'admin' ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer'];
+  user.roles = rolesForSessionRole(role);
   user.updatedAt = now();
   return user;
+}
+
+function rolesForSessionRole(role) {
+  if (role === 'admin') return ['admin'];
+  return role === 'companion' ? ['consumer', 'companion'] : ['consumer'];
 }
 
 function normalizeRole(role) {

@@ -219,7 +219,7 @@ function mapSessionRow(row, token) {
     token,
     provider: row.provider || null,
     role,
-    roles: metadata.roles || (isAdmin ? ['consumer', 'companion', 'admin'] : role === 'companion' ? ['consumer', 'companion'] : ['consumer']),
+    roles: isAdmin ? ['admin'] : metadata.roles || (role === 'companion' ? ['consumer', 'companion'] : ['consumer']),
     user,
     companionId: isAdmin ? null : row.companion_id || row.session_companion_id || null,
     adminId: isAdmin ? row.admin_id || row.session_admin_id || null : null,

@@ -54,6 +54,7 @@ try {
   );
   const adminSession = await api('POST', '/api/admin/auth/login', { passcode: '000000' });
   assert(adminSession.role === 'admin' && adminSession.adminScope?.includes('risk'), 'admin login endpoint creates admin role');
+  assert(adminSession.roles?.length === 1 && adminSession.roles[0] === 'admin', 'admin session does not expose public roles');
   const anonymousAdmin = await api('GET', '/api/admin/dashboard', undefined, { omitAuth: true, expectOk: false });
   assert(anonymousAdmin.error?.code === 'AUTH_REQUIRED', 'admin API rejects missing token instead of using ambient session');
   const adminPublicOrders = await api('GET', '/api/orders?role=user', undefined, { expectOk: false });

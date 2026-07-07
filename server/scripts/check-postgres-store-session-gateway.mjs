@@ -58,6 +58,8 @@ const foundAdminSession = await store.sessionWrites.findByToken('raw-admin-token
 assert(foundAdminSession.role === 'admin', 'find gateway maps admin session role');
 assert(foundAdminSession.adminId === '00000000-0000-4000-8000-000000000604', 'find gateway maps admin identity');
 assert(foundAdminSession.user.nickname === 'Ops Admin', 'find gateway maps admin display name');
+assert(foundAdminSession.roles.length === 1 && foundAdminSession.roles[0] === 'admin', 'find gateway keeps admin roles isolated');
+assert(!foundAdminSession.roles.includes('consumer') && !foundAdminSession.roles.includes('companion'), 'find gateway does not leak public roles into admin session');
 assert(foundAdminSession.adminScope.includes('risk'), 'find gateway maps admin scope from metadata');
 assert(pool.clients[4].released === true, 'find admin gateway releases client');
 
@@ -65,7 +67,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['session-write-capability', 'create-session-gateway', 'touch-session-gateway', 'revoke-session-gateway', 'find-user-session-gateway', 'find-admin-session-gateway', 'client-release'],
+      checks: ['session-write-capability', 'create-session-gateway', 'touch-session-gateway', 'revoke-session-gateway', 'find-user-session-gateway', 'find-admin-session-gateway', 'admin-role-isolation', 'client-release'],
       clientCount: pool.clients.length,
     },
     null,
