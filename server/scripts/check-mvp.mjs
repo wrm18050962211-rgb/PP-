@@ -5,6 +5,7 @@ const checks = [
   ['idempotency-schema', ['../database/scripts/check-idempotency-schema.mjs']],
   ['schema-parity', ['../database/scripts/check-schema-parity.mjs']],
   ['store-driver', ['scripts/check-store-driver.mjs']],
+  ['admin-route-boundary', ['scripts/check-admin-route-boundary.mjs']],
   ['payment-expiry-job', ['scripts/check-payment-expiry-job.mjs']],
   ['session-boundary', ['scripts/check-session-boundary.mjs']],
   ['postgres-store-auth-gateway', ['scripts/check-postgres-store-auth-gateway.mjs']],
