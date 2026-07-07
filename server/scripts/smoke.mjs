@@ -253,6 +253,11 @@ try {
     adminActionLogs.items?.some((item) => item.action === 'order_status_update' && item.targetId === paid.order.id),
     'admin action log API exposes order status updates',
   );
+  const adminSecurityEvents = await api('GET', '/api/admin/security-events?type=permission_denied&limit=20');
+  assert(
+    adminSecurityEvents.items?.some((item) => item.targetType === 'order' || item.targetType === 'admin_api'),
+    'admin security event API exposes permission denials',
+  );
   const auditCases = await api('GET', '/api/admin/audit-cases');
   const auditCase = auditCases.items?.find((item) => item.status === 'pending');
   assert(auditCase?.id, 'admin audit queue exposes pending case');
@@ -331,6 +336,7 @@ try {
           'admin-order-api',
           'admin-order-status-api',
           'admin-action-log-api',
+          'admin-security-event-api',
           'audit-review-log',
           'moderation-action',
           'moderation-action-log',

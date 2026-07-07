@@ -138,6 +138,7 @@ async function route(method, url, body, store, req) {
   if (method === 'GET' && path === '/api/admin/orders') return adminOrders(store, url);
   if (method === 'POST' && isNestedRoute(path, '/api/admin/orders/', '/status')) return setAdminOrderStatus(store, path, body.status);
   if (method === 'GET' && path === '/api/admin/action-logs') return adminActionLogs(store, url);
+  if (method === 'GET' && path === '/api/admin/security-events') return adminSecurityEvents(store, url);
   if (method === 'GET' && path === '/api/admin/moderation') return adminModeration(store);
   if (method === 'GET' && path === '/api/admin/audit-cases') return listAuditCases(store, url);
   if (method === 'POST' && isNestedRoute(path, '/api/admin/audit-cases/', '/approve')) return reviewAuditCase(store, path, 'approved');
@@ -1190,6 +1191,20 @@ function adminActionLogs(store, url) {
   const limit = clampNumber(Number(url.searchParams.get('limit') || 50), 1, 100);
   const items = (store.adminActionLogs || [])
     .filter((item) => !action || normalize(item.action) === action)
+    .filter((item) => !targetType || normalize(item.targetType) === targetType)
+    .slice(0, limit);
+  return json({ items });
+}
+
+function adminSecurityEvents(store, url) {
+  const admin = requireAdminSession(store);
+  if (admin.response) return admin.response;
+
+  const type = normalize(url.searchParams.get('type'));
+  const targetType = normalize(url.searchParams.get('targetType'));
+  const limit = clampNumber(Number(url.searchParams.get('limit') || 50), 1, 100);
+  const items = (store.securityEvents || [])
+    .filter((item) => !type || normalize(item.type) === type)
     .filter((item) => !targetType || normalize(item.targetType) === targetType)
     .slice(0, limit);
   return json({ items });
