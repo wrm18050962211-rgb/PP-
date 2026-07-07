@@ -37,6 +37,7 @@ try {
   });
   assert(postgresStore.kind === 'postgres', 'postgres driver can be selected when DATABASE_URL exists');
   assert(postgresStore.capabilities?.readModel === true && postgresStore.capabilities?.writes === false, 'postgres store advertises read-only MVP state');
+  assert(postgresStore.capabilities?.authWrites === true && typeof postgresStore.authWrites?.upsertIdentityUser === 'function', 'postgres store exposes auth write gateway');
   assert(postgresStore.capabilities?.auditWrites === true && typeof postgresStore.auditWrites?.recordAdminAction === 'function', 'postgres store exposes audit write gateway');
   assert(postgresStore.capabilities?.securityWrites === true && typeof postgresStore.securityWrites?.recordSecurityEvent === 'function', 'postgres store exposes security write gateway');
   assert(postgresStore.capabilities?.sessionWrites === true && typeof postgresStore.sessionWrites?.create === 'function', 'postgres store exposes session write gateway');
@@ -50,7 +51,16 @@ try {
     JSON.stringify(
       {
         ok: true,
-        checks: ['default-json', 'postgres-requires-database-url', 'postgres-selectable', 'postgres-audit-gateway', 'postgres-security-gateway', 'postgres-session-gateway', 'postgres-save-protected'],
+        checks: [
+          'default-json',
+          'postgres-requires-database-url',
+          'postgres-selectable',
+          'postgres-auth-gateway',
+          'postgres-audit-gateway',
+          'postgres-security-gateway',
+          'postgres-session-gateway',
+          'postgres-save-protected',
+        ],
       },
       null,
       2,

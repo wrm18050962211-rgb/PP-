@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { recordAdminActionTransaction, recordAuditLogTransaction } from './postgresAuditWrites.mjs';
+import { upsertAuthIdentityUserTransaction } from './postgresAuthWrites.mjs';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from './postgresSessionWrites.mjs';
 import { recordSecurityEventTransaction } from './postgresSecurityWrites.mjs';
@@ -16,11 +17,15 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
     kind: 'postgres',
     capabilities: {
       readModel: true,
+      authWrites: true,
       writes: false,
       transactions: false,
       auditWrites: true,
       securityWrites: true,
       sessionWrites: true,
+    },
+    authWrites: {
+      upsertIdentityUser: (identity) => withClient((client) => upsertAuthIdentityUserTransaction(client, toAuthIdentityDraft(identity))),
     },
     auditWrites: {
       recordAuditLog: (draft) => withClient((client) => recordAuditLogTransaction(client, draft)),
@@ -95,6 +100,23 @@ function toSessionDraft(session = {}) {
 
 function cryptoRandomId() {
   return randomUUID();
+}
+
+function toAuthIdentityDraft(identity = {}) {
+  return {
+    userId: identity.userId || cryptoRandomId(),
+    identityId: identity.identityId || cryptoRandomId(),
+    provider: identity.provider || 'wechat',
+    providerUserId: identity.providerUserId || identity.openid || identity.openId,
+    unionId: identity.unionId || identity.unionid || null,
+    phone: identity.phone || null,
+    nickname: identity.nickname || 'WeChat User',
+    avatarUrl: identity.avatarUrl || identity.avatar_url || null,
+    gender: identity.gender || 'unknown',
+    city: identity.city || null,
+    metadata: identity.metadata || {},
+    loginAt: identity.loginAt,
+  };
 }
 
 async function findSessionByToken(client, token) {
