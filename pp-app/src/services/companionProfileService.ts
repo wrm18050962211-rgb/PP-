@@ -1,4 +1,5 @@
 import type { AuthSession, Companion, UserRole } from '../types/api';
+import { isMockFallbackAllowed } from './apiClient';
 import { readDomainJson, writeDomainJson } from './scopedStorage';
 
 export type CompanionAvatarReviewStatus = 'approved' | 'pending' | 'rejected';
@@ -102,7 +103,7 @@ export function applyCompanionProfile(companion: Companion, profile: CompanionPr
 }
 
 function readSharedCompanionProfile(companionId: string) {
-  if (typeof localStorage === 'undefined') return null;
+  if (!canUseSharedProfileStorage() || typeof localStorage === 'undefined') return null;
   try {
     const raw = localStorage.getItem(sharedProfileStorageKey);
     const records = raw ? (JSON.parse(raw) as Record<string, CompanionProfileDraft>) : {};
@@ -113,7 +114,7 @@ function readSharedCompanionProfile(companionId: string) {
 }
 
 function writeSharedCompanionProfile(companionId: string, profile: CompanionProfileDraft) {
-  if (typeof localStorage === 'undefined') return;
+  if (!canUseSharedProfileStorage() || typeof localStorage === 'undefined') return;
   try {
     const raw = localStorage.getItem(sharedProfileStorageKey);
     const records = raw ? (JSON.parse(raw) as Record<string, CompanionProfileDraft>) : {};
@@ -121,6 +122,10 @@ function writeSharedCompanionProfile(companionId: string, profile: CompanionProf
   } catch {
     localStorage.setItem(sharedProfileStorageKey, JSON.stringify({ [companionId]: profile }));
   }
+}
+
+function canUseSharedProfileStorage() {
+  return isMockFallbackAllowed();
 }
 
 function buildDefaultPersonalityTags(companion: Companion) {
