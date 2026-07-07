@@ -12,6 +12,7 @@ const checks = [
   ['postgres-message-route', ['scripts/check-postgres-message-route.mjs']],
   ['postgres-report-route', ['scripts/check-postgres-report-route.mjs']],
   ['postgres-moderation-route', ['scripts/check-postgres-moderation-route.mjs']],
+  ['postgres-order-route', ['scripts/check-postgres-order-route.mjs']],
   ['postgres-store-order-gateway', ['scripts/check-postgres-store-order-gateway.mjs']],
   ['postgres-store-message-gateway', ['scripts/check-postgres-store-message-gateway.mjs']],
   ['postgres-store-moderation-gateway', ['scripts/check-postgres-store-moderation-gateway.mjs']],

@@ -811,10 +811,56 @@ async function createOrder(store, input) {
     }
   }
 
+  if (dataStore.kind !== 'json' && dataStore.orderWrites?.createOrder) {
+    return createPostgresOrder(context, quote, order, payment, input);
+  }
+
   store.orders.unshift(order);
   store.payments.unshift(payment);
 
   return json({ ...order, payment: publicPayment(payment) }, 201, true);
+}
+
+async function createPostgresOrder(context, quote, order, payment, input) {
+  await dataStore.orderWrites.createOrder({
+    orderId: order.id,
+    orderNo: order.orderNo,
+    userId: order.userId,
+    companionId: order.companionId,
+    postId: order.postId,
+    activityPricingId: order.activityId,
+    availabilitySlotId: order.slotId,
+    city: input.city || context.post.city || context.companion.baseCity || '',
+    placeName: order.place,
+    placeAddress: order.placeAddress || null,
+    activityName: order.activityName,
+    durationMinutes: order.durationMinutes,
+    startAt: order.startAt,
+    endAt: order.endAt,
+    baseAmountCents: quote.baseAmountCents,
+    extraAmountCents: quote.extraAmountCents,
+    totalAmountCents: quote.totalAmountCents,
+    platformFeeCents: quote.platformFeeCents,
+    companionIncomeCents: quote.companionIncomeCents,
+    userNote: order.userNote || null,
+    paymentId: payment.id,
+    paymentNo: payment.paymentNo,
+    paymentChannel: payment.channel,
+    lockedUntil: payment.expiresAt,
+    statusLogId: id('status-log'),
+    operatorType: 'user',
+    statusReason: 'Order created and slot locked',
+    extras: (quote.addOns || []).map((extra) => ({
+      id: id('order-extra'),
+      extraId: extra.extraId,
+      name: extra.name,
+      quantity: extra.quantity,
+      unitPriceCents: extra.unitPriceCents,
+      amountCents: extra.amountCents,
+    })),
+  });
+
+  return json({ ...order, payment: publicPayment(payment) }, 201, false);
 }
 
 function mockPaymentSuccess(store, path) {
