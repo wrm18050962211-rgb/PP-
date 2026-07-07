@@ -45,6 +45,13 @@ try {
 
   const rejectedMockAdmin = await api('POST', '/api/auth/wechat/mock-login', { role: 'admin' }, { expectOk: false });
   assert(rejectedMockAdmin.error?.code === 'ADMIN_LOGIN_REQUIRED', 'wechat mock login cannot switch to admin role');
+  const rejectedAdminLogin = await api('POST', '/api/admin/auth/login', { passcode: 'wrong-passcode' }, { expectOk: false });
+  assert(rejectedAdminLogin.error?.code === 'INVALID_ADMIN_PASSCODE', 'admin login rejects invalid passcode');
+  const rejectedAdminLoginStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(
+    rejectedAdminLoginStore.securityEvents?.some((item) => item.type === 'admin_login_failed' && item.targetType === 'admin_auth'),
+    'admin login failure is logged as security event',
+  );
   const adminSession = await api('POST', '/api/admin/auth/login', { passcode: '000000' });
   assert(adminSession.role === 'admin' && adminSession.adminScope?.includes('risk'), 'admin login endpoint creates admin role');
   const anonymousAdmin = await api('GET', '/api/admin/dashboard', undefined, { omitAuth: true, expectOk: false });
@@ -57,6 +64,9 @@ try {
   assert(adminLogoutResult.ok === true, 'admin logout returns ok');
   const afterAdminLogout = await api('GET', '/api/admin/dashboard', undefined, { expectOk: false });
   assert(afterAdminLogout.error?.code === 'AUTH_REQUIRED', 'admin logout revokes the admin token');
+  const adminAuthLogStore = JSON.parse(await readFile(storePath, 'utf8'));
+  assert(adminAuthLogStore.adminActionLogs?.some((item) => item.action === 'admin_login'), 'admin login writes admin action log');
+  assert(adminAuthLogStore.adminActionLogs?.some((item) => item.action === 'admin_logout'), 'admin logout writes admin action log');
 
   const consumerSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'consumer' });
   assert(consumerSession.role === 'consumer', 'mock login can switch back to consumer role');
@@ -263,6 +273,7 @@ try {
           'wechat-login',
           'mock-login',
           'admin-login',
+          'admin-auth-audit-log',
           'admin-auth-boundary',
           'admin-public-api-boundary',
           'admin-logout-revokes-session',

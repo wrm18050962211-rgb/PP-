@@ -267,15 +267,31 @@ function mockWechatLogin(store, body = {}) {
 function adminLogin(store, body = {}) {
   if (dataStore.kind !== 'json') return error(501, 'ADMIN_PASSWORD_LOGIN_NOT_CONFIGURED', 'Admin password login is not connected to PostgreSQL yet');
   if (!isTestRoleSwitchAllowed()) return error(403, 'TEST_LOGIN_DISABLED', 'Local admin login is disabled in this environment');
-  if (String(body.passcode || '') !== '000000') return error(401, 'INVALID_ADMIN_PASSCODE', 'Invalid admin passcode');
+  if (String(body.passcode || '') !== '000000') {
+    recordSecurityEvent(store, store.activeSession || null, 'admin_login_failed', {
+      targetType: 'admin_auth',
+      requiredRole: 'admin',
+      actualRole: store.activeSession?.role || 'anonymous',
+      reason: 'Invalid admin passcode',
+      action: 'login',
+    });
+    return error(401, 'INVALID_ADMIN_PASSCODE', 'Invalid admin passcode', true);
+  }
   const session = createSession(store, 'admin');
   session.provider = 'local_admin';
-  return json(saveSession(store, session), 200, true);
+  const storedSession = saveSession(store, session);
+  recordAdminAction(store, storedSession, 'admin_login', 'admin_auth', storedSession.user?.id || null, {
+    note: 'Admin logged in',
+  });
+  return json(storedSession, 200, true);
 }
 
 async function adminLogout(store) {
   const gate = requireAdminSession(store);
   if (gate.response) return gate.response;
+  recordAdminAction(store, gate.session, 'admin_logout', 'admin_auth', gate.session.user?.id || null, {
+    note: 'Admin logged out',
+  });
   return logout(store);
 }
 
