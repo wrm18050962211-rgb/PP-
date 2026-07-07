@@ -1,4 +1,4 @@
-import { createOrderTransaction, markPaymentPaidTransaction, transitionOrderTransaction } from '../store/postgresOrderWrites.mjs';
+import { createOrderTransaction, markPaymentPaidTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from '../store/postgresOrderWrites.mjs';
 
 const draft = {
   orderId: '00000000-0000-4000-8000-000000000001',
@@ -135,6 +135,33 @@ const invalidTransitionClient = createMockClient([{ order_status: 'completed' }]
 await assertRejects(() => transitionOrderTransaction(invalidTransitionClient, { orderId: draft.orderId, action: 'cancel', statusLogId: '00000000-0000-4000-8000-000000000019' }), 'Order cannot be cancelled', 'invalid transition rejects');
 assert(invalidTransitionClient.calls.at(-1).sql === 'rollback', 'invalid transition rolls back');
 
+const adminStatusClient = createMockClient([{ order_status: 'paid_pending_confirm' }]);
+const disputed = await setAdminOrderStatusTransaction(adminStatusClient, {
+  orderId: draft.orderId,
+  status: 'disputed',
+  statusLogId: '00000000-0000-4000-8000-000000000020',
+  adminId: '00000000-0000-4000-8000-000000000021',
+  reason: 'Manual admin status update',
+});
+const adminStatusSql = adminStatusClient.calls.map((call) => call.sql);
+assert(disputed.toStatus === 'disputed' && disputed.order?.status === 'disputed', 'admin status updates arbitrary status');
+assert(adminStatusSql.some((sql) => /from orders/i.test(sql) && /for update/i.test(sql)), 'admin status locks order for update');
+assert(adminStatusSql.some((sql) => /update orders/i.test(sql) && /status = \$1/i.test(sql)), 'admin status updates order status');
+assert(adminStatusSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'admin status writes status log');
+assert(adminStatusSql.at(-1) === 'commit', 'admin status commits');
+
+const adminCompletedClient = createMockClient([{ order_status: 'confirmed' }]);
+await setAdminOrderStatusTransaction(adminCompletedClient, {
+  orderId: draft.orderId,
+  status: 'completed',
+  statusLogId: '00000000-0000-4000-8000-000000000022',
+  settlementId: '00000000-0000-4000-8000-000000000023',
+  ledgerEntryId: '00000000-0000-4000-8000-000000000024',
+});
+const adminCompletedSql = adminCompletedClient.calls.map((call) => call.sql);
+assert(adminCompletedSql.some((sql) => /insert into settlements/i.test(sql)), 'admin completed inserts settlement');
+assert(adminCompletedSql.some((sql) => /insert into ledger_entries/i.test(sql)), 'admin completed inserts ledger entry');
+
 console.log(
   JSON.stringify(
     {
@@ -166,10 +193,14 @@ console.log(
         'cancel-release-slot',
         'cancel-refund',
         'transition-rollback',
+        'admin-status-update',
+        'admin-status-log',
+        'admin-complete-settlement',
       ],
       successQueryCount: successClient.calls.length,
       paymentQueryCount: paymentClient.calls.length,
       transitionQueryCount: confirmClient.calls.length + completeClient.calls.length + cancelClient.calls.length,
+      adminStatusQueryCount: adminStatusClient.calls.length + adminCompletedClient.calls.length,
     },
     null,
     2,

@@ -7,6 +7,7 @@ const store = createPostgresStore({
 });
 
 assert(store.capabilities.orderWrites === true, 'postgres store advertises order writes');
+assert(typeof store.orderWrites.setAdminOrderStatus === 'function', 'postgres store exposes admin order status gateway');
 
 const result = await store.orderWrites.createOrder({
   orderId: '00000000-0000-4000-8000-000000000821',
@@ -56,12 +57,24 @@ assert(client.calls.some((call) => /update availability_slots/i.test(call.sql)),
 assert(client.calls.some((call) => /^commit$/i.test(call.sql)), 'order gateway commits transaction');
 assert(client.released === true, 'order gateway releases client');
 
+const adminResult = await store.orderWrites.setAdminOrderStatus({
+  orderId: '00000000-0000-4000-8000-000000000821',
+  status: 'disputed',
+  statusLogId: '00000000-0000-4000-8000-000000000831',
+  adminId: '00000000-0000-4000-8000-000000000832',
+});
+const adminClient = pool.clients[1];
+assert(adminResult.toStatus === 'disputed', 'admin order gateway returns target status');
+assert(adminClient.calls.some((call) => /update orders/i.test(call.sql) && /status = \$1/i.test(call.sql)), 'admin order gateway updates status');
+assert(adminClient.calls.some((call) => /insert into order_status_logs/i.test(call.sql)), 'admin order gateway writes status log');
+assert(adminClient.released === true, 'admin order gateway releases client');
+
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['order-write-capability', 'create-order-gateway', 'client-release'],
-      queryCount: client.calls.length,
+      checks: ['order-write-capability', 'create-order-gateway', 'admin-status-gateway', 'client-release'],
+      queryCount: client.calls.length + adminClient.calls.length,
     },
     null,
     2,
@@ -88,8 +101,23 @@ function createMockClient() {
       const normalized = sql.trim().replace(/\s+/g, ' ');
       this.calls.push({ sql: normalized, params });
       if (/from availability_slots/i.test(normalized)) return { rows: [{ id: params[0], status: 'available' }] };
+      if (/from orders/i.test(normalized) && /for update/i.test(normalized)) {
+        return {
+          rows: [
+            {
+              id: params[0],
+              status: 'paid_pending_confirm',
+              companion_id: '00000000-0000-4000-8000-000000000823',
+              total_amount_cents: 42900,
+              platform_fee_cents: 3432,
+              companion_income_cents: 39468,
+            },
+          ],
+        };
+      }
       if (/insert into orders/i.test(normalized)) return { rows: [{ id: params[0], order_no: params[1] }] };
       if (/insert into payments/i.test(normalized)) return { rows: [{ id: params[0], status: 'pending' }] };
+      if (/update orders/i.test(normalized)) return { rows: [{ id: params[3], status: params[0] }] };
       return { rows: [] };
     },
     release() {

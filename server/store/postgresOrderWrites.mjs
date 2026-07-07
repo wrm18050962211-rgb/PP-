@@ -266,6 +266,64 @@ export async function transitionOrderTransaction(client, draft) {
   }
 }
 
+export async function setAdminOrderStatusTransaction(client, draft) {
+  assertClient(client);
+  assertAdminStatusDraft(draft);
+
+  await client.query('begin');
+  try {
+    const orderResult = await client.query(
+      `select id,
+              status,
+              companion_id,
+              total_amount_cents,
+              platform_fee_cents,
+              companion_income_cents
+       from orders
+       where id = $1
+       for update`,
+      [draft.orderId],
+    );
+    const order = orderResult.rows?.[0];
+    if (!order) throw conflict('ORDER_NOT_FOUND', 'Order not found');
+
+    const occurredAt = draft.occurredAt || new Date().toISOString();
+    const updatedOrderResult = await client.query(
+      `update orders
+       set status = $1,
+           confirmed_at = case when $1 = 'confirmed' then coalesce(confirmed_at, $2) else confirmed_at end,
+           completed_at = case when $1 = 'completed' then coalesce(completed_at, $2) else completed_at end,
+           cancelled_at = case when $1 in ('cancelled', 'refunding', 'refunded') then coalesce(cancelled_at, $2) else cancelled_at end,
+           cancel_reason = case when $1 in ('cancelled', 'refunding', 'refunded') then $3 else cancel_reason end,
+           updated_at = now()
+       where id = $4
+       returning *`,
+      [draft.status, occurredAt, draft.reason || null, draft.orderId],
+    );
+
+    if (draft.status === 'completed') {
+      await insertSettlementSideEffects(client, draft, order, occurredAt);
+    }
+
+    await client.query(
+      `insert into order_status_logs (
+        id, order_id, from_status, to_status, operator_type, operator_id, reason
+      ) values ($1, $2, $3, $4, $5, $6, $7)`,
+      [draft.statusLogId, draft.orderId, order.status, draft.status, 'admin', draft.adminId || null, draft.reason || 'Manual admin status update'],
+    );
+
+    await client.query('commit');
+    return {
+      order: updatedOrderResult.rows?.[0] || null,
+      fromStatus: order.status,
+      toStatus: draft.status,
+    };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  }
+}
+
 function assertClient(client) {
   if (!client || typeof client.query !== 'function') {
     throw new Error('PostgreSQL client with query(sql, params) is required');
@@ -319,6 +377,17 @@ function assertTransitionDraft(draft) {
     }
   }
   if (missing.length) throw new Error(`Missing transitionOrder draft fields: ${missing.join(', ')}`);
+}
+
+function assertAdminStatusDraft(draft) {
+  const required = ['orderId', 'status', 'statusLogId'];
+  const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
+  if (draft?.status === 'completed') {
+    for (const key of ['settlementId', 'ledgerEntryId']) {
+      if (!draft[key]) missing.push(key);
+    }
+  }
+  if (missing.length) throw new Error(`Missing admin order status draft fields: ${missing.join(', ')}`);
 }
 
 function nextOrderStatus(status, action) {

@@ -16,6 +16,7 @@ const checks = [
   ['postgres-payment-route', ['scripts/check-postgres-payment-route.mjs']],
   ['postgres-conversation-route', ['scripts/check-postgres-conversation-route.mjs']],
   ['postgres-transition-route', ['scripts/check-postgres-transition-route.mjs']],
+  ['postgres-admin-order-route', ['scripts/check-postgres-admin-order-route.mjs']],
   ['postgres-store-order-gateway', ['scripts/check-postgres-store-order-gateway.mjs']],
   ['postgres-store-message-gateway', ['scripts/check-postgres-store-message-gateway.mjs']],
   ['postgres-store-moderation-gateway', ['scripts/check-postgres-store-moderation-gateway.mjs']],

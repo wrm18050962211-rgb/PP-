@@ -4,7 +4,7 @@ import { upsertAuthIdentityUserTransaction } from './postgresAuthWrites.mjs';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
 import { applyModerationActionTransaction, createReportTransaction } from './postgresModerationWrites.mjs';
-import { createOrderTransaction, markPaymentPaidTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
+import { createOrderTransaction, markPaymentPaidTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
 import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from './postgresSessionWrites.mjs';
 import { recordSecurityEventTransaction } from './postgresSecurityWrites.mjs';
 import { hashSessionToken } from './sessionTokenHash.mjs';
@@ -50,6 +50,7 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       createOrder: (draft) => withClient((client) => createOrderTransaction(client, draft)),
       markPaymentPaid: (draft) => withClient((client) => markPaymentPaidTransaction(client, draft)),
       transitionOrder: (draft) => withClient((client) => transitionOrderTransaction(client, draft)),
+      setAdminOrderStatus: (draft) => withClient((client) => setAdminOrderStatusTransaction(client, draft)),
     },
     messageWrites: {
       sendMessage: (draft) => withClient((client) => sendMessageTransaction(client, draft)),

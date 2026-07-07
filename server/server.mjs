@@ -1062,19 +1062,54 @@ function setOrderStatus(store, path, status) {
   return result;
 }
 
-function setAdminOrderStatus(store, path, status) {
+async function setAdminOrderStatus(store, path, status) {
   const admin = requireAdminSession(store);
   if (admin.response) return admin.response;
 
   const order = findOrder(store, path.split('/')[4]);
   if (!order) return error(404, 'NOT_FOUND', 'Order not found');
   if (!orderStatusText[status]) return error(400, 'VALIDATION_ERROR', 'Unknown order status');
+  if (dataStore.kind !== 'json' && dataStore.orderWrites?.setAdminOrderStatus) {
+    const result = await setPostgresAdminOrderStatus(order, status, admin.session);
+    recordAdminAction(store, admin.session, 'order_status_update', 'order', order.id, {
+      note: `Order status set to ${status}`,
+      beforeData: { status: order.status },
+      afterData: { status },
+    });
+    return result;
+  }
   const result = updateOrder(store, order, status, 'Manual admin status update');
   if (status === 'completed') createSettlement(store, order);
   recordAdminAction(store, admin.session, 'order_status_update', 'order', order.id, {
     note: `Order status set to ${status}`,
   });
   return result;
+}
+
+async function setPostgresAdminOrderStatus(order, status, adminSession) {
+  const occurredAt = now();
+  const draft = {
+    orderId: order.id,
+    status,
+    statusLogId: id('status-log'),
+    adminId: adminSession.user?.id || null,
+    reason: 'Manual admin status update',
+    occurredAt,
+  };
+
+  if (status === 'completed') {
+    draft.settlementId = id('settlement');
+    draft.ledgerEntryId = id('ledger');
+    draft.settleAfter = occurredAt;
+  }
+
+  const result = await dataStore.orderWrites.setAdminOrderStatus(draft);
+  const nextOrder = viewOrder({
+    ...order,
+    status: result.toStatus || status,
+    statusLogs: [...(order.statusLogs || []), statusLog(result.toStatus || status, 'Manual admin status update')],
+  });
+  return json(nextOrder, 200, false);
 }
 
 function updateOrder(store, order, status, reason) {
