@@ -42,6 +42,7 @@
     "check:postgres-write-plan": "node scripts/check-postgres-write-plan.mjs",
     "check:postgres-auth-writes": "node scripts/check-postgres-auth-writes.mjs",
     "check:postgres-order-writes": "node scripts/check-postgres-order-writes.mjs",
+    "check:postgres-provider-callback-writes": "node scripts/check-postgres-provider-callback-writes.mjs",
     "check:postgres-message-writes": "node scripts/check-postgres-message-writes.mjs",
     "check:postgres-moderation-writes": "node scripts/check-postgres-moderation-writes.mjs",
     "check:postgres-audit-writes": "node scripts/check-postgres-audit-writes.mjs",

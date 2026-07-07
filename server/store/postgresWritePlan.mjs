@@ -17,6 +17,18 @@ export const postgresWriteOperations = [
     ],
   },
   {
+    name: 'recordProviderCallback',
+    route: 'POST /api/payments/wechat/notify and POST /api/payments/wechat/refund-notify',
+    transaction: true,
+    tables: ['provider_callback_events'],
+    steps: [
+      'record raw provider callback event before business status mutation',
+      'dedupe by provider, event type, and provider event id',
+      'mark processed after the payment or refund transaction succeeds',
+      'mark retrying or failed when callback processing cannot be completed',
+    ],
+  },
+  {
     name: 'markPaymentPaid',
     route: 'POST /api/payments/:paymentId/mock-success and POST /api/payments/wechat/notify',
     transaction: true,

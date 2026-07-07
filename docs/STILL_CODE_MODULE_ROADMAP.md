@@ -43,6 +43,7 @@
 - 新增微信退款通知入口 `/api/payments/wechat/refund-notify`，会将微信退款终态映射到 `markRefundTerminal`；当前仍需继续补平台证书轮换和退款重试队列。
 - 微信支付/退款通知已补签名校验骨架：服务端保留 raw body，并在解密 resource 前用 `WECHAT_PAY_PLATFORM_PUBLIC_KEY(_PATH)` 校验 `Wechatpay-*` 请求头；后续还需接平台证书轮换和回调重试队列。
 - 新增 `provider_callback_events` 数据库表和 Prisma 映射，先为微信支付/退款回调的原始事件、处理状态、失败原因和后续重试队列打底；下一步再接 Postgres 写入 gateway 和真实回调处理链路。
+- Postgres 已新增 `providerCallbackWrites` gateway：可以记录 provider 原始回调、标记 processed、标记 retrying/failed；下一步把微信支付/退款通知入口接入该 gateway。
 - 当前仍未完成生产级事项：真实数据库 CI/迁移流水线、独立队列/定时任务系统、更多退款/支付回调重试覆盖、session/admin_action_logs/audit_logs/security_events 的生产级闭环验证、后台进一步拆模块，以及初步上线前独立部署。
 
 ## 0. 当前代码状态快照

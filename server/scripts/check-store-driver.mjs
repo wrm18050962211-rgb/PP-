@@ -61,6 +61,13 @@ try {
       typeof postgresStore.moderationWrites?.reviewAuditCase === 'function',
     'postgres store exposes moderation write gateway',
   );
+  assert(
+    postgresStore.capabilities?.providerCallbackWrites === true &&
+      typeof postgresStore.providerCallbackWrites?.recordReceived === 'function' &&
+      typeof postgresStore.providerCallbackWrites?.markProcessed === 'function' &&
+      typeof postgresStore.providerCallbackWrites?.markFailed === 'function',
+    'postgres store exposes provider callback write gateway',
+  );
   await assertRejects(
     () => postgresStore.save({}),
     'save is not implemented',
@@ -83,6 +90,7 @@ try {
           'postgres-order-gateway',
           'postgres-message-gateway',
           'postgres-moderation-gateway',
+          'postgres-provider-callback-gateway',
           'postgres-save-protected',
         ],
       },

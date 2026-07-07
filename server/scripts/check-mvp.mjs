@@ -34,6 +34,7 @@ const checks = [
   ['postgres-write-plan', ['scripts/check-postgres-write-plan.mjs']],
   ['postgres-auth-writes', ['scripts/check-postgres-auth-writes.mjs']],
   ['postgres-order-writes', ['scripts/check-postgres-order-writes.mjs']],
+  ['postgres-provider-callback-writes', ['scripts/check-postgres-provider-callback-writes.mjs']],
   ['postgres-message-writes', ['scripts/check-postgres-message-writes.mjs']],
   ['postgres-moderation-writes', ['scripts/check-postgres-moderation-writes.mjs']],
   ['postgres-audit-writes', ['scripts/check-postgres-audit-writes.mjs']],
