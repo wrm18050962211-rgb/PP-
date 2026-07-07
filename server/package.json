@@ -14,6 +14,9 @@
     "check:postgres-order-writes": "node scripts/check-postgres-order-writes.mjs",
     "check:postgres-message-writes": "node scripts/check-postgres-message-writes.mjs",
     "check:postgres-moderation-writes": "node scripts/check-postgres-moderation-writes.mjs",
+    "check:postgres-audit-writes": "node scripts/check-postgres-audit-writes.mjs",
+    "check:postgres-security-writes": "node scripts/check-postgres-security-writes.mjs",
+    "check:postgres-session-writes": "node scripts/check-postgres-session-writes.mjs",
     "db:export-seed": "node ../database/scripts/export-store-to-seed.mjs"
   }
 }
