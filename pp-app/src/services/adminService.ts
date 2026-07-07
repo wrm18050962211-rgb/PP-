@@ -75,13 +75,13 @@ export async function fetchAdminOrders(fallback: AppOrder[] = seedOrders): Promi
 }
 
 export async function updateAdminOrderStatus(orderId: string, status: OrderStatus): Promise<AppOrder | null> {
-  if (!isApiEnabled()) return null;
+  if (!isApiEnabled()) return getApiFallback(null, 'Admin order status');
 
   try {
     const response = await apiPost<AppOrder>(`/api/admin/orders/${orderId}/status`, { status });
-    return response.success ? response.data : null;
+    return response.success ? response.data : getApiFallback(null, 'Admin order status');
   } catch {
-    return null;
+    return getApiFallback(null, 'Admin order status');
   }
 }
 

@@ -327,14 +327,23 @@ export function AdminDashboard() {
   }
 
   function handleAdminOrderStatus(orderId: string, status: OrderStatus) {
+    const previousOrder = visibleOrders.find((order) => order.id === orderId);
+    const restorePreviousOrder = () => {
+      if (!previousOrder) return;
+      setAdminOrders((items) => items.map((order) => (order.id === orderId ? previousOrder : order)));
+    };
+
     setAdminOrders((items) =>
       items.map((order) => (order.id === orderId ? { ...order, status, statusText: orderStatusText[status] } : order)),
     );
     void updateAdminOrderStatus(orderId, status).then((updatedOrder) => {
-      if (!updatedOrder) return;
+      if (!updatedOrder) {
+        restorePreviousOrder();
+        return;
+      }
       setAdminOrders((items) => items.map((order) => (order.id === orderId ? updatedOrder : order)));
       void refreshAdminActionLogs();
-    });
+    }).catch(restorePreviousOrder);
   }
 
   return (
