@@ -51,6 +51,17 @@ const checks = [
     ],
   },
   {
+    file: 'src/services/messageService.ts',
+    includes: [
+      'export async function sendImageMessage',
+      'if (!isMockFallbackAllowed()) {',
+      "throw new Error('",
+      'return getApiFallback({',
+      "if (!isMockFallbackAllowed()) return;",
+      'if (!isMockFallbackAllowed()) return {};',
+    ],
+  },
+  {
     file: 'src/services/authService.ts',
     includes: [
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'))",
