@@ -249,6 +249,8 @@ const rows = {
       status: 'pending',
       requested_by: 'user-pg-1',
       processed_by: null,
+      third_party_refund_no: 'wx-refund-pg-1',
+      raw_callback: { refund_status: 'SUCCESS' },
       refunded_at: null,
       created_at: '2026-06-12T06:20:00.000Z',
       updated_at: '2026-06-12T06:20:00.000Z',
@@ -325,6 +327,8 @@ assert(store.reports[0].description === 'Photographer was late.', 'reports map')
 assert(store.auditCases[0].targetType === 'report', 'audit cases map');
 assert(store.auditCases[0].payload.id === 'report-pg-1', 'audit case report payload links');
 assert(store.refunds[0].refundNo === 'REF2606120001', 'refunds map');
+assert(store.refunds[0].thirdPartyRefundNo === 'wx-refund-pg-1', 'refund third-party id maps');
+assert(store.refunds[0].rawCallback.refund_status === 'SUCCESS', 'refund raw callback maps');
 assert(store.settlements[0].payableCents === 36708, 'settlements map');
 assert(store.ledgerEntries[0].settlementId === 'settlement-pg-1', 'ledger entries map');
 assert(store.wallets[0].availableCents === 120000, 'wallets map');

@@ -411,6 +411,8 @@ function mapRefunds(rows, orders) {
       status: row.status || 'pending',
       requestedBy: row.requested_by ? stringId(row.requested_by) : null,
       processedBy: row.processed_by ? stringId(row.processed_by) : null,
+      thirdPartyRefundNo: row.third_party_refund_no || null,
+      rawCallback: jsonObject(row.raw_callback),
       refundedAt: toOptionalIso(row.refunded_at),
       createdAt: toIso(row.created_at),
       updatedAt: toOptionalIso(row.updated_at),

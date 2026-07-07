@@ -125,6 +125,7 @@ async function route(method, url, body, store, req) {
   if (method === 'GET' && isNestedRoute(path, '/api/payments/', '/status')) return getPaymentStatus(store, path);
   if (method === 'POST' && isNestedRoute(path, '/api/payments/', '/mock-success')) return mockPaymentSuccess(store, path);
   if (method === 'POST' && path === '/api/payments/wechat/notify') return wechatPaymentNotify(store, body);
+  if (method === 'POST' && path === '/api/payments/wechat/refund-notify') return wechatRefundNotify(store, body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/confirm')) return transitionOrder(store, path, 'confirm', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/complete')) return transitionOrder(store, path, 'complete', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/cancel')) return transitionOrder(store, path, 'cancel', body);
@@ -2978,6 +2979,71 @@ async function markPostgresWechatPaymentTerminal(payment, transaction) {
     rawCallback: transaction,
   });
   return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
+}
+
+async function wechatRefundNotify(store, body = {}) {
+  if (!process.env.WECHAT_PAY_API_V3_KEY) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
+  const transaction = decryptWechatPayResource(body.resource || {});
+  const refund = store.refunds.find((item) => item.refundNo === transaction.out_refund_no || item.thirdPartyRefundNo === transaction.refund_id);
+  if (!refund) return error(404, 'NOT_FOUND', 'Refund not found');
+
+  if (dataStore.kind !== 'json' && dataStore.orderWrites?.markRefundTerminal) {
+    return markPostgresWechatRefundTerminal(refund, transaction);
+  }
+
+  const changed = applyWechatRefundTerminal(store, refund, transaction);
+  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, changed);
+}
+
+async function markPostgresWechatRefundTerminal(refund, transaction) {
+  const status = mapWechatRefundTerminalStatus(transaction.refund_status);
+  if (!status) return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
+
+  await dataStore.orderWrites.markRefundTerminal({
+    refundId: refund.id,
+    status,
+    statusLogId: status === 'succeeded' ? id('status-log') : undefined,
+    occurredAt: transaction.success_time || now(),
+    thirdPartyRefundNo: transaction.refund_id || null,
+    rawCallback: transaction,
+    operatorType: 'system',
+    reason: refundTerminalReason(status, transaction),
+  });
+  return rawJson({ code: 'SUCCESS', message: 'OK' }, 200, false);
+}
+
+function applyWechatRefundTerminal(store, refund, transaction) {
+  const status = mapWechatRefundTerminalStatus(transaction.refund_status);
+  if (!status || ['succeeded', 'failed', 'rejected'].includes(refund.status)) return false;
+
+  refund.status = status;
+  refund.thirdPartyRefundNo = transaction.refund_id || refund.thirdPartyRefundNo || null;
+  refund.rawCallback = transaction;
+  refund.updatedAt = now();
+
+  if (status === 'succeeded') {
+    refund.refundedAt = transaction.success_time || now();
+    const order = store.orders.find((item) => item.id === refund.orderId);
+    if (order?.status === 'refunding') {
+      Object.assign(order, viewOrder({ ...order, status: 'refunded' }));
+      order.statusLogs = [...(order.statusLogs || []), statusLog('refunded', refundTerminalReason(status, transaction))];
+    }
+  }
+
+  return true;
+}
+
+function mapWechatRefundTerminalStatus(status) {
+  if (status === 'SUCCESS') return 'succeeded';
+  if (status === 'CLOSED') return 'rejected';
+  if (status === 'ABNORMAL') return 'failed';
+  return null;
+}
+
+function refundTerminalReason(status, transaction = {}) {
+  if (status === 'succeeded') return 'WeChat refund succeeded';
+  if (status === 'rejected') return transaction.status_desc || 'WeChat refund closed';
+  return transaction.status_desc || 'WeChat refund failed';
 }
 
 async function refreshWechatPaymentStatus(store, payment) {
