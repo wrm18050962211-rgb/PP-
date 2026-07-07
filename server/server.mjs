@@ -79,6 +79,7 @@ http
       const url = new URL(req.url || '/', 'http://local');
       const { store, changed: storeChanged } = await dataStore.load();
       const cleanupChanged = dataStore.kind === 'json' ? expirePendingPaymentOrders(store) : false;
+      if (dataStore.kind !== 'json') await expirePostgresPendingPaymentOrders();
       const body = await readBody(req);
       const result = await route(req.method || 'GET', url, body, store, req);
       if (dataStore.kind !== 'json' && (storeChanged || cleanupChanged || result.changed)) {
@@ -2025,6 +2026,18 @@ function expirePendingPaymentOrders(store) {
   }
 
   return changed;
+}
+
+async function expirePostgresPendingPaymentOrders() {
+  if (!dataStore.orderWrites?.expirePendingPayments) return;
+  const result = await dataStore.orderWrites.expirePendingPayments({
+    occurredAt: now(),
+    reason: 'Payment window expired',
+    limit: 100,
+  });
+  if (result.expiredCount > 0) {
+    console.log(`[orders] released ${result.expiredCount} expired pending payment order(s).`);
+  }
 }
 
 function getPendingPaymentExpiresAt(order, payment) {
