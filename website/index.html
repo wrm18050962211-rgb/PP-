@@ -5,405 +5,72 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Still 是 InFrame 推出的生活方式影像服务，留住城市、光线与此刻的样子。"
+      content="Still 是 InFrame 推出的生活方式影像服务，连接拍摄灵感、城市场景、摄影服务与影像交付。"
     />
-    <meta name="theme-color" content="#101110" />
+    <meta name="theme-color" content="#050505" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Still by InFrame" />
+    <meta property="og:description" content="留住此刻的样子。" />
+    <meta property="og:image" content="https://weareinframe.com/assets/hero-still.jpg" />
+    <link rel="canonical" href="https://weareinframe.com/" />
+    <link rel="preload" href="assets/hero-still.jpg" as="image" />
+    <link rel="stylesheet" href="styles.css" />
     <title>Still by InFrame</title>
-    <style>
-      :root {
-        color: #f8f8f4;
-        background: #101110;
-        font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          "Microsoft YaHei", sans-serif;
-        font-synthesis: none;
-        text-rendering: optimizeLegibility;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html {
-        scroll-behavior: smooth;
-      }
-
-      body {
-        margin: 0;
-        min-width: 320px;
-        min-height: 100vh;
-        background: #101110;
-      }
-
-      a {
-        color: inherit;
-      }
-
-      .hero {
-        position: relative;
-        display: grid;
-        min-height: 82svh;
-        overflow: hidden;
-        isolation: isolate;
-      }
-
-      .hero__image,
-      .hero__shade {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-      }
-
-      .hero__image {
-        z-index: -2;
-        object-fit: cover;
-        object-position: center 40%;
-      }
-
-      .hero__shade {
-        z-index: -1;
-        background: rgba(8, 10, 9, 0.56);
-      }
-
-      .nav {
-        position: absolute;
-        inset: 0 0 auto;
-        z-index: 2;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        min-height: 76px;
-        padding: 0 5vw;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-      }
-
-      .nav__brand {
-        margin: 0;
-        font-size: 1.1rem;
-        font-weight: 760;
-      }
-
-      .nav__meta {
-        margin: 0;
-        color: rgba(255, 255, 255, 0.72);
-        font-size: 0.78rem;
-        font-weight: 650;
-      }
-
-      .hero__content {
-        align-self: end;
-        width: min(1180px, 90vw);
-        margin: 0 auto;
-        padding: 148px 0 9vh;
-      }
-
-      .hero__eyebrow {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin: 0 0 18px;
-        color: #9df0c9;
-        font-size: 0.78rem;
-        font-weight: 800;
-        text-transform: uppercase;
-      }
-
-      .hero__eyebrow::before {
-        width: 34px;
-        height: 3px;
-        background: #ff6a57;
-        content: "";
-      }
-
-      h1 {
-        max-width: 800px;
-        margin: 0;
-        font-family: Georgia, "Times New Roman", "Microsoft YaHei", serif;
-        font-size: 7.2rem;
-        font-weight: 500;
-        line-height: 0.9;
-      }
-
-      .hero__copy {
-        max-width: 580px;
-        margin: 28px 0 0;
-        color: rgba(255, 255, 255, 0.86);
-        font-size: 1.08rem;
-        font-weight: 520;
-        line-height: 1.8;
-      }
-
-      .hero__link {
-        display: inline-flex;
-        align-items: center;
-        min-height: 46px;
-        margin-top: 34px;
-        padding: 0 20px;
-        border: 1px solid rgba(255, 255, 255, 0.52);
-        border-radius: 4px;
-        background: rgba(10, 11, 10, 0.2);
-        font-size: 0.9rem;
-        font-weight: 760;
-        text-decoration: none;
-      }
-
-      .hero__link:focus-visible,
-      .hero__link:hover {
-        border-color: #9df0c9;
-        background: #9df0c9;
-        color: #101110;
-        outline: none;
-      }
-
-      .intro {
-        display: grid;
-        min-height: 36svh;
-        place-items: center;
-        padding: 72px 5vw;
-        background: #f2f3ef;
-        color: #171817;
-        text-align: center;
-      }
-
-      .intro p {
-        max-width: 850px;
-        margin: 0;
-        font-family: Georgia, "Times New Roman", "Microsoft YaHei", serif;
-        font-size: 2.2rem;
-        line-height: 1.45;
-      }
-
-      .product {
-        padding: 104px 5vw 112px;
-        background: #171918;
-        color: #f8f8f4;
-      }
-
-      .product__inner {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(280px, 390px);
-        align-items: center;
-        gap: 9vw;
-        width: min(1180px, 100%);
-        margin: 0 auto;
-      }
-
-      .product__eyebrow {
-        margin: 0 0 16px;
-        color: #ff7a67;
-        font-size: 0.78rem;
-        font-weight: 800;
-        text-transform: uppercase;
-      }
-
-      .product h2 {
-        max-width: 650px;
-        margin: 0;
-        font-family: Georgia, "Times New Roman", "Microsoft YaHei", serif;
-        font-size: 3.4rem;
-        font-weight: 500;
-        line-height: 1.16;
-      }
-
-      .product__lead {
-        max-width: 620px;
-        margin: 24px 0 0;
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 1rem;
-        line-height: 1.8;
-      }
-
-      .product__journey {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        margin: 44px 0 0;
-        padding: 0;
-        border-top: 1px solid rgba(255, 255, 255, 0.18);
-        list-style: none;
-      }
-
-      .product__journey li {
-        display: grid;
-        grid-template-columns: 32px minmax(0, 1fr);
-        gap: 12px;
-        min-height: 76px;
-        align-items: center;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.18);
-        color: rgba(255, 255, 255, 0.88);
-        font-size: 0.92rem;
-        font-weight: 700;
-      }
-
-      .product__journey li:nth-child(odd) {
-        padding-right: 22px;
-      }
-
-      .product__journey li:nth-child(even) {
-        padding-left: 22px;
-        border-left: 1px solid rgba(255, 255, 255, 0.18);
-      }
-
-      .product__number {
-        color: #9df0c9;
-        font-family: Georgia, "Times New Roman", serif;
-        font-size: 1.3rem;
-        font-weight: 700;
-      }
-
-      .product__figure {
-        width: min(100%, 360px);
-        margin: 0;
-        justify-self: end;
-      }
-
-      .product__screen-frame {
-        position: relative;
-        aspect-ratio: 448 / 720;
-        overflow: hidden;
-        width: 100%;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        border-radius: 7px;
-        background: #050505;
-        box-shadow: 0 28px 68px rgba(0, 0, 0, 0.42);
-      }
-
-      .product__screen {
-        position: absolute;
-        top: 0;
-        left: 50%;
-        display: block;
-        width: auto;
-        max-width: none;
-        height: 100%;
-        transform: translateX(-50%);
-      }
-
-      .product__caption {
-        margin: 42px 0 0;
-        color: rgba(255, 255, 255, 0.52);
-        font-size: 0.76rem;
-        line-height: 1.6;
-      }
-
-      @media (max-width: 720px) {
-        .hero {
-          min-height: 84svh;
-        }
-
-        .nav {
-          min-height: 64px;
-          padding: 0 20px;
-        }
-
-        .nav__meta {
-          font-size: 0.7rem;
-        }
-
-        .hero__image {
-          object-position: 58% center;
-        }
-
-        .hero__content {
-          width: calc(100% - 40px);
-          padding: 124px 0 54px;
-        }
-
-        h1 {
-          font-size: 4.5rem;
-        }
-
-        .hero__copy {
-          max-width: 34rem;
-          margin-top: 22px;
-          font-size: 1rem;
-        }
-
-        .intro {
-          min-height: 34svh;
-          padding: 56px 24px;
-        }
-
-        .intro p {
-          font-size: 1.6rem;
-        }
-
-        .product {
-          padding: 72px 24px 84px;
-        }
-
-        .product__inner {
-          grid-template-columns: minmax(0, 1fr);
-          gap: 58px;
-        }
-
-        .product h2 {
-          font-size: 2.5rem;
-        }
-
-        .product__journey {
-          grid-template-columns: minmax(0, 1fr);
-        }
-
-        .product__journey li,
-        .product__journey li:nth-child(odd),
-        .product__journey li:nth-child(even) {
-          padding: 0;
-          border-left: 0;
-        }
-
-        .product__figure {
-          width: min(90%, 340px);
-          justify-self: center;
-        }
-
-        .product__screen-frame {
-          box-shadow: 0 22px 54px rgba(0, 0, 0, 0.38);
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        html {
-          scroll-behavior: auto;
-        }
-      }
-    </style>
   </head>
   <body>
-    <main>
-      <section class="hero" aria-labelledby="hero-title">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <header class="site-header">
+      <a class="site-brand" href="#top" aria-label="InFrame 首页">
+        <span class="site-brand__company">InFrame</span>
+        <span class="site-brand__product">Still</span>
+      </a>
+      <nav class="site-nav" aria-label="主要导航">
+        <a href="#product">产品</a>
+        <a class="site-nav__optional" href="#experience">体验</a>
+        <a class="site-nav__optional" href="#inframe">公司</a>
+        <a class="site-nav__contact" href="#contact">联系</a>
+      </nav>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" id="top" aria-labelledby="hero-title">
         <img
           class="hero__image"
-          src="https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&amp;fit=crop&amp;w=2000&amp;q=88"
-          alt="城市街道中的生活方式影像"
+          src="assets/hero-still.jpg"
+          alt="阳光下的生活方式人像"
         />
         <div class="hero__shade" aria-hidden="true"></div>
 
-        <header class="nav">
-          <p class="nav__brand">InFrame</p>
-          <p class="nav__meta">SHANGHAI · 2026</p>
-        </header>
-
         <div class="hero__content">
-          <p class="hero__eyebrow">InFrame presents</p>
+          <p class="eyebrow eyebrow--light">InFrame presents</p>
           <h1 id="hero-title">Still</h1>
           <p class="hero__copy">
             留住此刻的样子。把城市、光线与真实状态，沉淀成值得回看的影像记忆。
           </p>
-          <a class="hero__link" href="#still">认识 Still</a>
+          <div class="hero__actions">
+            <a class="button button--light" href="#product">查看产品</a>
+            <a class="text-link text-link--light" href="#contact">首发与合作咨询</a>
+          </div>
+          <p class="hero__status"><span aria-hidden="true"></span>iOS 首发准备中</p>
         </div>
       </section>
 
-      <section class="intro" id="still" aria-label="Still 品牌介绍">
-        <p>生活原本是流动的，Still 把值得记住的一刻安静地保存下来。</p>
+      <section class="statement" id="still" aria-label="Still 品牌介绍">
+        <div class="section-shell statement__inner">
+          <p class="eyebrow">Still / Presence</p>
+          <p class="statement__text">
+            生活原本是流动的。Still 把一个人在某座城市、某束光和某段生活里的样子，安静地保存下来。
+          </p>
+        </div>
       </section>
 
-      <section class="product" aria-labelledby="product-title">
-        <div class="product__inner">
-          <div>
-            <p class="product__eyebrow">Still / Product</p>
+      <section class="product" id="product" aria-labelledby="product-title">
+        <div class="section-shell product__inner">
+          <div class="product__copy">
+            <p class="eyebrow eyebrow--coral">Still / Product</p>
             <h2 id="product-title">从拍摄灵感，到一段被认真交付的影像记忆。</h2>
-            <p class="product__lead">
+            <p class="section-lead section-lead--dark">
               Still 面向真实生活场景，帮助用户发现合适的作品与摄影服务，完成预约、沟通和影像交付。
             </p>
             <ol class="product__journey" aria-label="Still 使用流程">
@@ -426,6 +93,136 @@
           </figure>
         </div>
       </section>
+
+      <section class="experience" id="experience" aria-labelledby="experience-title">
+        <div class="section-shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Experience</p>
+              <h2 id="experience-title">让拍摄从“找人”变成一段清楚的体验。</h2>
+            </div>
+            <p class="section-lead">
+              首发版本聚焦城市生活方式拍摄，把灵感、需求、预约与交付放进同一条清晰路径。
+            </p>
+          </div>
+
+          <div class="experience__grid">
+            <article class="experience__item">
+              <span class="experience__index">01</span>
+              <h3>从作品开始</h3>
+              <p>先看真实场景和风格，再决定想拍什么，不从一张陌生的服务清单开始。</p>
+            </article>
+            <article class="experience__item">
+              <span class="experience__index">02</span>
+              <h3>把需求说清楚</h3>
+              <p>围绕地点、时间、感觉与拍前准备沟通，让摄影服务更接近你真正想留下的样子。</p>
+            </article>
+            <article class="experience__item">
+              <span class="experience__index">03</span>
+              <h3>让过程可回看</h3>
+              <p>预约、订单沟通、状态变更和交付记录集中留存，重要信息不散落在不同对话里。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="principles" aria-labelledby="principles-title">
+        <div class="section-shell principles__inner">
+          <div>
+            <p class="eyebrow">Product principles</p>
+            <h2 id="principles-title">真实、克制、可追踪。</h2>
+          </div>
+          <div class="principles__list">
+            <p>作品与服务信息尽量清楚，不用夸张承诺替代真实判断。</p>
+            <p>沟通和支付留在正式流程里，减少关键约定丢失。</p>
+            <p>客服、举报、退款与账号删除拥有可找到的正式入口。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="audience" aria-labelledby="audience-title">
+        <div class="section-shell">
+          <div class="section-heading section-heading--dark">
+            <div>
+              <p class="eyebrow eyebrow--mint">For both sides</p>
+              <h2 id="audience-title">让想被记录的人，与认真拍摄的人彼此看见。</h2>
+            </div>
+          </div>
+          <div class="audience__grid">
+            <article>
+              <p class="audience__label">For clients</p>
+              <h3>不需要先懂摄影，也能找到适合自己的表达。</h3>
+              <p>从熟悉的城市、生活场景和想要的感觉出发，让第一次认真拍照也不必紧张。</p>
+            </article>
+            <article>
+              <p class="audience__label">For photographers</p>
+              <h3>让作品、服务边界与专业能力一起被看见。</h3>
+              <p>不仅展示一组好看的照片，也让用户理解拍摄方式、服务范围与交付预期。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="inframe" id="inframe" aria-labelledby="inframe-title">
+        <div class="section-shell inframe__inner">
+          <div>
+            <p class="eyebrow">Company</p>
+            <h2 id="inframe-title">InFrame</h2>
+          </div>
+          <div class="inframe__copy">
+            <p>
+              InFrame 关注人与真实场景之间的连接。Still 是我们推出的生活方式影像产品，负责把值得记住的一刻留下来。
+            </p>
+            <dl class="company-facts">
+              <div>
+                <dt>公司</dt>
+                <dd>上海帧遇科技有限公司</dd>
+              </div>
+              <div>
+                <dt>所在地</dt>
+                <dd>中国 · 上海</dd>
+              </div>
+              <div>
+                <dt>官网</dt>
+                <dd>weareinframe.com</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+      <section class="contact" id="contact" aria-labelledby="contact-title">
+        <div class="section-shell contact__inner">
+          <div>
+            <p class="eyebrow">Contact</p>
+            <h2 id="contact-title">Still 正在准备 iOS 首发。</h2>
+            <p>产品体验、摄影师合作、媒体与商务沟通，可通过企业邮箱联系我们。</p>
+          </div>
+          <a class="contact__email" href="mailto:support@weareinframe.com">
+            support@weareinframe.com
+          </a>
+        </div>
+      </section>
     </main>
+
+    <footer class="site-footer">
+      <div class="section-shell site-footer__top">
+        <div>
+          <p class="site-footer__brand">InFrame</p>
+          <p>Still · 留住此刻的样子</p>
+        </div>
+        <nav class="site-footer__links" aria-label="法律与服务">
+          <a href="privacy.html">隐私政策</a>
+          <a href="terms.html">用户协议</a>
+          <a href="refund.html">退款说明</a>
+          <a href="account-deletion.html">账号删除</a>
+        </nav>
+      </div>
+      <div class="section-shell site-footer__bottom">
+        <p>© 2026 上海帧遇科技有限公司</p>
+        <p>weareinframe.com</p>
+        <!-- ICP 与公安备案号取得后在此处展示。 -->
+      </div>
+    </footer>
   </body>
 </html>
