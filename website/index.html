@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Still 是 InFrame 推出的生活方式影像服务，留住城市、光线与此刻的样子。"
+    />
+    <meta name="theme-color" content="#101110" />
+    <title>Still by InFrame</title>
+    <style>
+      :root {
+        color: #f8f8f4;
+        background: #101110;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Microsoft YaHei", sans-serif;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        background: #101110;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        min-height: 82svh;
+        overflow: hidden;
+        isolation: isolate;
+      }
+
+      .hero__image,
+      .hero__shade {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .hero__image {
+        z-index: -2;
+        object-fit: cover;
+        object-position: center 40%;
+      }
+
+      .hero__shade {
+        z-index: -1;
+        background: rgba(8, 10, 9, 0.56);
+      }
+
+      .nav {
+        position: absolute;
+        inset: 0 0 auto;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 76px;
+        padding: 0 5vw;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .nav__brand {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 760;
+      }
+
+      .nav__meta {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 0.78rem;
+        font-weight: 650;
+      }
+
+      .hero__content {
+        align-self: end;
+        width: min(1180px, 90vw);
+        margin: 0 auto;
+        padding: 148px 0 9vh;
+      }
+
+      .hero__eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 0 18px;
+        color: #9df0c9;
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .hero__eyebrow::before {
+        width: 34px;
+        height: 3px;
+        background: #ff6a57;
+        content: "";
+      }
+
+      h1 {
+        max-width: 800px;
+        margin: 0;
+        font-family: Georgia, "Times New Roman", "Microsoft YaHei", serif;
+        font-size: 7.2rem;
+        font-weight: 500;
+        line-height: 0.9;
+      }
+
+      .hero__copy {
+        max-width: 580px;
+        margin: 28px 0 0;
+        color: rgba(255, 255, 255, 0.86);
+        font-size: 1.08rem;
+        font-weight: 520;
+        line-height: 1.8;
+      }
+
+      .hero__link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 46px;
+        margin-top: 34px;
+        padding: 0 20px;
+        border: 1px solid rgba(255, 255, 255, 0.52);
+        border-radius: 4px;
+        background: rgba(10, 11, 10, 0.2);
+        font-size: 0.9rem;
+        font-weight: 760;
+        text-decoration: none;
+      }
+
+      .hero__link:focus-visible,
+      .hero__link:hover {
+        border-color: #9df0c9;
+        background: #9df0c9;
+        color: #101110;
+        outline: none;
+      }
+
+      .intro {
+        display: grid;
+        min-height: 36svh;
+        place-items: center;
+        padding: 72px 5vw;
+        background: #f2f3ef;
+        color: #171817;
+        text-align: center;
+      }
+
+      .intro p {
+        max-width: 850px;
+        margin: 0;
+        font-family: Georgia, "Times New Roman", "Microsoft YaHei", serif;
+        font-size: 2.2rem;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 720px) {
+        .hero {
+          min-height: 84svh;
+        }
+
+        .nav {
+          min-height: 64px;
+          padding: 0 20px;
+        }
+
+        .nav__meta {
+          font-size: 0.7rem;
+        }
+
+        .hero__image {
+          object-position: 58% center;
+        }
+
+        .hero__content {
+          width: calc(100% - 40px);
+          padding: 124px 0 54px;
+        }
+
+        h1 {
+          font-size: 4.5rem;
+        }
+
+        .hero__copy {
+          max-width: 34rem;
+          margin-top: 22px;
+          font-size: 1rem;
+        }
+
+        .intro {
+          min-height: 34svh;
+          padding: 56px 24px;
+        }
+
+        .intro p {
+          font-size: 1.6rem;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <img
+          class="hero__image"
+          src="https://images.unsplash.com/photo-1524250502761-1ac6f2e30d43?auto=format&amp;fit=crop&amp;w=2000&amp;q=88"
+          alt="城市街道中的生活方式影像"
+        />
+        <div class="hero__shade" aria-hidden="true"></div>
+
+        <header class="nav">
+          <p class="nav__brand">InFrame</p>
+          <p class="nav__meta">SHANGHAI · 2026</p>
+        </header>
+
+        <div class="hero__content">
+          <p class="hero__eyebrow">InFrame presents</p>
+          <h1 id="hero-title">Still</h1>
+          <p class="hero__copy">
+            留住此刻的样子。把城市、光线与真实状态，沉淀成值得回看的影像记忆。
+          </p>
+          <a class="hero__link" href="#still">认识 Still</a>
+        </div>
+      </section>
+
+      <section class="intro" id="still" aria-label="Still 品牌介绍">
+        <p>生活原本是流动的，Still 把值得记住的一刻安静地保存下来。</p>
+      </section>
+    </main>
+  </body>
+</html>
