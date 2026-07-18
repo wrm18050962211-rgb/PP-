@@ -174,6 +174,107 @@
         line-height: 1.45;
       }
 
+      .product {
+        padding: 104px 5vw 112px;
+        background: #171918;
+        color: #f8f8f4;
+      }
+
+      .product__inner {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 390px);
+        align-items: center;
+        gap: 9vw;
+        width: min(1180px, 100%);
+        margin: 0 auto;
+      }
+
+      .product__eyebrow {
+        margin: 0 0 16px;
+        color: #ff7a67;
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .product h2 {
+        max-width: 650px;
+        margin: 0;
+        font-family: Georgia, "Times New Roman", "Microsoft YaHei", serif;
+        font-size: 3.4rem;
+        font-weight: 500;
+        line-height: 1.16;
+      }
+
+      .product__lead {
+        max-width: 620px;
+        margin: 24px 0 0;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1rem;
+        line-height: 1.8;
+      }
+
+      .product__journey {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin: 44px 0 0;
+        padding: 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.18);
+        list-style: none;
+      }
+
+      .product__journey li {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr);
+        gap: 12px;
+        min-height: 76px;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+        color: rgba(255, 255, 255, 0.88);
+        font-size: 0.92rem;
+        font-weight: 700;
+      }
+
+      .product__journey li:nth-child(odd) {
+        padding-right: 22px;
+      }
+
+      .product__journey li:nth-child(even) {
+        padding-left: 22px;
+        border-left: 1px solid rgba(255, 255, 255, 0.18);
+      }
+
+      .product__number {
+        color: #9df0c9;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+
+      .product__figure {
+        width: min(100%, 360px);
+        margin: 0;
+        justify-self: end;
+      }
+
+      .product__screen {
+        display: block;
+        width: 100%;
+        aspect-ratio: 9 / 19.5;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 7px;
+        object-fit: cover;
+        object-position: top;
+        box-shadow: 24px 30px 0 #ff6a57;
+      }
+
+      .product__caption {
+        margin: 42px 0 0;
+        color: rgba(255, 255, 255, 0.52);
+        font-size: 0.76rem;
+        line-height: 1.6;
+      }
+
       @media (max-width: 720px) {
         .hero {
           min-height: 84svh;
@@ -215,6 +316,39 @@
         .intro p {
           font-size: 1.6rem;
         }
+
+        .product {
+          padding: 72px 24px 84px;
+        }
+
+        .product__inner {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 58px;
+        }
+
+        .product h2 {
+          font-size: 2.5rem;
+        }
+
+        .product__journey {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .product__journey li,
+        .product__journey li:nth-child(odd),
+        .product__journey li:nth-child(even) {
+          padding: 0;
+          border-left: 0;
+        }
+
+        .product__figure {
+          width: min(90%, 340px);
+          justify-self: center;
+        }
+
+        .product__screen {
+          box-shadow: 16px 18px 0 #ff6a57;
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -251,6 +385,33 @@
 
       <section class="intro" id="still" aria-label="Still 品牌介绍">
         <p>生活原本是流动的，Still 把值得记住的一刻安静地保存下来。</p>
+      </section>
+
+      <section class="product" aria-labelledby="product-title">
+        <div class="product__inner">
+          <div>
+            <p class="product__eyebrow">Still / Product</p>
+            <h2 id="product-title">从拍摄灵感，到一段被认真交付的影像记忆。</h2>
+            <p class="product__lead">
+              Still 面向真实生活场景，帮助用户发现合适的作品与摄影服务，完成预约、沟通和影像交付。
+            </p>
+            <ol class="product__journey" aria-label="Still 使用流程">
+              <li><span class="product__number">01</span><span>发现作品</span></li>
+              <li><span class="product__number">02</span><span>选择场景</span></li>
+              <li><span class="product__number">03</span><span>预约拍摄</span></li>
+              <li><span class="product__number">04</span><span>留住成片</span></li>
+            </ol>
+          </div>
+
+          <figure class="product__figure">
+            <img
+              class="product__screen"
+              src="assets/still-home.png"
+              alt="Still 手机端发现页面产品截图"
+            />
+            <figcaption class="product__caption">Still 移动端产品原型 · 发现页</figcaption>
+          </figure>
+        </div>
       </section>
     </main>
   </body>
