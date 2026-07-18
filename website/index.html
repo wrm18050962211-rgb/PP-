@@ -257,15 +257,26 @@
         justify-self: end;
       }
 
-      .product__screen {
-        display: block;
+      .product__screen-frame {
+        position: relative;
+        aspect-ratio: 448 / 720;
+        overflow: hidden;
         width: 100%;
-        aspect-ratio: 9 / 19.5;
         border: 1px solid rgba(255, 255, 255, 0.22);
         border-radius: 7px;
-        object-fit: cover;
-        object-position: top;
-        box-shadow: 24px 30px 0 #ff6a57;
+        background: #050505;
+        box-shadow: 0 28px 68px rgba(0, 0, 0, 0.42);
+      }
+
+      .product__screen {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        display: block;
+        width: auto;
+        max-width: none;
+        height: 100%;
+        transform: translateX(-50%);
       }
 
       .product__caption {
@@ -346,8 +357,8 @@
           justify-self: center;
         }
 
-        .product__screen {
-          box-shadow: 16px 18px 0 #ff6a57;
+        .product__screen-frame {
+          box-shadow: 0 22px 54px rgba(0, 0, 0, 0.38);
         }
       }
 
@@ -404,12 +415,14 @@
           </div>
 
           <figure class="product__figure">
-            <img
-              class="product__screen"
-              src="assets/still-home.png"
-              alt="Still 手机端发现页面产品截图"
-            />
-            <figcaption class="product__caption">Still 移动端产品原型 · 发现页</figcaption>
+            <div class="product__screen-frame">
+              <img
+                class="product__screen"
+                src="assets/still-home.png"
+                alt="Still 当前开发版本的发现页面"
+              />
+            </div>
+            <figcaption class="product__caption">Still 当前开发版本 · 发现页</figcaption>
           </figure>
         </div>
       </section>
