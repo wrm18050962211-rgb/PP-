@@ -326,6 +326,10 @@ https://yct.sh.gov.cn/portal_yct/
 
 第一次创业，建议直接找代理记账。
 
+公司当前的注册资本、股东借款、实缴、月度零申报、财务资料归档和报税入口，统一参考：
+
+- [`docs/COMPANY_FINANCE_COMPLIANCE.md`](docs/COMPANY_FINANCE_COMPLIANCE.md)
+
 你要让代理记账帮你做：
 
 - 税务登记。
