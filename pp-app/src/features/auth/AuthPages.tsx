@@ -467,9 +467,9 @@ function AuthFrame({ eyebrow, title, children }: { eyebrow: string; title: strin
     <div className="min-h-dvh bg-[#050505] px-5 py-8 text-white">
       <section className="mx-auto max-w-md">
         <div className="pt-8">
-          <p className="text-sm font-black text-white/45">{eyebrow}</p>
+          <p className="text-sm font-black text-white/70">{eyebrow}</p>
           <h1 className="mt-2 text-3xl font-black tracking-normal">{title}</h1>
-          <p className="mt-3 text-sm font-semibold leading-6 text-white/52">用手机号验证码进入 Still，后续可平滑替换为微信手机号授权。</p>
+          <p className="mt-3 text-sm font-semibold leading-6 text-white/64">用手机号验证码进入 Still，后续可平滑替换为微信手机号授权。</p>
         </div>
         <div className="mt-7 rounded-[8px] bg-white p-4 text-zinc-950 shadow-2xl ring-1 ring-white/10">{children}</div>
       </section>
