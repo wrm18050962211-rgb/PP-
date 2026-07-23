@@ -29,7 +29,15 @@ type FeedSection = {
   heroes: Array<{ post: FeedPost; index: number }>;
 };
 
-export const PhotoFeed = memo(function PhotoFeed({ posts }: { posts: FeedPost[] }) {
+export const PhotoFeed = memo(function PhotoFeed({
+  posts,
+  likeCountByPostId,
+  active = false,
+}: {
+  posts: FeedPost[];
+  likeCountByPostId?: ReadonlyMap<string, number>;
+  active?: boolean;
+}) {
   const sections = useMemo(() => createDiscoverySections(posts), [posts]);
   const feedRef = useRef<HTMLDivElement>(null);
   const [activeLivePostId, setActiveLivePostId] = useState<string | null>(null);
@@ -105,14 +113,24 @@ export const PhotoFeed = memo(function PhotoFeed({ posts }: { posts: FeedPost[] 
                 <div className="grid grid-cols-2 gap-[1px]">
                   {section.columns.map((column, columnIndex) => (
                     <div key={`${section.id}-${columnIndex}`} className="flex h-full flex-col gap-[1px]">
-                      {column.map((item) => renderColumnItem(item, item.type === 'post' && item.index < 4, activeLivePostId))}
+                      {column.map((item) =>
+                        renderColumnItem(item, active && item.type === 'post' && item.index < 4, activeLivePostId, likeCountByPostId),
+                      )}
                     </div>
                   ))}
                 </div>
               ) : null}
 
               {section.heroes.map((hero) => (
-                <PhotoCard key={hero.post.id} post={hero.post} priority={hero.index < 4} variant="wide" className="w-full" playLive={activeLivePostId === hero.post.id} />
+                <PhotoCard
+                  key={hero.post.id}
+                  post={hero.post}
+                  priority={active && hero.index < 4}
+                  variant="wide"
+                  className="w-full"
+                  playLive={activeLivePostId === hero.post.id}
+                  likeCount={likeCountByPostId?.get(hero.post.id)}
+                />
               ))}
             </div>
           );
@@ -122,7 +140,12 @@ export const PhotoFeed = memo(function PhotoFeed({ posts }: { posts: FeedPost[] 
   );
 });
 
-function renderColumnItem(item: FeedColumnItem, priority: boolean, activeLivePostId: string | null) {
+function renderColumnItem(
+  item: FeedColumnItem,
+  priority: boolean,
+  activeLivePostId: string | null,
+  likeCountByPostId?: ReadonlyMap<string, number>,
+) {
   if (item.type === 'recommendation') {
     return <RecommendationCard key={item.tile.id} tile={item.tile} />;
   }
@@ -132,7 +155,17 @@ function renderColumnItem(item: FeedColumnItem, priority: boolean, activeLivePos
   }
 
   const layout = getDiscoveryLayoutRule(item.post, item.index);
-  return <PhotoCard key={item.post.id} post={item.post} priority={priority} variant={layout.variant} className="w-full" playLive={activeLivePostId === item.post.id} />;
+  return (
+    <PhotoCard
+      key={item.post.id}
+      post={item.post}
+      priority={priority}
+      variant={layout.variant}
+      className="w-full"
+      playLive={activeLivePostId === item.post.id}
+      likeCount={likeCountByPostId?.get(item.post.id)}
+    />
+  );
 }
 
 function createDiscoverySections(posts: FeedPost[]): FeedSection[] {

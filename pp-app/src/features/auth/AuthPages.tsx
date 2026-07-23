@@ -1,5 +1,5 @@
 import { ArrowLeft, Camera, CheckCircle2, FileText, Headphones, LogOut, MessageSquareText, ShieldAlert, ShieldCheck, Smartphone, Trash2, UserRound, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   accountHasRole,
@@ -39,6 +39,24 @@ const roleOptions: Array<{ role: PublicRole; title: string; desc: string; icon: 
   { role: 'companion', title: 'Studio', desc: '接单报价，管理交付', icon: Camera },
 ];
 const localSmsCodeLabel = import.meta.env.PROD ? '' : '本地测试验证码：';
+
+function preloadConsumerHome() {
+  void Promise.all([
+    import('../user/HomeFeed'),
+    import('../../services/feedService'),
+    import('../../utils/imageUrl'),
+  ]).then(([, { listFeedPosts }, { getFeedImageUrl }]) => {
+    listFeedPosts()
+      .slice(0, 4)
+      .forEach((post) => {
+        const src = post.images[0]?.url;
+        if (!src) return;
+        const image = new Image();
+        image.decoding = 'async';
+        image.src = getFeedImageUrl(src, 640);
+      });
+  });
+}
 
 export function EntryRedirect() {
   if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace />;
@@ -104,6 +122,10 @@ function RegisterForm({ initialRole, initialPhone }: { initialRole: PublicRole; 
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
   const showTestCode = isTestRoleSwitchAllowed();
+
+  useEffect(() => {
+    if (role === 'consumer') preloadConsumerHome();
+  }, [role]);
 
   function sendCode() {
     try {
@@ -173,6 +195,10 @@ export function LoginPage() {
   const [missingRolePrompt, setMissingRolePrompt] = useState<{ role: PublicRole; phone: string } | null>(null);
   const registeredRoles = getAvailableLoginRoles(phone || account?.phone);
   const showTestCode = isTestRoleSwitchAllowed();
+
+  useEffect(() => {
+    if (role === 'consumer') preloadConsumerHome();
+  }, [role]);
 
   function sendCode() {
     try {
