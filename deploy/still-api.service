@@ -1,0 +1,23 @@
+[Unit]
+Description=Still API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=still-api
+Group=still-api
+WorkingDirectory=/opt/still-api/current
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/still-api/still-api.env
+ExecStart=/usr/bin/node server.mjs
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

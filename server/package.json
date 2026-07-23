@@ -19,6 +19,7 @@
     "check:payment-expiry-job": "node scripts/check-payment-expiry-job.mjs",
     "check:provider-callback-retry-job": "node scripts/check-provider-callback-retry-job.mjs",
     "check:cos-media-policy": "node scripts/check-cos-media-policy.mjs",
+    "check:cos-live": "node scripts/check-cos-live.mjs",
     "check:wechat-callback-processors": "node scripts/check-wechat-callback-processors.mjs",
     "check:maintenance-job": "node scripts/check-maintenance-job.mjs",
     "check:session-boundary": "node scripts/check-session-boundary.mjs",
