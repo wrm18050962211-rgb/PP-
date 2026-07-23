@@ -27,6 +27,7 @@
     "check:postgres-store-idempotency-gateway": "node scripts/check-postgres-store-idempotency-gateway.mjs",
     "check:postgres-store-read-model": "node scripts/check-postgres-store-read-model.mjs",
     "check:postgres-live": "node scripts/check-postgres-live.mjs",
+    "check:postgres-live-node": "node scripts/check-postgres-live-node.mjs",
     "check:postgres-launch-readiness": "node scripts/check-postgres-launch-readiness.mjs",
     "check:postgres-id-hygiene": "node scripts/check-postgres-id-hygiene.mjs",
     "check:postgres-write-route-guard": "node scripts/check-postgres-write-route-guard.mjs",
@@ -58,6 +59,10 @@
     "check:postgres-session-writes": "node scripts/check-postgres-session-writes.mjs",
     "check:postgres-idempotency-writes": "node scripts/check-postgres-idempotency-writes.mjs",
     "check:runtime-audit-gateway": "node scripts/check-runtime-audit-gateway.mjs",
+    "db:import-postgres": "node scripts/import-postgres-sql.mjs",
     "db:export-seed": "node ../database/scripts/export-store-to-seed.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.22.0"
   }
 }
