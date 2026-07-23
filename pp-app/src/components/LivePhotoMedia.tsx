@@ -45,8 +45,9 @@ function LivePhotoMediaContent({
   const primaryImageSrc = media?.posterUrl || media?.url;
   const imageSrc = imageFailed ? undefined : primaryImageSrc;
   const videoSrc = live ? media?.videoUrl || (media?.contentType?.startsWith('video/') ? media.url : undefined) : undefined;
-  const shouldPlayVideo = playLive && live && videoSrc && !videoFailed;
-  const showFallback = Boolean(fallbackSrc && (!imageSrc || !imageLoaded));
+  const stillImageSrc = imageSrc && imageSrc !== videoSrc ? imageSrc : undefined;
+  const activeVideoSrc = playLive && live && videoSrc && !videoFailed ? videoSrc : undefined;
+  const showFallback = Boolean(fallbackSrc);
 
   return (
     <div className={`relative h-full w-full overflow-hidden ${className}`}>
@@ -59,23 +60,10 @@ function LivePhotoMediaContent({
           decoding="sync"
         />
       ) : null}
-      {shouldPlayVideo ? (
-        <video
-          className={`relative h-full w-full ${fitClass} ${mediaClassName}`}
-          src={videoSrc}
-          poster={imageSrc && imageSrc !== videoSrc ? imageSrc : fallbackSrc}
-          muted
-          loop
-          playsInline
-          autoPlay
-          preload="metadata"
-          aria-label={alt}
-          onError={() => setVideoFailed(true)}
-        />
-      ) : imageSrc ? (
+      {stillImageSrc ? (
         <img
-          className={`relative h-full w-full ${fitClass} ${mediaClassName} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-          src={imageSrc}
+          className={`absolute inset-0 h-full w-full ${fitClass} ${mediaClassName} transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+          src={stillImageSrc}
           alt={alt}
           loading={loading}
           fetchPriority={fetchPriority}
@@ -88,6 +76,51 @@ function LivePhotoMediaContent({
           }}
         />
       ) : null}
+      {activeVideoSrc ? (
+        <LiveVideoLayer
+          src={activeVideoSrc}
+          poster={stillImageSrc || fallbackSrc}
+          alt={alt}
+          fitClass={fitClass}
+          mediaClassName={mediaClassName}
+          onError={() => setVideoFailed(true)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function LiveVideoLayer({
+  src,
+  poster,
+  alt,
+  fitClass,
+  mediaClassName,
+  onError,
+}: {
+  src: string;
+  poster?: string;
+  alt: string;
+  fitClass: string;
+  mediaClassName: string;
+  onError: () => void;
+}) {
+  const [ready, setReady] = useState(false);
+
+  return (
+    <video
+      className={`absolute inset-0 h-full w-full ${fitClass} ${mediaClassName} transition-opacity duration-200 ${ready ? 'opacity-100' : 'opacity-0'}`}
+      src={src}
+      poster={poster}
+      muted
+      loop
+      playsInline
+      autoPlay
+      preload="metadata"
+      aria-label={alt}
+      onLoadedData={() => setReady(true)}
+      onPlaying={() => setReady(true)}
+      onError={onError}
+    />
   );
 }
