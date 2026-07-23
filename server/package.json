@@ -18,6 +18,7 @@
     "check:admin-route-boundary": "node scripts/check-admin-route-boundary.mjs",
     "check:payment-expiry-job": "node scripts/check-payment-expiry-job.mjs",
     "check:provider-callback-retry-job": "node scripts/check-provider-callback-retry-job.mjs",
+    "check:cos-media-policy": "node scripts/check-cos-media-policy.mjs",
     "check:wechat-callback-processors": "node scripts/check-wechat-callback-processors.mjs",
     "check:maintenance-job": "node scripts/check-maintenance-job.mjs",
     "check:session-boundary": "node scripts/check-session-boundary.mjs",
@@ -63,6 +64,7 @@
     "db:export-seed": "node ../database/scripts/export-store-to-seed.mjs"
   },
   "dependencies": {
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "qcloud-cos-sts": "^3.1.3"
   }
 }

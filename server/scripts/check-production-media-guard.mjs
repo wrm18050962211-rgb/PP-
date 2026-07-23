@@ -84,6 +84,22 @@ try {
   const uploadPolicy = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg', purpose: 'avatar' }, { expectOk: false });
   assert(uploadPolicy.error?.code === 'MEDIA_UPLOAD_NOT_CONFIGURED', 'production media policy rejects mock upload credentials');
 
+  const invalidUpload = await api(
+    'POST',
+    '/api/media/upload-policy',
+    { fileName: 'payload.html', purpose: 'avatar', contentType: 'text/html', sizeBytes: 100 },
+    { expectOk: false },
+  );
+  assert(invalidUpload.error?.code === 'MEDIA_TYPE_NOT_ALLOWED', 'production media policy rejects unsafe content types');
+
+  const identityUpload = await api(
+    'POST',
+    '/api/media/upload-policy',
+    { fileName: 'identity.jpg', purpose: 'identity', contentType: 'image/jpeg', sizeBytes: 100 },
+    { expectOk: false },
+  );
+  assert(identityUpload.error?.code === 'PRIVATE_MEDIA_UPLOAD_NOT_CONFIGURED', 'public media policy rejects private identity uploads');
+
   const mockPayment = await api('POST', '/api/payments/production-guard-payment/mock-success', undefined, { expectOk: false });
   assert(mockPayment.error?.code === 'MOCK_PAYMENT_DISABLED', 'production rejects mock payment success endpoint');
 
@@ -105,6 +121,8 @@ try {
           'permission-denial-security-events',
           'auth-required',
           'production-media-not-configured',
+          'unsafe-media-type-rejected',
+          'identity-media-kept-private',
           'mock-payment-disabled',
         ],
       },

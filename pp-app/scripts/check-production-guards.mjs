@@ -44,10 +44,12 @@ const checks = [
   {
     file: 'src/services/mediaService.ts',
     includes: [
-      "if (policy?.mode === 'production') throw new Error",
+      "if (policy?.mode === 'production') {",
+      'await uploadWebFileToCos(policy, file)',
       'if (!isMockFallbackAllowed()) throw new Error',
       "return getApiFallback(await readFileAsDataUrl(file), 'Media upload')",
-      'await wxUploadFile(policy.uploadUrl, filePath, { key: policy.objectKey })',
+      'await wxUploadFile(policy.uploadUrl, filePath, policy.formFields)',
+      "formData.append('file', file)",
     ],
   },
   {

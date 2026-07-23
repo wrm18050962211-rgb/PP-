@@ -18,6 +18,7 @@ const checks = [
   ['postgres-store-idempotency-gateway', ['scripts/check-postgres-store-idempotency-gateway.mjs']],
   ['postgres-store-read-model', ['scripts/check-postgres-store-read-model.mjs']],
   ['postgres-launch-readiness', ['scripts/check-postgres-launch-readiness.mjs']],
+  ['cos-media-policy', ['scripts/check-cos-media-policy.mjs']],
   ['postgres-id-hygiene', ['scripts/check-postgres-id-hygiene.mjs']],
   ['postgres-write-route-guard', ['scripts/check-postgres-write-route-guard.mjs']],
   ['postgres-security-boundary-route', ['scripts/check-postgres-security-boundary-route.mjs']],

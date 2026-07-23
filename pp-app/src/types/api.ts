@@ -134,9 +134,11 @@ export type MediaUploadPolicy = {
   purpose: MediaUploadPurpose;
   objectKey: string;
   contentType: string;
+  uploadMethod?: 'POST';
   uploadUrl: string;
   publicUrl: string;
   expiresAt: string;
+  formFields?: Record<string, string>;
   credentials?: Record<string, unknown>;
 };
 

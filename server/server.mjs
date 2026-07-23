@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { runPendingPaymentExpiryJob } from './jobs/paymentExpiryJob.mjs';
 import { mirrorAdminAction, mirrorAuditLog, mirrorSecurityEvent } from './runtimeAuditGateway.mjs';
+import { createTencentCosPostUploadPolicy, hasTencentCosMediaConfig } from './services/tencentCosMedia.mjs';
 import { createDataStore } from './store/index.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -200,21 +201,44 @@ function shortPostLocation(post = {}) {
   return parts.at(-1) || raw;
 }
 
-function createMediaUploadPolicy(store, body = {}) {
+async function createMediaUploadPolicy(store, body = {}) {
   const publicSession = requirePublicSession(store, 'consumer', 'media_upload');
   if (publicSession.response) return publicSession.response;
   const { session } = publicSession;
-  if (isProductionServerEnv) {
-    return error(501, 'MEDIA_UPLOAD_NOT_CONFIGURED', 'Production media upload requires real object storage credentials.');
-  }
 
   const purpose = normalizeMediaPurpose(body.purpose);
+  if (purpose === 'identity') {
+    return error(501, 'PRIVATE_MEDIA_UPLOAD_NOT_CONFIGURED', 'Identity media requires a separate private object storage policy.');
+  }
   const fileName = sanitizeFileName(body.fileName || 'upload.jpg');
-  const contentType = String(body.contentType || 'application/octet-stream');
-  const objectKey = `pp/${purpose}/${session.user.id}/${Date.now()}-${fileName}`;
+  const contentType = resolveMediaContentType(body.contentType, fileName);
+  const validationError = validateMediaUploadInput({ purpose, contentType, sizeBytes: body.sizeBytes });
+  if (validationError) return validationError;
+
+  const objectKey = createPublicMediaObjectKey({ purpose, userId: session.user.id, fileName, contentType });
   const bucket = process.env.COS_BUCKET || 'pp-mvp-local-1250000000';
   const region = process.env.COS_REGION || 'ap-shanghai';
   const publicBaseUrl = process.env.COS_PUBLIC_BASE_URL || `https://${bucket}.cos.${region}.myqcloud.com`;
+  const maxSizeBytes = mediaSizeLimit(purpose);
+
+  if (hasTencentCosMediaConfig()) {
+    try {
+      const policy = await createTencentCosPostUploadPolicy({
+        objectKey,
+        contentType,
+        maxSizeBytes,
+      });
+      return json({ ...policy, purpose });
+    } catch (cause) {
+      if (isProductionServerEnv) {
+        return error(502, 'MEDIA_UPLOAD_CREDENTIAL_FAILED', cause instanceof Error ? cause.message : 'COS temporary credential request failed.');
+      }
+    }
+  }
+
+  if (isProductionServerEnv) {
+    return error(501, 'MEDIA_UPLOAD_NOT_CONFIGURED', 'Production media upload requires real object storage credentials.');
+  }
 
   return json({
     provider: 'tencent_cos',
@@ -236,6 +260,65 @@ function createMediaUploadPolicy(store, body = {}) {
 
 function normalizeMediaPurpose(purpose) {
   return ['post-image', 'avatar', 'portfolio', 'identity', 'video'].includes(purpose) ? purpose : 'post-image';
+}
+
+function validateMediaUploadInput({ purpose, contentType, sizeBytes }) {
+  const allowedContentTypes =
+    purpose === 'video'
+      ? ['video/mp4', 'video/quicktime']
+      : ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+  if (!allowedContentTypes.includes(contentType)) {
+    return error(400, 'MEDIA_TYPE_NOT_ALLOWED', `Content type ${contentType} is not allowed for ${purpose}.`);
+  }
+
+  const normalizedSize = Number(sizeBytes || 0);
+  if (!Number.isFinite(normalizedSize) || normalizedSize < 0 || normalizedSize > mediaSizeLimit(purpose)) {
+    return error(400, 'MEDIA_FILE_TOO_LARGE', `Media file exceeds the ${Math.round(mediaSizeLimit(purpose) / 1024 / 1024)} MB limit.`);
+  }
+  return null;
+}
+
+function mediaSizeLimit(purpose) {
+  if (purpose === 'video') return 200 * 1024 * 1024;
+  if (purpose === 'avatar') return 10 * 1024 * 1024;
+  return 20 * 1024 * 1024;
+}
+
+function createPublicMediaObjectKey({ purpose, userId, fileName, contentType }) {
+  const month = new Date().toISOString().slice(0, 7);
+  const extension = mediaFileExtension(contentType, fileName);
+  return `pp/public/${purpose}/${userId}/${month}/${randomUUID()}.${extension}`;
+}
+
+function resolveMediaContentType(contentType, fileName) {
+  const normalizedType = String(contentType || '').split(';')[0].trim().toLowerCase();
+  if (normalizedType === 'image/jpg') return 'image/jpeg';
+  if (normalizedType && normalizedType !== 'application/octet-stream') return normalizedType;
+  const extension = String(fileName).split('.').at(-1)?.toLowerCase();
+  const byExtension = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    heic: 'image/heic',
+    heif: 'image/heif',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+  };
+  return byExtension[extension] || 'application/octet-stream';
+}
+
+function mediaFileExtension(contentType, fileName) {
+  const byContentType = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/heic': 'heic',
+    'image/heif': 'heif',
+    'video/mp4': 'mp4',
+    'video/quicktime': 'mov',
+  };
+  return byContentType[contentType] || String(fileName).split('.').at(-1)?.toLowerCase() || 'bin';
 }
 
 function sanitizeFileName(fileName) {
@@ -3302,6 +3385,8 @@ function launchCheck() {
     'COS_BUCKET',
     'COS_REGION',
     'COS_PUBLIC_BASE_URL',
+    'TENCENT_CLOUD_SECRET_ID',
+    'TENCENT_CLOUD_SECRET_KEY',
   ];
   const missing = requiredForProduction.filter((name) => !isLaunchEnvConfigured(name));
   return json({
@@ -3311,7 +3396,7 @@ function launchCheck() {
       storeDriver: dataStore.kind,
       wechatAuth: hasWechatAuthConfig() ? 'configured' : 'mock',
       wechatPay: useLiveWechatPay() ? 'live' : 'mock',
-      media: process.env.COS_PUBLIC_BASE_URL ? 'cos-configured' : 'mock',
+      media: hasTencentCosMediaConfig() ? 'cos-configured' : 'mock',
     },
   });
 }
