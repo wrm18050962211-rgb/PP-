@@ -472,16 +472,16 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 ### IOS-QA-1 基础真机回归和失败状态
 
 - Priority: P0
-- Status: pending
+- Status: blocked
 - Owner branch: `codex/mac-ios`
 - Depends on: `IOS-BASE-0`
 - Scope: 发现页频道、底部导航、详情返回、小屏、安全区、键盘、弱网、断网、空状态、接口失败、首页和 Live Photo 回归。
 - Acceptance criteria: 核心页面无阻断、遮挡和闪烁；失败状态可理解且可重试；生产 API 不可用时不显示 mock 成功。
 - Shared files: `pp-app/src/**`, `docs/IOS_REAL_DEVICE_TEST_LOG.md`
-- Unblock result: 提供设备/系统、用例结果、失败截图或日志和 commit SHA；解除 `INT-RC-1` 的基础 QA 条件。
-- Result commit: pending
-- Verification: pending
-- Notes: 真实短信不可用时输出依赖通知，但继续其他独立用例。
+- Unblock result: 未解除 `INT-RC-1` 的基础 QA 条件；待 `WIN-AUTH-1`、`EXT-SMS-1` 提供可用的生产短信登录/会话后复验 consumer/companion、companionId、断网/弱网/接口失败，并补齐小屏真机。
+- Result commit: `0fee0b3ef2543cba2f9a56063be02b5bbee9c1c2`
+- Verification: USB 真机“别抢我永恩了”（iPhone 15 Pro Max / iPhone16,2 / iOS 26.5.2）完成签名构建、安装和启动；`npm run build`、`npm run check:production-guards`、`npx cap sync ios`、`git diff --check` 均通过；生产包使用 `VITE_API_BASE_URL=https://api.weareinframe.com`、`VITE_ENABLE_MOCK=false`、`VITE_ENABLE_TEST_ROLE_SWITCH=false`。开发交互包（仅计 UI，不计生产后端）通过发现页关注/发现/附近、四项底部导航、详情返回、首页首屏和三轮滚动、搜索键盘不遮挡、空状态、consumer 我的/设置、图片与 Live Photo 连续帧变化；证据见 `/private/tmp/pp-ios-qa1-full-dev-20260725.xcresult`、`/private/tmp/pp-ios-qa1-rerun-dev-20260725.xcresult`、`/private/tmp/pp-ios-qa1-detail-fixed-dev-20260725.xcresult`、`/private/tmp/pp-ios-qa1-live-dev-2-20260725.xcresult`。iPhone 16e / iOS 26.1 模拟器补充小屏首屏、三轮滚动和键盘验证 2/2 通过，见 `/private/tmp/pp-ios-qa1-small-sim-3-20260725.xcresult`，不冒充小屏真机。
+- Notes: 真机发现页顶部控件曾进入状态栏、详情“返回发现”曾被状态栏拦截，已在 `HomeFeed.tsx`、`PostDetail.tsx` 修复安全区并复验；最终整套重跑在 4 项通过后发生 USB CoreDevice 连接失效，不作为业务断言失败，见 `/private/tmp/pp-ios-qa1-final-full-device-20260725.xcresult`。当前短信实名资质仍在审核且新 API 尚未切换，无法取得真实生产会话，因此 consumer/companion 切换、companionId 刷新及登录后断网/弱网/接口失败仍 blocked；生产包未用 mock 成功兜底。
 
 ### IOS-AUTH-1 真实短信登录和会话恢复
 
