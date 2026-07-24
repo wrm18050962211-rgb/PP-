@@ -795,7 +795,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Unblock result: 提供 Roadmap commit 和 Integration SHA，解除两端按 Roadmap 自动选择节点的条件。
 - Result commit: `7ee432b`
 - Verification: `git diff --check` 通过；74 个节点 ID 唯一；所有节点字段完整；状态枚举和依赖引用有效；P0 地图 Provider 为高德。
-- Notes: 内容检查点已完成，等待同步到 `codex/integration`。
+- Notes: Roadmap 内容及完成状态已通过普通 fast-forward 同步到 `codex/integration`；首次同步 SHA 为 `ed332ce`。
 
 ### INT-AUTH-1 集成真实登录
 
