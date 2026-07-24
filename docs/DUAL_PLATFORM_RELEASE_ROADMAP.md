@@ -298,16 +298,16 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 ### WIN-SEC-1 统一鉴权、校验和可追踪错误
 
 - Priority: P0
-- Status: pending
+- Status: completed
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-BASE-0`
 - Scope: 统一鉴权中间层、输入校验、全局/敏感接口限流、request ID、稳定错误码和日志脱敏。
 - Acceptance criteria: 关键路由不重复手写不一致的权限判断；非法输入在入口拒绝；每个请求可追踪；手机号、token、密钥和支付字段不出现在明文日志；密钥支持轮换。
 - Shared files: `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
-- Unblock result: 提供中间层清单、错误码表、限流测试、脱敏样例和 commit SHA，解除 `WIN-DELIVERY-1`。
-- Result commit: pending
-- Verification: pending
-- Notes: 业务函数可保留二次保护。
+- Unblock result: 已提供集中路由鉴权策略、JSON/大小/对象安全入口校验、全局与敏感接口限流、request ID、稳定安全错误码、日志脱敏样例和双密钥轮换测试；解除 `WIN-DELIVERY-1` 的安全前置依赖（仍等待 `EXT-CLOUD-1`、`EXT-DOMAIN-1`）。
+- Result commit: `123e903caa63fdc593a71c98e590567f7af21ac0`
+- Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过。
+- Notes: 业务函数保留角色与资源归属二次保护；生产未知异常只返回 request ID，不回传内部错误。当前进程内限流覆盖单实例和敏感端点，多实例统一配额与边缘限流由 `WIN-DELIVERY-1` 在部署层补齐；支付回调支持当前/上一把 API v3 密钥和平台公钥的短期轮换窗口。未手工修改 `pp-app/ios/**`。
 
 ### WIN-DELIVERY-1 环境、CI/CD、监控和恢复
 
