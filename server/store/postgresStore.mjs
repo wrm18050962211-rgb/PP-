@@ -6,6 +6,7 @@ import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
 import { applyModerationActionTransaction, createReportTransaction, reviewAuditCaseTransaction } from './postgresModerationWrites.mjs';
 import { createOrderTransaction, expirePendingPaymentsTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, markRefundTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
+import { issuePhoneVerificationChallengeTransaction, markPhoneVerificationFailedTransaction, markPhoneVerificationSentTransaction, verifyPhoneVerificationChallengeTransaction } from './postgresPhoneVerificationWrites.mjs';
 import { claimDueProviderCallbacksTransaction, markProviderCallbackFailedTransaction, markProviderCallbackProcessedTransaction, recordProviderCallbackReceivedTransaction } from './postgresProviderCallbackWrites.mjs';
 import { createSessionTransaction, revokeSessionTransaction, touchSessionTransaction } from './postgresSessionWrites.mjs';
 import { recordSecurityEventTransaction } from './postgresSecurityWrites.mjs';
@@ -33,9 +34,16 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       messageWrites: true,
       moderationWrites: true,
       providerCallbackWrites: true,
+      phoneVerificationWrites: true,
     },
     authWrites: {
       upsertIdentityUser: (identity) => withClient((client) => upsertAuthIdentityUserTransaction(client, toAuthIdentityDraft(identity))),
+    },
+    phoneVerificationWrites: {
+      issue: (draft) => withClient((client) => issuePhoneVerificationChallengeTransaction(client, draft)),
+      markSent: (draft) => withClient((client) => markPhoneVerificationSentTransaction(client, draft)),
+      markFailed: (draft) => withClient((client) => markPhoneVerificationFailedTransaction(client, draft)),
+      verify: (draft) => withClient((client) => verifyPhoneVerificationChallengeTransaction(client, draft)),
     },
     auditWrites: {
       recordAuditLog: (draft) => withClient((client) => recordAuditLogTransaction(client, draft)),
@@ -172,6 +180,7 @@ async function findSessionByToken(client, token) {
             s.last_seen_at,
             s.expires_at,
             u.id as user_id,
+            u.phone,
             u.nickname,
             u.avatar_url,
             u.gender,
@@ -214,6 +223,7 @@ function mapSessionRow(row, token) {
       }
     : {
         id: row.user_id,
+        phone: row.phone || '',
         nickname: row.nickname || 'User',
         avatarUrl: row.avatar_url || '',
         gender: row.gender || 'unknown',

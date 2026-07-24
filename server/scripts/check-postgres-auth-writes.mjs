@@ -45,6 +45,23 @@ assert(existingSql.some((sql) => /update users/i.test(sql) && /last_login_at/i.t
 assert(existingSql.some((sql) => /update user_auth_identities/i.test(sql)), 'existing identity updates identity metadata');
 assert(existingSql.at(-1) === 'commit', 'existing transaction commits');
 
+const phoneUserClient = createMockClient({ existing: false, phoneExisting: true });
+const phoneUser = await upsertAuthIdentityUserTransaction(phoneUserClient, {
+  userId: ids.userId,
+  identityId: ids.identityId,
+  provider: 'phone',
+  providerUserId: '13800138000',
+  phone: '13800138000',
+  nickname: 'Still User',
+  metadata: { source: 'check-postgres-auth-writes' },
+  loginAt: '2026-07-08T11:00:00.000Z',
+});
+const phoneUserSql = phoneUserClient.calls.map((call) => call.sql);
+assert(phoneUser.id === ids.existingUserId, 'phone identity attaches to existing phone user');
+assert(!phoneUserSql.some((sql) => /insert into users/i.test(sql)), 'existing phone user is not duplicated');
+const phoneIdentityInsert = phoneUserClient.calls.find((call) => /insert into user_auth_identities/i.test(call.sql));
+assert(phoneIdentityInsert?.params[1] === ids.existingUserId, 'phone identity references existing user');
+
 await assertRejects(
   () => upsertAuthIdentityUserTransaction(createMockClient({ existing: false }), { provider: 'wechat' }),
   'Missing auth identity draft fields: userId, identityId, providerUserId',
@@ -55,7 +72,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['create-auth-user', 'create-auth-identity', 'update-existing-auth-user', 'missing-required-field'],
+      checks: ['create-auth-user', 'create-auth-identity', 'update-existing-auth-user', 'attach-existing-phone-user', 'missing-required-field'],
       createQueryCount: createClient.calls.length,
       existingQueryCount: existingClient.calls.length,
     },
@@ -64,7 +81,7 @@ console.log(
   ),
 );
 
-function createMockClient({ existing }) {
+function createMockClient({ existing, phoneExisting = false }) {
   const calls = [];
   return {
     calls,
@@ -84,6 +101,25 @@ function createMockClient({ existing }) {
                   city: 'Shanghai',
                   status: 'active',
                   is_companion: false,
+                },
+              ]
+            : [],
+        };
+      }
+      if (/from users u/i.test(normalized) && /where u\.phone/i.test(normalized)) {
+        return {
+          rows: phoneExisting
+            ? [
+                {
+                  id: ids.existingUserId,
+                  phone: '13800138000',
+                  nickname: 'Existing Phone User',
+                  avatar_url: '',
+                  gender: 'unknown',
+                  city: 'Shanghai',
+                  status: 'active',
+                  is_companion: false,
+                  companion_id: null,
                 },
               ]
             : [],

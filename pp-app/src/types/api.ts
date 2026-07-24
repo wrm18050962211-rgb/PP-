@@ -100,7 +100,7 @@ export type UserRole = 'consumer' | 'companion' | 'admin';
 
 export type AuthSession = {
   token: string;
-  provider: 'mock_wechat' | 'wechat';
+  provider: 'mock_wechat' | 'wechat' | 'phone' | 'local_admin';
   role: UserRole;
   roles: UserRole[];
   user: User;

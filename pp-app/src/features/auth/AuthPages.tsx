@@ -1,5 +1,5 @@
 import { ArrowLeft, Camera, CheckCircle2, FileText, Headphones, LogOut, MessageSquareText, ShieldAlert, ShieldCheck, Smartphone, Trash2, UserRound, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   accountHasRole,
@@ -103,24 +103,42 @@ function RegisterForm({ initialRole, initialPhone }: { initialRole: PublicRole; 
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const showTestCode = isTestRoleSwitchAllowed();
 
-  function sendCode() {
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = window.setTimeout(() => setCooldownSeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [cooldownSeconds]);
+
+  async function sendCode() {
+    if (sendingCode || cooldownSeconds > 0) return;
+    setSendingCode(true);
     try {
-      const nextCode = requestPhoneCode(phone);
-      setDemoCode(nextCode);
+      const result = await requestPhoneCode(phone);
+      setDemoCode(result.testCode || '');
+      setCooldownSeconds(result.cooldownSeconds);
       setError('');
     } catch (nextError) {
       setError(getErrorMessage(nextError));
+    } finally {
+      setSendingCode(false);
     }
   }
 
   async function submit() {
+    if (submitting) return;
+    setSubmitting(true);
     try {
-      const account = registerWithPhone({ phone, code, role });
+      const account = await registerWithPhone({ phone, code, role });
       navigate(accountHasRole(role) ? getPostAuthHome(role) : getRoleOnboardingPath(role), { replace: true, state: { role, phone: account.phone } });
     } catch (nextError) {
       setError(getErrorMessage(nextError));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -147,11 +165,21 @@ function RegisterForm({ initialRole, initialPhone }: { initialRole: PublicRole; 
         })}
       </div>
 
-      <PhoneCodeForm phone={phone} code={code} onPhoneChange={setPhone} onCodeChange={setCode} onSendCode={sendCode} demoCode={demoCode} showTestCode={showTestCode} />
+      <PhoneCodeForm
+        phone={phone}
+        code={code}
+        onPhoneChange={setPhone}
+        onCodeChange={setCode}
+        onSendCode={sendCode}
+        demoCode={demoCode}
+        showTestCode={showTestCode}
+        sendingCode={sendingCode}
+        cooldownSeconds={cooldownSeconds}
+      />
       {error ? <ErrorLine text={error} /> : null}
 
-      <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={submit}>
-        注册账号
+      <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white disabled:bg-zinc-300" type="button" onClick={() => void submit()} disabled={submitting}>
+        {submitting ? '提交中' : '注册账号'}
       </button>
       <Link className="mt-4 block text-center text-sm font-bold text-zinc-500" to="/auth/login">
         已有账号，去登录
@@ -171,20 +199,36 @@ export function LoginPage() {
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
   const [missingRolePrompt, setMissingRolePrompt] = useState<{ role: PublicRole; phone: string } | null>(null);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const registeredRoles = getAvailableLoginRoles(phone || account?.phone);
   const showTestCode = isTestRoleSwitchAllowed();
 
-  function sendCode() {
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = window.setTimeout(() => setCooldownSeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [cooldownSeconds]);
+
+  async function sendCode() {
+    if (sendingCode || cooldownSeconds > 0) return;
+    setSendingCode(true);
     try {
-      const nextCode = requestPhoneCode(phone);
-      setDemoCode(nextCode);
+      const result = await requestPhoneCode(phone);
+      setDemoCode(result.testCode || '');
+      setCooldownSeconds(result.cooldownSeconds);
       setError('');
     } catch (nextError) {
       setError(getErrorMessage(nextError));
+    } finally {
+      setSendingCode(false);
     }
   }
 
   async function submit() {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const session = await loginWithPhoneCode(phone, code, role);
       navigate(getPostAuthHome(session.role), { replace: true });
@@ -200,6 +244,8 @@ export function LoginPage() {
         return;
       }
       setError(getErrorMessage(nextError));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -238,7 +284,17 @@ export function LoginPage() {
         })}
       </div>
 
-      <PhoneCodeForm phone={phone} code={code} onPhoneChange={setPhone} onCodeChange={setCode} onSendCode={sendCode} demoCode={demoCode} showTestCode={showTestCode} />
+      <PhoneCodeForm
+        phone={phone}
+        code={code}
+        onPhoneChange={setPhone}
+        onCodeChange={setCode}
+        onSendCode={sendCode}
+        demoCode={demoCode}
+        showTestCode={showTestCode}
+        sendingCode={sendingCode}
+        cooldownSeconds={cooldownSeconds}
+      />
       {error ? <ErrorLine text={error} /> : null}
       {missingRolePrompt ? (
         <MissingRoleRegisterDialog
@@ -254,8 +310,8 @@ export function LoginPage() {
         />
       ) : null}
 
-      <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white" type="button" onClick={() => void submit()}>
-        登录
+      <button className="mt-5 h-12 w-full rounded-full bg-zinc-950 text-sm font-black text-white disabled:bg-zinc-300" type="button" onClick={() => void submit()} disabled={submitting}>
+        {submitting ? '登录中' : '登录'}
       </button>
       <button
         className="mt-4 block w-full text-center text-sm font-bold text-zinc-500"
@@ -456,6 +512,8 @@ function PhoneCodeForm({
   code,
   demoCode,
   showTestCode,
+  sendingCode,
+  cooldownSeconds,
   onPhoneChange,
   onCodeChange,
   onSendCode,
@@ -464,9 +522,11 @@ function PhoneCodeForm({
   code: string;
   demoCode: string;
   showTestCode: boolean;
+  sendingCode: boolean;
+  cooldownSeconds: number;
   onPhoneChange: (value: string) => void;
   onCodeChange: (value: string) => void;
-  onSendCode: () => void;
+  onSendCode: () => void | Promise<void>;
 }) {
   return (
     <div className="mt-5 space-y-3">
@@ -492,8 +552,13 @@ function PhoneCodeForm({
             value={code}
             onChange={(event) => onCodeChange(event.target.value.replace(/\D/g, '').slice(0, 6))}
           />
-          <button className="h-12 rounded-[10px] bg-zinc-950 text-xs font-black text-white" type="button" onClick={onSendCode}>
-            获取验证码
+          <button
+            className="h-12 rounded-[10px] bg-zinc-950 px-2 text-xs font-black text-white disabled:bg-zinc-300"
+            type="button"
+            onClick={() => void onSendCode()}
+            disabled={sendingCode || cooldownSeconds > 0}
+          >
+            {sendingCode ? '发送中' : cooldownSeconds > 0 ? `${cooldownSeconds}s` : '获取验证码'}
           </button>
         </div>
       </label>

@@ -36,6 +36,12 @@ type SmsCodeRecord = {
   expiresAt: number;
 };
 
+export type PhoneCodeRequestResult = {
+  expiresInSeconds: number;
+  cooldownSeconds: number;
+  testCode?: string;
+};
+
 export type RegisterInput = {
   phone: string;
   code: string;
@@ -153,9 +159,26 @@ export function getPostAuthHome(role: UserRole = readStoredRole()) {
   return role === 'companion' ? '/companion/mine' : '/consumer';
 }
 
-export function requestPhoneCode(phone: string) {
+export async function requestPhoneCode(phone: string): Promise<PhoneCodeRequestResult> {
   const normalizedPhone = normalizePhone(phone);
   if (!isValidPhone(normalizedPhone)) throw new Error('请输入 11 位手机号');
+
+  if (isApiEnabled()) {
+    let response;
+    try {
+      response = await apiPost<PhoneCodeRequestResult>('/api/auth/phone/request-code', { phone: normalizedPhone });
+    } catch (error) {
+      if (!isTestRoleSwitchAllowed()) throw error;
+      return requestLocalPhoneCode(normalizedPhone);
+    }
+    if (!response.success) throw new Error(response.error?.message || '验证码发送失败，请稍后重试');
+    return response.data;
+  }
+
+  return requestLocalPhoneCode(normalizedPhone);
+}
+
+function requestLocalPhoneCode(normalizedPhone: string): PhoneCodeRequestResult {
   ensureTestAuthAllowed('验证码登录');
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -167,10 +190,41 @@ export function requestPhoneCode(phone: string) {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(smsCodeStorageKey, JSON.stringify(record));
   }
-  return code;
+  return {
+    expiresInSeconds: 5 * 60,
+    cooldownSeconds: 60,
+    testCode: code,
+  };
 }
 
-export function registerWithPhone(input: RegisterInput) {
+export async function registerWithPhone(input: RegisterInput) {
+  const phone = normalizePhone(input.phone);
+  if (!isValidPhone(phone)) throw new Error('请输入 11 位手机号');
+
+  if (isApiEnabled()) {
+    let response;
+    try {
+      response = await apiPost<AuthSession>('/api/auth/phone/verify', {
+        phone,
+        code: input.code,
+        role: input.role,
+        intent: 'register',
+      });
+    } catch (error) {
+      if (!isTestRoleSwitchAllowed()) throw error;
+      return registerLocalWithPhone(input);
+    }
+    if (!response.success) throw new Error(response.error?.message || '手机号注册失败');
+    const session = persistRemoteSession(response.data);
+    const account = persistRemotePhoneAccount(session, input.role, 'register');
+    notifySessionChanged(session);
+    return account;
+  }
+
+  return registerLocalWithPhone(input);
+}
+
+function registerLocalWithPhone(input: RegisterInput) {
   ensureTestAuthAllowed('本地手机号注册');
   const phone = normalizePhone(input.phone);
   validatePhoneCode(phone, input.code);
@@ -219,13 +273,41 @@ export function registerWithPhone(input: RegisterInput) {
 }
 
 export async function loginWithPhoneCode(phone: string, code: string, role?: PublicRole) {
-  ensureTestAuthAllowed('本地验证码登录');
   const normalizedPhone = normalizePhone(phone);
   if (!isValidPhone(normalizedPhone)) throw new Error('请输入 11 位手机号');
+  const loginRole = role ?? 'consumer';
+
+  if (isApiEnabled()) {
+    let response;
+    try {
+      response = await apiPost<AuthSession>('/api/auth/phone/verify', {
+        phone: normalizedPhone,
+        code,
+        role: loginRole,
+        intent: 'login',
+      });
+    } catch (error) {
+      if (!isTestRoleSwitchAllowed()) throw error;
+      return loginLocalWithPhoneCode(normalizedPhone, code, loginRole);
+    }
+    if (!response.success) {
+      if (response.error?.code === 'PHONE_ROLE_NOT_AVAILABLE') throw new MissingRoleRegistrationError(loginRole);
+      throw new Error(response.error?.message || '手机号登录失败');
+    }
+    const session = persistRemoteSession(response.data);
+    persistRemotePhoneAccount(session, loginRole, 'login');
+    notifySessionChanged(session);
+    return session;
+  }
+
+  return loginLocalWithPhoneCode(normalizedPhone, code, loginRole);
+}
+
+async function loginLocalWithPhoneCode(normalizedPhone: string, code: string, loginRole: PublicRole) {
+  ensureTestAuthAllowed('本地验证码登录');
   const account = findLoginAccount(normalizedPhone);
-  if (!account) throw new MissingRoleRegistrationError(role ?? 'consumer');
+  if (!account) throw new MissingRoleRegistrationError(loginRole);
   const availableRoles = getUsableRoles(account);
-  const loginRole = role ?? account.role;
   if (!availableRoles.includes(loginRole)) {
     if (account.roleReviewStatus?.[loginRole] === 'pending') throw new PendingRoleReviewError(loginRole);
     throw new MissingRoleRegistrationError(loginRole);
@@ -384,6 +466,42 @@ function persistRemoteSession(session: AuthSession) {
   if (session.token) setApiAuthToken(session.token, session.role === 'admin' ? 'admin' : 'public');
   persistRole(session.role);
   return session;
+}
+
+function persistRemotePhoneAccount(session: AuthSession, requestedRole: PublicRole, intent: 'register' | 'login') {
+  const phone = normalizePhone(session.user.phone || '');
+  if (!phone) throw new Error('服务端未返回已验证手机号');
+  const existing = readAccount()?.phone === phone ? readAccount() : null;
+  const serverRoles = session.roles.filter(isPublicRole);
+  const requestedRoleApproved = serverRoles.includes(requestedRole);
+  const roles = Array.from(new Set([...(existing ? getUsableRoles(existing) : []), ...serverRoles]));
+  const roleReviewStatus = {
+    ...(existing?.roleReviewStatus ?? {}),
+    [requestedRole]: requestedRoleApproved ? ('approved' as const) : intent === 'register' ? ('draft' as const) : existing?.roleReviewStatus?.[requestedRole],
+  };
+  const account: AuthAccount = {
+    ...existing,
+    phone,
+    role: requestedRoleApproved ? requestedRole : session.role === 'companion' ? 'companion' : requestedRole,
+    roles,
+    completedRoleRegistrations: Array.from(new Set([...(existing?.completedRoleRegistrations ?? []), ...serverRoles])),
+    pendingRoleRegistrations: existing?.pendingRoleRegistrations ?? [],
+    roleReviewStatus,
+    nickname: session.user.nickname,
+    creatorName: existing?.creatorName || session.user.nickname,
+    photographerName: session.role === 'companion' ? existing?.photographerName || session.user.nickname : existing?.photographerName,
+    creatorId: session.user.id,
+    companionId: session.companionId || existing?.companionId,
+    creatorAvatarUrl: session.user.avatarUrl || existing?.creatorAvatarUrl,
+    photographerAvatarUrl: session.role === 'companion' ? session.user.avatarUrl || existing?.photographerAvatarUrl : existing?.photographerAvatarUrl,
+    registeredAt: existing?.registeredAt || new Date().toISOString(),
+  };
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(accountStorageKey, JSON.stringify(account));
+    localStorage.setItem(loginStorageKey, '1');
+  }
+  persistRole(account.role);
+  return account;
 }
 
 function isUserRole(role: unknown): role is UserRole {

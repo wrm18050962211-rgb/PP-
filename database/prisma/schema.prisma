@@ -146,6 +146,30 @@ model UserAuthIdentity {
   @@map("user_auth_identities")
 }
 
+model PhoneVerificationChallenge {
+  id                String    @id @default(uuid()) @db.Uuid
+  phone             String    @db.VarChar(32)
+  purpose           String    @db.VarChar(40)
+  codeHash          String    @map("code_hash") @db.VarChar(128)
+  requestedIp       String?   @map("requested_ip") @db.Inet
+  deliveryStatus    String    @default("pending") @map("delivery_status") @db.VarChar(20)
+  provider          String    @db.VarChar(40)
+  providerRequestId String?   @map("provider_request_id") @db.VarChar(160)
+  failureCode       String?   @map("failure_code") @db.VarChar(80)
+  attempts          Int       @default(0)
+  maxAttempts       Int       @default(5) @map("max_attempts")
+  expiresAt         DateTime  @map("expires_at") @db.Timestamptz(6)
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(6)
+  consumedAt        DateTime? @map("consumed_at") @db.Timestamptz(6)
+  failedAt          DateTime? @map("failed_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([phone, purpose, createdAt])
+  @@index([requestedIp, createdAt])
+  @@map("phone_verification_challenges")
+}
+
 model UserProfile {
   userId                   String    @id @map("user_id") @db.Uuid
   bio                      String?

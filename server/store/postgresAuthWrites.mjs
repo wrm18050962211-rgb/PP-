@@ -8,14 +8,17 @@ export async function upsertAuthIdentityUserTransaction(client, draft) {
     const identityResult = await client.query(
       `select i.id as identity_id,
               i.user_id,
+              u.phone,
               u.nickname,
               u.avatar_url,
               u.gender,
               u.city,
               u.status,
-              u.is_companion
+              u.is_companion,
+              c.id as companion_id
        from user_auth_identities i
        join users u on u.id = i.user_id
+       left join companions c on c.user_id = u.id
        where i.provider = $1
          and i.provider_user_id = $2
        for update of i`,
@@ -27,10 +30,11 @@ export async function upsertAuthIdentityUserTransaction(client, draft) {
       const userResult = await client.query(
         `update users
          set last_login_at = $2,
+             phone = coalesce(phone, $3),
              updated_at = now()
          where id = $1
          returning *`,
-        [existing.user_id, loginAt],
+        [existing.user_id, loginAt, draft.phone || null],
       );
       await client.query(
         `update user_auth_identities
@@ -43,7 +47,49 @@ export async function upsertAuthIdentityUserTransaction(client, draft) {
         [existing.identity_id, draft.unionId || null, draft.phone || null, draft.metadata || {}, loginAt],
       );
       await client.query('commit');
-      return normalizeUserRow(userResult.rows?.[0] || existing);
+      return normalizeUserRow({ ...existing, ...(userResult.rows?.[0] || {}) });
+    }
+
+    let phoneUser = null;
+    if (draft.phone) {
+      const phoneUserResult = await client.query(
+        `select u.*,
+                c.id as companion_id
+         from users u
+         left join companions c on c.user_id = u.id
+         where u.phone = $1
+         for update of u`,
+        [draft.phone],
+      );
+      phoneUser = phoneUserResult.rows?.[0] || null;
+    }
+
+    if (phoneUser) {
+      const userResult = await client.query(
+        `update users
+         set last_login_at = $2,
+             updated_at = now()
+         where id = $1
+         returning *`,
+        [phoneUser.id, loginAt],
+      );
+      await client.query(
+        `insert into user_auth_identities (
+          id, user_id, provider, provider_user_id, union_id, phone, metadata, last_login_at
+        ) values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          draft.identityId,
+          phoneUser.id,
+          draft.provider,
+          draft.providerUserId,
+          draft.unionId || null,
+          draft.phone,
+          draft.metadata || {},
+          loginAt,
+        ],
+      );
+      await client.query('commit');
+      return normalizeUserRow({ ...phoneUser, ...(userResult.rows?.[0] || {}) });
     }
 
     const userResult = await client.query(
@@ -89,12 +135,14 @@ export async function upsertAuthIdentityUserTransaction(client, draft) {
 function normalizeUserRow(row = {}) {
   return {
     id: row.id || row.user_id,
+    phone: row.phone || '',
     nickname: row.nickname || 'User',
     avatarUrl: row.avatar_url || '',
     gender: row.gender || 'unknown',
     city: row.city || '',
     status: row.status || 'active',
     isCompanion: Boolean(row.is_companion),
+    companionId: row.companion_id || null,
     roles: row.is_companion ? ['consumer', 'companion'] : ['consumer'],
   };
 }

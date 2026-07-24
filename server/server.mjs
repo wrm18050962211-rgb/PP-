@@ -1,11 +1,14 @@
 import http from 'node:http';
 import { createDecipheriv, createHash, randomBytes, randomUUID, sign, verify } from 'node:crypto';
+import { isIP } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { runPendingPaymentExpiryJob } from './jobs/paymentExpiryJob.mjs';
 import { mirrorAdminAction, mirrorAuditLog, mirrorSecurityEvent } from './runtimeAuditGateway.mjs';
+import { createPhoneVerificationService, PhoneVerificationError } from './services/phoneVerification.mjs';
 import { createTencentCosPostUploadPolicy, hasTencentCosMediaConfig } from './services/tencentCosMedia.mjs';
+import { createMockSmsSender, createTencentSmsSender, hasTencentSmsConfig } from './services/tencentSms.mjs';
 import { createDataStore } from './store/index.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -14,12 +17,20 @@ const dataStore = createDataStore({ storePath, initialStore, normalizeStore });
 const port = Number(process.env.PORT || 8787);
 const appEnv = String(process.env.APP_ENV || 'development').trim().toLowerCase();
 const isProductionServerEnv = appEnv === 'production';
+const phoneSmsProvider = String(process.env.PHONE_SMS_PROVIDER || (isProductionServerEnv ? 'tencent' : 'mock')).trim().toLowerCase();
 const corsAllowedOrigins = parseEnvList(process.env.CORS_ALLOWED_ORIGINS);
 const enableTestRoleSwitch = String(process.env.ENABLE_TEST_ROLE_SWITCH ?? 'true').trim().toLowerCase();
 const platformFeeRate = 0.08;
 const pendingPaymentHoldMinutes = Number(process.env.PENDING_PAYMENT_HOLD_MINUTES || 15);
 const pendingPaymentHoldMs = Math.max(1, pendingPaymentHoldMinutes) * 60 * 1000;
 const activeSlotLocks = new Set();
+const phoneVerificationService = createPhoneVerificationService({
+  repository: dataStore.phoneVerificationWrites,
+  sender: phoneSmsProvider === 'tencent' ? createTencentSmsSender() : createMockSmsSender(),
+  provider: phoneSmsProvider,
+  pepper: process.env.PHONE_OTP_PEPPER,
+  appEnv,
+});
 
 if (isProductionServerEnv && corsAllowedOrigins.length === 0) {
   throw new Error('APP_ENV=production requires CORS_ALLOWED_ORIGINS.');
@@ -110,6 +121,8 @@ async function route(method, url, body, store, req) {
   }
   if (method === 'GET' && path === '/api/ops/launch-check') return launchCheck();
   if (method === 'GET' && path === '/api/auth/session') return authSession(store);
+  if (method === 'POST' && path === '/api/auth/phone/request-code') return phoneRequestCode(body, req);
+  if (method === 'POST' && path === '/api/auth/phone/verify') return phoneVerify(store, body, req);
   if (method === 'POST' && path === '/api/auth/wechat/login') return wechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/wechat/mock-login') return mockWechatLogin(store, body);
   if (method === 'POST' && path === '/api/auth/logout') return logout(store);
@@ -353,6 +366,53 @@ function authSession(store) {
   return json(saveSession(store, session), 200, dataStore.kind === 'json');
 }
 
+async function phoneRequestCode(body = {}, req) {
+  try {
+    const result = await phoneVerificationService.requestCode({
+      phone: body.phone,
+      ip: getClientIp(req),
+    });
+    return json(result);
+  } catch (phoneError) {
+    if (phoneError instanceof PhoneVerificationError) {
+      return error(phoneError.status, phoneError.code, phoneError.message);
+    }
+    throw phoneError;
+  }
+}
+
+async function phoneVerify(store, body = {}, req) {
+  const requestedRole = body.role === 'companion' ? 'companion' : 'consumer';
+  const intent = body.intent === 'register' ? 'register' : 'login';
+  let verified;
+  try {
+    verified = await phoneVerificationService.verifyCode({
+      phone: body.phone,
+      code: body.code,
+    });
+  } catch (phoneError) {
+    if (phoneError instanceof PhoneVerificationError) {
+      return error(phoneError.status, phoneError.code, phoneError.message);
+    }
+    throw phoneError;
+  }
+
+  const user = await resolvePhoneUser(store, verified.phone);
+  const canUseCompanionRole = Boolean(user.companionId && user.roles?.includes('companion'));
+  if (requestedRole === 'companion' && intent === 'login' && !canUseCompanionRole) {
+    return error(403, 'PHONE_ROLE_NOT_AVAILABLE', 'This phone number does not have an approved companion account.');
+  }
+
+  const role = requestedRole === 'companion' && canUseCompanionRole ? 'companion' : 'consumer';
+  const session = createSession(store, role, user, {
+    companionId: role === 'companion' ? user.companionId : null,
+  });
+  session.provider = 'phone';
+  session.ip = getClientIp(req);
+  session.userAgent = String(req?.headers?.['user-agent'] || '').slice(0, 500) || null;
+  return json(await persistSession(store, session), 200, dataStore.kind === 'json');
+}
+
 function mockWechatLogin(store, body = {}) {
   if (!isTestRoleSwitchAllowed()) return error(403, 'TEST_LOGIN_DISABLED', 'Mock login is disabled in this environment');
   if (dataStore.kind !== 'json') return error(403, 'TEST_LOGIN_JSON_ONLY', 'Mock role switching is only available with the JSON store');
@@ -438,6 +498,19 @@ async function resolveWechatUser(store, identity) {
   return ensureWechatUser(store, identity);
 }
 
+async function resolvePhoneUser(store, phone) {
+  if (dataStore.authWrites?.upsertIdentityUser) {
+    return dataStore.authWrites.upsertIdentityUser({
+      provider: 'phone',
+      providerUserId: phone,
+      phone,
+      nickname: 'Still User',
+      metadata: { source: 'phone_verification' },
+    });
+  }
+  return ensurePhoneUser(store, phone);
+}
+
 async function persistSession(store, session) {
   const storedSession = saveSession(store, session);
   if (dataStore.sessionWrites?.create) await dataStore.sessionWrites.create(storedSession);
@@ -454,12 +527,18 @@ async function logout(store) {
 
 function createSession(store, role, existingUser = null, options = {}) {
   const user = existingUser || store.activeSession?.user || ensureDemoUser(store, role);
-  const companionId = role === 'companion' ? resolveSessionCompanionId(store, options.companionId || store.activeSession?.companionId) : null;
+  const companionId =
+    role === 'companion'
+      ? existingUser
+        ? existingUser.companionId || null
+        : resolveSessionCompanionId(store, options.companionId || store.activeSession?.companionId)
+      : null;
+  const userRoles = Array.isArray(existingUser?.roles) && existingUser.roles.length ? existingUser.roles : rolesForSessionRole(role);
   const session = {
     token: options.token || buildSessionToken(role, existingUser),
-    provider: existingUser?.openId ? 'wechat' : 'mock_wechat',
+    provider: existingUser?.openId ? 'wechat' : existingUser?.phone ? 'phone' : 'mock_wechat',
     role,
-    roles: rolesForSessionRole(role),
+    roles: role === 'admin' ? ['admin'] : Array.from(new Set(['consumer', ...userRoles.filter((item) => item === 'companion')])),
     user,
     companionId,
     adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
@@ -594,8 +673,17 @@ function getBearerToken(req) {
   return match?.[1]?.trim() || '';
 }
 
+function getClientIp(req) {
+  const forwarded = String(req?.headers?.['x-forwarded-for'] || '')
+    .split(',')[0]
+    .trim();
+  const candidate = forwarded || String(req?.socket?.remoteAddress || '').trim();
+  const normalized = candidate.startsWith('::ffff:') ? candidate.slice(7) : candidate;
+  return isIP(normalized) ? normalized : null;
+}
+
 function buildSessionToken(role, user) {
-  const prefix = user?.openId ? `wx-${role}-${user.id}` : `local-${role}`;
+  const prefix = user?.openId ? `wx-${role}-${user.id}` : user?.phone ? `phone-${role}-${user.id}` : `local-${role}`;
   return `${prefix}-${randomString(18)}`;
 }
 
@@ -644,6 +732,34 @@ function ensureWechatUser(store, identity) {
   user.unionId = identity.unionid || user.unionId || null;
   user.roles = Array.from(new Set([...(user.roles || []), 'consumer']));
   user.status = user.status || 'active';
+  user.updatedAt = now();
+  return user;
+}
+
+function ensurePhoneUser(store, phone) {
+  store.users ||= [];
+  let user = store.users.find((item) => item.phone === phone);
+  if (!user) {
+    user = {
+      id: `user-phone-${createHash('sha256').update(phone).digest('hex').slice(0, 20)}`,
+      phone,
+      nickname: 'Still User',
+      avatarUrl: '',
+      gender: 'unknown',
+      city: '',
+      status: 'active',
+      isCompanion: false,
+      roles: ['consumer'],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    store.users.push(user);
+  }
+  const companion = store.companions.find((item) => item.userId === user.id);
+  user.phone = phone;
+  user.companionId = companion?.id || user.companionId || null;
+  user.isCompanion = Boolean(user.companionId);
+  user.roles = user.isCompanion ? ['consumer', 'companion'] : ['consumer'];
   user.updatedAt = now();
   return user;
 }
@@ -3387,6 +3503,11 @@ function launchCheck() {
     'COS_PUBLIC_BASE_URL',
     'TENCENT_CLOUD_SECRET_ID',
     'TENCENT_CLOUD_SECRET_KEY',
+    'PHONE_SMS_PROVIDER',
+    'PHONE_OTP_PEPPER',
+    'TENCENT_SMS_SDK_APP_ID',
+    'TENCENT_SMS_SIGN_NAME',
+    'TENCENT_SMS_TEMPLATE_ID',
   ];
   const missing = requiredForProduction.filter((name) => !isLaunchEnvConfigured(name));
   return json({
@@ -3397,6 +3518,7 @@ function launchCheck() {
       wechatAuth: hasWechatAuthConfig() ? 'configured' : 'mock',
       wechatPay: useLiveWechatPay() ? 'live' : 'mock',
       media: hasTencentCosMediaConfig() ? 'cos-configured' : 'mock',
+      phoneSms: phoneSmsProvider === 'tencent' && hasTencentSmsConfig() ? 'tencent-configured' : phoneSmsProvider,
     },
   });
 }
