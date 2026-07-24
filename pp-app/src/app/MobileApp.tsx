@@ -241,9 +241,32 @@ export function mobileRouteElements(includeCatchAll = true) {
 
 export default function MobileApp() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<MobileRouteFallback />}>
       <Routes>{mobileRouteElements()}</Routes>
     </Suspense>
+  );
+}
+
+function MobileRouteFallback() {
+  return (
+    <main className="mx-auto min-h-dvh w-full max-w-md overflow-hidden bg-[#050505]" aria-busy="true" aria-label="页面加载中">
+      <div className="h-[calc(env(safe-area-inset-top)+4.5rem)] border-b border-white/8 bg-black px-4 pt-[env(safe-area-inset-top)]">
+        <div className="flex h-[4.5rem] items-center justify-between gap-4 animate-pulse">
+          <div className="h-9 w-24 rounded-full bg-white/10" />
+          <div className="flex gap-2">
+            <div className="h-9 w-9 rounded-full bg-white/10" />
+            <div className="h-9 w-9 rounded-full bg-white/10" />
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-px bg-white/5 animate-pulse">
+        <div className="aspect-[0.74] bg-white/8" />
+        <div className="aspect-[0.96] bg-white/10" />
+        <div className="aspect-[0.96] bg-white/10" />
+        <div className="aspect-[0.74] bg-white/8" />
+      </div>
+      <div className="fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] mx-auto h-16 max-w-sm rounded-full bg-white/10 animate-pulse" />
+    </main>
   );
 }
 

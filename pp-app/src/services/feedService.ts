@@ -16,9 +16,11 @@ export type FeedPostPage = {
 
 const defaultFeedPageSize = 18;
 const maxFeedPageSize = 50;
+let cachedFeedPosts: FeedPost[] | null = null;
 
 export function listFeedPosts(): FeedPost[] {
-  return getExtendedFeedPosts().map(withPostTitle);
+  cachedFeedPosts ??= getExtendedFeedPosts().map(withPostTitle);
+  return cachedFeedPosts;
 }
 
 export function listFeedPostPage(options: FeedPageRequest = {}): FeedPostPage {

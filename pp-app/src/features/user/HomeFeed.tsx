@@ -6,6 +6,7 @@ import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { fetchFeedPostPage, getPostTitle, listFeedPostPage, listFeedPosts, mergeApprovedWorkIntoFeed, type FeedPostPage } from '../../services/feedService';
 import type { ConsumerLocation } from '../../services/locationService';
 import { fetchMatchedCompanions, matchCompanions } from '../../services/matchingService';
+import { getPostLikeCounts } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
 import { PhotoFeed } from './PhotoFeed';
 
@@ -184,6 +185,7 @@ export function HomeFeed() {
   const [blockFeedClick, setBlockFeedClick] = useState(false);
   const feedSwipeRef = useRef<HTMLDivElement>(null);
   const feedLoadRef = useRef<HTMLDivElement>(null);
+  const feedLikeCounts = useMemo(() => getPostLikeCounts(listFeedPosts()), []);
 
   useEffect(() => {
     let mounted = true;
@@ -553,7 +555,11 @@ export function HomeFeed() {
         >
           {channels.map((channel) => (
             <div key={channel} className="w-full shrink-0">
-              <PhotoFeed posts={visibleChannelPostGroups[channel]} />
+              <PhotoFeed
+                posts={visibleChannelPostGroups[channel]}
+                likeCountByPostId={feedLikeCounts}
+                active={channel === filters.channel}
+              />
             </div>
           ))}
         </div>

@@ -4,6 +4,7 @@ import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { listFeedPosts } from '../../services/feedService';
 import { getPostLikeCount } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
+import { getFeedImageUrl } from '../../utils/imageUrl';
 import { isLiveMedia } from '../../utils/media';
 
 export type PhotoCardVariant = 'tall' | 'portrait' | 'soft' | 'wide';
@@ -29,6 +30,7 @@ export function PhotoCard({
   className = '',
   postHref,
   playLive = false,
+  likeCount,
 }: {
   post: FeedPost;
   priority?: boolean;
@@ -36,10 +38,11 @@ export function PhotoCard({
   className?: string;
   postHref?: string;
   playLive?: boolean;
+  likeCount?: number;
 }) {
-  const likeCount = getPostLikeCount(post.id, listFeedPosts());
+  const visibleLikeCount = likeCount ?? getPostLikeCount(post.id, listFeedPosts());
   const href = postHref ?? `/consumer/post/${post.id}`;
-  const cover = post.images[0];
+  const cover = getFeedCover(post.images[0], variant);
   const liveCover = isLiveMedia(cover);
 
   return (
@@ -50,6 +53,7 @@ export function PhotoCard({
             media={cover}
             alt={post.location}
             loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'low'}
             fallbackSrc={getFallbackImage(post.id, variant)}
             playLive={playLive && liveCover}
             mediaClassName="brightness-[0.94] contrast-[1.14] saturate-[0.98] transition duration-500 active:scale-[1.03]"
@@ -61,13 +65,23 @@ export function PhotoCard({
             </span>
             <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-semibold tabular-nums text-white/72 drop-shadow">
               <Heart size={9} fill="currentColor" />
-              {formatSocialCount(likeCount)}
+              {formatSocialCount(visibleLikeCount)}
             </span>
           </div>
         </div>
       </Link>
     </article>
   );
+}
+
+function getFeedCover(cover: FeedPost['images'][number] | undefined, variant: PhotoCardVariant) {
+  if (!cover) return undefined;
+
+  const width = variant === 'wide' ? 960 : 640;
+  const url = getFeedImageUrl(cover.url, width);
+  const posterUrl = cover.posterUrl ? getFeedImageUrl(cover.posterUrl, width) : undefined;
+  if (url === cover.url && posterUrl === cover.posterUrl) return cover;
+  return { ...cover, url, posterUrl };
 }
 
 function getFallbackImage(seed: string, variant: PhotoCardVariant) {

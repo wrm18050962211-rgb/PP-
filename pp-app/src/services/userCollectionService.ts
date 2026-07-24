@@ -89,7 +89,17 @@ export function getFollowingPeople(posts: FeedPost[]) {
 }
 
 export function getPostLikeCount(postId: string, posts: FeedPost[]) {
-  return getAllVirtualCollections(posts).filter((collections) => collections.likedPostIds.includes(postId)).length;
+  return getPostLikeCounts(posts).get(postId) ?? 0;
+}
+
+export function getPostLikeCounts(posts: FeedPost[]) {
+  const counts = new Map<string, number>();
+  getAllVirtualCollections(posts).forEach((collections) => {
+    collections.likedPostIds.forEach((postId) => {
+      counts.set(postId, (counts.get(postId) ?? 0) + 1);
+    });
+  });
+  return counts;
 }
 
 export function getPostFavoriteCount(postId: string, posts: FeedPost[]) {

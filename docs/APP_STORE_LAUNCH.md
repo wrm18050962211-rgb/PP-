@@ -167,6 +167,8 @@ npm run ios:open
 
 完成标准：App 能在 iPhone 上打开首页，不白屏。
 
+真机测试结果和待修复问题持续记录在 `docs/IOS_REAL_DEVICE_TEST_LOG.md`。
+
 ### 第 2 阶段：生产环境开关
 
 目标：区分本地开发和上线版本。

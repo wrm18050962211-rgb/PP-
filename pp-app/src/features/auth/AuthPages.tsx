@@ -40,6 +40,24 @@ const roleOptions: Array<{ role: PublicRole; title: string; desc: string; icon: 
 ];
 const localSmsCodeLabel = import.meta.env.PROD ? '' : '本地测试验证码：';
 
+function preloadConsumerHome() {
+  void Promise.all([
+    import('../user/HomeFeed'),
+    import('../../services/feedService'),
+    import('../../utils/imageUrl'),
+  ]).then(([, { listFeedPosts }, { getFeedImageUrl }]) => {
+    listFeedPosts()
+      .slice(0, 4)
+      .forEach((post) => {
+        const src = post.images[0]?.url;
+        if (!src) return;
+        const image = new Image();
+        image.decoding = 'async';
+        image.src = getFeedImageUrl(src, 640);
+      });
+  });
+}
+
 export function EntryRedirect() {
   if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace />;
   if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace />;
@@ -107,6 +125,10 @@ function RegisterForm({ initialRole, initialPhone }: { initialRole: PublicRole; 
   const [submitting, setSubmitting] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const showTestCode = isTestRoleSwitchAllowed();
+
+  useEffect(() => {
+    if (role === 'consumer') preloadConsumerHome();
+  }, [role]);
 
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
@@ -204,6 +226,10 @@ export function LoginPage() {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const registeredRoles = getAvailableLoginRoles(phone || account?.phone);
   const showTestCode = isTestRoleSwitchAllowed();
+
+  useEffect(() => {
+    if (role === 'consumer') preloadConsumerHome();
+  }, [role]);
 
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
@@ -497,9 +523,9 @@ function AuthFrame({ eyebrow, title, children }: { eyebrow: string; title: strin
     <div className="min-h-dvh bg-[#050505] px-5 py-8 text-white">
       <section className="mx-auto max-w-md">
         <div className="pt-8">
-          <p className="text-sm font-black text-white/45">{eyebrow}</p>
+          <p className="text-sm font-black text-white/70">{eyebrow}</p>
           <h1 className="mt-2 text-3xl font-black tracking-normal">{title}</h1>
-          <p className="mt-3 text-sm font-semibold leading-6 text-white/52">用手机号验证码进入 Still，后续可平滑替换为微信手机号授权。</p>
+          <p className="mt-3 text-sm font-semibold leading-6 text-white/64">用手机号验证码进入 Still，后续可平滑替换为微信手机号授权。</p>
         </div>
         <div className="mt-7 rounded-[8px] bg-white p-4 text-zinc-950 shadow-2xl ring-1 ring-white/10">{children}</div>
       </section>
