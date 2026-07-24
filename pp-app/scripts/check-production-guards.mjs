@@ -115,6 +115,8 @@ const checks = [
   {
     file: 'src/services/authService.ts',
     includes: [
+      "'/api/auth/phone/request-code'",
+      "'/api/auth/phone/verify'",
       "const sessionRoles: UserRole[] = activeRole === 'admin' ? ['admin']",
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('public'))",
       "if (!isTestRoleSwitchAllowed()) return Boolean(getApiAuthToken('admin'))",

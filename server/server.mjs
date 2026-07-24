@@ -529,9 +529,7 @@ function createSession(store, role, existingUser = null, options = {}) {
   const user = existingUser || store.activeSession?.user || ensureDemoUser(store, role);
   const companionId =
     role === 'companion'
-      ? existingUser
-        ? existingUser.companionId || null
-        : resolveSessionCompanionId(store, options.companionId || store.activeSession?.companionId)
+      ? resolveSessionCompanionId(store, options.companionId || existingUser?.companionId || store.activeSession?.companionId)
       : null;
   const userRoles = Array.isArray(existingUser?.roles) && existingUser.roles.length ? existingUser.roles : rolesForSessionRole(role);
   const session = {
