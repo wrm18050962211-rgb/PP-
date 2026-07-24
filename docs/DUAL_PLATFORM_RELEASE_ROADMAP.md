@@ -786,16 +786,16 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 ### INT-ROADMAP-1 建立双平台唯一 Roadmap
 
 - Priority: P0
-- Status: in_progress
+- Status: completed
 - Owner branch: `codex/release-roadmap` -> `codex/integration`
 - Depends on: `INT-BASE-0`
 - Scope: 创建本文档，写入四条路线、状态、依赖、验收、分支、共享文件和解除阻塞结果。
 - Acceptance criteria: 文档进入 Integration；节点 ID 唯一；状态枚举有效；高德是 P0 主 Provider；Win/Mac 均能读取。
 - Shared files: `docs/DUAL_PLATFORM_RELEASE_ROADMAP.md`
 - Unblock result: 提供 Roadmap commit 和 Integration SHA，解除两端按 Roadmap 自动选择节点的条件。
-- Result commit: pending
-- Verification: pending
-- Notes: 当前执行节点。
+- Result commit: `7ee432b`
+- Verification: `git diff --check` 通过；74 个节点 ID 唯一；所有节点字段完整；状态枚举和依赖引用有效；P0 地图 Provider 为高德。
+- Notes: 内容检查点已完成，等待同步到 `codex/integration`。
 
 ### INT-AUTH-1 集成真实登录
 
@@ -1199,4 +1199,3 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - 状态枚举检查
 - 依赖节点存在性检查
 - 高德 P0 Provider 决策检查
-
