@@ -12,4 +12,3 @@ export function getFeedImageUrl(src: string, width: number, quality = 72) {
     return src;
   }
 }
-
