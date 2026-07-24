@@ -463,7 +463,7 @@ export function HomeFeed() {
   return (
     <div className={`min-h-dvh bg-[#050505] text-white transition-[padding] duration-300 ${topPaddingClass}`}>
       <header
-        className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md px-4 pt-3 text-white transition-all duration-300 ${
+        className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-white transition-all duration-300 ${
           topChromeHidden ? 'pointer-events-none -translate-y-full opacity-0' : 'translate-y-0 opacity-100'
         }`}
       >

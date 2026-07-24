@@ -163,7 +163,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
 
   return (
     <div className="relative h-dvh overflow-hidden bg-black text-white">
-      <header className="fixed inset-x-0 top-0 z-40 mx-auto max-w-md bg-black/96 px-3 py-2 text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
+      <header className="fixed inset-x-0 top-0 z-40 mx-auto max-w-md bg-black/96 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
         <div className={`grid h-14 items-center gap-2 ${visibleCreator ? 'grid-cols-[30px_minmax(0,1fr)_minmax(0,1fr)]' : 'grid-cols-[30px_minmax(0,1fr)]'}`}>
           <Link to={appHomePath} className="grid h-8 w-8 place-items-center text-white/88" aria-label="返回发现">
             <ArrowLeft size={22} />
@@ -179,7 +179,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
         </div>
       </header>
 
-      <main className={`h-dvh bg-black pt-[72px] ${captionExpanded ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+      <main className={`h-dvh bg-black pt-[calc(env(safe-area-inset-top)+72px)] ${captionExpanded ? 'overflow-y-auto' : 'overflow-hidden'}`}>
         <section className="bg-black">
           <div ref={imageTrackRef} className={`flex w-full snap-x snap-mandatory overflow-x-auto scroll-smooth bg-black scrollbar-none ${mediaHeightClass}`} onScroll={handleImageScroll}>
             {images.map((image, index) => (
