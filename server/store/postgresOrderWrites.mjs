@@ -264,7 +264,7 @@ export async function expirePendingPaymentsTransaction(client, draft = {}) {
          set status = 'closed',
              closed_at = coalesce(closed_at, $1),
              raw_callback = case
-               when p.status = 'pending' then jsonb_build_object('source', 'timeout_job', 'reason', $2)
+               when p.status = 'pending' then jsonb_build_object('source', 'timeout_job', 'reason', $2::text)
                else raw_callback
              end,
              updated_at = now()
@@ -276,7 +276,7 @@ export async function expirePendingPaymentsTransaction(client, draft = {}) {
        cancelled_orders as (
          update orders o
          set status = 'cancelled',
-             cancel_reason = $2,
+             cancel_reason = $2::text,
              cancelled_at = $1,
              updated_at = now()
          from expired e
@@ -299,7 +299,7 @@ export async function expirePendingPaymentsTransaction(client, draft = {}) {
          insert into order_status_logs (
            order_id, from_status, to_status, operator_type, operator_id, reason
          )
-         select e.order_id, 'pending_payment', 'cancelled', 'system', $4, $2
+         select e.order_id, 'pending_payment', 'cancelled', 'system', $4::uuid, $2::text
          from expired e
          join cancelled_orders o on o.id = e.order_id
          returning id

@@ -4,8 +4,8 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "dev": "node server.mjs",
-    "start": "node server.mjs",
+    "dev": "node --env-file-if-exists=.env server.mjs",
+    "start": "node --env-file-if-exists=.env server.mjs",
     "job:expire-payments": "node scripts/run-payment-expiry-job.mjs",
     "job:retry-provider-callbacks": "node scripts/run-provider-callback-retry-job.mjs",
     "job:maintenance": "node scripts/run-maintenance-jobs.mjs",
@@ -13,11 +13,16 @@
     "check:mvp": "node scripts/check-mvp.mjs",
     "check:ci-workflow": "node scripts/check-ci-workflow.mjs",
     "check:auth-schema": "node ../database/scripts/check-auth-schema.mjs",
+    "check:phone-verification": "node scripts/check-phone-verification.mjs",
+    "check:phone-auth-route": "node scripts/check-phone-auth-route.mjs",
+    "check:tencent-sms": "node scripts/check-tencent-sms.mjs",
     "check:schema-parity": "node ../database/scripts/check-schema-parity.mjs",
     "check:store-driver": "node scripts/check-store-driver.mjs",
     "check:admin-route-boundary": "node scripts/check-admin-route-boundary.mjs",
     "check:payment-expiry-job": "node scripts/check-payment-expiry-job.mjs",
     "check:provider-callback-retry-job": "node scripts/check-provider-callback-retry-job.mjs",
+    "check:cos-media-policy": "node scripts/check-cos-media-policy.mjs",
+    "check:cos-live": "node scripts/check-cos-live.mjs",
     "check:wechat-callback-processors": "node scripts/check-wechat-callback-processors.mjs",
     "check:maintenance-job": "node scripts/check-maintenance-job.mjs",
     "check:session-boundary": "node scripts/check-session-boundary.mjs",
@@ -27,6 +32,7 @@
     "check:postgres-store-idempotency-gateway": "node scripts/check-postgres-store-idempotency-gateway.mjs",
     "check:postgres-store-read-model": "node scripts/check-postgres-store-read-model.mjs",
     "check:postgres-live": "node scripts/check-postgres-live.mjs",
+    "check:postgres-live-node": "node scripts/check-postgres-live-node.mjs",
     "check:postgres-launch-readiness": "node scripts/check-postgres-launch-readiness.mjs",
     "check:postgres-id-hygiene": "node scripts/check-postgres-id-hygiene.mjs",
     "check:postgres-write-route-guard": "node scripts/check-postgres-write-route-guard.mjs",
@@ -49,6 +55,7 @@
     "check:postgres-mappers": "node scripts/check-postgres-mappers.mjs",
     "check:postgres-write-plan": "node scripts/check-postgres-write-plan.mjs",
     "check:postgres-auth-writes": "node scripts/check-postgres-auth-writes.mjs",
+    "check:postgres-phone-verification-writes": "node scripts/check-postgres-phone-verification-writes.mjs",
     "check:postgres-order-writes": "node scripts/check-postgres-order-writes.mjs",
     "check:postgres-provider-callback-writes": "node scripts/check-postgres-provider-callback-writes.mjs",
     "check:postgres-message-writes": "node scripts/check-postgres-message-writes.mjs",
@@ -58,6 +65,12 @@
     "check:postgres-session-writes": "node scripts/check-postgres-session-writes.mjs",
     "check:postgres-idempotency-writes": "node scripts/check-postgres-idempotency-writes.mjs",
     "check:runtime-audit-gateway": "node scripts/check-runtime-audit-gateway.mjs",
+    "db:import-postgres": "node scripts/import-postgres-sql.mjs",
     "db:export-seed": "node ../database/scripts/export-store-to-seed.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.22.0",
+    "qcloud-cos-sts": "^3.1.3",
+    "tencentcloud-sdk-nodejs-sms": "^4.1.240"
   }
 }

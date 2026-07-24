@@ -189,9 +189,20 @@ try {
     ),
     'cross-companion order mutation denial is logged as security event',
   );
-  await api('POST', '/api/auth/wechat/mock-login', { role: 'companion', companionId: paid.order.companionId });
+  await api('POST', '/api/auth/logout');
+  const ownCompanionSession = await api('POST', '/api/auth/wechat/mock-login', { role: 'companion', companionId: paid.order.companionId });
+  assert(ownCompanionSession.companionId === paid.order.companionId, 'mock companion login switches to requested order companion');
   const companionOrders = await api('GET', '/api/orders?role=companion');
   assert(companionOrders.items.every((item) => item.companionId === paid.order.companionId), 'companion order list is scoped to current companion');
+  assert(
+    companionOrders.items.some((item) => item.id === paid.order.id),
+    `companion order list includes own paid order: ${JSON.stringify({
+      expectedOrderId: paid.order.id,
+      expectedCompanionId: paid.order.companionId,
+      sessionCompanionId: ownCompanionSession.companionId,
+      items: companionOrders.items.map((item) => ({ id: item.id, companionId: item.companionId, status: item.status })),
+    })}`,
+  );
   const confirmed = await api('POST', `/api/orders/${paid.order.id}/confirm`);
   assert(confirmed.status === 'confirmed', 'companion can confirm own order');
 
@@ -234,6 +245,7 @@ try {
   assert(cancelledConfirmed.cancellationPhase === 'confirmed_before_balance', 'confirmed cancellation records phase');
   assert(typeof cancelledConfirmed.refundToCreatorCents === 'number', 'confirmed cancellation records refund amount');
 
+  authToken = primaryConsumerToken;
   const conversation = await api('GET', `/api/orders/${paid.order.id}/conversation`);
   const anonymousConversation = await api('GET', `/api/orders/${paid.order.id}/conversation`, undefined, { omitAuth: true, expectOk: false });
   assert(anonymousConversation.error?.code === 'AUTH_REQUIRED', 'conversation API rejects missing token');

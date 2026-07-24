@@ -19,6 +19,7 @@ const files = {
 const requiredTables = [
   'users',
   'user_sessions',
+  'phone_verification_challenges',
   'admin_users',
   'admin_action_logs',
   'audit_logs',
@@ -51,6 +52,13 @@ const requiredEnvNames = [
   'COS_BUCKET',
   'COS_REGION',
   'COS_PUBLIC_BASE_URL',
+  'TENCENT_CLOUD_SECRET_ID',
+  'TENCENT_CLOUD_SECRET_KEY',
+  'PHONE_SMS_PROVIDER',
+  'PHONE_OTP_PEPPER',
+  'TENCENT_SMS_SDK_APP_ID',
+  'TENCENT_SMS_SIGN_NAME',
+  'TENCENT_SMS_TEMPLATE_ID',
   'WECHAT_PAY_MODE',
   'WECHAT_PAY_NOTIFY_URL',
 ];
@@ -95,6 +103,7 @@ assert(/orderWrites:\s*\{/.test(postgresStore), 'postgres store exposes order wr
 assert(/messageWrites:\s*\{/.test(postgresStore), 'postgres store exposes message write gateway');
 assert(/moderationWrites:\s*\{/.test(postgresStore), 'postgres store exposes moderation write gateway');
 assert(/sessionWrites:\s*\{/.test(postgresStore), 'postgres store exposes session write gateway');
+assert(/phoneVerificationWrites:\s*\{/.test(postgresStore), 'postgres store exposes phone verification write gateway');
 assert(/providerCallbackWrites:\s*\{/.test(postgresStore), 'postgres store exposes provider callback write gateway');
 checks.push('postgres-store-gateways');
 

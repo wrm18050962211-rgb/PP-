@@ -100,7 +100,7 @@ export type UserRole = 'consumer' | 'companion' | 'admin';
 
 export type AuthSession = {
   token: string;
-  provider: 'mock_wechat' | 'wechat';
+  provider: 'mock_wechat' | 'wechat' | 'phone' | 'local_admin';
   role: UserRole;
   roles: UserRole[];
   user: User;
@@ -134,9 +134,11 @@ export type MediaUploadPolicy = {
   purpose: MediaUploadPurpose;
   objectKey: string;
   contentType: string;
+  uploadMethod?: 'POST';
   uploadUrl: string;
   publicUrl: string;
   expiresAt: string;
+  formFields?: Record<string, string>;
   credentials?: Record<string, unknown>;
 };
 

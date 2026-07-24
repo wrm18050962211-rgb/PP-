@@ -120,7 +120,10 @@ export function wxUploadFile(url: string, filePath: string, formData?: Record<st
       filePath,
       name: 'file',
       formData,
-      success: (response) => resolve(response.data),
+      success: (response) => {
+        if (response.statusCode >= 200 && response.statusCode < 300) resolve(response.data);
+        else reject(new Error(`wx.uploadFile failed with status ${response.statusCode}`));
+      },
       fail: reject,
     });
   });
