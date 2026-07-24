@@ -1,0 +1,354 @@
+import { randomUUID } from 'node:crypto';
+import { isIP } from 'node:net';
+
+const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
+const DEFAULT_GLOBAL_LIMIT = 600;
+const DEFAULT_SENSITIVE_LIMIT = 20;
+const DEFAULT_WINDOW_MS = 60 * 1000;
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
+const SENSITIVE_KEY_PATTERN =
+  /^(authorization|cookie|set-cookie|password|passcode|otp|verificationcode|token|accesstoken|refreshtoken|secret|secretid|secretkey|apikey|privatekey|pepper|signature)$/i;
+const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+export class RequestSecurityError extends Error {
+  constructor(status, code, message, headers = {}) {
+    super(message);
+    this.name = 'RequestSecurityError';
+    this.status = status;
+    this.code = code;
+    this.headers = headers;
+  }
+}
+
+export function createRequestSecurity(options = {}) {
+  const env = options.env || process.env;
+  const clock = options.clock || (() => Date.now());
+  const logger = options.logger || console;
+  const buckets = new Map();
+  const config = {
+    trustProxy: envFlag(env.TRUST_PROXY, false),
+    maxBodyBytes: positiveInteger(env.REQUEST_BODY_MAX_BYTES, DEFAULT_MAX_BODY_BYTES),
+    globalLimit: positiveInteger(env.RATE_LIMIT_GLOBAL_MAX, DEFAULT_GLOBAL_LIMIT),
+    globalWindowMs: positiveInteger(env.RATE_LIMIT_GLOBAL_WINDOW_MS, DEFAULT_WINDOW_MS),
+    sensitiveLimit: positiveInteger(env.RATE_LIMIT_SENSITIVE_MAX, DEFAULT_SENSITIVE_LIMIT),
+    sensitiveWindowMs: positiveInteger(env.RATE_LIMIT_SENSITIVE_WINDOW_MS, DEFAULT_WINDOW_MS),
+  };
+
+  function begin(req) {
+    const requestId = readRequestId(req) || randomUUID();
+    const context = {
+      requestId,
+      clientIp: resolveClientIp(req, config.trustProxy),
+      startedAt: clock(),
+    };
+    req.securityContext = context;
+    return context;
+  }
+
+  function enforceRateLimit(req, context = req.securityContext || begin(req)) {
+    const method = String(req.method || 'GET').toUpperCase();
+    if (method === 'OPTIONS') return;
+
+    const identity = context.clientIp || 'unknown';
+    consumeBucket(
+      buckets,
+      `global:${identity}`,
+      config.globalLimit,
+      config.globalWindowMs,
+      clock(),
+      'RATE_LIMITED',
+    );
+
+    const group = sensitiveRouteGroup(method, requestPath(req));
+    if (group) {
+      consumeBucket(
+        buckets,
+        `sensitive:${group}:${identity}`,
+        config.sensitiveLimit,
+        config.sensitiveWindowMs,
+        clock(),
+        'SENSITIVE_RATE_LIMITED',
+      );
+    }
+
+    if (buckets.size > 10_000) pruneBuckets(buckets, clock());
+  }
+
+  function log(level, event, details = {}) {
+    const writer = level === 'error' ? logger.error : level === 'warn' ? logger.warn : logger.log;
+    writer.call(
+      logger,
+      JSON.stringify({
+        timestamp: new Date(clock()).toISOString(),
+        level,
+        event,
+        ...redactSensitive(details),
+      }),
+    );
+  }
+
+  function complete(req, status) {
+    const context = req.securityContext;
+    if (!context) return;
+    log('info', 'request_completed', {
+      requestId: context.requestId,
+      method: String(req.method || 'GET').toUpperCase(),
+      path: requestPath(req),
+      status,
+      durationMs: Math.max(0, clock() - context.startedAt),
+    });
+  }
+
+  return {
+    config,
+    begin,
+    complete,
+    enforceRateLimit,
+    getClientIp(req) {
+      return req?.securityContext?.clientIp || resolveClientIp(req, config.trustProxy);
+    },
+    log,
+  };
+}
+
+export async function readJsonRequest(req, options = {}) {
+  if (!['POST', 'PUT', 'PATCH'].includes(String(req.method || '').toUpperCase())) return {};
+
+  const maxBodyBytes = positiveInteger(options.maxBodyBytes, DEFAULT_MAX_BODY_BYTES);
+  const declaredLength = Number(req.headers?.['content-length']);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBodyBytes) {
+    throw new RequestSecurityError(413, 'REQUEST_BODY_TOO_LARGE', 'Request body exceeds the configured size limit');
+  }
+
+  const chunks = [];
+  let receivedBytes = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    receivedBytes += buffer.length;
+    if (receivedBytes > maxBodyBytes) {
+      throw new RequestSecurityError(413, 'REQUEST_BODY_TOO_LARGE', 'Request body exceeds the configured size limit');
+    }
+    chunks.push(buffer);
+  }
+
+  if (receivedBytes === 0) return {};
+  const contentType = String(req.headers?.['content-type'] || '')
+    .split(';', 1)[0]
+    .trim()
+    .toLowerCase();
+  if (contentType !== 'application/json') {
+    throw new RequestSecurityError(415, 'CONTENT_TYPE_UNSUPPORTED', 'Request body must use application/json');
+  }
+
+  const raw = Buffer.concat(chunks).toString('utf8');
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new RequestSecurityError(400, 'INVALID_JSON', 'Request body must contain valid JSON');
+  }
+  if (!isPlainObject(parsed)) {
+    throw new RequestSecurityError(400, 'REQUEST_BODY_INVALID', 'Request body must be a JSON object');
+  }
+
+  validateObjectSafety(parsed);
+  Object.defineProperty(parsed, '__rawBody', { value: raw, enumerable: false });
+  return parsed;
+}
+
+export function validateRouteInput(method, path, body) {
+  const route = `${String(method || 'GET').toUpperCase()} ${path}`;
+  if (route === 'POST /api/auth/phone/request-code') {
+    requireString(body.phone, 'phone', 6, 32);
+  } else if (route === 'POST /api/auth/phone/verify') {
+    requireString(body.phone, 'phone', 6, 32);
+    if (!/^\d{4,8}$/.test(String(body.code || ''))) {
+      throw new RequestSecurityError(400, 'PHONE_CODE_INVALID', 'Verification code must contain 4 to 8 digits');
+    }
+    optionalEnum(body.role, 'role', ['consumer', 'companion']);
+    optionalEnum(body.intent, 'intent', ['login', 'register']);
+  } else if (route === 'POST /api/admin/auth/login') {
+    requireString(body.passcode, 'passcode', 1, 128);
+  } else if (route === 'POST /api/orders') {
+    optionalString(body.idempotencyKey || body.clientRequestId, 'idempotencyKey', 1, 120);
+  }
+}
+
+export function resolveAccessPolicy(method, path) {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  if (normalizedMethod === 'POST' && path === '/api/admin/auth/login') return policy('anonymous', 'admin_auth');
+  if (path.startsWith('/api/admin/')) return policy('admin', 'admin_api');
+
+  if (path.startsWith('/api/companion/')) return policy('companion', 'companion_api');
+  if (normalizedMethod === 'POST' && path === '/api/auth/logout') return policy('member', 'auth_session');
+  if (path === '/api/media/upload-policy') return policy('member', 'media_upload');
+  if (path.startsWith('/api/me/')) return policy('member', 'user_data');
+
+  if (normalizedMethod === 'POST' && /^\/api\/orders\/[^/]+\/status$/.test(path)) {
+    return policy('admin', 'order_status');
+  }
+  if (path === '/api/orders/quote') return policy('anonymous', 'order_quote');
+  if (normalizedMethod === 'GET' && path === '/api/orders') return policy('member', 'orders_api');
+  if (/^\/api\/orders\/[^/]+\/conversation$/.test(path)) return policy('member', 'conversation');
+  if (/^\/api\/orders\/[^/]+\/report$/.test(path)) return policy('member', 'report');
+  if (path === '/api/orders' || path.startsWith('/api/orders/')) return policy('member', 'order');
+  if (path === '/api/conversations' || path.startsWith('/api/conversations/')) return policy('member', 'conversation');
+  if (path === '/api/reports') return policy('member', 'report');
+
+  if (path === '/api/payments/wechat/notify' || path === '/api/payments/wechat/refund-notify') {
+    return policy('anonymous', 'payment_callback');
+  }
+  if (path.startsWith('/api/payments/')) return policy('member', 'payment');
+  return policy('anonymous', 'public_api');
+}
+
+export function rotatingSecretValues(env, currentName, previousName) {
+  const values = [env?.[currentName], env?.[previousName]].map((value) => String(value || '').trim()).filter(Boolean);
+  return Array.from(new Set(values));
+}
+
+export function redactSensitive(value, key = '') {
+  if (SENSITIVE_KEY_PATTERN.test(normalizeKey(key))) return '[REDACTED]';
+  if (typeof value === 'string') return redactSensitiveText(value);
+  if (Array.isArray(value)) return value.map((item) => redactSensitive(item));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]) => [entryKey, redactSensitive(entryValue, entryKey)]));
+  }
+  return value;
+}
+
+export function redactSensitiveText(value) {
+  return String(value || '')
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
+    .replace(/((?:token|secret|password|passcode|pepper|api[_-]?key)\s*[=:]\s*)[^\s,;]+/gi, '$1[REDACTED]')
+    .replace(/(?<!\d)(1[3-9])\d{8}(\d)(?!\d)/g, '$1********$2');
+}
+
+export function safeErrorMessage(error) {
+  const message = error instanceof Error ? error.message : String(error || 'Unknown error');
+  return redactSensitiveText(message).slice(0, 500);
+}
+
+function consumeBucket(buckets, key, max, windowMs, timestamp, code) {
+  if (max <= 0) return;
+  let bucket = buckets.get(key);
+  if (!bucket || bucket.resetAt <= timestamp) {
+    bucket = { count: 0, resetAt: timestamp + windowMs };
+    buckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count <= max) return;
+
+  const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - timestamp) / 1000));
+  throw new RequestSecurityError(429, code, 'Too many requests. Retry after the indicated delay', {
+    'Retry-After': String(retryAfterSeconds),
+  });
+}
+
+function pruneBuckets(buckets, timestamp) {
+  for (const [key, bucket] of buckets) {
+    if (bucket.resetAt <= timestamp) buckets.delete(key);
+  }
+}
+
+function sensitiveRouteGroup(method, path) {
+  if (method !== 'POST') return '';
+  if (path === '/api/auth/phone/request-code') return 'phone_request';
+  if (path === '/api/auth/phone/verify') return 'phone_verify';
+  if (path === '/api/auth/wechat/login') return 'wechat_login';
+  if (path === '/api/auth/wechat/mock-login') return 'mock_login';
+  if (path === '/api/admin/auth/login') return 'admin_login';
+  if (path === '/api/media/upload-policy') return 'media_policy';
+  return '';
+}
+
+function readRequestId(req) {
+  const value = req?.headers?.['x-request-id'];
+  const candidate = Array.isArray(value) ? value[0] : String(value || '').trim();
+  return REQUEST_ID_PATTERN.test(candidate) ? candidate : '';
+}
+
+function resolveClientIp(req, trustProxy) {
+  const forwarded = trustProxy
+    ? String(req?.headers?.['x-forwarded-for'] || '')
+        .split(',', 1)[0]
+        .trim()
+    : '';
+  const candidate = forwarded || String(req?.socket?.remoteAddress || '').trim();
+  const normalized = candidate.startsWith('::ffff:') ? candidate.slice(7) : candidate;
+  return isIP(normalized) ? normalized : null;
+}
+
+function requestPath(req) {
+  try {
+    return new URL(req?.url || '/', 'http://local').pathname;
+  } catch {
+    return '/';
+  }
+}
+
+function validateObjectSafety(value, depth = 0) {
+  if (depth > 12) {
+    throw new RequestSecurityError(400, 'REQUEST_BODY_INVALID', 'Request body nesting is too deep');
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) validateObjectSafety(item, depth + 1);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+
+  const entries = Object.entries(value);
+  if (entries.length > 500) {
+    throw new RequestSecurityError(400, 'REQUEST_BODY_INVALID', 'Request body contains too many fields');
+  }
+  for (const [entryKey, entryValue] of entries) {
+    if (FORBIDDEN_OBJECT_KEYS.has(entryKey)) {
+      throw new RequestSecurityError(400, 'REQUEST_BODY_INVALID', 'Request body contains a forbidden field');
+    }
+    validateObjectSafety(entryValue, depth + 1);
+  }
+}
+
+function requireString(value, field, min, max) {
+  const normalized = String(value ?? '').trim();
+  if (normalized.length < min || normalized.length > max) {
+    throw new RequestSecurityError(400, 'VALIDATION_ERROR', `${field} must contain between ${min} and ${max} characters`);
+  }
+}
+
+function optionalString(value, field, min, max) {
+  if (value === undefined || value === null || value === '') return;
+  requireString(value, field, min, max);
+}
+
+function optionalEnum(value, field, allowed) {
+  if (value === undefined || value === null || value === '') return;
+  if (!allowed.includes(value)) {
+    throw new RequestSecurityError(400, 'VALIDATION_ERROR', `${field} must be one of: ${allowed.join(', ')}`);
+  }
+}
+
+function policy(access, targetType) {
+  return { access, targetType };
+}
+
+function normalizeKey(value) {
+  return String(value || '').replace(/[^a-z0-9]/gi, '');
+}
+
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function envFlag(value, fallback) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(normalized);
+}
+
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}

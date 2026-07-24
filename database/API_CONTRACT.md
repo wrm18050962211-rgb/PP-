@@ -22,10 +22,33 @@
   "data": null,
   "error": {
     "code": "ORDER_SLOT_UNAVAILABLE",
-    "message": "该时间已不可预约"
+    "message": "该时间已不可预约",
+    "requestId": "f5da48bf-9c40-4622-81ea-df1ad3d08a4f"
   }
 }
 ```
+
+### 安全入口约定
+
+- 所有响应包含 `X-Request-Id`；合法的客户端 request ID 会透传，缺失或非法时由服务端生成。错误响应同时在 `error.requestId` 返回该值，供客服和日志关联。
+- `POST`、`PUT`、`PATCH` 的非空请求体必须使用 `application/json`，默认不超过 `REQUEST_BODY_MAX_BYTES=1048576`。非法 JSON、数组根节点、过深对象、危险原型字段和超大请求在进入业务函数前拒绝。
+- Admin、陪拍者和普通用户 API 由统一路由策略先执行鉴权；业务函数保留资源归属和角色二次保护。支付 Provider 回调保持匿名入口，但必须通过 Provider 验签。
+- 全局和登录/验证码/上传授权等敏感接口分别限流。窗口和上限由 `RATE_LIMIT_GLOBAL_*`、`RATE_LIMIT_SENSITIVE_*` 配置；限流返回 `429`、`Retry-After` 和稳定错误码。
+- 只有在可信反向代理覆盖 `X-Forwarded-For` 时才启用 `TRUST_PROXY=true`，否则限流和审计使用 TCP 对端地址。
+- 请求日志只记录 request ID、方法、路径、状态和耗时。手机号、Bearer token、Cookie、验证码、密码、Pepper、签名和密钥必须脱敏，未知生产异常不得把内部错误消息返回客户端。
+- 微信支付回调允许在短暂轮换窗口内同时配置当前与上一把 `WECHAT_PAY_API_V3_KEY`、平台公钥；上一把密钥只用于验证/解密历史回调，窗口结束后必须移除。
+
+稳定安全错误码：
+
+| HTTP | code | 说明 |
+|---|---|---|
+| 400 | `INVALID_JSON` / `REQUEST_BODY_INVALID` / `VALIDATION_ERROR` | JSON 或入口字段无效 |
+| 401 | `AUTH_REQUIRED` | 缺少或失效会话 |
+| 403 | `FORBIDDEN` | 角色或资源权限不足 |
+| 413 | `REQUEST_BODY_TOO_LARGE` | 请求体超过配置上限 |
+| 415 | `CONTENT_TYPE_UNSUPPORTED` | 非空请求体不是 JSON |
+| 429 | `RATE_LIMITED` / `SENSITIVE_RATE_LIMITED` | 全局或敏感接口限流 |
+| 500 | `SERVER_ERROR` | 未知服务端错误；通过 request ID 追踪 |
 
 ### 金额
 

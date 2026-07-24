@@ -12,6 +12,10 @@ const checks = [
     ],
   },
   {
+    file: 'src/types/api.ts',
+    includes: ['requestId?: string'],
+  },
+  {
     file: 'src/services/scopedStorage.ts',
     includes: [
       'function canUseLocalStorageLayer',

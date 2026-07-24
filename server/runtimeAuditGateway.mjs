@@ -1,3 +1,5 @@
+import { safeErrorMessage } from './security/requestSecurity.mjs';
+
 export function mirrorAuditLog(dataStore, log) {
   const writer = dataStore?.auditWrites?.recordAuditLog;
   if (typeof writer !== 'function') return false;
@@ -56,6 +58,5 @@ export function mirrorSecurityEvent(dataStore, event) {
 }
 
 function warnMirrorFailure(label, error) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.warn(`[audit-gateway] Failed to mirror ${label}: ${message}`);
+  console.warn(`[audit-gateway] Failed to mirror ${label}: ${safeErrorMessage(error)}`);
 }

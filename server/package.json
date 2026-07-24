@@ -26,6 +26,8 @@
     "check:wechat-callback-processors": "node scripts/check-wechat-callback-processors.mjs",
     "check:maintenance-job": "node scripts/check-maintenance-job.mjs",
     "check:session-boundary": "node scripts/check-session-boundary.mjs",
+    "check:request-security": "node scripts/check-request-security.mjs",
+    "check:request-security-route": "node scripts/check-request-security-route.mjs",
     "check:postgres-store-auth-gateway": "node scripts/check-postgres-store-auth-gateway.mjs",
     "check:postgres-store-audit-security-gateway": "node scripts/check-postgres-store-audit-security-gateway.mjs",
     "check:postgres-store-session-gateway": "node scripts/check-postgres-store-session-gateway.mjs",

@@ -1,13 +1,16 @@
 import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
+const requestSecuritySource = readFileSync(new URL('../security/requestSecurity.mjs', import.meta.url), 'utf8');
 
 assert(/async function wechatPaymentNotify/.test(source), 'wechat notify route can await postgres writes');
 assert(/path === '\/api\/payments\/wechat\/refund-notify'/.test(source), 'wechat refund notify route is registered');
 assert(/verifyWechatPayNotifyRequest\(req, body\)/.test(source), 'wechat notify verifies request signatures before decrypting resource');
 assert(/function verifyWechatPayNotifyRequest/.test(source), 'wechat notify signature helper exists');
 assert(/WECHAT_PAY_PLATFORM_PUBLIC_KEY/.test(source), 'wechat notify requires platform public key for signature verification');
-assert(/Object\.defineProperty\(parsed, '__rawBody'/.test(source), 'readBody preserves raw body for signature verification');
+assert(/Object\.defineProperty\(parsed, '__rawBody'/.test(requestSecuritySource), 'request parser preserves raw body for signature verification');
+assert(/WECHAT_PAY_API_V3_KEY_PREVIOUS/.test(source), 'wechat notify supports API v3 key rotation');
+assert(/WECHAT_PAY_PLATFORM_PUBLIC_KEY_PREVIOUS/.test(source), 'wechat notify supports public key rotation');
 assert(/recordWechatProviderCallback\(body, req\)/.test(source), 'wechat notify records provider callback event');
 assert(/dataStore\.providerCallbackWrites\.recordReceived/.test(source), 'wechat notify uses provider callback received gateway');
 assert(/callbackEventId:\s*postgresId\(\)/.test(source), 'wechat notify uses uuid callback event id for postgres');
@@ -32,7 +35,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['wechat-notify-gateway', 'notify-signature-guard', 'provider-callback-event', 'uuid-postgres-ids', 'terminal-payment-gateway', 'refund-notify-gateway', 'raw-callback', 'idempotent-read-model-guard', 'no-json-save'],
+      checks: ['wechat-notify-gateway', 'notify-signature-guard', 'rotating-notify-keys', 'provider-callback-event', 'uuid-postgres-ids', 'terminal-payment-gateway', 'refund-notify-gateway', 'raw-callback', 'idempotent-read-model-guard', 'no-json-save'],
     },
     null,
     2,

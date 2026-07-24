@@ -13,6 +13,7 @@ export type ApiResponse<T> =
 export type ApiError = {
   code: string;
   message: string;
+  requestId?: string;
 };
 
 export type UserStatus = 'active' | 'restricted' | 'banned' | 'deleted';

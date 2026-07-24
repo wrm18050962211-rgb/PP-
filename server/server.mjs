@@ -1,11 +1,20 @@
 import http from 'node:http';
 import { createDecipheriv, createHash, randomBytes, randomUUID, sign, verify } from 'node:crypto';
-import { isIP } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { runPendingPaymentExpiryJob } from './jobs/paymentExpiryJob.mjs';
 import { mirrorAdminAction, mirrorAuditLog, mirrorSecurityEvent } from './runtimeAuditGateway.mjs';
+import {
+  createRequestSecurity,
+  readJsonRequest,
+  redactSensitiveText,
+  RequestSecurityError,
+  resolveAccessPolicy,
+  rotatingSecretValues,
+  safeErrorMessage,
+  validateRouteInput,
+} from './security/requestSecurity.mjs';
 import { createPhoneVerificationService, PhoneVerificationError } from './services/phoneVerification.mjs';
 import { createTencentCosPostUploadPolicy, hasTencentCosMediaConfig } from './services/tencentCosMedia.mjs';
 import { createMockSmsSender, createTencentSmsSender, hasTencentSmsConfig } from './services/tencentSms.mjs';
@@ -17,6 +26,7 @@ const dataStore = createDataStore({ storePath, initialStore, normalizeStore });
 const port = Number(process.env.PORT || 8787);
 const appEnv = String(process.env.APP_ENV || 'development').trim().toLowerCase();
 const isProductionServerEnv = appEnv === 'production';
+const requestSecurity = createRequestSecurity({ env: process.env });
 const phoneSmsProvider = String(process.env.PHONE_SMS_PROVIDER || (isProductionServerEnv ? 'tencent' : 'mock')).trim().toLowerCase();
 const corsAllowedOrigins = parseEnvList(process.env.CORS_ALLOWED_ORIGINS);
 const enableTestRoleSwitch = String(process.env.ENABLE_TEST_ROLE_SWITCH ?? 'true').trim().toLowerCase();
@@ -85,30 +95,54 @@ const riskKeywords = [
 
 http
   .createServer(async (req, res) => {
+    const requestContext = requestSecurity.begin(req);
     if (!isCorsRequestAllowed(req)) return sendJson(req, res, 403, fail('CORS_FORBIDDEN', 'Request origin is not allowed.'));
     if (req.method === 'OPTIONS') return send(req, res, 204, '');
 
     try {
+      requestSecurity.enforceRateLimit(req, requestContext);
       const url = new URL(req.url || '/', 'http://local');
       const { store, changed: storeChanged } = await dataStore.load();
       const cleanupChanged = dataStore.kind === 'json' ? expirePendingPaymentOrders(store) : false;
       if (dataStore.kind !== 'json') await expirePostgresPendingPaymentOrders();
-      const body = await readBody(req);
+      await applyRequestSession(store, req);
+      const access = authorizeRequest(store, req, req.method || 'GET', url.pathname);
+      if (access) {
+        if (storeChanged || cleanupChanged || access.changed) await dataStore.save(store);
+        return sendJson(req, res, access.status, access.payload);
+      }
+      const body = await readJsonRequest(req, { maxBodyBytes: requestSecurity.config.maxBodyBytes });
+      validateRouteInput(req.method || 'GET', url.pathname, body);
       const result = await route(req.method || 'GET', url, body, store, req);
       if (dataStore.kind !== 'json' && (storeChanged || cleanupChanged || result.changed)) {
         return sendJson(req, res, 501, fail('POSTGRES_WRITE_ROUTE_NOT_CONNECTED', 'This write route has not been connected to the PostgreSQL transaction gateway yet.'));
       }
       if (storeChanged || cleanupChanged || result.changed) await dataStore.save(store);
       sendJson(req, res, result.status, result.payload);
-    } catch (error) {
-      sendJson(req, res, 500, fail('SERVER_ERROR', error instanceof Error ? error.message : 'Server error'));
+    } catch (cause) {
+      if (cause instanceof RequestSecurityError) {
+        requestSecurity.log('warn', 'request_rejected', {
+          requestId: requestContext.requestId,
+          method: req.method,
+          path: requestPath(req),
+          code: cause.code,
+        });
+        return sendJson(req, res, cause.status, fail(cause.code, cause.message), cause.headers);
+      }
+      requestSecurity.log('error', 'request_failed', {
+        requestId: requestContext.requestId,
+        method: req.method,
+        path: requestPath(req),
+        error: safeErrorMessage(cause),
+      });
+      const message = isProductionServerEnv ? 'Unexpected server error' : safeErrorMessage(cause);
+      sendJson(req, res, 500, fail('SERVER_ERROR', message));
     }
   })
   .listen(port, () => console.log(`Still backend listening on http://127.0.0.1:${port}`));
 
 async function route(method, url, body, store, req) {
   const path = url.pathname;
-  await applyRequestSession(store, req);
 
   if (method === 'GET' && path === '/api/health') {
     return json({
@@ -833,11 +867,45 @@ function companionRequired(message = 'Companion role is required', changed = fal
   return error(403, 'FORBIDDEN', message, changed);
 }
 
-function requirePublicSession(store, fallbackRole = 'consumer', targetType = 'public_api') {
+function authorizeRequest(store, req, method, path) {
+  const policy = resolveAccessPolicy(method, path);
+  if (policy.access === 'anonymous') return null;
+
+  const auditDetails = {
+    ip: getClientIp(req),
+    userAgent: String(req?.headers?.['user-agent'] || '').slice(0, 500) || null,
+    metadata: { requestId: req?.securityContext?.requestId || null },
+  };
+  let gate;
+  if (policy.access === 'admin') {
+    gate = requireAdminSession(store, auditDetails);
+  } else if (policy.access === 'companion') {
+    gate = requireCompanionSession(store, { auditDetails });
+  } else {
+    gate = requirePublicSession(store, 'consumer', policy.targetType, auditDetails);
+  }
+  if (!gate.response) return null;
+
+  if (gate.response.payload?.error?.code === 'AUTH_REQUIRED') {
+    recordSecurityEvent(store, null, 'authentication_required', {
+      ...auditDetails,
+      targetType: policy.targetType,
+      requiredRole: policy.access,
+      actualRole: 'anonymous',
+      reason: 'Protected route requires an authenticated session',
+      action: `${String(method || 'GET').toUpperCase()} ${path}`,
+    });
+    gate.response.changed = runtimeSecurityChanged();
+  }
+  return gate.response;
+}
+
+function requirePublicSession(store, fallbackRole = 'consumer', targetType = 'public_api', auditDetails = {}) {
   const session = store.activeSession?.role ? ensureActiveSession(store, fallbackRole) : null;
   if (!session) return { response: authRequired() };
   if (session.role === 'admin') {
     recordSecurityEvent(store, session, 'permission_denied', {
+      ...auditDetails,
       targetType,
       requiredRole: 'consumer_or_companion',
       actualRole: 'admin',
@@ -848,11 +916,12 @@ function requirePublicSession(store, fallbackRole = 'consumer', targetType = 'pu
   return { session };
 }
 
-function requireAdminSession(store) {
+function requireAdminSession(store, auditDetails = {}) {
   const session = ensureActiveSession(store, 'admin');
   if (!session) return { response: authRequired() };
   if (session.role !== 'admin') {
     recordSecurityEvent(store, session, 'permission_denied', {
+      ...auditDetails,
       targetType: 'admin_api',
       requiredRole: 'admin',
       actualRole: session.role,
@@ -870,6 +939,7 @@ function requireCompanionSession(store, options = {}) {
   if (session.role !== 'companion' && !(allowAdmin && session.role === 'admin')) {
     const reason = allowAdmin ? 'Companion or admin role is required' : 'Companion role is required';
     recordSecurityEvent(store, session, 'permission_denied', {
+      ...(options.auditDetails || {}),
       targetType: 'companion_api',
       requiredRole: allowAdmin ? 'companion_or_admin' : 'companion',
       actualRole: session.role,
@@ -925,12 +995,7 @@ function getBearerToken(req) {
 }
 
 function getClientIp(req) {
-  const forwarded = String(req?.headers?.['x-forwarded-for'] || '')
-    .split(',')[0]
-    .trim();
-  const candidate = forwarded || String(req?.socket?.remoteAddress || '').trim();
-  const normalized = candidate.startsWith('::ffff:') ? candidate.slice(7) : candidate;
-  return isIP(normalized) ? normalized : null;
+  return requestSecurity.getClientIp(req);
 }
 
 function buildSessionToken(role, user) {
@@ -1386,8 +1451,7 @@ async function completePostgresOrderIdempotency(order, idempotencyKey, responseB
       responseBody,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[idempotency] Failed to complete order idempotency key: ${message}`);
+    console.warn(`[idempotency] Failed to complete order idempotency key: ${safeErrorMessage(error)}`);
   }
 }
 
@@ -1607,8 +1671,7 @@ async function completePostgresOrderActionIdempotency(session, action, idempoten
       responseBody,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[idempotency] Failed to complete order action idempotency key: ${message}`);
+    console.warn(`[idempotency] Failed to complete order action idempotency key: ${safeErrorMessage(error)}`);
   }
 }
 
@@ -3386,7 +3449,7 @@ async function wechatPayRequest(method, path, body, privateKey) {
 }
 
 async function wechatPaymentNotify(store, body = {}, req = null) {
-  if (!process.env.WECHAT_PAY_API_V3_KEY) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
+  if (wechatPayApiV3Keys().length === 0) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
   const signatureCheck = verifyWechatPayNotifyRequest(req, body);
   if (signatureCheck) return signatureCheck;
   const callbackEvent = await recordWechatProviderCallback(body, req);
@@ -3474,7 +3537,7 @@ async function markPostgresWechatPaymentTerminal(payment, transaction, callbackE
 }
 
 async function wechatRefundNotify(store, body = {}, req = null) {
-  if (!process.env.WECHAT_PAY_API_V3_KEY) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
+  if (wechatPayApiV3Keys().length === 0) return error(501, 'WECHAT_PAY_NOTIFY_NOT_CONFIGURED', 'WECHAT_PAY_API_V3_KEY is required');
   const signatureCheck = verifyWechatPayNotifyRequest(req, body);
   if (signatureCheck) return signatureCheck;
   const callbackEvent = await recordWechatProviderCallback(body, req);
@@ -3552,7 +3615,7 @@ async function markWechatProviderCallbackProcessed(callbackEvent, draft = {}) {
 
 async function markWechatProviderCallbackFailed(callbackEvent, errorLike, options = {}) {
   if (!callbackEvent?.id || !dataStore.providerCallbackWrites?.markFailed) return null;
-  const message = errorLike instanceof Error ? errorLike.message : String(errorLike || 'Provider callback processing failed');
+  const message = redactSensitiveText(errorLike instanceof Error ? errorLike.message : String(errorLike || 'Provider callback processing failed'));
   return dataStore.providerCallbackWrites.markFailed({
     callbackEventId: callbackEvent.id,
     nextRetryAt: options.nextRetryAt || new Date(Date.now() + 5 * 60 * 1000).toISOString(),
@@ -3649,16 +3712,23 @@ function applyPaidPayment(store, payment, note) {
 }
 
 function decryptWechatPayResource(resource) {
-  const key = Buffer.from(requiredEnv('WECHAT_PAY_API_V3_KEY'), 'utf8');
-  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(resource.nonce || '', 'utf8'));
-  decipher.setAuthTag(Buffer.from(resource.tag || '', 'base64'));
-  decipher.setAAD(Buffer.from(resource.associated_data || '', 'utf8'));
-  const plaintext = Buffer.concat([decipher.update(Buffer.from(resource.ciphertext || '', 'base64')), decipher.final()]);
-  return JSON.parse(plaintext.toString('utf8'));
+  for (const secret of wechatPayApiV3Keys()) {
+    try {
+      const key = Buffer.from(secret, 'utf8');
+      const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(resource.nonce || '', 'utf8'));
+      decipher.setAuthTag(Buffer.from(resource.tag || '', 'base64'));
+      decipher.setAAD(Buffer.from(resource.associated_data || '', 'utf8'));
+      const plaintext = Buffer.concat([decipher.update(Buffer.from(resource.ciphertext || '', 'base64')), decipher.final()]);
+      return JSON.parse(plaintext.toString('utf8'));
+    } catch {
+      // Try the previous key during the configured rotation window.
+    }
+  }
+  throw new Error('Unable to decrypt WeChat Pay resource with the configured keyring');
 }
 
 function verifyWechatPayNotifyRequest(req, body) {
-  if (!process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY && !process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH) {
+  if (!hasWechatPayPlatformPublicKeyConfig()) {
     return error(501, 'WECHAT_PAY_NOTIFY_SIGNATURE_NOT_CONFIGURED', 'WECHAT_PAY_PLATFORM_PUBLIC_KEY or WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH is required');
   }
 
@@ -3670,19 +3740,43 @@ function verifyWechatPayNotifyRequest(req, body) {
     if (!timestamp || !nonce || !signature || !rawBody) throw new Error('Missing WeChat Pay notify signature headers or raw body');
 
     const message = `${timestamp}\n${nonce}\n${rawBody}\n`;
-    const publicKey = getWechatPayPlatformPublicKey();
-    const verified = verify('RSA-SHA256', Buffer.from(message, 'utf8'), publicKey, Buffer.from(signature, 'base64'));
+    const verified = getWechatPayPlatformPublicKeys().some((publicKey) => {
+      try {
+        return verify('RSA-SHA256', Buffer.from(message, 'utf8'), publicKey, Buffer.from(signature, 'base64'));
+      } catch {
+        return false;
+      }
+    });
     if (!verified) throw new Error('Invalid WeChat Pay notify signature');
     return null;
-  } catch (signatureError) {
-    return error(401, 'WECHAT_PAY_NOTIFY_SIGNATURE_INVALID', signatureError instanceof Error ? signatureError.message : 'Invalid WeChat Pay notify signature');
+  } catch {
+    return error(401, 'WECHAT_PAY_NOTIFY_SIGNATURE_INVALID', 'Invalid WeChat Pay notify signature');
   }
 }
 
-function getWechatPayPlatformPublicKey() {
-  if (process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY) return process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY.replace(/\\n/g, '\n');
-  if (process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH) return readFileSync(resolve(process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH), 'utf8');
-  throw new Error('WECHAT_PAY_PLATFORM_PUBLIC_KEY or WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH is required');
+function getWechatPayPlatformPublicKeys() {
+  const current = readPemEnv('WECHAT_PAY_PLATFORM_PUBLIC_KEY', 'WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH');
+  const previous = readPemEnv('WECHAT_PAY_PLATFORM_PUBLIC_KEY_PREVIOUS', 'WECHAT_PAY_PLATFORM_PUBLIC_KEY_PREVIOUS_PATH');
+  return Array.from(new Set([current, previous].filter(Boolean)));
+}
+
+function hasWechatPayPlatformPublicKeyConfig() {
+  return Boolean(
+    process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY ||
+      process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH ||
+      process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PREVIOUS ||
+      process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PREVIOUS_PATH,
+  );
+}
+
+function wechatPayApiV3Keys() {
+  return rotatingSecretValues(process.env, 'WECHAT_PAY_API_V3_KEY', 'WECHAT_PAY_API_V3_KEY_PREVIOUS');
+}
+
+function readPemEnv(valueName, pathName) {
+  if (process.env[valueName]) return process.env[valueName].replace(/\\n/g, '\n');
+  if (process.env[pathName]) return readFileSync(resolve(process.env[pathName]), 'utf8');
+  return '';
 }
 
 function getRequestHeader(req, name) {
@@ -3927,18 +4021,6 @@ function contentGatewayError(cause) {
 }
 
 
-async function readBody(req) {
-  if (!['POST', 'PUT', 'PATCH'].includes(req.method || '')) return {};
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  const raw = Buffer.concat(chunks).toString('utf8');
-  const parsed = raw ? JSON.parse(raw) : {};
-  if (parsed && typeof parsed === 'object') {
-    Object.defineProperty(parsed, '__rawBody', { value: raw, enumerable: false });
-  }
-  return parsed;
-}
-
 function json(data, status = 200, changed = false) {
   return { status, changed, payload: ok(data) };
 }
@@ -3959,21 +4041,38 @@ function fail(code, message) {
   return { success: false, data: null, error: { code, message } };
 }
 
-function sendJson(req, res, status, payload) {
-  send(req, res, status, JSON.stringify(payload), 'application/json; charset=utf-8');
+function sendJson(req, res, status, payload, extraHeaders = {}) {
+  const requestId = req?.securityContext?.requestId || null;
+  const tracedPayload =
+    requestId && payload?.success === false && payload.error
+      ? { ...payload, error: { ...payload.error, requestId } }
+      : payload;
+  send(req, res, status, JSON.stringify(tracedPayload), 'application/json; charset=utf-8', extraHeaders);
 }
 
-function send(req, res, status, payload, contentType = 'text/plain; charset=utf-8') {
+function send(req, res, status, payload, contentType = 'text/plain; charset=utf-8', extraHeaders = {}) {
   const headers = {
     'Content-Type': contentType,
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-PP-Role, X-PP-User-Id',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, X-Request-Id',
+    'Access-Control-Expose-Headers': 'X-Request-Id, Retry-After',
+    'X-Request-Id': req?.securityContext?.requestId || randomUUID(),
     Vary: 'Origin',
+    ...extraHeaders,
   };
   const corsOrigin = getAllowedCorsOrigin(req);
   if (corsOrigin) headers['Access-Control-Allow-Origin'] = corsOrigin;
   res.writeHead(status, headers);
   res.end(payload);
+  requestSecurity.complete(req, status);
+}
+
+function requestPath(req) {
+  try {
+    return new URL(req?.url || '/', 'http://local').pathname;
+  } catch {
+    return '/';
+  }
 }
 
 function isCorsRequestAllowed(req) {

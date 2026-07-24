@@ -12,6 +12,8 @@ const checks = [
   ['wechat-callback-processors', ['scripts/check-wechat-callback-processors.mjs']],
   ['maintenance-job', ['scripts/check-maintenance-job.mjs']],
   ['session-boundary', ['scripts/check-session-boundary.mjs']],
+  ['request-security', ['scripts/check-request-security.mjs']],
+  ['request-security-route', ['scripts/check-request-security-route.mjs']],
   ['phone-verification', ['scripts/check-phone-verification.mjs']],
   ['phone-auth-route', ['scripts/check-phone-auth-route.mjs']],
   ['tencent-sms', ['scripts/check-tencent-sms.mjs']],
