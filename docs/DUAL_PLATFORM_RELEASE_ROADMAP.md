@@ -116,16 +116,16 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 ### WIN-BASE-0 对齐首个 Integration 基线
 
 - Priority: P0
-- Status: pending
+- Status: completed
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `INT-BASE-0`
 - Scope: 将 Windows 分支以 fast-forward 方式对齐 `origin/codex/integration@6588247c29b2082d310cc96fe110ab67866337f4`。
 - Acceptance criteria: Windows HEAD 与远端分支一致并包含 Integration；server MVP、移动端构建、Admin 构建和 production guards 通过。
 - Shared files: 无业务修改；只同步既有文件。
-- Unblock result: 提供 Windows 新 SHA、验证结果和有意未提交文件，解除所有后续 `WIN-*` 基线依赖。
-- Result commit: pending
-- Verification: pending
-- Notes: 禁止 reset、rebase、force push；保留 `server/data/store.json`、bundle、tmp 和 zip。
+- Unblock result: 已解除 `WIN-AUTH-1`、`WIN-MAP-1`、`WIN-DATA-1`、`WIN-MEDIA-1`、`WIN-ADMIN-1`、`WIN-SEC-1` 对 `WIN-BASE-0` 的依赖；各节点仍须满足其余 Roadmap 依赖。
+- Result commit: `3cfe65b1dc0f9af2763c8f66d3a0a143f77f64ae`
+- Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过。
+- Notes: 因 Windows 分支与 Integration 已分叉，经用户授权为本节点使用一次普通 merge commit；已合入 `origin/codex/integration@2342d4cefa5375930a58f48e5ccd121ca2627be4`，未执行 reset、rebase 或 force push。保留未提交的 `server/data/store.json`、bundle、tmp 和 zip，未手工修改 `pp-app/ios/**`。
 
 ### WIN-AUTH-1 真实短信与生产会话
 
