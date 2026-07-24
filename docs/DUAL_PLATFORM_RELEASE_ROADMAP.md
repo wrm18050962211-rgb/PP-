@@ -172,16 +172,16 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 ### WIN-DATA-1 Feed、摄影师资料、作品和收藏生产化
 
 - Priority: P0
-- Status: pending
+- Status: completed
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-BASE-0`
 - Scope: 将 Feed、摄影师公开资料、作品、收藏/关注的读取与写入切换到 PostgreSQL。
 - Acceptance criteria: 生产接口支持分页、刷新和跨设备恢复；API 失败返回明确错误；生产模式不静默返回 mock、localStorage 或空数组；权限和资源归属有效。
 - Shared files: `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
-- Unblock result: 提供端点、分页契约、迁移、生产 guard 和 commit SHA，解除 `IOS-DATA-1`。
-- Result commit: pending
-- Verification: pending
-- Notes: development mock 可保留，但必须受生产 guard 约束。
+- Unblock result: 已提供 Feed、公开摄影师资料/作品、本人资料/投稿、收藏/点赞/关注端点，统一游标分页契约、收藏目标索引迁移、生产 guard 和实现 commit SHA；解除 `IOS-DATA-1`，并解除 `WIN-DATA-2` 的数据前置依赖（仍等待 `WIN-MAP-2`）。
+- Result commit: `b415a9086cf08cb2e6e229acfbcc3ec66a118984`
+- Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过。
+- Notes: 生产读写已切换到 PostgreSQL content gateway，分页、权限/资源归属、稳定错误和跨设备收藏状态均有回归覆盖；development mock 仅在非生产 guard 下保留。作品写入要求持久化 HTTPS 媒体 URL，完整 COS 上传与 `media_assets` 生命周期由 `WIN-MEDIA-1` 继续完成；未手工修改 `pp-app/ios/**`。
 
 ### WIN-DATA-2 咨询、订单工作区和跨设备恢复
 
