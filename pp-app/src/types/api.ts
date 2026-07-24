@@ -235,6 +235,8 @@ export type Companion = {
   serviceEnabled: boolean;
   ratingAvg: number;
   ratingCount: number;
+  followerCount?: number;
+  postCount?: number;
   location?: GeoPoint;
   tags: string[];
   safetyBadges: string[];
@@ -264,6 +266,8 @@ export type FeedPost = {
   budgetCents?: number;
   images: PostImage[];
   companion: Companion;
+  likeCount?: number;
+  favoriteCount?: number;
   creator?: {
     id: string;
     name: string;
@@ -448,6 +452,7 @@ export type CompanionApplication = {
 };
 
 export type PublishedWorkDraft = {
+  serverPostId?: string;
   images: PostImage[];
   coverImageId: string;
   location: string;

@@ -105,6 +105,39 @@ export async function fetchFeedPosts(): Promise<FeedPost[]> {
   return page.items;
 }
 
+export async function fetchCompanionPostPage(companionId: string, options: FeedPageRequest = {}): Promise<FeedPostPage> {
+  const fallback = listFeedPostPage(options);
+  if (!isApiEnabled()) return getApiFallback(fallback, 'Companion posts');
+
+  try {
+    const request = normalizeFeedPageRequest(options);
+    const params = new URLSearchParams({ limit: String(request.limit) });
+    if (request.cursor) params.set('cursor', request.cursor);
+    const response = await apiGet<FeedPostPage>(`/api/companions/${encodeURIComponent(companionId)}/posts?${params.toString()}`);
+    return response.success
+      ? {
+          items: response.data.items.map(withPostTitle),
+          nextCursor: response.data.nextCursor ?? null,
+          hasMore: Boolean(response.data.hasMore),
+        }
+      : getApiFallback(fallback, 'Companion posts');
+  } catch {
+    return getApiFallback(fallback, 'Companion posts');
+  }
+}
+
+export async function fetchPublicCompanion(companionId: string): Promise<Companion> {
+  const fallback = listFeedPosts().find((post) => post.companion.id === companionId)?.companion ?? companions[0];
+  if (!isApiEnabled()) return getApiFallback(fallback, 'Companion profile');
+
+  try {
+    const response = await apiGet<Companion>(`/api/companions/${encodeURIComponent(companionId)}`);
+    return response.success ? response.data : getApiFallback(fallback, 'Companion profile');
+  } catch {
+    return getApiFallback(fallback, 'Companion profile');
+  }
+}
+
 export function getPostTitle(post: Partial<FeedPost>): string {
   const explicitTitle = post.title?.trim();
   if (explicitTitle) return explicitTitle;

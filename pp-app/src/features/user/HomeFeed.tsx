@@ -4,6 +4,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { fetchFeedPostPage, getPostTitle, listFeedPostPage, listFeedPosts, mergeApprovedWorkIntoFeed, type FeedPostPage } from '../../services/feedService';
+import { isMockFallbackAllowed } from '../../services/apiClient';
 import type { ConsumerLocation } from '../../services/locationService';
 import { fetchMatchedCompanions, matchCompanions } from '../../services/matchingService';
 import { getPostLikeCounts } from '../../services/userCollectionService';
@@ -172,6 +173,8 @@ export function HomeFeed() {
   const [feedCursor, setFeedCursor] = useState<string | null>(initialFeedPage.nextCursor);
   const [hasMoreFeed, setHasMoreFeed] = useState(initialFeedPage.hasMore);
   const [feedLoading, setFeedLoading] = useState(true);
+  const [feedError, setFeedError] = useState('');
+  const [feedReloadKey, setFeedReloadKey] = useState(0);
   const [filters, setFilters] = useState<FeedFilters>(initialFilters);
   const [cityOpen, setCityOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -185,10 +188,11 @@ export function HomeFeed() {
   const [blockFeedClick, setBlockFeedClick] = useState(false);
   const feedSwipeRef = useRef<HTMLDivElement>(null);
   const feedLoadRef = useRef<HTMLDivElement>(null);
-  const feedLikeCounts = useMemo(() => getPostLikeCounts(listFeedPosts()), []);
+  const feedLikeCounts = useMemo(() => getPostLikeCounts(posts), [posts]);
 
   useEffect(() => {
     let mounted = true;
+    setFeedError('');
     fetchFeedPostPage({ limit: feedPageSize })
       .then((page) => {
         if (!mounted) return;
@@ -197,6 +201,9 @@ export function HomeFeed() {
         setHasMoreFeed(page.hasMore);
         saveFeedCache(page);
       })
+      .catch(() => {
+        if (mounted) setFeedError('Feed 同步失败，请检查网络后重试');
+      })
       .finally(() => {
         if (mounted) setFeedLoading(false);
       });
@@ -204,12 +211,13 @@ export function HomeFeed() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [feedReloadKey]);
 
   const loadMoreFeed = useCallback(() => {
     if (feedLoading || !hasMoreFeed || !feedCursor) return;
 
     setFeedLoading(true);
+    setFeedError('');
     fetchFeedPostPage({ limit: feedPageSize, cursor: feedCursor })
       .then((page) => {
         setPosts((current) => {
@@ -220,6 +228,7 @@ export function HomeFeed() {
         setFeedCursor(page.nextCursor);
         setHasMoreFeed(page.hasMore);
       })
+      .catch(() => setFeedError('加载更多失败，请稍后重试'))
       .finally(() => setFeedLoading(false));
   }, [feedCursor, feedLoading, hasMoreFeed]);
 
@@ -565,7 +574,13 @@ export function HomeFeed() {
         </div>
       </div>
       <div ref={feedLoadRef} className="grid h-16 place-items-center bg-[#050505] text-[10px] font-semibold uppercase tracking-[0.18em] text-white/24">
-        {feedLoading ? 'Loading' : null}
+        {feedError ? (
+          <button className="text-rose-300" onClick={() => setFeedReloadKey((value) => value + 1)}>
+            {feedError}
+          </button>
+        ) : feedLoading ? (
+          'Loading'
+        ) : null}
       </div>
 
       {searchOpen ? (
@@ -764,7 +779,7 @@ function SearchOverlay({
 
 function getSearchPreviewPosts(posts: FeedPost[], value: string) {
   const keyword = value.trim().toLowerCase();
-  const source = posts.length ? posts : listFeedPosts();
+  const source = posts.length || !isMockFallbackAllowed() ? posts : listFeedPosts();
   if (!keyword) return source.slice(0, 45);
 
   const matched = source.filter((post) => getPostSearchText(post).includes(keyword));
@@ -772,7 +787,7 @@ function getSearchPreviewPosts(posts: FeedPost[], value: string) {
 }
 
 function getSearchSuggestionTiles(suggestions: string[], posts: FeedPost[]) {
-  const source = posts.length ? posts : listFeedPosts();
+  const source = posts.length || !isMockFallbackAllowed() ? posts : listFeedPosts();
   return suggestions.map((label, index) => {
     const keyword = label.toLowerCase();
     const post = source.find((item) => getPostSearchText(item).includes(keyword)) ?? source[index % Math.max(source.length, 1)];
@@ -796,7 +811,7 @@ function getSearchSuggestionDescription(label: string) {
 }
 
 function loadInitialFeedPage(): FeedPostPage {
-  return readFeedCache() ?? listFeedPostPage({ limit: feedPageSize });
+  return readFeedCache() ?? (isMockFallbackAllowed() ? listFeedPostPage({ limit: feedPageSize }) : { items: [], nextCursor: null, hasMore: false });
 }
 
 function readFeedCache(): FeedPostPage | null {

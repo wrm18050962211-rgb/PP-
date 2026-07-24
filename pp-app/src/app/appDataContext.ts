@@ -25,7 +25,7 @@ export type AppData = {
   reviewApplication: (status: CompanionApplication['reviewStatus']) => void;
   saveBookingSettings: (settings: CompanionBookingSettings) => void;
   saveWorkDraft: (draft: Partial<PublishedWorkDraft>) => void;
-  submitWork: () => void;
+  submitWork: () => Promise<void>;
   reviewWork: (status: PublishedWorkDraft['reviewStatus']) => void;
 };
 

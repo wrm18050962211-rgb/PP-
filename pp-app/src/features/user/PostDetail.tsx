@@ -7,10 +7,17 @@ import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { formatCents, readCompanionPackageSettings } from '../../services/companionPackageService';
 import { applyCreatorProfile, getCreatorBio, getCreatorIdentity, readCreatorProfile, type CreatorProfileDraft } from '../../services/creatorProfileService';
 import { buildApprovedWorkPost, fetchPostDetail, getPostDetail, getPostTitle, listFeedPosts } from '../../services/feedService';
-import { getPostLikeCount, isPostFavorited, isPostLiked, toggleFavoritePost, toggleLikedPost } from '../../services/userCollectionService';
+import {
+  fetchUserCollections,
+  getPostLikeCount,
+  isPostFavorited,
+  isPostLiked,
+  setUserCollectionItem,
+} from '../../services/userCollectionService';
 import type { FeedPost, PostImage, PublishedWorkDraft } from '../../types/api';
 import type { CompanionPackageSettings } from '../../services/companionPackageService';
 import { ConsultationRequestModal } from './ConsultationRequestModal';
+import { isMockFallbackAllowed } from '../../services/apiClient';
 
 type Comment = {
   id: string;
@@ -44,7 +51,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
   const localPost = useMemo(() => buildApprovedWorkPost(workDraft), [workDraft]);
   const post = localPost && localPost.id === postId ? localPost : remotePost;
   const collectionPosts = useMemo(() => {
-    const posts = listFeedPosts();
+    const posts = isMockFallbackAllowed() ? listFeedPosts() : [];
     return posts.some((item) => item.id === post.id) ? posts : [post, ...posts];
   }, [post]);
   const [liked, setLiked] = useState(() => isPostLiked(post.id, collectionPosts));
@@ -95,14 +102,34 @@ function PostDetailContent({ postId }: { postId?: string }) {
     let mounted = true;
     if (localPost && localPost.id === postId) return () => undefined;
 
-    fetchPostDetail(postId).then((nextPost) => {
-      if (mounted) setRemotePost(nextPost);
-    });
+    fetchPostDetail(postId)
+      .then((nextPost) => {
+        if (mounted) setRemotePost(nextPost);
+      })
+      .catch(() => {
+        if (mounted) setToast('作品同步失败，请检查网络后重试');
+      });
 
     return () => {
       mounted = false;
     };
   }, [localPost, postId]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchUserCollections(collectionPosts)
+      .then((collections) => {
+        if (!mounted) return;
+        setLiked(collections.likedPostIds.includes(post.id));
+        setBookmarked(collections.favoritePostIds.includes(post.id));
+      })
+      .catch(() => {
+        if (mounted) setToast('收藏状态同步失败，请稍后重试');
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [collectionPosts, post.id]);
 
   useEffect(() => {
     if (!toast) return;
@@ -161,6 +188,27 @@ function PostDetailContent({ postId }: { postId?: string }) {
     setCommentText('');
   };
 
+  const handleLike = async () => {
+    try {
+      const result = await setUserCollectionItem('like', post.id, !liked, collectionPosts);
+      setLiked(result.active);
+      setLikeCount(result.count);
+      setToast(result.active ? '已点赞' : '已取消点赞');
+    } catch {
+      setToast('点赞失败，请检查网络后重试');
+    }
+  };
+
+  const handleFavorite = async () => {
+    try {
+      const result = await setUserCollectionItem('favorite', post.id, !bookmarked, collectionPosts);
+      setBookmarked(result.active);
+      setToast(result.active ? '已收藏' : '已取消收藏');
+    } catch {
+      setToast('收藏失败，请检查网络后重试');
+    }
+  };
+
   return (
     <div className="relative h-dvh overflow-hidden bg-black text-white">
       <header className="fixed inset-x-0 top-0 z-40 mx-auto max-w-md bg-black/96 px-3 py-2 text-white shadow-[0_1px_0_rgba(255,255,255,0.08)]">
@@ -208,12 +256,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
             <div className="flex min-w-0 items-center gap-4">
               <button
                 className="inline-flex items-center gap-1.5 text-white"
-                onClick={() => {
-                  const nextLiked = toggleLikedPost(post.id, collectionPosts);
-                  setLiked(nextLiked);
-                  setLikeCount(getPostLikeCount(post.id, collectionPosts));
-                  setToast(nextLiked ? '已点赞' : '已取消点赞');
-                }}
+                onClick={() => void handleLike()}
                 aria-label="点赞作品"
               >
                 <Heart size={27} fill={liked ? 'currentColor' : 'none'} />
@@ -221,11 +264,7 @@ function PostDetailContent({ postId }: { postId?: string }) {
               </button>
               <button
                 className="text-white"
-                onClick={() => {
-                  const nextBookmarked = toggleFavoritePost(post.id, collectionPosts);
-                  setBookmarked(nextBookmarked);
-                  setToast(nextBookmarked ? '已收藏' : '已取消收藏');
-                }}
+                onClick={() => void handleFavorite()}
                 aria-label="收藏作品"
               >
                 <Bookmark size={27} fill={bookmarked ? 'currentColor' : 'none'} />
@@ -697,7 +736,41 @@ function buildComments(post: FeedPost, creator: ReturnType<typeof buildCreator> 
 function getInitialPost(postId: string | undefined, workDraft: PublishedWorkDraft): FeedPost {
   const localPost = buildApprovedWorkPost(workDraft);
   if (localPost && localPost.id === postId) return localPost;
-  return getPostDetail(postId);
+  return isMockFallbackAllowed() ? getPostDetail(postId) : createLoadingPost(postId);
+}
+
+function createLoadingPost(postId?: string): FeedPost {
+  return {
+    id: postId || 'loading-post',
+    title: '正在同步作品',
+    location: '',
+    timeLabel: '',
+    caption: '',
+    styleTags: [],
+    activity: '',
+    images: [],
+    companion: {
+      id: 'loading-companion',
+      userId: '',
+      name: '',
+      isVirtual: true,
+      avatar: '',
+      photo: '',
+      bio: '',
+      gender: 'unknown',
+      baseCity: '',
+      status: 'approved',
+      serviceEnabled: false,
+      ratingAvg: 0,
+      ratingCount: 0,
+      tags: [],
+      safetyBadges: [],
+      areas: [],
+      slots: [],
+      activities: [],
+      extras: [],
+    },
+  };
 }
 
 function getImageAspectRatio(image?: PostImage) {

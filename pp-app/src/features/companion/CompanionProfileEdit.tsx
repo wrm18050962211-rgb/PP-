@@ -1,15 +1,17 @@
 import { ArrowLeft, Camera, Check, Clock3, ImagePlus, Save, ShieldCheck, Sparkles, UserRound, Wrench } from 'lucide-react';
-import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
 import {
   applyCompanionProfile,
   createDefaultCompanionProfile,
+  fetchOwnCompanionProfile,
   readCompanionProfile,
-  saveCompanionProfile,
+  saveCompanionProfileRemote,
   type CompanionProfileDraft,
 } from '../../services/companionProfileService';
+import { isMockFallbackAllowed } from '../../services/apiClient';
 import { listFeedPosts } from '../../services/feedService';
 import type { Companion } from '../../types/api';
 
@@ -19,19 +21,56 @@ const interactionOptions = ['会指导动作', '会找角度', '会看穿搭', '
 
 export function CompanionProfileEdit() {
   const { session } = useAppData();
-  const posts = useMemo(() => listFeedPosts(), []);
-  const baseCompanion = useMemo(() => {
+  const posts = useMemo(() => (isMockFallbackAllowed() ? listFeedPosts() : []), []);
+  const fallbackCompanion = useMemo(() => {
     const ownPost = posts.find((post) => post.companion.id === session?.companionId);
-    return ownPost?.companion ?? posts[0].companion;
+    return ownPost?.companion ?? posts[0]?.companion;
   }, [posts, session?.companionId]);
-  const profileKey = `${baseCompanion.id}:${session?.companionId ?? ''}:${session?.user.phone ?? ''}`;
+  const [loaded, setLoaded] = useState<{ companion: Companion; profile: CompanionProfileDraft } | null>(() =>
+    fallbackCompanion
+      ? {
+          companion: fallbackCompanion,
+          profile: buildInitialDraft(session, fallbackCompanion),
+        }
+      : null,
+  );
+  const [loadError, setLoadError] = useState('');
 
-  return <CompanionProfileForm key={profileKey} session={session} baseCompanion={baseCompanion} />;
+  useEffect(() => {
+    let mounted = true;
+    setLoadError('');
+    fetchOwnCompanionProfile(fallbackCompanion, session?.role)
+      .then((result) => {
+        if (mounted) setLoaded(result);
+      })
+      .catch(() => {
+        if (mounted) setLoadError('资料同步失败，请检查网络后重试');
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [fallbackCompanion, session?.role]);
+
+  if (!loaded) {
+    return <div className="grid min-h-dvh place-items-center bg-[#f7f7f5] px-6 text-center text-sm font-bold text-zinc-600">{loadError || '正在同步资料...'}</div>;
+  }
+
+  const profileKey = `${loaded.companion.id}:${session?.companionId ?? ''}:${session?.user.phone ?? ''}:${loaded.profile.updatedAt}`;
+  return <CompanionProfileForm key={profileKey} baseCompanion={loaded.companion} initialDraft={loaded.profile} loadError={loadError} />;
 }
 
-function CompanionProfileForm({ session, baseCompanion }: { session: ReturnType<typeof useAppData>['session']; baseCompanion: Companion }) {
+function CompanionProfileForm({
+  baseCompanion,
+  initialDraft,
+  loadError,
+}: {
+  baseCompanion: Companion;
+  initialDraft: CompanionProfileDraft;
+  loadError: string;
+}) {
   const [toast, setToast] = useState('');
-  const [draft, setDraft] = useState<CompanionProfileDraft>(() => buildInitialDraft(session, baseCompanion));
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<CompanionProfileDraft>(initialDraft);
   const previewProfile = applyCompanionProfile(baseCompanion, draft);
   const previewAvatar = draft.pendingAvatarUrl || previewProfile.avatar;
   const avatarPending = draft.avatarReviewStatus === 'pending' && Boolean(draft.pendingAvatarUrl);
@@ -80,19 +119,26 @@ function CompanionProfileForm({ session, baseCompanion }: { session: ReturnType<
     reader.readAsDataURL(file);
   }
 
-  function handleSave() {
-    const saved = saveCompanionProfile(
-      {
-        ...draft,
-        displayName: draft.displayName.trim() || baseCompanion.name,
-        bio: draft.bio.trim() || baseCompanion.bio,
-        equipment: draft.equipment.map((item) => item.trim()).filter(Boolean),
-      },
-      'companion',
-    );
-    setDraft(saved);
-    setToast(saved.avatarReviewStatus === 'pending' ? '资料已保存，头像变更待审核' : '资料已保存');
-    window.setTimeout(() => setToast(''), 1600);
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const saved = await saveCompanionProfileRemote(
+        {
+          ...draft,
+          displayName: draft.displayName.trim() || baseCompanion.name,
+          bio: draft.bio.trim() || baseCompanion.bio,
+          equipment: draft.equipment.map((item) => item.trim()).filter(Boolean),
+        },
+        'companion',
+      );
+      setDraft(saved);
+      setToast(saved.avatarReviewStatus === 'pending' ? '资料已保存，头像变更待审核' : '资料已保存');
+    } catch {
+      setToast('资料保存失败，请检查网络后重试');
+    } finally {
+      setSaving(false);
+      window.setTimeout(() => setToast(''), 1600);
+    }
   }
 
   return (
@@ -108,6 +154,7 @@ function CompanionProfileForm({ session, baseCompanion }: { session: ReturnType<
       </header>
 
       <main className="px-4 py-5">
+        {loadError ? <p className="mb-4 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800">{loadError}</p> : null}
         <section className="rounded-[12px] bg-zinc-950 p-4 text-white">
           <div className="flex items-start gap-3">
             <div className="relative h-20 w-20 overflow-hidden rounded-[12px] bg-zinc-800">
@@ -226,9 +273,13 @@ function CompanionProfileForm({ session, baseCompanion }: { session: ReturnType<
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md border-t border-zinc-100 bg-white/95 px-4 py-3 backdrop-blur">
-        <button className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-500 text-sm font-black text-white" onClick={handleSave}>
+        <button
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-500 text-sm font-black text-white disabled:opacity-55"
+          onClick={() => void handleSave()}
+          disabled={saving}
+        >
           <Save size={18} />
-          保存资料
+          {saving ? '保存中...' : '保存资料'}
         </button>
       </div>
       {toast ? <div className="fixed left-1/2 top-20 z-30 -translate-x-1/2 rounded-full bg-zinc-950 px-4 py-2 text-sm font-bold text-white shadow-xl">{toast}</div> : null}

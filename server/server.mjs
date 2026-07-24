@@ -129,9 +129,13 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && path === '/api/admin/auth/login') return adminLogin(store, body);
   if (method === 'POST' && path === '/api/admin/auth/logout') return adminLogout(store);
   if (method === 'POST' && path === '/api/media/upload-policy') return createMediaUploadPolicy(store, body);
-  if (method === 'GET' && path === '/api/feed/posts') return json(listFeedPostPage(store, url));
+  if (method === 'GET' && path === '/api/feed/posts') return listFeedPostsRoute(store, url);
   if (method === 'GET' && path === '/api/matching/companions') return matchCompanions(store, url);
-  if (method === 'GET' && path.startsWith('/api/posts/')) return getPost(store, last(path));
+  if (method === 'GET' && path.startsWith('/api/posts/')) return getPostRoute(store, last(path));
+  if (method === 'GET' && isNestedRoute(path, '/api/companions/', '/posts')) return listCompanionPostsRoute(store, path, url);
+  if (method === 'GET' && path.startsWith('/api/companions/')) return getPublicCompanionRoute(store, last(path));
+  if (method === 'GET' && path === '/api/me/collections') return getUserCollectionsRoute(store, url);
+  if (['PUT', 'DELETE'].includes(method) && path.startsWith('/api/me/collections/')) return setUserCollectionRoute(store, path, method === 'PUT');
 
   if (method === 'POST' && path === '/api/orders/quote') return quoteOrder(store, body);
   if (method === 'POST' && path === '/api/orders') return createOrder(store, body);
@@ -152,9 +156,13 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && path === '/api/reports') return createReport(store, `/api/orders/${body.orderId || ''}/report`, body);
 
   if (method === 'GET' && path === '/api/companion/me') return companionDashboard(store);
+  if (method === 'GET' && path === '/api/companion/me/profile') return getOwnCompanionProfileRoute(store);
+  if (method === 'PUT' && path === '/api/companion/me/profile') return updateCompanionProfileRoute(store, body);
   if (method === 'POST' && path === '/api/companion/me/application') return saveApplication(store, body);
   if (method === 'PUT' && path === '/api/companion/me/application') return saveApplication(store, body);
   if (method === 'POST' && path === '/api/companion/me/submit-review') return submitCompanionReview(store);
+  if (method === 'POST' && path === '/api/companion/posts') return createCompanionPostRoute(store, body);
+  if (method === 'POST' && isNestedRoute(path, '/api/companion/posts/', '/submit-review')) return submitCompanionPostReviewRoute(store, path);
 
   if (method === 'GET' && path === '/api/admin/dashboard') return adminDashboard(store);
   if (method === 'GET' && path === '/api/admin/orders') return adminOrders(store, url);
@@ -187,9 +195,254 @@ function listFeedPostPage(store, url) {
   };
 }
 
+async function listFeedPostsRoute(store, url) {
+  if (dataStore.kind !== 'json' && dataStore.content?.listPublicPosts) {
+    try {
+      return json(
+        await dataStore.content.listPublicPosts({
+          city: url.searchParams.get('city'),
+          limit: url.searchParams.get('limit'),
+          cursor: url.searchParams.get('cursor'),
+        }),
+      );
+    } catch (cause) {
+      return contentGatewayError(cause);
+    }
+  }
+  return json(listFeedPostPage(store, url));
+}
+
+async function getPostRoute(store, postId) {
+  if (dataStore.kind !== 'json' && dataStore.content?.getPublicPost) {
+    try {
+      const post = await dataStore.content.getPublicPost(postId);
+      return post ? json(withPostTitle(post)) : error(404, 'NOT_FOUND', 'Post not found');
+    } catch (cause) {
+      return contentGatewayError(cause);
+    }
+  }
+  return getPost(store, postId);
+}
+
 function getPost(store, postId) {
   const post = store.posts.find((item) => item.id === postId);
   return post ? json(withPostTitle(post)) : error(404, 'NOT_FOUND', 'Post not found');
+}
+
+async function listCompanionPostsRoute(store, path, url) {
+  const companionId = decodeURIComponent(path.slice('/api/companions/'.length, -'/posts'.length));
+  if (dataStore.kind !== 'json' && dataStore.content?.listPublicPosts) {
+    try {
+      return json(
+        await dataStore.content.listPublicPosts({
+          companionId,
+          limit: url.searchParams.get('limit'),
+          cursor: url.searchParams.get('cursor'),
+        }),
+      );
+    } catch (cause) {
+      return contentGatewayError(cause);
+    }
+  }
+  const filteredStore = { ...store, posts: store.posts.filter((post) => post.companion?.id === companionId) };
+  return json(listFeedPostPage(filteredStore, url));
+}
+
+async function getPublicCompanionRoute(store, companionId) {
+  if (dataStore.kind !== 'json' && dataStore.content?.getPublicCompanion) {
+    try {
+      const companion = await dataStore.content.getPublicCompanion(companionId);
+      return companion ? json(companion) : error(404, 'NOT_FOUND', 'Companion not found');
+    } catch (cause) {
+      return contentGatewayError(cause);
+    }
+  }
+  const companion = store.companions.find(
+    (item) => item.id === companionId && item.status === 'approved' && item.serviceEnabled !== false,
+  );
+  return companion ? json(companion) : error(404, 'NOT_FOUND', 'Companion not found');
+}
+
+async function getOwnCompanionProfileRoute(store) {
+  const companionSession = requireCompanionSession(store);
+  if (companionSession.response) return companionSession.response;
+  const { session } = companionSession;
+  if (!session.companionId) return error(403, 'COMPANION_PROFILE_FORBIDDEN', 'Companion profile is not available for this session');
+
+  if (dataStore.kind !== 'json' && dataStore.content?.getOwnCompanionProfile) {
+    try {
+      const profile = await dataStore.content.getOwnCompanionProfile({
+        companionId: session.companionId,
+        userId: session.user.id,
+      });
+      return profile ? json(profile) : error(404, 'NOT_FOUND', 'Companion profile not found');
+    } catch (cause) {
+      return contentGatewayError(cause);
+    }
+  }
+
+  const companion = store.companions.find((item) => item.id === session.companionId);
+  return companion ? json({ companion, profile: null }) : error(404, 'NOT_FOUND', 'Companion profile not found');
+}
+
+async function updateCompanionProfileRoute(store, body = {}) {
+  const companionSession = requireCompanionSession(store);
+  if (companionSession.response) return companionSession.response;
+  const { session } = companionSession;
+  if (!session.companionId) return error(403, 'COMPANION_PROFILE_FORBIDDEN', 'Companion profile is not available for this session');
+  if (!(dataStore.kind !== 'json' && dataStore.content?.updateCompanionProfile)) {
+    return error(501, 'POSTGRES_CONTENT_REQUIRED', 'Companion profile persistence requires PostgreSQL');
+  }
+
+  const displayName = text(body.displayName);
+  const bio = text(body.bio);
+  if (!displayName || displayName.length > 80 || !bio || bio.length > 2000) {
+    return error(400, 'CONTENT_VALIDATION_ERROR', 'Profile display name or bio is invalid');
+  }
+
+  try {
+    const result = await dataStore.content.updateCompanionProfile({
+      companionId: session.companionId,
+      userId: session.user.id,
+      displayName,
+      bio,
+      personalityTags: contentTags(body.personalityTags, 8),
+      styleTags: contentTags(body.styleTags, 8),
+      interactionTags: contentTags(body.interactionTags, 8),
+      equipment: contentTags(body.equipment, 12),
+    });
+    return json(result);
+  } catch (cause) {
+    return contentGatewayError(cause);
+  }
+}
+
+async function createCompanionPostRoute(store, body = {}) {
+  const companionSession = requireCompanionSession(store);
+  if (companionSession.response) return companionSession.response;
+  const { session } = companionSession;
+  if (!session.companionId) return error(403, 'COMPANION_POST_FORBIDDEN', 'Companion post is not available for this session');
+  if (!(dataStore.kind !== 'json' && dataStore.content?.createCompanionPost)) {
+    return error(501, 'POSTGRES_CONTENT_REQUIRED', 'Companion post persistence requires PostgreSQL');
+  }
+
+  const images = (Array.isArray(body.images) ? body.images : []).slice(0, 12).map((image, index) => ({
+    id: postgresId(),
+    fileUrl: text(image.url || image.fileUrl),
+    fileKey: text(image.objectKey || image.fileKey),
+    width: positiveInteger(image.width),
+    height: positiveInteger(image.height),
+    sortOrder: positiveInteger(image.sortOrder) || index + 1,
+  }));
+  if (!images.length || images.some((image) => !isProductionMediaUrl(image.fileUrl))) {
+    return error(400, 'POST_IMAGES_INVALID', 'Post images must use persistent HTTPS URLs');
+  }
+
+  const city = text(body.city || session.user.city);
+  const locationName = text(body.locationName || body.location);
+  const timeLabel = text(body.timeLabel);
+  const caption = text(body.caption);
+  if (!city || !locationName || !timeLabel || !caption) {
+    return error(400, 'CONTENT_VALIDATION_ERROR', 'Post city, location, time, and caption are required');
+  }
+
+  try {
+    const result = await dataStore.content.createCompanionPost({
+      postId: postgresId(),
+      companionId: session.companionId,
+      userId: session.user.id,
+      city,
+      locationName,
+      timeLabel,
+      caption,
+      activityName: text(body.activityName || body.activity),
+      images,
+      tags: contentTags(body.tags, 12).map((name) => ({ id: postgresId(), name })),
+    });
+    return json(result, 201);
+  } catch (cause) {
+    return contentGatewayError(cause);
+  }
+}
+
+async function submitCompanionPostReviewRoute(store, path) {
+  const companionSession = requireCompanionSession(store);
+  if (companionSession.response) return companionSession.response;
+  const { session } = companionSession;
+  if (!session.companionId) return error(403, 'COMPANION_POST_FORBIDDEN', 'Companion post is not available for this session');
+  if (!(dataStore.kind !== 'json' && dataStore.content?.submitCompanionPostReview)) {
+    return error(501, 'POSTGRES_CONTENT_REQUIRED', 'Companion post persistence requires PostgreSQL');
+  }
+
+  const postId = decodeURIComponent(path.slice('/api/companion/posts/'.length, -'/submit-review'.length));
+  try {
+    const result = await dataStore.content.submitCompanionPostReview({
+      postId,
+      companionId: session.companionId,
+      userId: session.user.id,
+      auditCaseId: postgresId(),
+    });
+    return json(result);
+  } catch (cause) {
+    return contentGatewayError(cause);
+  }
+}
+
+async function getUserCollectionsRoute(store, url) {
+  const publicSession = requirePublicSession(store, 'consumer', 'user_collections');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
+  if (!(dataStore.kind !== 'json' && dataStore.content?.getUserCollections)) {
+    return error(501, 'POSTGRES_CONTENT_REQUIRED', 'User collections require PostgreSQL');
+  }
+
+  try {
+    const kind = text(url.searchParams.get('kind'));
+    if (kind) {
+      return json(
+        await dataStore.content.listUserCollection({
+          userId: session.user.id,
+          kind,
+          limit: url.searchParams.get('limit'),
+          cursor: url.searchParams.get('cursor'),
+        }),
+      );
+    }
+    return json(await dataStore.content.getUserCollections(session.user.id));
+  } catch (cause) {
+    return contentGatewayError(cause);
+  }
+}
+
+async function setUserCollectionRoute(store, path, active) {
+  const publicSession = requirePublicSession(store, 'consumer', 'user_collections');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
+  if (!(dataStore.kind !== 'json' && dataStore.content?.setUserCollection)) {
+    return error(501, 'POSTGRES_CONTENT_REQUIRED', 'User collections require PostgreSQL');
+  }
+
+  const segments = path.split('/');
+  const kind = segments[4];
+  const encodedTargetId = segments[5];
+  const targetId = decodeURIComponent(encodedTargetId || '');
+  if (!['like', 'favorite', 'follow'].includes(kind) || !targetId) {
+    return error(400, 'COLLECTION_TARGET_INVALID', 'Collection kind or target is invalid');
+  }
+
+  try {
+    return json(
+      await dataStore.content.setUserCollection({
+        favoriteId: postgresId(),
+        userId: session.user.id,
+        kind,
+        targetId,
+        active,
+      }),
+    );
+  } catch (cause) {
+    return contentGatewayError(cause);
+  }
 }
 
 function withPostTitle(post) {
@@ -3634,6 +3887,43 @@ function clampNumber(value, min, max) {
 
 function normalize(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function text(value) {
+  return String(value ?? '').trim();
+}
+
+function contentTags(value, limit) {
+  const tags = Array.isArray(value) ? value : [];
+  return Array.from(new Set(tags.map((tag) => text(tag)).filter(Boolean))).slice(0, limit);
+}
+
+function positiveInteger(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function isProductionMediaUrl(value) {
+  if (!value || /^data:/i.test(value)) return false;
+  try {
+    const url = new URL(value);
+    return isProductionServerEnv ? url.protocol === 'https:' : ['http:', 'https:'].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function contentGatewayError(cause) {
+  if (cause?.code === '22P02') {
+    return error(400, 'CONTENT_ID_INVALID', 'Content resource id is invalid');
+  }
+  if (cause?.code === '23505') {
+    return error(409, 'CONTENT_CONFLICT', 'Content resource already exists');
+  }
+  const status = Number(cause?.status);
+  const code = text(cause?.code) || 'CONTENT_API_ERROR';
+  const message = cause instanceof Error ? cause.message : 'Content API request failed';
+  return error(Number.isInteger(status) && status >= 400 && status < 600 ? status : 500, code, message);
 }
 
 

@@ -1,8 +1,6 @@
 import { Heart, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
-import { listFeedPosts } from '../../services/feedService';
-import { getPostLikeCount } from '../../services/userCollectionService';
 import type { FeedPost } from '../../types/api';
 import { getFeedImageUrl } from '../../utils/imageUrl';
 import { isLiveMedia } from '../../utils/media';
@@ -40,7 +38,7 @@ export function PhotoCard({
   playLive?: boolean;
   likeCount?: number;
 }) {
-  const visibleLikeCount = likeCount ?? getPostLikeCount(post.id, listFeedPosts());
+  const visibleLikeCount = likeCount ?? post.likeCount ?? 0;
   const href = postHref ?? `/consumer/post/${post.id}`;
   const cover = getFeedCover(post.images[0], variant);
   const liveCover = isLiveMedia(cover);

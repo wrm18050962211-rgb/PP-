@@ -82,6 +82,8 @@ const checks = [
   {
     file: 'src/services/companionProfileService.ts',
     includes: [
+      "'/api/companion/me/profile'",
+      'saveCompanionProfileRemote',
       'function canUseSharedProfileStorage',
       'return isMockFallbackAllowed()',
       'if (!canUseSharedProfileStorage()',
@@ -90,9 +92,52 @@ const checks = [
   {
     file: 'src/services/userCollectionService.ts',
     includes: [
+      "'/api/me/collections'",
+      '/api/me/collections/${kind}/${encodeURIComponent(targetId)}',
+      'apiPut<UserCollectionMutation>',
+      'apiDelete<UserCollectionMutation>',
       'if (!isMockFallbackAllowed()) return emptyCollections()',
       'if (!isMockFallbackAllowed()) return []',
       'function emptyCollections',
+    ],
+  },
+  {
+    file: 'src/services/feedService.ts',
+    includes: [
+      '/api/feed/posts?',
+      '/api/companions/${encodeURIComponent(companionId)}/posts?',
+      '/api/companions/${encodeURIComponent(companionId)}',
+      "return getApiFallback(fallback, 'Companion posts')",
+    ],
+  },
+  {
+    file: 'src/services/companionContentService.ts',
+    includes: [
+      "'/api/companion/posts'",
+      '/api/companion/posts/${encodeURIComponent(postId)}/submit-review',
+      "throw new Error(created.error?.message || 'Companion post creation failed.')",
+    ],
+  },
+  {
+    file: 'src/features/user/HomeFeed.tsx',
+    includes: [
+      'isMockFallbackAllowed() ? listFeedPostPage',
+      "setFeedError('Feed 同步失败，请检查网络后重试')",
+    ],
+  },
+  {
+    file: 'src/features/user/UserCollectionPage.tsx',
+    includes: [
+      'fetchUserCollectionPage(kind',
+      "setErrorMessage('同步失败，请检查网络后重试')",
+    ],
+  },
+  {
+    file: 'src/features/user/PhotographerProfilePage.tsx',
+    includes: [
+      'fetchPublicCompanion(photographerId)',
+      'fetchCompanionPostPage(photographerId',
+      "setUserCollectionItem('follow'",
     ],
   },
   {

@@ -181,6 +181,24 @@ companions.service_enabled = true
 }
 ```
 
+### GET `/api/companions/:companionId`
+
+获取已审核并启用服务的摄影师公开资料。返回 `Companion`，包含公开头像、简介、标签、服务区域、活动、档期、评分、作品数和关注数。未审核、停用或不存在的摄影师统一返回 `404 NOT_FOUND`。
+
+### GET `/api/companions/:companionId/posts`
+
+获取摄影师已审核且允许进入 Feed 的公开作品。查询参数与 Feed 的 `cursor`、`limit` 相同，返回：
+
+```json
+{
+  "items": [],
+  "nextCursor": "20",
+  "hasMore": true
+}
+```
+
+`cursor` 是服务端游标，客户端必须原样回传；客户端不得用本地 mock 或空数组覆盖生产请求错误。
+
 ## 1.5. 定位匹配
 
 对应页面：
@@ -619,6 +637,25 @@ flagged：写 messages，同时写 message_risk_events
 }
 ```
 
+### GET `/api/companion/me/profile`
+
+读取当前 companion session 对应的摄影师资料和可编辑字段。服务端根据 session 的 `user_id` 与 `companion_id` 校验归属，不接受客户端指定其他账号。
+
+### PUT `/api/companion/me/profile`
+
+更新当前摄影师公开名称、简介、性格、风格、互动和设备标签。仅更新当前 session 所属摄影师；越权返回 `403 COMPANION_PROFILE_FORBIDDEN`。
+
+```json
+{
+  "displayName": "Mori",
+  "bio": "会聊天，也会帮你慢慢找角度",
+  "personalityTags": ["温柔耐心"],
+  "styleTags": ["自然光"],
+  "interactionTags": ["会指导动作"],
+  "equipment": ["Sony A7M4"]
+}
+```
+
 ### POST `/api/companion/me/submit-review`
 
 提交入驻审核。
@@ -633,6 +670,8 @@ companions.status = pending_review
 ### POST `/api/companion/posts`
 
 创建作品草稿。
+
+要求 companion session；服务端从 session 取得 `user_id` 和 `companion_id` 并校验归属。生产图片必须是持久化 HTTPS URL，拒绝 data URL。
 
 请求：
 
@@ -658,6 +697,8 @@ companions.status = pending_review
 ### POST `/api/companion/posts/:postId/submit-review`
 
 提交作品审核。
+
+只有作品所属摄影师可提交；仅 `draft` 或 `rejected` 状态可进入审核。
 
 状态变化：
 
@@ -689,23 +730,37 @@ ratings
 更新 companions.rating_avg / rating_count
 ```
 
-### POST `/api/favorites`
+### GET `/api/me/collections`
 
-请求：
+恢复当前登录用户跨设备同步的点赞、收藏和关注 ID：
 
 ```json
 {
-  "targetType": "post",
-  "targetId": "post_uuid"
+  "likedPostIds": ["post_uuid"],
+  "favoritePostIds": ["post_uuid"],
+  "followingIds": ["companion_uuid"]
 }
 ```
 
-写入：
+传入 `kind=like|favorite|follow`、`cursor` 和 `limit` 时，返回对应公开作品或摄影师的分页结果：
 
-```text
-favorites
-posts.like_count + 1，若 targetType = post
+```json
+{
+  "items": [],
+  "nextCursor": null,
+  "hasMore": false
+}
 ```
+
+### PUT `/api/me/collections/:kind/:targetId`
+
+幂等添加点赞、收藏或关注。`kind` 可为 `like`、`favorite`、`follow`；服务端校验目标公开可见，并从 session 取得 `user_id`。
+
+### DELETE `/api/me/collections/:kind/:targetId`
+
+幂等取消点赞、收藏或关注。点赞变化在同一事务中更新 `posts.like_count`，返回持久化后的 `active` 和 `count`。
+
+生产模式下集合接口失败必须显示错误并允许重试，不得写入 localStorage 或返回模拟成功。
 
 ### POST `/api/reports`
 

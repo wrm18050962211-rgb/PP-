@@ -779,6 +779,7 @@ model Favorite {
 
   @@unique([userId, targetType, targetId])
   @@index([userId, createdAt])
+  @@index([targetType, targetId])
   @@map("favorites")
 }
 

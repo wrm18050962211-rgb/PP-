@@ -60,7 +60,7 @@ export function isMiniProgramRuntime() {
   return Boolean(wx?.request || wx?.login || wx?.requestPayment);
 }
 
-export function wxRequest<T>(url: string, method: 'GET' | 'POST', data?: unknown, header?: Record<string, string>): Promise<T> {
+export function wxRequest<T>(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', data?: unknown, header?: Record<string, string>): Promise<T> {
   const wx = getWxBridge();
   if (!wx?.request) throw new Error('wx.request is not available');
 

@@ -1,5 +1,5 @@
 import { ArrowLeft, CalendarDays, Check, ImagePlus, MapPin, Send, Sparkles, Type, X } from 'lucide-react';
-import { ChangeEvent, useMemo } from 'react';
+import { ChangeEvent, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { Chip } from '../../components/Chip';
@@ -11,6 +11,8 @@ const activityTypes = ['Citywalk 陪拍', '探店吃饭陪拍', '逛街拍照', 
 
 export function PublishPost() {
   const { workDraft, saveWorkDraft, submitWork } = useAppData();
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const coverImage = useMemo(
     () => workDraft.images.find((image) => image.id === workDraft.coverImageId) ?? workDraft.images[0],
@@ -45,6 +47,18 @@ export function PublishPost() {
       images,
       coverImageId: workDraft.coverImageId === imageId ? images[0]?.id ?? '' : workDraft.coverImageId,
     });
+  }
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      await submitWork();
+    } catch {
+      setSubmitError('作品提交失败，请检查网络和图片上传状态后重试');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -185,14 +199,15 @@ export function PublishPost() {
               ? '运营要求修改作品信息后重新提交。'
               : '作品提交后进入审核队列。通过后才会进入首页图片流，平台会检查真实性、盗图风险和地点信息。'}
       </section>
+      {submitError ? <p className="mt-3 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800">{submitError}</p> : null}
 
       <button
         className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-bold text-white disabled:bg-zinc-300"
-        onClick={submitWork}
-        disabled={!canSubmit || workDraft.reviewStatus === '待审核'}
+        onClick={() => void handleSubmit()}
+        disabled={!canSubmit || workDraft.reviewStatus === '待审核' || submitting}
       >
         <Send size={17} />
-        {workDraft.reviewStatus === '待审核' ? '已提交作品审核' : workDraft.reviewStatus === '已通过' ? '重新提交审核' : '提交作品审核'}
+        {submitting ? '提交中...' : workDraft.reviewStatus === '待审核' ? '已提交作品审核' : workDraft.reviewStatus === '已通过' ? '重新提交审核' : '提交作品审核'}
       </button>
     </div>
   );

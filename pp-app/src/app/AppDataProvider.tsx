@@ -12,6 +12,7 @@ import { readDomainJson, writeDomainJson } from '../services/scopedStorage';
 import { createLedgerOrder, listLedgerOrdersForSession, updateLedgerOrderFunding, updateLedgerOrderStatus, upsertLedgerOrder } from '../services/virtualOrderLedger';
 import { defaultBookingSettings } from '../data/bookingSettings';
 import { saveCompanionBookingSettings } from '../services/companionBookingSettingsService';
+import { publishCompanionWork } from '../services/companionContentService';
 import type { AppOrder, CompanionApplication, CompanionBookingSettings, PublishedWorkDraft } from '../types/domain';
 import type { AuthSession, UserRole } from '../types/api';
 import { getOrderSteps, orderStatusText } from '../utils/status';
@@ -262,8 +263,25 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         setWorkDraft(nextDraft);
         persist({ workDraft: nextDraft });
       },
-      submitWork: () => {
-        const nextDraft = { ...workDraft, submitted: true, reviewStatus: '待审核' as const, updatedAt: new Date().toISOString() };
+      submitWork: async () => {
+        let serverPostId = workDraft.serverPostId;
+        if (isApiEnabled()) {
+          try {
+            const result = await publishCompanionWork(workDraft, session?.user.city);
+            serverPostId = result.id;
+          } catch (error) {
+            if (isProductionAppEnv) throw error;
+          }
+        } else if (isProductionAppEnv) {
+          throw new Error('作品发布 API 未配置。');
+        }
+        const nextDraft = {
+          ...workDraft,
+          serverPostId,
+          submitted: true,
+          reviewStatus: '待审核' as const,
+          updatedAt: new Date().toISOString(),
+        };
         setWorkDraft(nextDraft);
         persist({ workDraft: nextDraft });
       },

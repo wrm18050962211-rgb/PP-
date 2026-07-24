@@ -67,23 +67,29 @@ export function getApiAuthToken(scope: ApiAuthTokenScope = 'public') {
 }
 
 export async function apiGet<T>(path: string): Promise<ApiResponse<T>> {
-  const url = buildApiUrl(path);
-  const headers = buildApiHeaders(path);
-  if (isMiniProgramRuntime()) {
-    return wxRequest<ApiResponse<T>>(url, 'GET', undefined, headers);
-  }
-  const response = await fetch(url, { headers });
-  return response.json() as Promise<ApiResponse<T>>;
+  return apiRequest<T>(path, 'GET');
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+  return apiRequest<T>(path, 'POST', body);
+}
+
+export async function apiPut<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+  return apiRequest<T>(path, 'PUT', body);
+}
+
+export async function apiDelete<T>(path: string): Promise<ApiResponse<T>> {
+  return apiRequest<T>(path, 'DELETE');
+}
+
+async function apiRequest<T>(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: unknown): Promise<ApiResponse<T>> {
   const url = buildApiUrl(path);
-  const headers = buildApiHeaders(path, { 'Content-Type': 'application/json' });
+  const headers = buildApiHeaders(path, body === undefined ? {} : { 'Content-Type': 'application/json' });
   if (isMiniProgramRuntime()) {
-    return wxRequest<ApiResponse<T>>(url, 'POST', body, headers);
+    return wxRequest<ApiResponse<T>>(url, method, body, headers);
   }
   const response = await fetch(url, {
-    method: 'POST',
+    method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });

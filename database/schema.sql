@@ -691,6 +691,7 @@ create table favorites (
 );
 
 create index idx_favorites_user on favorites(user_id, created_at desc);
+create index idx_favorites_target on favorites(target_type, target_id);
 
 -- =========================
 -- Settlement and wallet

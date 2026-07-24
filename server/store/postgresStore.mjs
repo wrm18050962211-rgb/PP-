@@ -1,4 +1,16 @@
 import { randomUUID } from 'node:crypto';
+import {
+  createCompanionPostTransaction,
+  getOwnCompanionProfile,
+  getPublicCompanion,
+  getPublicPost,
+  getUserCollections,
+  listPublicPosts,
+  listUserCollection,
+  setUserCollectionTransaction,
+  submitCompanionPostReviewTransaction,
+  updateCompanionProfileTransaction,
+} from './postgresContentGateway.mjs';
 import { recordAdminActionTransaction, recordAuditLogTransaction } from './postgresAuditWrites.mjs';
 import { upsertAuthIdentityUserTransaction } from './postgresAuthWrites.mjs';
 import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransaction, findIdempotencyRequest } from './postgresIdempotencyWrites.mjs';
@@ -35,6 +47,20 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       moderationWrites: true,
       providerCallbackWrites: true,
       phoneVerificationWrites: true,
+      contentReads: true,
+      contentWrites: true,
+    },
+    content: {
+      listPublicPosts: (options) => withClient((client) => listPublicPosts(client, options)),
+      getPublicPost: (postId) => withClient((client) => getPublicPost(client, postId)),
+      getPublicCompanion: (companionId) => withClient((client) => getPublicCompanion(client, companionId)),
+      getOwnCompanionProfile: (draft) => withClient((client) => getOwnCompanionProfile(client, draft)),
+      getUserCollections: (userId) => withClient((client) => getUserCollections(client, userId)),
+      listUserCollection: (options) => withClient((client) => listUserCollection(client, options)),
+      setUserCollection: (draft) => withClient((client) => setUserCollectionTransaction(client, draft)),
+      updateCompanionProfile: (draft) => withClient((client) => updateCompanionProfileTransaction(client, draft)),
+      createCompanionPost: (draft) => withClient((client) => createCompanionPostTransaction(client, draft)),
+      submitCompanionPostReview: (draft) => withClient((client) => submitCompanionPostReviewTransaction(client, draft)),
     },
     authWrites: {
       upsertIdentityUser: (identity) => withClient((client) => upsertAuthIdentityUserTransaction(client, toAuthIdentityDraft(identity))),

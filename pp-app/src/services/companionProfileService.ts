@@ -1,5 +1,5 @@
 import type { AuthSession, Companion, UserRole } from '../types/api';
-import { isMockFallbackAllowed } from './apiClient';
+import { apiGet, apiPut, getApiFallback, isApiEnabled, isMockFallbackAllowed } from './apiClient';
 import { readDomainJson, writeDomainJson } from './scopedStorage';
 
 export type CompanionAvatarReviewStatus = 'approved' | 'pending' | 'rejected';
@@ -33,6 +33,50 @@ export type CompanionWithEditableProfile = Companion & {
 
 const storageKey = 'companion-profile-v1';
 const sharedProfileStorageKey = 'pp-cloud-db:shared:companion-profile-overrides-v1';
+
+export async function fetchOwnCompanionProfile(
+  fallbackCompanion?: Companion,
+  role?: UserRole,
+): Promise<{ companion: Companion; profile: CompanionProfileDraft }> {
+  const fallback = fallbackCompanion
+    ? {
+        companion: fallbackCompanion,
+        profile:
+          readCompanionProfile(fallbackCompanion.id, role) ??
+          createDefaultCompanionProfile(null, fallbackCompanion),
+      }
+    : null;
+  if (!isApiEnabled()) return getApiFallback(fallback as { companion: Companion; profile: CompanionProfileDraft }, 'Companion profile');
+
+  try {
+    const response = await apiGet<{ companion: Companion; profile: CompanionProfileDraft | null }>('/api/companion/me/profile');
+    if (!response.success) return getApiFallback(fallback as { companion: Companion; profile: CompanionProfileDraft }, 'Companion profile');
+    return {
+      companion: response.data.companion,
+      profile:
+        response.data.profile ??
+        createDefaultCompanionProfile(null, response.data.companion),
+    };
+  } catch {
+    return getApiFallback(fallback as { companion: Companion; profile: CompanionProfileDraft }, 'Companion profile');
+  }
+}
+
+export async function saveCompanionProfileRemote(profile: CompanionProfileDraft, role?: UserRole) {
+  const nextProfile = { ...profile, updatedAt: new Date().toISOString() };
+  if (isApiEnabled()) {
+    try {
+      const response = await apiPut<{ companionId: string; updatedAt: string }>('/api/companion/me/profile', nextProfile);
+      if (response.success) return { ...nextProfile, updatedAt: response.data.updatedAt };
+    } catch {
+      // Development can still use scoped local profile storage below.
+    }
+  }
+  if (!isMockFallbackAllowed()) {
+    return getApiFallback(nextProfile, 'Companion profile update');
+  }
+  return saveCompanionProfile(nextProfile, role);
+}
 
 export function readCompanionProfile(companionId?: string | null, role?: UserRole) {
   if (!companionId) return null;

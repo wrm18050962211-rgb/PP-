@@ -1,15 +1,16 @@
-import { ArrowLeft, CalendarDays, ChevronDown, MapPin, MessageCircle, Send, Star } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, CalendarDays, ChevronDown, MapPin, MessageCircle, Send, Star, UserCheck, UserPlus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAppData } from '../../app/useAppData';
 import { LivePhotoMedia } from '../../components/LivePhotoMedia';
 import { ConsultationRequestModal } from './ConsultationRequestModal';
 import { formatCents, readCompanionPackageSettings } from '../../services/companionPackageService';
 import { applyCompanionProfile, readCompanionProfile, type CompanionWithEditableProfile } from '../../services/companionProfileService';
-import { getPostTitle, listFeedPosts } from '../../services/feedService';
+import { fetchCompanionPostPage, fetchPublicCompanion, getPostTitle, listFeedPosts } from '../../services/feedService';
+import { isMockFallbackAllowed } from '../../services/apiClient';
 import { isOrderWorkConfirmed, listOrderWorkRecords, orderWorkToFeedPost } from '../../services/orderWorkService';
-import { getFollowerCountForPerson, getPostLikeCount } from '../../services/userCollectionService';
-import type { FeedPost } from '../../types/api';
+import { fetchUserCollections, getFollowerCountForPerson, getPostLikeCount, setUserCollectionItem } from '../../services/userCollectionService';
+import type { Companion, FeedPost } from '../../types/api';
 import type { CompanionPackage, CompanionPackageSettings } from '../../services/companionPackageService';
 
 export function PhotographerProfilePage() {
@@ -22,10 +23,57 @@ export function PhotographerProfilePage() {
   const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
   const [consultOpen, setConsultOpen] = useState(false);
   const [consultPackageId, setConsultPackageId] = useState<string | null>(null);
-  const posts = listFeedPosts();
+  const fallbackPosts = useMemo(() => (isMockFallbackAllowed() ? listFeedPosts() : []), []);
+  const [posts, setPosts] = useState<FeedPost[]>(fallbackPosts);
+  const [remoteCompanion, setRemoteCompanion] = useState<Companion | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [following, setFollowing] = useState(false);
+
+  useEffect(() => {
+    if (!photographerId) return;
+    let mounted = true;
+    setLoadError('');
+    Promise.all([
+      fetchPublicCompanion(photographerId),
+      fetchCompanionPostPage(photographerId, { limit: 50 }),
+    ])
+      .then(([companion, page]) => {
+        if (!mounted) return;
+        setRemoteCompanion(companion);
+        setPosts(page.items);
+      })
+      .catch(() => {
+        if (mounted) setLoadError('摄影师资料同步失败，请检查网络后重试');
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [photographerId]);
+
+  useEffect(() => {
+    if (!photographerId) return;
+    let mounted = true;
+    fetchUserCollections(posts)
+      .then((collections) => {
+        if (mounted) setFollowing(collections.followingIds.includes(photographerId) || collections.followingIds.includes(`photographer-${photographerId}`));
+      })
+      .catch(() => {
+        if (mounted) setLoadError('关注状态同步失败，请检查网络后重试');
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [photographerId, posts]);
+
   const photographerPosts = posts.filter((post) => post.companion.id === photographerId);
   const profilePost = photographerPosts[0] || posts[0];
-  const photographer = applyCompanionProfile(profilePost.companion, readCompanionProfile(profilePost.companion.id, session?.role));
+  const basePhotographer = remoteCompanion || profilePost?.companion;
+
+  if (!profilePost || !basePhotographer) {
+    return <div className="grid min-h-dvh place-items-center bg-[#050505] px-6 text-center text-sm font-bold text-white/70">{loadError || '正在同步摄影师资料...'}</div>;
+  }
+
+  const photographer = applyCompanionProfile(basePhotographer, readCompanionProfile(basePhotographer.id, session?.role));
   const photographerOrderWorks = listOrderWorkRecords()
     .filter((record) => record.publishToPhotographer && isOrderWorkConfirmed(record))
     .map((record) => {
@@ -37,7 +85,7 @@ export function PhotographerProfilePage() {
   const works = [...photographerOrderWorks, ...(photographerPosts.length ? photographerPosts : [profilePost])];
   const handle = `@${photographer.id.replace(/^virtual-companion-/, 'photographer-').replace(/-/g, '')}`;
   const likeTotal = works.reduce((sum, post) => sum + getPostLikeCount(post.id, posts), 0);
-  const followerCount = getFollowerCountForPerson(`photographer-${photographer.id}`, posts);
+  const followerCount = photographer.followerCount ?? getFollowerCountForPerson(`photographer-${photographer.id}`, posts);
   const ratingDistribution = buildRatingDistribution(photographer.ratingCount, photographer.ratingAvg);
   const reviews = buildPhotographerReviews(photographer, works);
   const packageSettings = readCompanionPackageSettings(photographer);
@@ -46,6 +94,15 @@ export function PhotographerProfilePage() {
     if (isCompanionMode) return;
     setConsultPackageId(packageId ?? packageSettings.packages[0].id);
     setConsultOpen(true);
+  }
+
+  async function toggleFollow() {
+    try {
+      const result = await setUserCollectionItem('follow', photographer.id, !following, posts);
+      setFollowing(result.active);
+    } catch {
+      setLoadError('关注操作失败，请检查网络后重试');
+    }
   }
 
   return (
@@ -63,6 +120,8 @@ export function PhotographerProfilePage() {
           </Link>
         )}
       </header>
+
+      {loadError ? <p className="mx-4 mt-3 bg-rose-950/50 px-3 py-2 text-xs font-bold text-rose-100">{loadError}</p> : null}
 
       <section className="px-4 pb-4 pt-3">
         <div className="flex items-center gap-5">
@@ -84,14 +143,20 @@ export function PhotographerProfilePage() {
           <PhotographerProfileMeta photographer={photographer} />
         </div>
 
-        <div className={`mt-4 grid gap-2 ${isCompanionMode ? 'grid-cols-1' : 'grid-cols-[1fr_1fr]'}`}>
+        <div className={`mt-4 grid gap-2 ${isCompanionMode ? 'grid-cols-1' : 'grid-cols-3'}`}>
           <Link className="flex h-10 items-center justify-center rounded-[6px] bg-[#4d5dff] text-sm font-black text-white" to={`${profileBasePath}/post/${profilePost.id}`}>
             看作品
           </Link>
           {isCompanionMode ? null : (
-            <button className="flex h-10 items-center justify-center rounded-[6px] bg-white/12 text-sm font-black text-white" onClick={() => openConsultForPackage()} type="button">
-              咨询档期/报价
-            </button>
+            <>
+              <button className="flex h-10 items-center justify-center gap-1 rounded-[6px] bg-white/12 text-xs font-black text-white" onClick={() => void toggleFollow()} type="button">
+                {following ? <UserCheck size={15} /> : <UserPlus size={15} />}
+                {following ? '已关注' : '关注'}
+              </button>
+              <button className="flex h-10 items-center justify-center rounded-[6px] bg-white/12 text-xs font-black text-white" onClick={() => openConsultForPackage()} type="button">
+                咨询报价
+              </button>
+            </>
           )}
         </div>
       </section>

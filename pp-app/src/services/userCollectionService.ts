@@ -3,7 +3,7 @@ import { getPostTitle } from './feedService';
 import { readDomainJson, writeDomainJson } from './scopedStorage';
 import { getActiveAccountStorageScope } from './authService';
 import { listTestAccounts, type PublicRole } from './accountDirectory';
-import { isMockFallbackAllowed } from './apiClient';
+import { apiDelete, apiGet, apiPut, getApiFallback, isApiEnabled, isMockFallbackAllowed } from './apiClient';
 
 export type UserCollectionState = {
   likedPostIds: string[];
@@ -11,7 +11,105 @@ export type UserCollectionState = {
   followingIds: string[];
 };
 
+export type UserCollectionKind = 'like' | 'favorite' | 'follow';
+
+export type UserCollectionMutation = {
+  kind: UserCollectionKind;
+  targetId: string;
+  active: boolean;
+  count: number;
+  changed: boolean;
+};
+
+export type FollowingPerson = {
+  id: string;
+  kind: string;
+  name: string;
+  avatar: string;
+  meta: string;
+  to: string;
+};
+
+export type UserCollectionPage = {
+  items: FeedPost[] | FollowingPerson[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
 const storageKey = 'user-collections-v1';
+
+export async function fetchUserCollections(posts: FeedPost[] = []): Promise<UserCollectionState> {
+  const fallback = readUserCollections(posts);
+  if (!isApiEnabled()) return getApiFallback(fallback, 'User collections');
+
+  try {
+    const response = await apiGet<UserCollectionState>('/api/me/collections');
+    return response.success ? response.data : getApiFallback(fallback, 'User collections');
+  } catch {
+    return getApiFallback(fallback, 'User collections');
+  }
+}
+
+export async function fetchUserCollectionPage(
+  kind: UserCollectionKind,
+  options: { limit?: number; cursor?: string | null; posts?: FeedPost[] } = {},
+): Promise<UserCollectionPage> {
+  const fallback = buildLocalCollectionPage(kind, options.posts || []);
+  if (!isApiEnabled()) return getApiFallback(fallback, 'User collection page');
+
+  try {
+    const params = new URLSearchParams({ kind, limit: String(Math.max(1, Math.min(options.limit || 20, 50))) });
+    if (options.cursor) params.set('cursor', options.cursor);
+    const response = await apiGet<{ items: FeedPost[] | Array<FeedPost['companion']>; nextCursor: string | null; hasMore: boolean }>(
+      `/api/me/collections?${params.toString()}`,
+    );
+    if (!response.success) return getApiFallback(fallback, 'User collection page');
+    return {
+      items:
+        kind === 'follow'
+          ? (response.data.items as Array<FeedPost['companion']>).map(toFollowingPerson)
+          : (response.data.items as FeedPost[]),
+      nextCursor: response.data.nextCursor ?? null,
+      hasMore: Boolean(response.data.hasMore),
+    };
+  } catch {
+    return getApiFallback(fallback, 'User collection page');
+  }
+}
+
+export async function setUserCollectionItem(
+  kind: UserCollectionKind,
+  targetId: string,
+  active: boolean,
+  posts: FeedPost[] = [],
+): Promise<UserCollectionMutation> {
+  if (isApiEnabled()) {
+    try {
+      const path = `/api/me/collections/${kind}/${encodeURIComponent(targetId)}`;
+      const response = active
+        ? await apiPut<UserCollectionMutation>(path)
+        : await apiDelete<UserCollectionMutation>(path);
+      if (response.success) return response.data;
+    } catch {
+      // Development can still use scoped local data below.
+    }
+  }
+
+  if (!isMockFallbackAllowed()) {
+    return getApiFallback(
+      { kind, targetId, active, count: 0, changed: false },
+      'User collection mutation',
+    );
+  }
+  applyLocalCollectionMutation(kind, targetId, active, posts);
+  const count =
+    kind === 'like'
+      ? getPostLikeCount(targetId, posts)
+      : kind === 'favorite'
+        ? getPostFavoriteCount(targetId, posts)
+        : getFollowerCountForPerson(targetId, posts);
+  return { kind, targetId, active, count, changed: true };
+}
 
 function seedCollections(posts: FeedPost[]): UserCollectionState {
   if (!isMockFallbackAllowed()) return emptyCollections();
@@ -94,6 +192,9 @@ export function getPostLikeCount(postId: string, posts: FeedPost[]) {
 
 export function getPostLikeCounts(posts: FeedPost[]) {
   const counts = new Map<string, number>();
+  posts.forEach((post) => {
+    if (Number.isFinite(post.likeCount)) counts.set(post.id, Number(post.likeCount));
+  });
   getAllVirtualCollections(posts).forEach((collections) => {
     collections.likedPostIds.forEach((postId) => {
       counts.set(postId, (counts.get(postId) ?? 0) + 1);
@@ -103,11 +204,47 @@ export function getPostLikeCounts(posts: FeedPost[]) {
 }
 
 export function getPostFavoriteCount(postId: string, posts: FeedPost[]) {
+  const persisted = posts.find((post) => post.id === postId)?.favoriteCount;
+  if (Number.isFinite(persisted)) return Number(persisted);
   return getAllVirtualCollections(posts).filter((collections) => collections.favoritePostIds.includes(postId)).length;
 }
 
 export function getFollowerCountForPerson(personId: string, posts: FeedPost[]) {
+  const companionId = personId.replace(/^photographer-/, '');
+  const persisted = posts.find((post) => post.companion.id === companionId)?.companion.followerCount;
+  if (Number.isFinite(persisted)) return Number(persisted);
   return getAllVirtualCollections(posts).filter((collections) => collections.followingIds.includes(personId)).length;
+}
+
+function buildLocalCollectionPage(kind: UserCollectionKind, posts: FeedPost[]): UserCollectionPage {
+  const items =
+    kind === 'like'
+      ? getLikedPosts(posts)
+      : kind === 'favorite'
+        ? getFavoritePosts(posts)
+        : getFollowingPeople(posts);
+  return { items, nextCursor: null, hasMore: false };
+}
+
+function toFollowingPerson(companion: FeedPost['companion']): FollowingPerson {
+  return {
+    id: companion.id,
+    kind: '摄影师',
+    name: companion.name,
+    avatar: companion.avatar || companion.photo,
+    meta: companion.areas.slice(0, 2).join(' / '),
+    to: `/consumer/photographer/${companion.id}`,
+  };
+}
+
+function applyLocalCollectionMutation(kind: UserCollectionKind, targetId: string, active: boolean, posts: FeedPost[]) {
+  const current = readUserCollections(posts);
+  const field = kind === 'like' ? 'likedPostIds' : kind === 'favorite' ? 'favoritePostIds' : 'followingIds';
+  const ids = current[field];
+  writeUserCollections({
+    ...current,
+    [field]: active ? uniqueIds([targetId, ...ids]) : ids.filter((id) => id !== targetId),
+  });
 }
 
 function getDefaultFollowingPeople(posts: FeedPost[]) {
