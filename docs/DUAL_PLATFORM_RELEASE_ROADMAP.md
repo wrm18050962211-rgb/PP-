@@ -130,16 +130,16 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 ### WIN-AUTH-1 真实短信与生产会话
 
 - Priority: P0
-- Status: pending
+- Status: blocked
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-BASE-0`, `EXT-SMS-1`
 - Scope: 投产手机号验证码、腾讯短信发送、验证码过期与限流、会话持久化、角色边界和生产部署。
 - Acceptance criteria: 真实手机号可发送和消费验证码；错误、过期、重复消费和频率限制有稳定错误码；consumer/companion session 可跨设备恢复；生产强制配置 `PHONE_OTP_PEPPER`。
 - Shared files: `pp-app/src/services/authService.ts`, `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
-- Unblock result: 提供生产 API、测试步骤、非敏感配置名、成功/失败样例和 commit SHA，解除 `IOS-AUTH-1`。
-- Result commit: pending
-- Verification: pending
-- Notes: Secret、Pepper 和短信凭据禁止提交。
+- Unblock result: 暂未解除 `IOS-AUTH-1`；生产 API、离线测试、非敏感配置和稳定成功/失败契约已就绪，仍需 `EXT-SMS-1` 完成运营商报备并验证真实发送。
+- Result commit: `6376a8fc4d599219746b11afb2e0581f82ffae2c`（离线可完成部分）
+- Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过；未执行真实短信发送。
+- Notes: 已完成腾讯短信 Provider 与 +86/模板参数环境校验、验证码生成/过期/冷却/手机号与 IP 小时限流/最大尝试次数、失败投递计数、稳定错误码与日志脱敏、持久会话/固定过期/重新登录/撤销、consumer/companion/admin 角色边界及 Mock/失败/生产 guard 测试。节点仅因 `EXT-SMS-1` 运营商报备阻塞，报备完成并验证真实发送前不得标记 completed；未提交任何敏感凭据，未修改 `pp-app/ios/**`。
 
 ### WIN-MAP-1 高德 WebService 代理
 
