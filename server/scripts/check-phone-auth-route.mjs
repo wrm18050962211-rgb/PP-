@@ -4,38 +4,20 @@ import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 
 const tempDirectory = await mkdtemp(resolve(tmpdir(), 'still-phone-auth-'));
+const storePath = resolve(tempDirectory, 'store.json');
 const port = 19000 + Math.floor(Math.random() * 1000);
-const serverProcess = spawn(process.execPath, ['server.mjs'], {
-  cwd: resolve(import.meta.dirname, '..'),
-  env: {
-    ...process.env,
-    APP_ENV: 'test',
-    STORE_DRIVER: 'json',
-    STORE_PATH: resolve(tempDirectory, 'store.json'),
-    PORT: String(port),
-    PHONE_SMS_PROVIDER: 'mock',
-    PHONE_OTP_PEPPER: 'route-test-phone-otp-pepper',
-    ENABLE_TEST_ROLE_SWITCH: 'true',
-  },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
+let serverProcess = null;
 let serverOutput = '';
-serverProcess.stdout.on('data', (chunk) => {
-  serverOutput += chunk.toString();
-});
-serverProcess.stderr.on('data', (chunk) => {
-  serverOutput += chunk.toString();
-});
 
 try {
-  await waitForServer(port);
-  const requestResult = await post(port, '/api/auth/phone/request-code', {
+  await startServer();
+  const requestResult = await post('/api/auth/phone/request-code', {
     phone: '13800138000',
   });
   assert(requestResult.success, 'request-code route succeeds');
-  assert(/^\d{6}$/.test(requestResult.data.testCode), 'mock route returns a six-digit test code');
+  assert(/^\d{6}$/.test(requestResult.data.testCode), 'mock route returns an internal test code');
 
-  const verifyResult = await post(port, '/api/auth/phone/verify', {
+  const verifyResult = await post('/api/auth/phone/verify', {
     phone: '13800138000',
     code: requestResult.data.testCode,
     role: 'consumer',
@@ -46,8 +28,27 @@ try {
   assert(verifyResult.data.role === 'consumer', 'new phone account receives consumer role');
   assert(verifyResult.data.user.phone === '13800138000', 'session includes the verified phone');
   assert(Boolean(verifyResult.data.token), 'session includes a bearer token');
+  const firstToken = verifyResult.data.token;
+  const firstExpiry = verifyResult.data.expiresAt;
 
-  const consumedResult = await post(port, '/api/auth/phone/verify', {
+  const restoredBeforeRestart = await get('/api/auth/session', firstToken);
+  assert(restoredBeforeRestart.success, 'bearer token restores the active session');
+  assert(restoredBeforeRestart.data.token === firstToken, 'session restore keeps the bearer token');
+  assert(restoredBeforeRestart.data.expiresAt === firstExpiry, 'session restore does not extend expiry');
+
+  const companionCodeResult = await post('/api/auth/phone/request-code', {
+    phone: '13900139000',
+  });
+  const companionLoginResult = await post('/api/auth/phone/verify', {
+    phone: '13900139000',
+    code: companionCodeResult.data.testCode,
+    role: 'companion',
+    intent: 'login',
+  });
+  assert(!companionLoginResult.success, 'unapproved phone account cannot enter the companion role');
+  assert(companionLoginResult.error.code === 'PHONE_ROLE_NOT_AVAILABLE', 'companion role denial is stable');
+
+  const consumedResult = await post('/api/auth/phone/verify', {
     phone: '13800138000',
     code: requestResult.data.testCode,
     role: 'consumer',
@@ -56,34 +57,105 @@ try {
   assert(!consumedResult.success, 'used code cannot authenticate again');
   assert(consumedResult.error.code === 'PHONE_CODE_ALREADY_USED', 'used code returns the expected error');
 
+  await stopServer();
+  await startServer();
+
+  const restoredAfterRestart = await get('/api/auth/session', firstToken);
+  assert(restoredAfterRestart.success, 'persisted bearer session survives a server restart');
+  assert(restoredAfterRestart.data.user.phone === '13800138000', 'restarted session keeps the user identity');
+  assert(restoredAfterRestart.data.expiresAt === firstExpiry, 'restarted session keeps the original expiry');
+
+  const reloginCodeResult = await post('/api/auth/phone/request-code', {
+    phone: '13800138000',
+  });
+  const reloginResult = await post('/api/auth/phone/verify', {
+    phone: '13800138000',
+    code: reloginCodeResult.data.testCode,
+    role: 'consumer',
+    intent: 'login',
+  });
+  assert(reloginResult.success, 'verified phone can log in again');
+  assert(reloginResult.data.user.id === verifyResult.data.user.id, 're-login reuses the persisted user');
+  assert(reloginResult.data.token !== firstToken, 're-login creates a distinct session token');
+
+  const logoutResult = await post('/api/auth/logout', {}, reloginResult.data.token);
+  assert(logoutResult.success, 'logout succeeds');
+  const revokedSessionResult = await get('/api/auth/session', reloginResult.data.token);
+  assert(!revokedSessionResult.success, 'logged-out bearer token is rejected');
+  assert(revokedSessionResult.error.code === 'AUTH_REQUIRED', 'revoked token returns the authentication error');
+
   console.log(
     JSON.stringify(
       {
         ok: true,
-        checks: ['request-code-route', 'phone-session', 'verified-phone', 'bearer-token', 'consume-once-route'],
+        checks: [
+          'request-code-route',
+          'phone-session',
+          'bearer-session-restore',
+          'fixed-session-expiry',
+          'companion-role-boundary',
+          'consume-once-route',
+          'restart-persistence',
+          're-login',
+          'distinct-session-token',
+          'logout-revocation',
+        ],
       },
       null,
       2,
     ),
   );
 } finally {
-  serverProcess.kill();
-  await new Promise((resolveExit) => {
-    if (serverProcess.exitCode !== null) return resolveExit();
-    serverProcess.once('exit', resolveExit);
-    setTimeout(resolveExit, 2000);
-  });
+  await stopServer();
   await rm(tempDirectory, { recursive: true, force: true });
 }
 
-async function waitForServer(serverPort) {
+async function startServer() {
+  serverOutput = '';
+  serverProcess = spawn(process.execPath, ['server.mjs'], {
+    cwd: resolve(import.meta.dirname, '..'),
+    env: {
+      ...process.env,
+      APP_ENV: 'test',
+      STORE_DRIVER: 'json',
+      STORE_PATH: storePath,
+      PORT: String(port),
+      PHONE_SMS_PROVIDER: 'mock',
+      PHONE_OTP_PEPPER: 'route-test-phone-otp-pepper',
+      ENABLE_TEST_ROLE_SWITCH: 'true',
+      SESSION_TTL_DAYS: '30',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  serverProcess.stdout.on('data', (chunk) => {
+    serverOutput += chunk.toString();
+  });
+  serverProcess.stderr.on('data', (chunk) => {
+    serverOutput += chunk.toString();
+  });
+  await waitForServer();
+}
+
+async function stopServer() {
+  if (!serverProcess) return;
+  const processToStop = serverProcess;
+  serverProcess = null;
+  processToStop.kill();
+  await new Promise((resolveExit) => {
+    if (processToStop.exitCode !== null) return resolveExit();
+    processToStop.once('exit', resolveExit);
+    setTimeout(resolveExit, 2000);
+  });
+}
+
+async function waitForServer() {
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
-    if (serverProcess.exitCode !== null) {
+    if (serverProcess?.exitCode !== null) {
       throw new Error(`Phone auth test server exited early.\n${serverOutput}`);
     }
     try {
-      const response = await fetch(`http://127.0.0.1:${serverPort}/api/health`);
+      const response = await fetch(`http://127.0.0.1:${port}/api/health`);
       if (response.ok) return;
     } catch {
       // The process may still be starting.
@@ -93,10 +165,20 @@ async function waitForServer(serverPort) {
   throw new Error(`Phone auth test server did not start.\n${serverOutput}`);
 }
 
-async function post(serverPort, path, body) {
-  const response = await fetch(`http://127.0.0.1:${serverPort}${path}`, {
+async function get(path, token) {
+  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return response.json();
+}
+
+async function post(path, body, token = '') {
+  const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   return response.json();

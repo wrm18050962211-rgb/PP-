@@ -6,6 +6,7 @@ export function createMemoryPhoneVerificationWrites() {
       const createdAtMs = Date.parse(draft.createdAt);
       const hourStartMs = createdAtMs - 60 * 60 * 1000;
       const active = challenges.filter((item) => ['pending', 'sent'].includes(item.deliveryStatus));
+      const issuedInWindow = challenges.filter((item) => Date.parse(item.createdAt) >= hourStartMs);
       const latest = active
         .filter((item) => item.phone === draft.phone && item.purpose === draft.purpose)
         .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0];
@@ -14,14 +15,14 @@ export function createMemoryPhoneVerificationWrites() {
         if (retryAfterSeconds > 0) throw repositoryError('PHONE_CODE_COOLDOWN', retryAfterSeconds);
       }
 
-      const phoneCount = active.filter((item) => item.phone === draft.phone && Date.parse(item.createdAt) >= hourStartMs).length;
+      const phoneCount = issuedInWindow.filter((item) => item.phone === draft.phone).length;
       if (phoneCount >= draft.phoneHourlyLimit) {
-        throw repositoryError('PHONE_CODE_PHONE_RATE_LIMIT', secondsUntilWindowReset(active, 'phone', draft.phone, createdAtMs));
+        throw repositoryError('PHONE_CODE_PHONE_RATE_LIMIT', secondsUntilWindowReset(issuedInWindow, 'phone', draft.phone, createdAtMs));
       }
       if (draft.requestedIp) {
-        const ipCount = active.filter((item) => item.requestedIp === draft.requestedIp && Date.parse(item.createdAt) >= hourStartMs).length;
+        const ipCount = issuedInWindow.filter((item) => item.requestedIp === draft.requestedIp).length;
         if (ipCount >= draft.ipHourlyLimit) {
-          throw repositoryError('PHONE_CODE_IP_RATE_LIMIT', secondsUntilWindowReset(active, 'requestedIp', draft.requestedIp, createdAtMs));
+          throw repositoryError('PHONE_CODE_IP_RATE_LIMIT', secondsUntilWindowReset(issuedInWindow, 'requestedIp', draft.requestedIp, createdAtMs));
         }
       }
 

@@ -33,7 +33,6 @@ export async function issuePhoneVerificationChallengeTransaction(client, draft) 
               min(created_at) filter (where requested_ip = $2::inet) as ip_window_start
        from phone_verification_challenges
        where created_at >= $3::timestamptz - interval '1 hour'
-         and delivery_status in ('pending', 'sent')
          and (phone = $1 or ($2::text is not null and requested_ip = $2::inet))`,
       [draft.phone, draft.requestedIp, draft.createdAt],
     );

@@ -71,6 +71,28 @@
 
 前端展示“今天 17:30”“明天 10:00”由前端或 BFF 转换。
 
+## 0. 手机验证码与会话
+
+### POST `/api/auth/phone/request-code`
+
+- 仅接受中国大陆 `+86` 手机号；服务端统一转换为 E.164 格式。
+- 腾讯短信模板参数顺序固定为“验证码、有效期分钟数”，配置不匹配时服务拒绝启动或发送。
+- 默认有效期 300 秒、冷却 60 秒、单手机号每小时 5 次、单 IP 每小时 20 次、最多校验 5 次；失败投递同样计入小时频率。
+- 非生产环境可使用 mock sender；生产环境必须使用 Tencent provider。运营商报备完成前不得执行真实发送。
+- 稳定错误码：`PHONE_CODE_COOLDOWN`、`PHONE_CODE_RATE_LIMIT`、`SMS_NOT_CONFIGURED`、`SMS_DELIVERY_RATE_LIMITED`、`SMS_DELIVERY_UNAVAILABLE`、`SMS_DELIVERY_FAILED`。
+
+### POST `/api/auth/phone/verify`
+
+- 验证码只存储带 Pepper 的 HMAC，不存储明文；成功后立即消费，过期、已使用和超过尝试次数均不可再次登录。
+- 新手机号默认只获得 `consumer` 角色。只有数据库中状态为 `approved` 的 companion 账号可以建立 companion session，否则返回 `403 PHONE_ROLE_NOT_AVAILABLE`。
+- 稳定错误码：`PHONE_INVALID`、`PHONE_CODE_INVALID`、`PHONE_CODE_EXPIRED`、`PHONE_CODE_ALREADY_USED`、`PHONE_CODE_ATTEMPTS_EXCEEDED`、`PHONE_ROLE_NOT_AVAILABLE`。
+
+### GET `/api/auth/session` 与 POST `/api/auth/logout`
+
+- 生产数据库持久化保存 Bearer token hash、主体、角色、登录时间、最后访问时间和固定过期时间；普通访问不会滑动延长过期时间。
+- 同一账号重新登录创建独立 session。登出只撤销当前 token；过期、已撤销、主体停用或角色资格失效的 session 返回 `401 AUTH_REQUIRED`。
+- Admin session 与公开用户角色隔离；旧 session 中的角色元数据不能绕过用户状态或 companion 审批状态。
+
 ## 1. 用户端首页图片流
 
 对应页面：

@@ -15,7 +15,8 @@ export async function upsertAuthIdentityUserTransaction(client, draft) {
               u.city,
               u.status,
               u.is_companion,
-              c.id as companion_id
+              c.id as companion_id,
+              c.status as companion_status
        from user_auth_identities i
        join users u on u.id = i.user_id
        left join companions c on c.user_id = u.id
@@ -54,7 +55,8 @@ export async function upsertAuthIdentityUserTransaction(client, draft) {
     if (draft.phone) {
       const phoneUserResult = await client.query(
         `select u.*,
-                c.id as companion_id
+                c.id as companion_id,
+                c.status as companion_status
          from users u
          left join companions c on c.user_id = u.id
          where u.phone = $1
@@ -133,6 +135,7 @@ export async function upsertAuthIdentityUserTransaction(client, draft) {
 }
 
 function normalizeUserRow(row = {}) {
+  const hasApprovedCompanion = Boolean(row.companion_id && row.companion_status === 'approved');
   return {
     id: row.id || row.user_id,
     phone: row.phone || '',
@@ -141,9 +144,9 @@ function normalizeUserRow(row = {}) {
     gender: row.gender || 'unknown',
     city: row.city || '',
     status: row.status || 'active',
-    isCompanion: Boolean(row.is_companion),
-    companionId: row.companion_id || null,
-    roles: row.is_companion ? ['consumer', 'companion'] : ['consumer'],
+    isCompanion: hasApprovedCompanion,
+    companionId: hasApprovedCompanion ? row.companion_id : null,
+    roles: hasApprovedCompanion ? ['consumer', 'companion'] : ['consumer'],
   };
 }
 

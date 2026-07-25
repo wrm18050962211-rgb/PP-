@@ -15,7 +15,7 @@ import {
   safeErrorMessage,
   validateRouteInput,
 } from './security/requestSecurity.mjs';
-import { createPhoneVerificationService, PhoneVerificationError } from './services/phoneVerification.mjs';
+import { createPhoneVerificationService, PhoneVerificationError, readPhoneVerificationConfig } from './services/phoneVerification.mjs';
 import { createTencentCosPostUploadPolicy, hasTencentCosMediaConfig } from './services/tencentCosMedia.mjs';
 import { createMockSmsSender, createTencentSmsSender, hasTencentSmsConfig } from './services/tencentSms.mjs';
 import { createDataStore } from './store/index.mjs';
@@ -26,6 +26,8 @@ const dataStore = createDataStore({ storePath, initialStore, normalizeStore });
 const port = Number(process.env.PORT || 8787);
 const appEnv = String(process.env.APP_ENV || 'development').trim().toLowerCase();
 const isProductionServerEnv = appEnv === 'production';
+const sessionTtlDays = readBoundedIntegerEnv('SESSION_TTL_DAYS', 30, 1, 90);
+const sessionTtlMs = sessionTtlDays * 24 * 60 * 60 * 1000;
 const requestSecurity = createRequestSecurity({ env: process.env });
 const phoneSmsProvider = String(process.env.PHONE_SMS_PROVIDER || (isProductionServerEnv ? 'tencent' : 'mock')).trim().toLowerCase();
 const corsAllowedOrigins = parseEnvList(process.env.CORS_ALLOWED_ORIGINS);
@@ -40,6 +42,7 @@ const phoneVerificationService = createPhoneVerificationService({
   provider: phoneSmsProvider,
   pepper: process.env.PHONE_OTP_PEPPER,
   appEnv,
+  config: readPhoneVerificationConfig(process.env),
 });
 
 if (isProductionServerEnv && corsAllowedOrigins.length === 0) {
@@ -154,7 +157,7 @@ async function route(method, url, body, store, req) {
     });
   }
   if (method === 'GET' && path === '/api/ops/launch-check') return launchCheck();
-  if (method === 'GET' && path === '/api/auth/session') return authSession(store);
+  if (method === 'GET' && path === '/api/auth/session') return authSession(store, req);
   if (method === 'POST' && path === '/api/auth/phone/request-code') return phoneRequestCode(body, req);
   if (method === 'POST' && path === '/api/auth/phone/verify') return phoneVerify(store, body, req);
   if (method === 'POST' && path === '/api/auth/wechat/login') return wechatLogin(store, body);
@@ -647,7 +650,8 @@ async function applyRequestSession(store, req) {
   return store.activeSession;
 }
 
-function authSession(store) {
+function authSession(store, req) {
+  if (getBearerToken(req) && !store.activeSession?.role) return error(401, 'AUTH_REQUIRED', 'Authentication is required');
   if (!store.activeSession?.role && (dataStore.kind !== 'json' || !isTestRoleSwitchAllowed())) return error(401, 'AUTH_REQUIRED', 'Authentication is required');
   const session = store.activeSession?.role ? refreshSession(store, store.activeSession) : createSession(store, 'consumer');
   return json(saveSession(store, session), 200, dataStore.kind === 'json');
@@ -821,20 +825,23 @@ function createSession(store, role, existingUser = null, options = {}) {
   const userRoles = Array.isArray(existingUser?.roles) && existingUser.roles.length ? existingUser.roles : rolesForSessionRole(role);
   const session = {
     token: options.token || buildSessionToken(role, existingUser),
-    provider: existingUser?.openId ? 'wechat' : existingUser?.phone ? 'phone' : 'mock_wechat',
+    provider: options.provider || (existingUser?.openId ? 'wechat' : existingUser?.phone ? 'phone' : 'mock_wechat'),
     role,
     roles: role === 'admin' ? ['admin'] : Array.from(new Set(['consumer', ...userRoles.filter((item) => item === 'companion')])),
     user,
     companionId,
     adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
     loginAt: options.loginAt || now(),
+    expiresAt: options.expiresAt || new Date(Date.now() + sessionTtlMs).toISOString(),
   };
   return session;
 }
 
 function resolveSessionCompanionId(store, requestedCompanionId) {
-  if (requestedCompanionId && store.companions.some((item) => item.id === requestedCompanionId)) return requestedCompanionId;
-  return store.companions[0]?.id || null;
+  if (requestedCompanionId && store.companions.some((item) => item.id === requestedCompanionId && item.status === 'approved')) {
+    return requestedCompanionId;
+  }
+  return store.companions.find((item) => item.status === 'approved')?.id || null;
 }
 
 function ensureActiveSession(store, fallbackRole = 'consumer') {
@@ -847,6 +854,8 @@ function ensureActiveSession(store, fallbackRole = 'consumer') {
     companionId: store.activeSession?.companionId,
     token: store.activeSession?.token,
     loginAt: store.activeSession?.loginAt,
+    expiresAt: store.activeSession?.expiresAt,
+    provider: store.activeSession?.provider,
   });
   return saveSession(store, session);
 }
@@ -955,6 +964,8 @@ function refreshSession(store, session) {
     companionId: session.companionId,
     token: session.token,
     loginAt: session.loginAt,
+    expiresAt: session.expiresAt,
+    provider: session.provider,
   });
 }
 
@@ -963,7 +974,7 @@ function saveSession(store, session) {
   const storedSession = {
     ...session,
     updatedAt: now(),
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: session.expiresAt || new Date(Date.now() + sessionTtlMs).toISOString(),
   };
   const index = store.sessions.findIndex((item) => item.token === storedSession.token);
   if (index >= 0) store.sessions[index] = storedSession;
@@ -975,11 +986,21 @@ function saveSession(store, session) {
 function findStoredSession(store, token) {
   const session = store.sessions?.find((item) => item.token === token);
   if (!session) return null;
-  if (session.expiresAt && new Date(session.expiresAt).getTime() < Date.now()) {
+  if (!isStoredSessionPrincipalActive(store, session) || (session.expiresAt && new Date(session.expiresAt).getTime() < Date.now())) {
     revokeSession(store, token);
     return null;
   }
   return session;
+}
+
+function isStoredSessionPrincipalActive(store, session) {
+  if (session.role === 'admin') return session.user?.status === 'active';
+  if (!session.user || session.user.status !== 'active') return false;
+  if (session.role !== 'companion') return true;
+  const companion = store.companions.find((item) => item.id === session.companionId && item.status === 'approved');
+  if (!companion) return false;
+  if (session.provider === 'mock_wechat' && isTestRoleSwitchAllowed()) return true;
+  return companion.userId === session.user.id;
 }
 
 function revokeSession(store, token) {
@@ -1071,7 +1092,7 @@ function ensurePhoneUser(store, phone) {
     };
     store.users.push(user);
   }
-  const companion = store.companions.find((item) => item.userId === user.id);
+  const companion = store.companions.find((item) => item.userId === user.id && item.status === 'approved');
   user.phone = phone;
   user.companionId = companion?.id || user.companionId || null;
   user.isCompanion = Boolean(user.companionId);
@@ -3872,6 +3893,15 @@ function isLaunchEnvConfigured(name) {
   if (name === 'WECHAT_PAY_PRIVATE_KEY') return Boolean(process.env.WECHAT_PAY_PRIVATE_KEY || process.env.WECHAT_PAY_PRIVATE_KEY_PATH);
   if (name === 'WECHAT_PAY_PLATFORM_PUBLIC_KEY') return Boolean(process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY || process.env.WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH);
   return Boolean(process.env[name]);
+}
+
+function readBoundedIntegerEnv(name, fallback, minimum, maximum) {
+  const raw = String(process.env[name] ?? '').trim();
+  const value = raw ? Number(raw) : fallback;
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return value;
 }
 
 function actionLabel(actionType) {

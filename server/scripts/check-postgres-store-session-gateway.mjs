@@ -63,11 +63,38 @@ assert(!foundAdminSession.roles.includes('consumer') && !foundAdminSession.roles
 assert(foundAdminSession.adminScope.includes('risk'), 'find gateway maps admin scope from metadata');
 assert(pool.clients[4].released === true, 'find admin gateway releases client');
 
+const pendingConsumerSession = await store.sessionWrites.findByToken('raw-pending-consumer-token');
+assert(pendingConsumerSession.role === 'consumer', 'pending companion keeps consumer session role');
+assert(pendingConsumerSession.roles.length === 1 && pendingConsumerSession.roles[0] === 'consumer', 'stale companion metadata is ignored');
+assert(pendingConsumerSession.companionId === null, 'pending companion is not attached to the session');
+
+const inactiveUserSession = await store.sessionWrites.findByToken('raw-inactive-user-token');
+assert(inactiveUserSession === null, 'inactive user session is rejected');
+
+const inactiveAdminSession = await store.sessionWrites.findByToken('raw-inactive-admin-token');
+assert(inactiveAdminSession === null, 'inactive admin session is rejected');
+
+const pendingCompanionSession = await store.sessionWrites.findByToken('raw-pending-companion-token');
+assert(pendingCompanionSession === null, 'pending companion session is rejected');
+
 console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['session-write-capability', 'create-session-gateway', 'touch-session-gateway', 'revoke-session-gateway', 'find-user-session-gateway', 'find-admin-session-gateway', 'admin-role-isolation', 'client-release'],
+      checks: [
+        'session-write-capability',
+        'create-session-gateway',
+        'touch-session-gateway',
+        'revoke-session-gateway',
+        'find-user-session-gateway',
+        'find-admin-session-gateway',
+        'admin-role-isolation',
+        'pending-companion-role-boundary',
+        'inactive-user-rejection',
+        'inactive-admin-rejection',
+        'stale-companion-session-rejection',
+        'client-release',
+      ],
       clientCount: pool.clients.length,
     },
     null,
@@ -124,6 +151,49 @@ function sessionRowForTokenHash(tokenHash) {
     };
   }
 
+  if (tokenHash === hashSessionToken('raw-pending-consumer-token')) {
+    return {
+      ...activeUserSessionRow(),
+      session_role: 'consumer',
+      metadata: { roles: ['consumer', 'companion'] },
+      companion_status: 'pending_review',
+    };
+  }
+  if (tokenHash === hashSessionToken('raw-inactive-user-token')) {
+    return {
+      ...activeUserSessionRow(),
+      session_role: 'consumer',
+      user_status: 'banned',
+    };
+  }
+  if (tokenHash === hashSessionToken('raw-inactive-admin-token')) {
+    return {
+      session_id: '00000000-0000-4000-8000-000000000606',
+      session_scope: 'admin',
+      session_role: 'admin',
+      provider: 'password',
+      metadata: {},
+      login_at: new Date('2026-07-08T09:00:00.000Z'),
+      last_seen_at: new Date('2026-07-08T10:00:00.000Z'),
+      expires_at: new Date('2026-08-08T09:00:00.000Z'),
+      admin_id: '00000000-0000-4000-8000-000000000604',
+      admin_username: 'ops',
+      admin_name: 'Ops Admin',
+      admin_status: 'disabled',
+      companion_id: null,
+    };
+  }
+  if (tokenHash === hashSessionToken('raw-pending-companion-token')) {
+    return {
+      ...activeUserSessionRow(),
+      companion_status: 'pending_review',
+    };
+  }
+
+  return activeUserSessionRow();
+}
+
+function activeUserSessionRow() {
   return {
     session_id: ids.sessionId,
     session_scope: 'user',
@@ -141,6 +211,7 @@ function sessionRowForTokenHash(tokenHash) {
     user_status: 'active',
     is_companion: true,
     companion_id: ids.companionId,
+    companion_status: 'approved',
   };
 }
 

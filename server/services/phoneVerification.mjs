@@ -20,6 +20,16 @@ export class PhoneVerificationError extends Error {
   }
 }
 
+export function readPhoneVerificationConfig(env = process.env) {
+  return {
+    expiresInSeconds: readBoundedInteger(env, 'PHONE_OTP_EXPIRES_SECONDS', phoneVerificationDefaults.expiresInSeconds, 60, 600),
+    cooldownSeconds: readBoundedInteger(env, 'PHONE_OTP_COOLDOWN_SECONDS', phoneVerificationDefaults.cooldownSeconds, 30, 300),
+    phoneHourlyLimit: readBoundedInteger(env, 'PHONE_OTP_PHONE_HOURLY_LIMIT', phoneVerificationDefaults.phoneHourlyLimit, 1, 20),
+    ipHourlyLimit: readBoundedInteger(env, 'PHONE_OTP_IP_HOURLY_LIMIT', phoneVerificationDefaults.ipHourlyLimit, 1, 100),
+    maxAttempts: readBoundedInteger(env, 'PHONE_OTP_MAX_ATTEMPTS', phoneVerificationDefaults.maxAttempts, 3, 10),
+  };
+}
+
 export function createPhoneVerificationService({
   repository,
   sender,
@@ -34,9 +44,12 @@ export function createPhoneVerificationService({
   if (!sender || typeof sender.sendVerificationCode !== 'function') {
     throw new Error('Phone verification sender is required.');
   }
-  const settings = { ...phoneVerificationDefaults, ...config };
+  const settings = normalizeSettings({ ...phoneVerificationDefaults, ...config });
   const normalizedProvider = normalizeProvider(provider);
   const normalizedAppEnv = String(appEnv || 'development').trim().toLowerCase();
+  if (normalizedAppEnv === 'production' && normalizedProvider !== 'tencent') {
+    throw new Error('Production phone verification requires PHONE_SMS_PROVIDER=tencent.');
+  }
   const hashPepper = String(pepper || '').trim();
   if (!hashPepper && normalizedAppEnv === 'production') {
     throw new Error('PHONE_OTP_PEPPER is required in production.');
@@ -101,7 +114,13 @@ export function createPhoneVerificationService({
           failureCode: String(error?.code || 'SMS_DELIVERY_FAILED').slice(0, 80),
         });
         if (error?.code === 'SMS_NOT_CONFIGURED') {
-          throw new PhoneVerificationError('SMS_NOT_CONFIGURED', error.message, 501);
+          throw new PhoneVerificationError('SMS_NOT_CONFIGURED', 'SMS delivery is not configured.', 501);
+        }
+        if (error?.code === 'SMS_PROVIDER_RATE_LIMITED') {
+          throw new PhoneVerificationError('SMS_DELIVERY_RATE_LIMITED', 'Verification messages are temporarily rate limited.', 429);
+        }
+        if (error?.code === 'SMS_PROVIDER_UNAVAILABLE') {
+          throw new PhoneVerificationError('SMS_DELIVERY_UNAVAILABLE', 'Verification message delivery is temporarily unavailable.', 503);
         }
         throw new PhoneVerificationError('SMS_DELIVERY_FAILED', 'Verification message could not be sent. Please try again later.', 502);
       }
@@ -212,4 +231,28 @@ function normalizePurpose(purpose) {
 function normalizeIp(ip) {
   const value = String(ip || '').trim();
   return value || null;
+}
+
+function normalizeSettings(settings) {
+  return {
+    ...settings,
+    codeDigits: boundedInteger(settings.codeDigits, 'codeDigits', 6, 6),
+    expiresInSeconds: boundedInteger(settings.expiresInSeconds, 'expiresInSeconds', 60, 600),
+    cooldownSeconds: boundedInteger(settings.cooldownSeconds, 'cooldownSeconds', 30, 300),
+    phoneHourlyLimit: boundedInteger(settings.phoneHourlyLimit, 'phoneHourlyLimit', 1, 20),
+    ipHourlyLimit: boundedInteger(settings.ipHourlyLimit, 'ipHourlyLimit', 1, 100),
+    maxAttempts: boundedInteger(settings.maxAttempts, 'maxAttempts', 3, 10),
+  };
+}
+
+function readBoundedInteger(env, name, fallback, minimum, maximum) {
+  const raw = String(env[name] ?? '').trim();
+  return boundedInteger(raw ? Number(raw) : fallback, name, minimum, maximum);
+}
+
+function boundedInteger(value, name, minimum, maximum) {
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return value;
 }

@@ -23,6 +23,8 @@ const issueClient = createIssueClient();
 await issuePhoneVerificationChallengeTransaction(issueClient, challenge);
 assert(issueClient.calls[0].sql === 'begin', 'issue transaction begins');
 assert(issueClient.calls.some((call) => /pg_advisory_xact_lock/i.test(call.sql)), 'issue transaction locks phone and purpose');
+const countCall = issueClient.calls.find((call) => /count\(\*\) filter/i.test(call.sql));
+assert(countCall && !/delivery_status in/i.test(countCall.sql), 'hourly limits include failed delivery attempts');
 const insertCall = issueClient.calls.find((call) => /insert into phone_verification_challenges/i.test(call.sql));
 assert(insertCall, 'challenge is inserted');
 assert(insertCall.params.includes('hash-123456'), 'only the code hash is stored');
@@ -53,7 +55,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['transaction-lock', 'hash-only-storage', 'delivery-status', 'consume-on-verify'],
+      checks: ['transaction-lock', 'failed-delivery-frequency', 'hash-only-storage', 'delivery-status', 'consume-on-verify'],
     },
     null,
     2,

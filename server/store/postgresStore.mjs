@@ -218,7 +218,8 @@ async function findSessionByToken(client, token) {
             a.name as admin_name,
             a.role as admin_role,
             a.status as admin_status,
-            coalesce(s.companion_id, c.id) as companion_id
+            coalesce(s.companion_id, c.id) as companion_id,
+            c.status as companion_status
      from user_sessions s
      left join users u on u.id = s.user_id
      left join admin_users a on a.id = s.admin_id
@@ -230,13 +231,16 @@ async function findSessionByToken(client, token) {
     [tokenHash],
   );
   const row = result.rows?.[0];
-  return row ? mapSessionRow(row, token) : null;
+  if (!row || !isSessionPrincipalActive(row)) return null;
+  return mapSessionRow(row, token);
 }
 
 function mapSessionRow(row, token) {
   const metadata = normalizeJsonObject(row.metadata);
   const role = row.session_role || (row.session_scope === 'admin' ? 'admin' : 'consumer');
   const isAdmin = row.session_scope === 'admin' || role === 'admin';
+  const hasApprovedCompanion = Boolean(row.companion_id && row.companion_status === 'approved');
+  const publicRoles = hasApprovedCompanion ? ['consumer', 'companion'] : ['consumer'];
   const user = isAdmin
     ? {
         id: row.admin_id,
@@ -255,8 +259,8 @@ function mapSessionRow(row, token) {
         gender: row.gender || 'unknown',
         city: row.city || '',
         status: row.user_status || 'active',
-        isCompanion: Boolean(row.is_companion),
-        roles: metadata.roles || (role === 'companion' ? ['consumer', 'companion'] : ['consumer']),
+        isCompanion: hasApprovedCompanion,
+        roles: publicRoles,
       };
 
   return {
@@ -264,9 +268,9 @@ function mapSessionRow(row, token) {
     token,
     provider: row.provider || null,
     role,
-    roles: isAdmin ? ['admin'] : metadata.roles || (role === 'companion' ? ['consumer', 'companion'] : ['consumer']),
+    roles: isAdmin ? ['admin'] : publicRoles,
     user,
-    companionId: isAdmin ? null : row.companion_id || row.session_companion_id || null,
+    companionId: isAdmin || !hasApprovedCompanion ? null : row.companion_id || row.session_companion_id || null,
     adminId: isAdmin ? row.admin_id || row.session_admin_id || null : null,
     adminScope: isAdmin ? metadata.adminScope || ['audit', 'orders', 'risk', 'finance'] : [],
     mode: metadata.mode || null,
@@ -274,6 +278,17 @@ function mapSessionRow(row, token) {
     updatedAt: toIsoString(row.last_seen_at),
     expiresAt: toIsoString(row.expires_at),
   };
+}
+
+function isSessionPrincipalActive(row) {
+  const role = row.session_role || (row.session_scope === 'admin' ? 'admin' : 'consumer');
+  const isAdmin = row.session_scope === 'admin' || role === 'admin';
+  if (isAdmin) return Boolean(row.admin_id) && row.admin_status === 'active';
+  if (!row.user_id || row.user_status !== 'active') return false;
+  if (role === 'companion') {
+    return Boolean(row.companion_id) && row.companion_status === 'approved';
+  }
+  return true;
 }
 
 function normalizeJsonObject(value) {

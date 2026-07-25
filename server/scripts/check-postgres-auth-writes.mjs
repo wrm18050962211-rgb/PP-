@@ -59,8 +59,33 @@ const phoneUser = await upsertAuthIdentityUserTransaction(phoneUserClient, {
 const phoneUserSql = phoneUserClient.calls.map((call) => call.sql);
 assert(phoneUser.id === ids.existingUserId, 'phone identity attaches to existing phone user');
 assert(!phoneUserSql.some((sql) => /insert into users/i.test(sql)), 'existing phone user is not duplicated');
+assert(phoneUser.roles.length === 1 && phoneUser.roles[0] === 'consumer', 'phone user without an approved companion keeps consumer role');
 const phoneIdentityInsert = phoneUserClient.calls.find((call) => /insert into user_auth_identities/i.test(call.sql));
 assert(phoneIdentityInsert?.params[1] === ids.existingUserId, 'phone identity references existing user');
+
+const pendingCompanionClient = createMockClient({ existing: false, phoneExisting: true, companionStatus: 'pending_review' });
+const pendingCompanionUser = await upsertAuthIdentityUserTransaction(pendingCompanionClient, {
+  userId: ids.userId,
+  identityId: ids.identityId,
+  provider: 'phone',
+  providerUserId: '13900139000',
+  phone: '13900139000',
+  loginAt: '2026-07-08T11:30:00.000Z',
+});
+assert(!pendingCompanionUser.isCompanion, 'pending companion application does not grant companion identity');
+assert(!pendingCompanionUser.roles.includes('companion'), 'pending companion application does not grant companion role');
+
+const approvedCompanionClient = createMockClient({ existing: false, phoneExisting: true, companionStatus: 'approved' });
+const approvedCompanionUser = await upsertAuthIdentityUserTransaction(approvedCompanionClient, {
+  userId: ids.userId,
+  identityId: ids.identityId,
+  provider: 'phone',
+  providerUserId: '13700137000',
+  phone: '13700137000',
+  loginAt: '2026-07-08T11:45:00.000Z',
+});
+assert(approvedCompanionUser.isCompanion, 'approved companion account grants companion identity');
+assert(approvedCompanionUser.roles.includes('companion'), 'approved companion account grants companion role');
 
 await assertRejects(
   () => upsertAuthIdentityUserTransaction(createMockClient({ existing: false }), { provider: 'wechat' }),
@@ -72,7 +97,15 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['create-auth-user', 'create-auth-identity', 'update-existing-auth-user', 'attach-existing-phone-user', 'missing-required-field'],
+      checks: [
+        'create-auth-user',
+        'create-auth-identity',
+        'update-existing-auth-user',
+        'attach-existing-phone-user',
+        'pending-companion-role-boundary',
+        'approved-companion-role',
+        'missing-required-field',
+      ],
       createQueryCount: createClient.calls.length,
       existingQueryCount: existingClient.calls.length,
     },
@@ -81,7 +114,7 @@ console.log(
   ),
 );
 
-function createMockClient({ existing, phoneExisting = false }) {
+function createMockClient({ existing, phoneExisting = false, companionStatus = null }) {
   const calls = [];
   return {
     calls,
@@ -100,7 +133,9 @@ function createMockClient({ existing, phoneExisting = false }) {
                   gender: 'unknown',
                   city: 'Shanghai',
                   status: 'active',
-                  is_companion: false,
+                  is_companion: Boolean(companionStatus),
+                  companion_id: companionStatus ? ids.userId : null,
+                  companion_status: companionStatus,
                 },
               ]
             : [],
@@ -118,8 +153,9 @@ function createMockClient({ existing, phoneExisting = false }) {
                   gender: 'unknown',
                   city: 'Shanghai',
                   status: 'active',
-                  is_companion: false,
-                  companion_id: null,
+                  is_companion: Boolean(companionStatus),
+                  companion_id: companionStatus ? ids.userId : null,
+                  companion_status: companionStatus,
                 },
               ]
             : [],
