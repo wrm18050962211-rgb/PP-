@@ -6,7 +6,7 @@
 
 ## 0. 当前基线与固定决策
 
-- Roadmap version: 1
+- Roadmap version: 2
 - Current integration baseline: `6588247c29b2082d310cc96fe110ab67866337f4`
 - Integration branch: `codex/integration`
 - Windows branch: `codex/vertical-db-api`
@@ -106,6 +106,38 @@ API、数据或环境变化：
 对方下一步：
 重点回归：
 ```
+
+### 0.7 基础运维 P0 固定决策
+
+Still 的对外 API、官网、Admin、TestFlight 或 App Store 版本一旦可访问，以下九项即为 P0 发布门槛：
+
+1. 使用生产系统之外的外部监控持续检查可用性，并接入 iOS 崩溃上报。
+2. 生产账号遵循最小权限；AI 不持有长期 root/SSH 权限、生产密钥或数据库管理员凭据。
+3. PostgreSQL 和对象存储具备自动备份、故障域分离副本和实际恢复演练。
+4. 域名、DNS、HTTPS 证书和政策 URL 有负责人、自动续费/续期及 30/14/7 天提醒。
+5. 云资源、短信、地图、存储、监控等 Provider 有预算、配额和 50%/80%/100% 账单告警。
+6. 禁止在线编辑生产源码；发布使用不可变版本，变更前知道回滚版本和验证方法。
+7. Git 是代码、迁移、部署脚本和非敏感 Runbook 的唯一来源；每个发布版本记录完整 commit SHA。
+8. AI 可以生成运维清单，但清单必须经人审阅，真实云状态必须用监控、控制台或恢复结果验证。
+9. 明确主要/备用负责人、告警时限、事故分级、发布观察窗口，并完成测试告警、应用回滚和数据库恢复演练。
+
+责任映射：
+
+- Windows：`WIN-DELIVERY-1`、`WIN-OBS-1`、`WIN-BACKUP-1`。
+- Mac/iOS：`IOS-CRASH-1`。
+- User/External：`EXT-CLOUD-1`、`EXT-COST-1`、`EXT-DOMAIN-1`、`EXT-OBS-1`、`EXT-RUNBOOK-1`。
+- Integration：`INT-OPS-1`。
+
+推荐推进顺序：
+
+1. User/External 先完成 `EXT-CLOUD-1`、`EXT-DOMAIN-1`，并并行推进 `EXT-COMPLIANCE-1`。
+2. 云资源和合规条件满足后完成 `EXT-COST-1`、`EXT-OBS-1`。
+3. Windows 完成 `WIN-DELIVERY-1`，再并行推进 `WIN-OBS-1`、`WIN-BACKUP-1`。
+4. Mac/iOS 在 `WIN-DELIVERY-1` 与 `EXT-OBS-1` 完成后推进 `IOS-CRASH-1`。
+5. User/External 汇总负责人、权限和清单，完成 `EXT-RUNBOOK-1`。
+6. Integration 最后执行 `INT-OPS-1` 联合演练，通过后才能形成 `INT-RC-1`。
+
+`INT-OPS-1` 未完成时，`INT-RC-1` 不得开始；不能用“仍在内测”“用户还少”或“systemd 会自动重启”跳过本节。
 
 ---
 
@@ -309,19 +341,47 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过。
 - Notes: 业务函数保留角色与资源归属二次保护；生产未知异常只返回 request ID，不回传内部错误。当前进程内限流覆盖单实例和敏感端点，多实例统一配额与边缘限流由 `WIN-DELIVERY-1` 在部署层补齐；支付回调支持当前/上一把 API v3 密钥和平台公钥的短期轮换窗口。未手工修改 `pp-app/ios/**`。
 
-### WIN-DELIVERY-1 环境、CI/CD、监控和恢复
+### WIN-DELIVERY-1 环境、不可变发布和回滚
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-SEC-1`, `EXT-CLOUD-1`, `EXT-DOMAIN-1`
-- Scope: 建立 dev/staging/production 分层、自动部署、回滚、后端告警、数据库备份和恢复演练。
-- Acceptance criteria: staging 与 production 密钥/数据库隔离；部署可回滚；健康检查和 launch-check 可用；关键错误有告警；备份可实际恢复；CI 覆盖 server、PostgreSQL、mobile 和 Admin。
-- Shared files: `.github/workflows/**`, `server/.env.example`, `docs/APP_STORE_LAUNCH.md`
-- Unblock result: 提供 staging/production 地址、部署 SHA、回滚和恢复结果、告警验证，解除 `IOS-CRASH-1`、`IOS-STORE-1` 的后端发布依赖。
+- Scope: 建立 dev/staging/production 分层、CI 质量门、按 Git commit 构建的不可变发布、版本切换、健康验证和应用回滚；禁止在线编辑生产源码。
+- Acceptance criteria: staging 与 production 密钥/数据库隔离；发布物记录完整 commit SHA、构建时间和迁移版本；生产使用独立低权限运行账号；新旧版本目录可切换；`/api/health` 和 `/api/ops/launch-check` 可用；失败可回滚上一版本；发布步骤不依赖服务器内手工改源码；CI 覆盖 server、PostgreSQL、mobile 和 Admin。
+- Shared files: `.github/workflows/**`, `deploy/**`, `server/.env.example`, `docs/APP_STORE_LAUNCH.md`
+- Unblock result: 提供 staging/production 非敏感地址、部署 SHA、发布记录、回滚结果和健康检查，解除 `WIN-OBS-1`、`WIN-BACKUP-1`、`IOS-CRASH-1` 的部署依赖。
 - Result commit: pending
 - Verification: pending
-- Notes: `.env` 和真实凭据禁止提交。
+- Notes: `.env` 和真实凭据禁止提交；应用回滚不等于数据库回滚，不可逆迁移必须单独确认。
+
+### WIN-OBS-1 后端可观测性和告警信号
+
+- Priority: P0
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-DELIVERY-1`, `EXT-OBS-1`
+- Scope: 提供外部探测需要的健康信号、结构化日志、版本标识和关键故障告警，不把 systemd 自动重启当作监控。
+- Acceptance criteria: 健康检查覆盖 API、store driver 和必要依赖但不泄露敏感信息；日志包含 request ID、环境、版本和稳定错误码；连续 5xx、数据库不可用、维护任务失败、支付/退款回调失败、磁盘或容量阈值可触发告警；测试事件能到达主要和备用负责人；日志与告警不含 token、手机号、密钥、支付或聊天明文。
+- Shared files: `server/**`, `deploy/**`, `server/.env.example`, `database/API_CONTRACT.md`
+- Unblock result: 提供测试告警、脱敏事件样例、版本映射和 commit SHA，解除 `INT-OPS-1` 的后端观测依赖。
+- Result commit: pending
+- Verification: pending
+- Notes: 监控 Provider 账号、通知联系人和数据区域由 `EXT-OBS-1` 确认。
+
+### WIN-BACKUP-1 备份、迁移保护和恢复
+
+- Priority: P0
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-DELIVERY-1`, `EXT-CLOUD-1`
+- Scope: 固化 PostgreSQL 和对象存储备份要求、迁移前恢复点、隔离恢复步骤、数据校验与恢复记录。
+- Acceptance criteria: 明确首发 RPO/RTO 和保留周期；至少一份备份与生产实例故障域分离；高风险 migration 前创建恢复点并记录版本；从备份恢复到隔离环境后，用户、订单、支付、消息和审计关键数据校验通过；COS/OSS 误删或覆盖有恢复方法；恢复过程不写入或破坏生产。
+- Shared files: `database/**`, `server/**`, `.github/workflows/**`, 非敏感恢复 Runbook
+- Unblock result: 提供脱敏备份策略、隔离恢复结果、数据校验和 commit SHA，解除 `INT-OPS-1` 的数据恢复依赖。
+- Result commit: pending
+- Verification: pending
+- Notes: 数据库备份、导出文件、连接串和真实内部地址禁止进入 Git。
 
 ### WIN-NOTIFY-1 站内通知与可靠任务
 
@@ -629,10 +689,10 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-DELIVERY-1`, `EXT-OBS-1`
-- Scope: 接入 iOS 崩溃上报、版本标识、基础网络错误上下文和隐私脱敏。
-- Acceptance criteria: staging 可验证测试崩溃；事件包含版本和环境但不含敏感数据；发布版本可追踪到 commit。
+- Scope: 接入 iOS 崩溃、启动失败和基础网络错误上报，建立环境、App version、build number、后端 request ID 与 Git commit 的诊断关联。
+- Acceptance criteria: staging 可验证测试崩溃和 API 失败事件；事件包含环境、App version、build number、commit 和必要 request ID，但不含 token、手机号、支付字段、聊天明文或本地图片；采样、离线缓存和发送失败行为明确；发布版本可追踪到唯一 commit；测试事件到达主要和备用负责人。
 - Shared files: iOS 配置、客户端启动入口、环境配置
-- Unblock result: 提供测试事件、版本映射、隐私检查和 commit SHA，解除 `IOS-DELIVERY-1`。
+- Unblock result: 提供测试事件、版本映射、隐私检查和 commit SHA，解除 `IOS-DELIVERY-1`、`INT-OPS-1`。
 - Result commit: pending
 - Verification: pending
 - Notes: SDK 和数据区域由外部资源节点确认。
@@ -895,14 +955,28 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Verification: pending
 - Notes: pending
 
+### INT-OPS-1 基础运维联合验收
+
+- Priority: P0
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `WIN-DELIVERY-1`, `WIN-OBS-1`, `WIN-BACKUP-1`, `IOS-CRASH-1`, `EXT-CLOUD-1`, `EXT-COST-1`, `EXT-DOMAIN-1`, `EXT-OBS-1`, `EXT-RUNBOOK-1`
+- Scope: 对外部监控、崩溃诊断、版本追溯、生产权限、账单/配额、域名/证书、应用回滚、数据库恢复和事故响应执行联合验收。
+- Acceptance criteria: 从生产系统之外触发一次 API/HTTPS 告警并由主要或备用负责人确认；iOS 测试崩溃可追溯到 build 和 commit；生产版本可追溯到 Integration SHA 且未在线改源码；上一应用版本回滚后健康检查通过；备份在隔离环境恢复并完成关键数据校验；域名/证书 30/14/7 天提醒和 Provider 50%/80%/100% 账单告警有脱敏配置证据；AI 无长期生产凭据；日/周/月清单、事故分级、联系人和发布观察窗口已由人审阅。
+- Shared files: Release/运维文档、全仓库候选版本、非敏感验证记录
+- Unblock result: 提供 Integration SHA、测试告警、应用回滚、数据库恢复、版本映射和负责人确认，解除 `INT-RC-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 不在仓库保存监控联系人、云账号、备份文件、密钥或真实内部地址；演练不得破坏生产数据。
+
 ### INT-RC-1 P0 Release Candidate
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/integration`
-- Depends on: `INT-AUTH-1`, `INT-MAP-1`, `INT-DATA-1`, `INT-MEDIA-1`, `INT-PAY-1`, `INT-COMPLIANCE-1`, `IOS-QA-1`, `WIN-DELIVERY-1`
+- Depends on: `INT-AUTH-1`, `INT-MAP-1`, `INT-DATA-1`, `INT-MEDIA-1`, `INT-PAY-1`, `INT-COMPLIANCE-1`, `INT-OPS-1`, `IOS-QA-1`
 - Scope: 形成首个完整 P0 Release Candidate。
-- Acceptance criteria: server MVP、真实 PostgreSQL、mobile/admin build、production guards、Capacitor sync、Xcode Release、核心真机流程和上线检查全部通过。
+- Acceptance criteria: server MVP、真实 PostgreSQL、mobile/admin build、production guards、Capacitor sync、Xcode Release、核心真机流程和上线检查全部通过；运维联合验收结果仍有效。
 - Shared files: 全仓库候选版本
 - Unblock result: 提供 RC SHA、验证清单、已知非阻断问题，解除 `INT-TESTFLIGHT-1`。
 - Result commit: pending
@@ -916,7 +990,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Owner branch: `codex/integration`
 - Depends on: `INT-RC-1`, `IOS-DELIVERY-1`
 - Scope: 对 TestFlight 构建执行完整真机和真实交易回归。
-- Acceptance criteria: 安装、升级、登录、地图、数据、媒体、聊天、订单、支付、退款、客服和删除账号通过。
+- Acceptance criteria: 安装、升级、登录、地图、数据、媒体、聊天、订单、支付、退款、客服和删除账号通过；测试期间崩溃、5xx、支付、短信、数据库和延迟信号可观察，异常能关联 build、commit 和 request ID。
 - Shared files: Release 文档
 - Unblock result: 提供 TestFlight build、回归结果和 release SHA，解除 `IOS-STORE-1`、P2/P3 评审条件。
 - Result commit: pending
@@ -1019,13 +1093,27 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Status: in_progress
 - Owner branch: User/External
 - Depends on: none
-- Scope: 准备正式 PostgreSQL、COS/CDN、备份、网络和最小权限账号。
-- Acceptance criteria: staging/production 资源隔离；数据库连接、COS 上传、备份和恢复可验证；费用和告警配置完成。
+- Scope: 准备正式 PostgreSQL、COS/CDN、自动备份、故障域分离副本、网络和最小权限账号。
+- Acceptance criteria: staging/production 资源、密钥和数据库隔离；数据库连接与 COS 上传可验证；PostgreSQL 自动备份保留周期明确；至少一份备份与生产实例故障域分离；COS/OSS 版本控制、生命周期或等价误删保护已配置；提供隔离恢复窗口；业务服务不用数据库 root/admin 账号。
 - Shared files: 无
-- Unblock result: 提供资源已配置确认、非敏感地址和验证窗口，解除 `WIN-MEDIA-1`、`WIN-DELIVERY-1`。
+- Unblock result: 提供资源已配置确认、非敏感地址、备份策略和隔离恢复窗口，解除 `WIN-MEDIA-1`、`WIN-DELIVERY-1`、`WIN-BACKUP-1`。
 - Result commit: not applicable
 - Verification: `cloudDatabaseTrialReady: true`；正式 COS、备份恢复和生产隔离仍待完成。
-- Notes: Secret 通过云密钥管理。
+- Notes: Secret 通过云密钥管理；同一服务器上的数据库文件副本不视为异地备份。
+
+### EXT-COST-1 预算、配额和账单预警
+
+- Priority: P0
+- Status: pending
+- Owner branch: User/External
+- Depends on: `EXT-CLOUD-1`
+- Scope: 为云服务器、PostgreSQL、COS/CDN、短信、地图、监控和其他已启用 Provider 建立预算、配额、通知联系人和月度复核。
+- Acceptance criteria: 已登记各 Provider 的计费方式、免费额度、预算和负责人；配置 50%/80%/100% 预算告警并通知主要和备用负责人；适用服务配置安全硬配额、限流或异常调用保护；明确超预算后的处置顺序；数据库和支付回调不因粗暴自动停机而损坏状态；完成一次测试通知或控制台告警验证。
+- Shared files: 仅保存非敏感预算规则和 Provider 清单，不保存账号、账单或联系人隐私
+- Unblock result: 提供脱敏预算/配额矩阵和告警验证，解除 `EXT-RUNBOOK-1`、`INT-OPS-1`。
+- Result commit: not applicable
+- Verification: pending
+- Notes: 新增 Provider 时必须回到本节点补预算和告警，不得默认无限额度。
 
 ### EXT-PAY-1 支付商户、证书和 iOS 方案
 
@@ -1047,10 +1135,10 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Status: in_progress
 - Owner branch: User/External
 - Depends on: none
-- Scope: 准备 API、Admin、隐私政策、用户协议、支付说明和退款规则的正式 HTTPS URL。
-- Acceptance criteria: URL 可从公网和真机访问；证书有效；Admin 与 API 域名隔离；政策 URL 长期稳定。
+- Scope: 准备并持续管理 API、Admin、官网、隐私政策、用户协议、支付说明和退款规则的正式域名、DNS 与 HTTPS 生命周期。
+- Acceptance criteria: URL 可从公网和真机访问；证书有效且自动续期任务已验证；域名使用公司主体管理并开启自动续费；域名和证书配置 30/14/7 天到期提醒并通知主要/备用负责人；Admin 与 API 域名隔离；政策 URL 长期稳定；DNS/证书变更先在 staging 或安全窗口验证。
 - Shared files: 只向代码侧提供正式 URL
-- Unblock result: 提供 URL 和证书检查结果，解除 `WIN-ADMIN-1`、`WIN-DELIVERY-1`、`IOS-COMPLIANCE-1`。
+- Unblock result: 提供 URL、证书检查、续期任务和到期告警结果，解除 `WIN-ADMIN-1`、`WIN-DELIVERY-1`、`IOS-COMPLIANCE-1`、`EXT-RUNBOOK-1`。
 - Result commit: not applicable
 - Verification: API `https://api.weareinframe.com` 已存在；Admin 和政策 URL 仍待确认。
 - Notes: pending
@@ -1103,13 +1191,27 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Status: pending
 - Owner branch: User/External
 - Depends on: `EXT-COMPLIANCE-1`
-- Scope: 选择后端监控和 iOS 崩溃上报服务，确认数据区域、保留期和隐私条款。
-- Acceptance criteria: staging/production 项目隔离；密钥管理完成；隐私披露覆盖；测试事件可验证。
+- Scope: 选择独立于生产服务器的外部可用性监控、后端告警和 iOS 崩溃上报服务，确认数据区域、保留期、通知渠道和隐私条款。
+- Acceptance criteria: staging/production 项目隔离；从生产系统之外每 1-5 分钟检查官网、API `/api/health`、HTTPS 和必要政策 URL；关键后端告警与 iOS 崩溃事件可验证；主要和备用负责人均能收到测试事件；密钥管理完成；隐私披露覆盖；告警平台故障时有备用查看渠道。
 - Shared files: 非敏感项目标识和配置说明
-- Unblock result: 提供服务选择和配置完成确认，解除 `IOS-CRASH-1`。
+- Unblock result: 提供服务选择、外部检查、测试告警和通知确认，解除 `WIN-OBS-1`、`IOS-CRASH-1`、`EXT-RUNBOOK-1`。
 - Result commit: not applicable
 - Verification: pending
 - Notes: pending
+
+### EXT-RUNBOOK-1 生产权限、AI 边界和事故响应
+
+- Priority: P0
+- Status: pending
+- Owner branch: User/External
+- Depends on: `EXT-CLOUD-1`, `EXT-COST-1`, `EXT-DOMAIN-1`, `EXT-OBS-1`
+- Scope: 明确生产主要/备用负责人、最小权限、AI 操作边界、日/周/月巡检、告警确认、事故分级、发布观察窗口和复盘流程。
+- Acceptance criteria: 主要和备用负责人、告警确认时限及升级路径明确；生产运行账号、发布账号和 root/admin 分离；AI 不持有长期 root/SSH 权限、生产密钥、数据库管理员密码或支付私钥；AI 生成命令必须由人审阅目标、影响、回滚和验证后执行；禁止在线编辑生产源码；日/周/月清单覆盖可用性、崩溃、备份、证书、账单、容量、支付和安全事件；事故 Runbook 覆盖止损、回滚、恢复、用户通知、证据保留和复盘；完成一次桌面演练。
+- Shared files: 只保存非敏感 Runbook 模板和角色名称，不保存个人电话、账号、密钥或真实内部地址
+- Unblock result: 提供脱敏责任矩阵、清单审阅和桌面演练结果，解除 `INT-OPS-1`。
+- Result commit: not applicable
+- Verification: pending
+- Notes: AI 可辅助检查和分析，但生产变更授权始终由人承担。
 
 ### EXT-PUSH-1 Apple Push 能力
 
