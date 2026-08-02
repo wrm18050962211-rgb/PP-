@@ -6,7 +6,7 @@
 
 ## 0. 当前基线与固定决策
 
-- Roadmap version: 2
+- Roadmap version: 3
 - Current integration baseline: `6588247c29b2082d310cc96fe110ab67866337f4`
 - Integration branch: `codex/integration`
 - Windows branch: `codex/vertical-db-api`
@@ -16,6 +16,7 @@
 - Current P0 map provider: 高德地图
 - Future fallback provider: 腾讯地图，仅作为未来扩展，不进入当前 P0
 - AI、增长实验和微信小程序：在 iOS TestFlight 主流程稳定前暂停
+- 用户拍摄偏好档案属于 TestFlight 稳定后的 P2 增长基础：先上线非 AI 结构化档案、订单快照和拍后反馈，再进入 P3 AI 偏好助手；首版不批量读取系统相册
 
 ### 0.1 地图技术路线
 
@@ -138,6 +139,30 @@ Still 的对外 API、官网、Admin、TestFlight 或 App Store 版本一旦可�
 6. Integration 最后执行 `INT-OPS-1` 联合演练，通过后才能形成 `INT-RC-1`。
 
 `INT-OPS-1` 未完成时，`INT-RC-1` 不得开始；不能用“仍在内测”“用户还少”或“systemd 会自动重启”跳过本节。
+
+### 0.8 用户拍摄偏好档案与 AI 固定路线
+
+这条路线跨 Windows、Mac/iOS、Integration 和 User/External 四端，但不进入当前 P0 Release Candidate，也不能阻塞 TestFlight 主流程。
+
+固定顺序：
+
+1. `EXT-PREF-1` 确认偏好字段、参考图、拍后反馈、隐私文案、保留和删除边界。
+2. `WIN-PREF-1` 建立结构化偏好、参考图授权、订单需求快照、拍后反馈和变更日志。
+3. `IOS-PREF-1` 上线轻量问卷、喜欢/不喜欢样片、少量参考图、订单确认和拍后反馈；不依赖 AI。
+4. `INT-PREF-1` 验证没有 AI 也能完成档案、订单快照、摄影师查看和反馈闭环。
+5. `EXT-AI-1` 再准备 AI Provider、隐私、成本和保留策略。
+6. `WIN-AI-1`、`IOS-AI-1` 先接文字整理、缺失信息追问和档案更新草稿。
+7. `INT-AI-1` 在真实数据证明有效后，才试点用户主动选择的少量照片分析和分场景个人摄影 Skill。
+
+固定边界：
+
+- 长期偏好与本次拍摄需求分开保存；订单使用不可被后来修改反向覆盖的快照。
+- 结构化字段是事实源，AI 摘要不是唯一存储。
+- AI 观察不能直接写入长期档案，必须由用户确认。
+- “过去经常这样拍”不等于“用户喜欢这样拍”；必须追问或确认。
+- 首版不申请整个系统相册的批量读取，不把原图默认用于模型训练。
+- 不做吸引力评分、外貌缺陷判定、身体诊断或敏感属性推断。
+- 摄影师只看到当前订单已授权的最小必要偏好，不看到无关历史照片或原始 AI 推理。
 
 ---
 
@@ -453,6 +478,20 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Verification: pending
 - Notes: 必须先完成隐私披露。
 
+### WIN-PREF-1 拍摄偏好档案、订单快照和拍后反馈
+
+- Priority: P2
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-DATA-2`, `WIN-MEDIA-1`, `INT-TESTFLIGHT-1`, `EXT-PREF-1`
+- Scope: 建立用户长期拍摄偏好、参考图授权、本次拍摄需求、订单偏好快照、拍后反馈和偏好变更日志；第一版使用结构化字段和规则模板，不依赖 AI。
+- Acceptance criteria: 长期偏好与单次需求分离；订单快照不受后续修改影响；用户可查看、修改、撤回授权、导出和删除；摄影师只能读取当前订单已授权字段；参考图访问、保留和删除可审计；生产不回退 localStorage。
+- Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, `docs/**`
+- Unblock result: 提供迁移、API、权限矩阵、删除/撤权验证和 commit SHA，解除 `IOS-PREF-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 第一版不接视觉模型，不申请批量相册权限；AI 摘要不能替代结构化事实源。
+
 ### WIN-RECO-1 推荐与附近排序
 
 - Priority: P2
@@ -467,19 +506,19 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Verification: pending
 - Notes: P0/P1 完成前不得启动。
 
-### WIN-AI-1 AI 扩展
+### WIN-AI-1 AI 偏好服务与受控照片理解
 
 - Priority: P3
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
-- Depends on: `INT-TESTFLIGHT-1`, `EXT-AI-1`
-- Scope: 待 TestFlight 稳定后重新定义。
-- Acceptance criteria: 另行评审。
-- Shared files: pending
-- Unblock result: pending
+- Depends on: `INT-PREF-1`, `EXT-AI-1`
+- Scope: 在非 AI 偏好闭环验证有效后，建立统一 AI Gateway，先提供偏好文字整理、缺失信息追问和档案更新草稿；后续仅处理用户主动选择的少量照片，生成有来源、场景和置信度的可确认观察。
+- Acceptance criteria: 前端不持有 Provider key；每次调用记录功能、模型、prompt 版本、成本和采纳反馈；AI 输出通过 schema 校验；未经用户确认不能更新长期偏好；原图、视觉观察和已确认偏好分层存储并可分别删除；AI 失败不影响档案、预约或订单。
+- Shared files: `server/routes/ai.mjs`, `server/services/ai/**`, `database/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, `docs/**`
+- Unblock result: 提供文字偏好接口、有限照片分析接口、日志/限流/删除验证和 commit SHA，解除 `IOS-AI-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: 当前暂停。
+- Notes: 当前暂停至 `INT-PREF-1` 和 `EXT-AI-1` 完成；不允许吸引力评分、外貌缺陷判定、身体诊断或敏感属性推断。
 
 ### WIN-MINI-1 微信小程序服务端
 
@@ -795,19 +834,33 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Verification: pending
 - Notes: 必须允许按政策关闭非必要分析。
 
-### IOS-AI-1 AI 客户端扩展
+### IOS-PREF-1 拍摄偏好档案和订单需求卡
+
+- Priority: P2
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `WIN-PREF-1`, `INT-TESTFLIGHT-1`, `EXT-PREF-1`
+- Scope: 上线“我的拍摄偏好”轻量问卷、平台样片喜欢/不喜欢原因、少量参考图、可编辑偏好卡、本次订单覆盖确认、摄影师订单内查看和拍后反馈。
+- Acceptance criteria: 用户不建立档案仍可正常搜索和下单；长期偏好与本次需求清楚区分；上传参考图完全可选且不申请整个相册读取；每次授权和撤回有清晰界面；摄影师端只展示当前订单必要信息；VoiceOver、键盘、加载、失败和删除状态可用。
+- Shared files: 用户设置/预约/订单/摄影师工作区页面、偏好 service、API 类型、隐私文案
+- Unblock result: 提供真机流程、授权/撤权/删除测试和 commit SHA，解除 `INT-PREF-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 第一版偏好卡使用规则模板；不得使用“缺陷分析”“颜值评分”等文案。
+
+### IOS-AI-1 AI 偏好助手和用户确认交互
 
 - Priority: P3
 - Status: pending
 - Owner branch: `codex/mac-ios`
-- Depends on: `INT-TESTFLIGHT-1`, `EXT-AI-1`
-- Scope: 待 TestFlight 稳定后重新定义。
-- Acceptance criteria: 另行评审。
-- Shared files: pending
-- Unblock result: pending
+- Depends on: `WIN-AI-1`, `INT-PREF-1`, `EXT-AI-1`
+- Scope: 接入偏好摘要、缺失信息追问、档案更新草稿和有限照片分析；所有结果以可编辑建议展示，用户可选择加入长期偏好、仅用于本次、拒绝或暂不确定。
+- Acceptance criteria: AI 不自动覆盖用户输入；每条建议显示来源、适用场景和确认状态；用户可拒绝、修改和删除；照片由用户逐次主动选择；AI 失败时完整回退非 AI 偏好流程；不向摄影师展示原始 AI 推理或未授权照片。
+- Shared files: `pp-app/src/services/aiService.ts`, AI 建议组件、偏好/预约/订单页面、隐私文案
+- Unblock result: 提供真机确认、拒绝、删除、弱网和 AI 关闭测试及 commit SHA，解除 `INT-AI-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: 当前暂停。
+- Notes: 当前暂停；不得默认读取全相册，不得用模型结论定义用户外貌或身体问题。
 
 ### IOS-MINI-1 微信小程序客户端
 
@@ -1010,6 +1063,34 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Result commit: pending
 - Verification: pending
 - Notes: pending
+
+### INT-PREF-1 集成非 AI 拍摄偏好闭环
+
+- Priority: P2
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `WIN-PREF-1`, `IOS-PREF-1`
+- Scope: 合并结构化长期偏好、参考图授权、订单需求快照、摄影师查看和拍后反馈，验证该能力在没有 AI 时独立成立。
+- Acceptance criteria: PostgreSQL 真写入、跨设备恢复、订单快照不可变、角色权限、撤权、导出和删除通过；用户跳过档案不影响主流程；有/无偏好卡的埋点可对比；摄影师只能访问当前订单最小必要信息。
+- Shared files: 偏好 service、订单页面、摄影师工作区、API 类型、数据库迁移、Release 文档
+- Unblock result: 提供 Integration SHA、跨角色/跨设备/隐私测试矩阵和首轮指标基线，解除 `WIN-AI-1`、`IOS-AI-1`、`EXT-AI-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 本节点只验证非 AI 闭环；若摄影师查看率、沟通减少或满意度没有改善，不得直接扩大照片分析范围。
+
+### INT-AI-1 集成 AI 偏好助手和个人摄影 Skill 试点
+
+- Priority: P3
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `WIN-AI-1`, `IOS-AI-1`
+- Scope: 先集成文字偏好卡和档案更新草稿；真实指标证明有价值后，再试点用户主动选择的少量照片分析，形成按日常、旅行、纪念日、情侣/家庭等场景区分的个人摄影 Skill。
+- Acceptance criteria: AI Gateway、限流、成本、prompt 版本、采纳反馈和关闭开关有效；每条照片观察有来源、场景、置信度和用户确认；AI 关闭/失败不影响业务；纯问卷与有限照片分析有对照指标；不能证明增益时停止扩大。
+- Shared files: AI 服务、偏好页面、订单需求卡、分析/隐私文档、Release 文档
+- Unblock result: 提供 Integration SHA、成本/质量/隐私验证、用户确认数据和是否扩大试点的结论。
+- Result commit: pending
+- Verification: pending
+- Notes: 不以批量相册导入作为默认路径，不把用户照片默认用于模型训练，不做外貌或敏感属性推断。
 
 ---
 
@@ -1241,6 +1322,20 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Verification: pending
 - Notes: TestFlight 主流程稳定前不推进。
 
+### EXT-PREF-1 偏好档案隐私、文案和用户研究
+
+- Priority: P2
+- Status: pending
+- Owner branch: User/External
+- Depends on: `EXT-COMPLIANCE-1`, `INT-TESTFLIGHT-1`
+- Scope: 确认长期偏好、本次需求、参考图、拍后反馈和摄影师查看的产品边界；定稿主动授权、撤回、保留、导出、删除和儿童/敏感场景处理说明；准备轻量用户研究验证档案是否真的有帮助。
+- Acceptance criteria: 字段和文案不使用“外貌缺陷”“身材问题”或颜值评价；用户可不建立档案；少量参考图为主动选择；摄影师查看范围明确；原图和偏好数据保留/删除规则明确；研究指标覆盖完成率、摄影师查看率、沟通减少和满意度变化。
+- Shared files: 正式隐私/同意文案、研究提纲和非敏感字段清单
+- Unblock result: 提供批准后的字段、授权/撤权/删除边界和研究指标，解除 `WIN-PREF-1`、`IOS-PREF-1`。
+- Result commit: not applicable
+- Verification: pending
+- Notes: 该节点不批准全相册批量读取；涉及最终法律文本时由正式合规意见确认。
+
 ### EXT-MINI-1 微信小程序资源
 
 - Priority: P3
@@ -1260,14 +1355,14 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Priority: P3
 - Status: pending
 - Owner branch: User/External
-- Depends on: `INT-TESTFLIGHT-1`
-- Scope: 待 AI 节点重新定义后评审。
-- Acceptance criteria: 另行评审。
-- Shared files: none
-- Unblock result: 解除 `WIN-AI-1`、`IOS-AI-1`。
+- Depends on: `INT-PREF-1`, `EXT-PREF-1`
+- Scope: 为文字偏好助手和后续有限照片理解选择 AI Provider、账号、数据区域、保留策略、训练使用政策、预算、配额、密钥管理和人工停用流程。
+- Acceptance criteria: staging/production 隔离；服务端密钥管理；Provider 的图片/文本保留和训练政策经过确认；默认不把用户原图用于模型训练；配置每日成本/配额告警；支持关闭图片分析但保留非 AI 档案；隐私披露覆盖 AI 用途、范围、删除和第三方处理。
+- Shared files: 非敏感 Provider/模型/数据处理/预算决策和正式政策文案
+- Unblock result: 提供 Provider 与模型选择、数据处理边界、预算/限额和已配置确认，解除 `WIN-AI-1`、`IOS-AI-1`。
 - Result commit: not applicable
 - Verification: pending
-- Notes: 当前暂停。
+- Notes: 当前暂停至 `INT-PREF-1`；未经重新评审不得默认批量导入相册、进行外貌评分或推断敏感属性。
 
 ---
 
