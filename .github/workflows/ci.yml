@@ -85,3 +85,29 @@ jobs:
       - name: Build admin web bundle
         working-directory: pp-app
         run: npm run build:admin
+
+      - name: Prepare immutable static release artifacts
+        env:
+          RELEASE_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          mkdir -p dist-website/assets
+          cp website/*.html website/styles.css dist-website/
+          cp -R website/assets/. dist-website/assets/
+          node deploy/create-release-manifest.mjs admin pp-app/dist-admin/release.json
+          node deploy/create-release-manifest.mjs website dist-website/release.json
+
+      - name: Upload Admin release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: still-admin-${{ github.sha }}
+          path: pp-app/dist-admin
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload website release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: still-website-${{ github.sha }}
+          path: dist-website
+          if-no-files-found: error
+          retention-days: 14

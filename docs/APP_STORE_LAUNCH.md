@@ -422,6 +422,15 @@ disputed
 - 用户协议和支付说明。
 - 客服入口和人工退款流程说明。
 
+## 域名与政策 URL 当前状态（2026-08-03）
+
+- 官网、隐私政策、用户协议和退款说明当前可通过 `https://www.weareinframe.com/` 下的稳定路径访问。
+- 支付说明拟使用 `https://www.weareinframe.com/payment.html`；当前仓库页面带有 `noindex` 和“上线前草案”标识，必须完成支付机构、商户信息、运营和法律审核后才能作为正式政策 URL 发布。
+- `EXT-DOMAIN-1` 仍为 `in_progress`：根域跳转、ICP备案放行、API/Admin 公网 HTTPS、Admin 独立证书、ACME 续期演练、域名自动续费和真机访问尚未全部验收。
+- Admin 独立静态构建、HTTP 启动配置和根域切换方案只是部署准备，不代表 `WIN-DELIVERY-1` 或 `WIN-ADMIN-1` 已完成。
+
+公网材料提交前，按 `deploy/STATIC_DELIVERY_RUNBOOK.md` 逐项记录非敏感验收结果，不在仓库中保存证书私钥、账号密码或完整连接串。
+
 ## App Store Connect 必备材料
 
 - Apple Developer Program 账号

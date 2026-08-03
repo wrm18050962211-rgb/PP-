@@ -13,6 +13,7 @@
     "smoke": "node scripts/smoke.mjs",
     "check:mvp": "node scripts/check-mvp.mjs",
     "check:ci-workflow": "node scripts/check-ci-workflow.mjs",
+    "check:domain-delivery-prep": "node scripts/check-domain-delivery-prep.mjs",
     "check:auth-schema": "node ../database/scripts/check-auth-schema.mjs",
     "check:phone-verification": "node scripts/check-phone-verification.mjs",
     "check:phone-auth-route": "node scripts/check-phone-auth-route.mjs",
