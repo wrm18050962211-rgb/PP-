@@ -37,6 +37,12 @@ type WxUploadFileOptions = {
   fail?: (error: unknown) => void;
 };
 
+type WxGetFileInfoOptions = {
+  filePath: string;
+  success?: (response: { size: number }) => void;
+  fail?: (error: unknown) => void;
+};
+
 type WxPaymentOptions = PaymentRequest['miniProgramPayParams'] & {
   success?: () => void;
   fail?: (error: unknown) => void;
@@ -47,6 +53,7 @@ export type MiniProgramWxBridge = {
   login?: (options: WxLoginOptions) => void;
   getLocation?: (options: WxLocationOptions) => void;
   uploadFile?: (options: WxUploadFileOptions) => void;
+  getFileInfo?: (options: WxGetFileInfoOptions) => void;
   requestPayment?: (options: WxPaymentOptions) => void;
 };
 
@@ -124,6 +131,19 @@ export function wxUploadFile(url: string, filePath: string, formData?: Record<st
         if (response.statusCode >= 200 && response.statusCode < 300) resolve(response.data);
         else reject(new Error(`wx.uploadFile failed with status ${response.statusCode}`));
       },
+      fail: reject,
+    });
+  });
+}
+
+export function wxGetFileSize(filePath: string): Promise<number> {
+  const wx = getWxBridge();
+  if (!wx?.getFileInfo) throw new Error('wx.getFileInfo is not available');
+
+  return new Promise((resolve, reject) => {
+    wx.getFileInfo?.({
+      filePath,
+      success: (response) => resolve(response.size),
       fail: reject,
     });
   });

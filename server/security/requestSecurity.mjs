@@ -181,7 +181,7 @@ export function resolveAccessPolicy(method, path) {
 
   if (path.startsWith('/api/companion/')) return policy('companion', 'companion_api');
   if (normalizedMethod === 'POST' && path === '/api/auth/logout') return policy('member', 'auth_session');
-  if (path === '/api/media/upload-policy') return policy('member', 'media_upload');
+  if (path.startsWith('/api/media/')) return policy('member', 'media_upload');
   if (path.startsWith('/api/me/')) return policy('member', 'user_data');
 
   if (normalizedMethod === 'POST' && /^\/api\/orders\/[^/]+\/status$/.test(path)) {
@@ -259,6 +259,7 @@ function sensitiveRouteGroup(method, path) {
   if (path === '/api/auth/wechat/mock-login') return 'mock_login';
   if (path === '/api/admin/auth/login') return 'admin_login';
   if (path === '/api/media/upload-policy') return 'media_policy';
+  if (/^\/api\/media\/assets\/[^/]+\/complete$/.test(path)) return 'media_complete';
   return '';
 }
 

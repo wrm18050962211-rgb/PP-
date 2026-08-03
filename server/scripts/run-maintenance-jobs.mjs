@@ -12,6 +12,7 @@ const result = await runMaintenanceJobs({
   dataStore: createPostgresStore({ databaseUrl }),
   now: new Date().toISOString(),
   paymentExpiryLimit: process.env.PAYMENT_EXPIRY_JOB_LIMIT || 100,
+  mediaExpiryLimit: process.env.MEDIA_EXPIRY_JOB_LIMIT || 100,
   providerCallbackLimit: process.env.PROVIDER_CALLBACK_RETRY_JOB_LIMIT || 20,
 });
 

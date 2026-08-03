@@ -316,6 +316,75 @@ companions.service_enabled = true
 按 matchScore、distanceMeters、ratingAvg 排序
 ```
 
+## 1.6. 媒体上传与生命周期
+
+生产媒体使用腾讯 COS 保存文件，PostgreSQL 的 `media_assets` 保存归属、用途、MIME、后缀、大小、审核状态和当前生命周期；`media_asset_events` 追加记录每次状态变化。生产环境不得使用 data URL、JSON store 或 mock 上传作为成功结果。
+
+### POST `/api/media/upload-policy`
+
+需要 consumer/companion 会话。请求体：
+
+```json
+{
+  "purpose": "post-image",
+  "fileName": "cover.jpg",
+  "contentType": "image/jpeg",
+  "sizeBytes": 1048576
+}
+```
+
+校验规则：
+
+| 用途 | 允许 MIME/后缀 | 大小上限 |
+|---|---|---:|
+| `avatar` | JPEG (`.jpg`/`.jpeg`)、PNG、WebP、HEIC、HEIF | 10 MB |
+| `post-image`, `portfolio` | JPEG (`.jpg`/`.jpeg`)、PNG、WebP、HEIC、HEIF | 20 MB |
+| `video` | MP4 (`.mp4`)、QuickTime (`.mov`) | 200 MB |
+| `identity` | 不允许走公开策略；等待独立私有桶策略 | - |
+
+MIME、后缀、用途和正整数文件大小必须同时通过。成功时先写入 `pending_upload` 记录，再返回仅允许向一个 `pp/public/.../<assetId>.<ext>` 对象执行 `PostObject` 的短时表单策略：
+
+```json
+{
+  "assetId": "media_asset_uuid",
+  "provider": "tencent_cos",
+  "mode": "production",
+  "purpose": "post-image",
+  "objectKey": "pp/public/post-image/user_uuid/2026-08/media_asset_uuid.jpg",
+  "contentType": "image/jpeg",
+  "maxSizeBytes": 20971520,
+  "uploadMethod": "POST",
+  "uploadUrl": "https://<bucket>.cos.<region>.myqcloud.com",
+  "publicUrl": "https://<media-domain>/pp/public/...",
+  "expiresAt": "2026-08-03T10:15:00.000Z",
+  "formFields": {}
+}
+```
+
+客户端永远不能收到永久 `SecretId`、`SecretKey` 或具备桶级权限的凭据。生产缺少真实 COS 配置或 PostgreSQL media gateway 时必须失败关闭。
+
+### POST `/api/media/assets/:assetId/complete`
+
+文件上传成功后由资产所有者确认：
+
+```json
+{
+  "sizeBytes": 1048576,
+  "width": 1440,
+  "height": 1920,
+  "durationMs": null,
+  "providerEtag": null
+}
+```
+
+服务端使用 `FOR UPDATE` 锁定所有者记录。声明大小和完成大小必须一致且不超过策略上限；过期策略转为 `expired`，大小不一致转为 `rejected`，成功转为 `uploaded` 并追加事件。重复完成已上传资产是幂等成功，其他用户查询同一 ID 返回 `MEDIA_ASSET_NOT_FOUND`，不泄露归属。
+
+### DELETE `/api/media/assets/:assetId`
+
+仅资产所有者可调用。服务端将记录转为 `deleted`、写入 `deletedAt` 和事件轨迹；客户端不会获得 COS `DeleteObject` 权限。COS 版本控制/生命周期负责受控物理清理，业务读取和内容绑定只能使用 `uploaded` 且未删除的媒体。
+
+稳定错误码：`MEDIA_PURPOSE_NOT_ALLOWED`、`MEDIA_TYPE_NOT_ALLOWED`、`MEDIA_EXTENSION_NOT_ALLOWED`、`MEDIA_EXTENSION_MISMATCH`、`MEDIA_SIZE_REQUIRED`、`MEDIA_FILE_TOO_LARGE`、`MEDIA_UPLOAD_NOT_CONFIGURED`、`MEDIA_STORAGE_NOT_CONFIGURED`、`MEDIA_UPLOAD_PREPARATION_FAILED`、`MEDIA_ASSET_NOT_FOUND`、`MEDIA_UPLOAD_EXPIRED`、`MEDIA_SIZE_MISMATCH`、`MEDIA_ASSET_NOT_COMPLETABLE`、`MEDIA_ASSET_PERSIST_FAILED`。
+
 ## 2. 下单与支付
 
 对应页面：

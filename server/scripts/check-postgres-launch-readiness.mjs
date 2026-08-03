@@ -30,6 +30,8 @@ const requiredTables = [
   'availability_slots',
   'posts',
   'post_images',
+  'media_assets',
+  'media_asset_events',
   'orders',
   'payments',
   'provider_callback_events',
@@ -87,6 +89,7 @@ const scripts = serverPackage.scripts || {};
 assert(scripts['check:postgres-launch-readiness'] === 'node scripts/check-postgres-launch-readiness.mjs', 'server package exposes launch readiness check');
 assert(scripts['check:postgres-live'] === 'node scripts/check-postgres-live.mjs', 'server package exposes live PostgreSQL check');
 assert(scripts['job:maintenance'] === 'node scripts/run-maintenance-jobs.mjs', 'server package exposes maintenance job');
+assert(scripts['job:expire-media'] === 'node scripts/run-media-expiry-job.mjs', 'server package exposes media expiry job');
 assert(scripts['db:export-seed'] === 'node ../database/scripts/export-store-to-seed.mjs', 'server package exposes store seed export');
 checks.push('server-package-scripts');
 
@@ -101,6 +104,7 @@ assert(postgresStore.includes("import('pg')"), 'postgres store loads pg runtime 
 assert(/writes:\s*false/.test(postgresStore), 'postgres store still protects broad save writes');
 assert(/orderWrites:\s*\{/.test(postgresStore), 'postgres store exposes order write gateway');
 assert(/messageWrites:\s*\{/.test(postgresStore), 'postgres store exposes message write gateway');
+assert(/mediaWrites:\s*\{/.test(postgresStore), 'postgres store exposes media write gateway');
 assert(/moderationWrites:\s*\{/.test(postgresStore), 'postgres store exposes moderation write gateway');
 assert(/sessionWrites:\s*\{/.test(postgresStore), 'postgres store exposes session write gateway');
 assert(/phoneVerificationWrites:\s*\{/.test(postgresStore), 'postgres store exposes phone verification write gateway');
@@ -138,7 +142,7 @@ console.log(
     {
       ok: true,
       cloudDatabaseTrialReady: true,
-      productionStillRequires: ['object-storage', 'live-payment-provider', 'admin-deployment-isolation', 'monitoring-and-backups'],
+      productionStillRequires: ['live-payment-provider', 'admin-deployment-isolation', 'monitoring-and-application-backup-runbooks'],
       checks,
     },
     null,

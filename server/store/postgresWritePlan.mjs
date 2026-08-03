@@ -128,6 +128,19 @@ export const postgresWriteOperations = [
     ],
   },
   {
+    name: 'manageMediaAsset',
+    route: 'POST /api/media/upload-policy, POST /api/media/assets/:assetId/complete, DELETE /api/media/assets/:assetId',
+    transaction: true,
+    tables: ['media_assets', 'media_asset_events'],
+    steps: [
+      'insert pending media metadata before returning an upload policy',
+      'lock the owner-scoped media asset before completion or deletion',
+      'reject mismatched sizes and expired policies with stable states',
+      'append a media_asset_events row for every lifecycle transition',
+      'expire abandoned pending uploads with a skip-locked maintenance batch',
+    ],
+  },
+  {
     name: 'createReport',
     route: 'POST /api/orders/:orderId/report',
     transaction: true,

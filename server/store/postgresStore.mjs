@@ -16,6 +16,7 @@ import { upsertAuthIdentityUserTransaction } from './postgresAuthWrites.mjs';
 import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransaction, findIdempotencyRequest } from './postgresIdempotencyWrites.mjs';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
+import { completeMediaAssetTransaction, createPendingMediaAssetTransaction, deleteMediaAssetTransaction, expirePendingMediaAssetsTransaction, rejectPendingMediaAssetTransaction } from './postgresMediaWrites.mjs';
 import { applyModerationActionTransaction, createReportTransaction, reviewAuditCaseTransaction } from './postgresModerationWrites.mjs';
 import { createOrderTransaction, expirePendingPaymentsTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, markRefundTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
 import { issuePhoneVerificationChallengeTransaction, markPhoneVerificationFailedTransaction, markPhoneVerificationSentTransaction, verifyPhoneVerificationChallengeTransaction } from './postgresPhoneVerificationWrites.mjs';
@@ -44,6 +45,7 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       idempotencyWrites: true,
       orderWrites: true,
       messageWrites: true,
+      mediaWrites: true,
       moderationWrites: true,
       providerCallbackWrites: true,
       phoneVerificationWrites: true,
@@ -100,6 +102,13 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
     },
     messageWrites: {
       sendMessage: (draft) => withClient((client) => sendMessageTransaction(client, draft)),
+    },
+    mediaWrites: {
+      createPending: (draft) => withClient((client) => createPendingMediaAssetTransaction(client, draft)),
+      complete: (draft) => withClient((client) => completeMediaAssetTransaction(client, draft)),
+      rejectPending: (draft) => withClient((client) => rejectPendingMediaAssetTransaction(client, draft)),
+      delete: (draft) => withClient((client) => deleteMediaAssetTransaction(client, draft)),
+      expirePending: (draft) => withClient((client) => expirePendingMediaAssetsTransaction(client, draft)),
     },
     moderationWrites: {
       createReport: (draft) => withClient((client) => createReportTransaction(client, draft)),

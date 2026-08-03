@@ -1,6 +1,6 @@
-import type { MediaUploadPolicy, MediaUploadPurpose, PostImage } from '../types/api';
-import { apiPost, getApiFallback, isApiEnabled, isMockFallbackAllowed } from './apiClient';
-import { isMiniProgramRuntime, wxUploadFile } from './miniProgramBridge';
+import type { MediaAsset, MediaUploadPolicy, MediaUploadPurpose, PostImage } from '../types/api';
+import { apiDelete, apiPost, getApiFallback, isApiEnabled, isMockFallbackAllowed } from './apiClient';
+import { isMiniProgramRuntime, wxGetFileSize, wxUploadFile } from './miniProgramBridge';
 
 type UploadInput = {
   file: File;
@@ -12,15 +12,16 @@ export async function uploadPostImage(file: File): Promise<PostImage> {
   const policy = await requestUploadPolicy(file, isVideo ? 'video' : 'post-image');
   if (policy?.mode === 'production') {
     await uploadWebFileToCos(policy, file);
+    const asset = await completeMediaAsset(policy, file.size);
     return {
-      id: `cos-media-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      url: policy.publicUrl,
+      id: asset.id,
+      url: asset.publicUrl || policy.publicUrl,
       mediaKind: isVideo ? 'live' : 'image',
-      videoUrl: isVideo ? policy.publicUrl : undefined,
-      provider: policy.provider,
-      objectKey: policy.objectKey,
-      contentType: policy.contentType,
-      sizeBytes: file.size,
+      videoUrl: isVideo ? asset.publicUrl || policy.publicUrl : undefined,
+      provider: asset.provider,
+      objectKey: asset.objectKey,
+      contentType: asset.contentType,
+      sizeBytes: asset.sizeBytes || file.size,
       sortOrder: 0,
     };
   }
@@ -62,24 +63,28 @@ export async function uploadMediaFile({ file, purpose }: UploadInput): Promise<s
   const policy = await requestUploadPolicy(file, purpose);
   if (policy?.mode === 'production') {
     await uploadWebFileToCos(policy, file);
-    return policy.publicUrl;
+    const asset = await completeMediaAsset(policy, file.size);
+    return asset.publicUrl || policy.publicUrl;
   }
   if (!isMockFallbackAllowed()) throw new Error('媒体上传需要先接入生产对象存储。');
   return getApiFallback(await readFileAsDataUrl(file), 'Media upload');
 }
 
 export async function uploadMiniProgramMediaFile(filePath: string, purpose: MediaUploadPurpose, fileName = 'upload.jpg'): Promise<string> {
-  const policy = await requestMiniProgramUploadPolicy(fileName, purpose);
+  const sizeBytes = await wxGetFileSize(filePath);
+  const policy = await requestMiniProgramUploadPolicy(fileName, purpose, sizeBytes);
   if (!policy) return getApiFallback(filePath, 'Mini program media upload');
   if (policy.mode === 'production') {
     if (!isMiniProgramRuntime()) throw new Error('Mini program upload is not available outside WeChat.');
     if (!policy.formFields) throw new Error('COS upload policy is incomplete.');
     await wxUploadFile(policy.uploadUrl, filePath, policy.formFields);
+    const asset = await completeMediaAsset(policy, sizeBytes);
+    return asset.publicUrl || policy.publicUrl;
   }
   return policy.publicUrl;
 }
 
-async function requestMiniProgramUploadPolicy(fileName: string, purpose: MediaUploadPurpose): Promise<MediaUploadPolicy | null> {
+async function requestMiniProgramUploadPolicy(fileName: string, purpose: MediaUploadPurpose, sizeBytes: number): Promise<MediaUploadPolicy | null> {
   if (!isApiEnabled()) return getApiFallback(null, 'Mini program upload policy');
 
   try {
@@ -87,11 +92,26 @@ async function requestMiniProgramUploadPolicy(fileName: string, purpose: MediaUp
       purpose,
       fileName,
       contentType: inferContentType(fileName),
+      sizeBytes,
     });
     return response.success ? response.data : getApiFallback(null, 'Mini program upload policy');
   } catch {
     return getApiFallback(null, 'Mini program upload policy');
   }
+}
+
+export async function completeMediaAsset(policy: MediaUploadPolicy, sizeBytes: number): Promise<MediaAsset> {
+  const response = await apiPost<MediaAsset>(`/api/media/assets/${encodeURIComponent(policy.assetId)}/complete`, {
+    sizeBytes,
+  });
+  if (!response.success) throw new Error(response.error.message || 'Media upload confirmation failed.');
+  return response.data;
+}
+
+export async function deleteMediaAsset(assetId: string): Promise<MediaAsset> {
+  const response = await apiDelete<MediaAsset>(`/api/media/assets/${encodeURIComponent(assetId)}`);
+  if (!response.success) throw new Error(response.error.message || 'Media deletion failed.');
+  return response.data;
 }
 
 async function uploadWebFileToCos(policy: MediaUploadPolicy, file: File): Promise<void> {

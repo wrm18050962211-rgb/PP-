@@ -30,6 +30,8 @@ for (const table of [
   'admin_action_logs',
   'audit_logs',
   'security_events',
+  'media_assets',
+  'media_asset_events',
 ]) {
   assert(sqlTables.has(table), `SQL schema includes critical table ${table}`);
   assert(prismaTables.has(table), `Prisma schema includes critical table ${table}`);

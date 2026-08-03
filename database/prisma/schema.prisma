@@ -32,6 +32,19 @@ enum AuditStatus {
   cancelled
 }
 
+enum MediaAssetStatus {
+  pending_upload
+  uploaded
+  rejected
+  expired
+  deleted
+}
+
+enum MediaAssetVisibility {
+  public
+  private
+}
+
 enum PostStatus {
   draft
   pending_review
@@ -120,6 +133,8 @@ model User {
   favorites            Favorite[]
   submittedAuditCases  AuditCase[]
   sessions             UserSession[]
+  mediaAssets          MediaAsset[]
+  mediaAssetEvents     MediaAssetEvent[]
 
   @@index([city])
   @@index([status])
@@ -168,6 +183,59 @@ model PhoneVerificationChallenge {
   @@index([phone, purpose, createdAt])
   @@index([requestedIp, createdAt])
   @@map("phone_verification_challenges")
+}
+
+model MediaAsset {
+  id                String               @id @default(uuid()) @db.Uuid
+  ownerUserId       String               @map("owner_user_id") @db.Uuid
+  provider          String               @db.VarChar(40)
+  bucket            String               @db.VarChar(160)
+  region            String               @db.VarChar(80)
+  objectKey         String               @unique @map("object_key")
+  publicUrl         String?              @map("public_url")
+  purpose           String               @db.VarChar(40)
+  visibility        MediaAssetVisibility @default(public)
+  contentType       String               @map("content_type") @db.VarChar(120)
+  fileExtension     String               @map("file_extension") @db.VarChar(16)
+  declaredSizeBytes BigInt               @map("declared_size_bytes")
+  sizeBytes         BigInt?              @map("size_bytes")
+  maxSizeBytes      BigInt               @map("max_size_bytes")
+  width             Int?
+  height            Int?
+  durationMs        Int?                 @map("duration_ms")
+  status            MediaAssetStatus     @default(pending_upload)
+  auditStatus       AuditStatus          @default(pending) @map("audit_status")
+  providerEtag      String?              @map("provider_etag") @db.VarChar(160)
+  failureCode       String?              @map("failure_code") @db.VarChar(80)
+  expiresAt         DateTime             @map("expires_at") @db.Timestamptz(6)
+  uploadedAt        DateTime?            @map("uploaded_at") @db.Timestamptz(6)
+  deletedAt         DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner  User              @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  events MediaAssetEvent[]
+
+  @@index([ownerUserId, status, createdAt])
+  @@index([status, expiresAt])
+  @@map("media_assets")
+}
+
+model MediaAssetEvent {
+  id           String            @id @default(uuid()) @db.Uuid
+  mediaAssetId String            @map("media_asset_id") @db.Uuid
+  actorUserId  String?           @map("actor_user_id") @db.Uuid
+  fromStatus   MediaAssetStatus? @map("from_status")
+  toStatus     MediaAssetStatus  @map("to_status")
+  reasonCode   String?           @map("reason_code") @db.VarChar(80)
+  metadata     Json              @default("{}")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  asset     MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+  actorUser User?      @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([mediaAssetId, createdAt])
+  @@map("media_asset_events")
 }
 
 model UserProfile {

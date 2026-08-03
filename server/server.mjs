@@ -166,6 +166,8 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && path === '/api/admin/auth/login') return adminLogin(store, body);
   if (method === 'POST' && path === '/api/admin/auth/logout') return adminLogout(store);
   if (method === 'POST' && path === '/api/media/upload-policy') return createMediaUploadPolicy(store, body);
+  if (method === 'POST' && isNestedRoute(path, '/api/media/assets/', '/complete')) return completeMediaAsset(store, path, body);
+  if (method === 'DELETE' && /^\/api\/media\/assets\/[^/]+$/.test(path)) return deleteMediaAsset(store, path);
   if (method === 'GET' && path === '/api/feed/posts') return listFeedPostsRoute(store, url);
   if (method === 'GET' && path === '/api/matching/companions') return matchCompanions(store, url);
   if (method === 'GET' && path.startsWith('/api/posts/')) return getPostRoute(store, last(path));
@@ -510,32 +512,53 @@ async function createMediaUploadPolicy(store, body = {}) {
   const { session } = publicSession;
 
   const purpose = normalizeMediaPurpose(body.purpose);
+  if (!purpose) return error(400, 'MEDIA_PURPOSE_NOT_ALLOWED', 'A supported media purpose is required.');
   if (purpose === 'identity') {
     return error(501, 'PRIVATE_MEDIA_UPLOAD_NOT_CONFIGURED', 'Identity media requires a separate private object storage policy.');
   }
   const fileName = sanitizeFileName(body.fileName || 'upload.jpg');
   const contentType = resolveMediaContentType(body.contentType, fileName);
-  const validationError = validateMediaUploadInput({ purpose, contentType, sizeBytes: body.sizeBytes });
+  const fileExtension = mediaFileExtensionFromName(fileName);
+  const validationError = validateMediaUploadInput({ purpose, contentType, fileExtension, sizeBytes: body.sizeBytes });
   if (validationError) return validationError;
 
-  const objectKey = createPublicMediaObjectKey({ purpose, userId: session.user.id, fileName, contentType });
+  const assetId = randomUUID();
+  const objectKey = createPublicMediaObjectKey({ purpose, userId: session.user.id, assetId, contentType });
   const bucket = process.env.COS_BUCKET || 'pp-mvp-local-1250000000';
   const region = process.env.COS_REGION || 'ap-shanghai';
   const publicBaseUrl = process.env.COS_PUBLIC_BASE_URL || `https://${bucket}.cos.${region}.myqcloud.com`;
   const maxSizeBytes = mediaSizeLimit(purpose);
 
   if (hasTencentCosMediaConfig()) {
+    if (!dataStore.mediaWrites?.createPending) {
+      return error(503, 'MEDIA_STORAGE_NOT_CONFIGURED', 'Production media metadata requires the PostgreSQL media gateway.');
+    }
     try {
       const policy = await createTencentCosPostUploadPolicy({
         objectKey,
         contentType,
         maxSizeBytes,
       });
-      return json({ ...policy, purpose });
-    } catch (cause) {
-      if (isProductionServerEnv) {
-        return error(502, 'MEDIA_UPLOAD_CREDENTIAL_FAILED', cause instanceof Error ? cause.message : 'COS temporary credential request failed.');
-      }
+      await dataStore.mediaWrites.createPending({
+        assetId,
+        ownerUserId: session.user.id,
+        provider: policy.provider,
+        bucket: policy.bucket,
+        region: policy.region,
+        objectKey,
+        publicUrl: policy.publicUrl,
+        purpose,
+        visibility: 'public',
+        contentType,
+        fileExtension,
+        declaredSizeBytes: Number(body.sizeBytes),
+        maxSizeBytes,
+        expiresAt: policy.expiresAt,
+        createdAt: new Date().toISOString(),
+      });
+      return json({ ...policy, assetId, purpose, maxSizeBytes });
+    } catch {
+      return error(502, 'MEDIA_UPLOAD_PREPARATION_FAILED', 'Media upload could not be prepared. Retry with a new request.');
     }
   }
 
@@ -548,9 +571,11 @@ async function createMediaUploadPolicy(store, body = {}) {
     mode: 'mock',
     bucket,
     region,
+    assetId,
     purpose,
     objectKey,
     contentType,
+    maxSizeBytes,
     uploadUrl: `${publicBaseUrl}/${objectKey}`,
     publicUrl: `${publicBaseUrl}/${objectKey}`,
     expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
@@ -562,10 +587,10 @@ async function createMediaUploadPolicy(store, body = {}) {
 }
 
 function normalizeMediaPurpose(purpose) {
-  return ['post-image', 'avatar', 'portfolio', 'identity', 'video'].includes(purpose) ? purpose : 'post-image';
+  return ['post-image', 'avatar', 'portfolio', 'identity', 'video'].includes(purpose) ? purpose : null;
 }
 
-function validateMediaUploadInput({ purpose, contentType, sizeBytes }) {
+function validateMediaUploadInput({ purpose, contentType, fileExtension, sizeBytes }) {
   const allowedContentTypes =
     purpose === 'video'
       ? ['video/mp4', 'video/quicktime']
@@ -574,8 +599,19 @@ function validateMediaUploadInput({ purpose, contentType, sizeBytes }) {
     return error(400, 'MEDIA_TYPE_NOT_ALLOWED', `Content type ${contentType} is not allowed for ${purpose}.`);
   }
 
-  const normalizedSize = Number(sizeBytes || 0);
-  if (!Number.isFinite(normalizedSize) || normalizedSize < 0 || normalizedSize > mediaSizeLimit(purpose)) {
+  const expectedContentType = mediaContentTypeForExtension(fileExtension);
+  if (!expectedContentType) {
+    return error(400, 'MEDIA_EXTENSION_NOT_ALLOWED', 'The media file extension is not allowed.');
+  }
+  if (expectedContentType !== contentType) {
+    return error(400, 'MEDIA_EXTENSION_MISMATCH', 'The media file extension does not match its content type.');
+  }
+
+  const normalizedSize = Number(sizeBytes);
+  if (!Number.isSafeInteger(normalizedSize) || normalizedSize <= 0) {
+    return error(400, 'MEDIA_SIZE_REQUIRED', 'A positive media file size is required.');
+  }
+  if (normalizedSize > mediaSizeLimit(purpose)) {
     return error(400, 'MEDIA_FILE_TOO_LARGE', `Media file exceeds the ${Math.round(mediaSizeLimit(purpose) / 1024 / 1024)} MB limit.`);
   }
   return null;
@@ -587,10 +623,10 @@ function mediaSizeLimit(purpose) {
   return 20 * 1024 * 1024;
 }
 
-function createPublicMediaObjectKey({ purpose, userId, fileName, contentType }) {
+function createPublicMediaObjectKey({ purpose, userId, assetId, contentType }) {
   const month = new Date().toISOString().slice(0, 7);
-  const extension = mediaFileExtension(contentType, fileName);
-  return `pp/public/${purpose}/${userId}/${month}/${randomUUID()}.${extension}`;
+  const extension = mediaFileExtension(contentType);
+  return `pp/public/${purpose}/${userId}/${month}/${assetId}.${extension}`;
 }
 
 function resolveMediaContentType(contentType, fileName) {
@@ -622,6 +658,84 @@ function mediaFileExtension(contentType, fileName) {
     'video/quicktime': 'mov',
   };
   return byContentType[contentType] || String(fileName).split('.').at(-1)?.toLowerCase() || 'bin';
+}
+
+function mediaFileExtensionFromName(fileName) {
+  const extension = String(fileName).split('.').at(-1)?.trim().toLowerCase();
+  return extension === 'jpeg' ? 'jpg' : extension || '';
+}
+
+function mediaContentTypeForExtension(extension) {
+  const byExtension = {
+    jpg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    heic: 'image/heic',
+    heif: 'image/heif',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+  };
+  return byExtension[extension] || null;
+}
+
+async function completeMediaAsset(store, path, body = {}) {
+  const publicSession = requirePublicSession(store, 'consumer', 'media_upload');
+  if (publicSession.response) return publicSession.response;
+  const assetId = mediaAssetIdFromPath(path, '/complete');
+  if (!assetId) return error(400, 'MEDIA_ASSET_ID_INVALID', 'A valid media asset ID is required.');
+  if (!dataStore.mediaWrites?.complete) {
+    return error(503, 'MEDIA_STORAGE_NOT_CONFIGURED', 'Production media metadata requires the PostgreSQL media gateway.');
+  }
+  try {
+    const result = await dataStore.mediaWrites.complete({
+      assetId,
+      ownerUserId: publicSession.session.user.id,
+      sizeBytes: body.sizeBytes,
+      width: body.width,
+      height: body.height,
+      durationMs: body.durationMs,
+      providerEtag: body.providerEtag,
+      completedAt: new Date().toISOString(),
+    });
+    if (result.status === 'not_found') return error(404, 'MEDIA_ASSET_NOT_FOUND', 'Media asset was not found.');
+    if (result.status === 'expired') return error(409, 'MEDIA_UPLOAD_EXPIRED', 'The upload policy has expired. Request a new policy.');
+    if (result.status === 'rejected') return error(409, result.reasonCode || 'MEDIA_UPLOAD_REJECTED', 'Media upload confirmation was rejected.');
+    if (result.status !== 'uploaded') return error(409, 'MEDIA_ASSET_NOT_COMPLETABLE', `Media asset cannot be completed from ${result.status}.`);
+    return json(result.asset);
+  } catch {
+    return error(503, 'MEDIA_ASSET_PERSIST_FAILED', 'Media upload metadata could not be persisted.');
+  }
+}
+
+async function deleteMediaAsset(store, path) {
+  const publicSession = requirePublicSession(store, 'consumer', 'media_upload');
+  if (publicSession.response) return publicSession.response;
+  const assetId = mediaAssetIdFromPath(path);
+  if (!assetId) return error(400, 'MEDIA_ASSET_ID_INVALID', 'A valid media asset ID is required.');
+  if (!dataStore.mediaWrites?.delete) {
+    return error(503, 'MEDIA_STORAGE_NOT_CONFIGURED', 'Production media metadata requires the PostgreSQL media gateway.');
+  }
+  try {
+    const result = await dataStore.mediaWrites.delete({
+      assetId,
+      ownerUserId: publicSession.session.user.id,
+      deletedAt: new Date().toISOString(),
+    });
+    if (result.status === 'not_found') return error(404, 'MEDIA_ASSET_NOT_FOUND', 'Media asset was not found.');
+    return json(result.asset);
+  } catch {
+    return error(503, 'MEDIA_ASSET_PERSIST_FAILED', 'Media deletion metadata could not be persisted.');
+  }
+}
+
+function mediaAssetIdFromPath(path, suffix = '') {
+  const normalizedSuffix = suffix ? suffix.replace(/^\//, '') : '';
+  const parts = String(path).split('/').filter(Boolean);
+  if (parts[0] !== 'api' || parts[1] !== 'media' || parts[2] !== 'assets') return null;
+  if (normalizedSuffix && (parts.length !== 5 || parts[4] !== normalizedSuffix)) return null;
+  if (!normalizedSuffix && parts.length !== 4) return null;
+  const assetId = decodeURIComponent(parts[3] || '');
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(assetId) ? assetId : null;
 }
 
 function sanitizeFileName(fileName) {

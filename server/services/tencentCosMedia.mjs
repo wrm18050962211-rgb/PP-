@@ -22,6 +22,7 @@ export async function createTencentCosPostUploadPolicy({
   credentialProvider = getTemporaryCredential,
 }) {
   const config = readTencentCosConfig(env);
+  validateUploadPolicyInput({ objectKey, contentType, maxSizeBytes });
   const appId = parseBucketAppId(config.bucket);
   const resource = `qcs::cos:${config.region}:uid/${appId}:${config.bucket}/${objectKey}`;
   const temporaryCredential = await credentialProvider({
@@ -97,13 +98,35 @@ export function readTencentCosConfig(env = process.env) {
   const missing = required.filter((name) => !env[name]);
   if (missing.length > 0) throw new Error(`Tencent COS media config is missing: ${missing.join(', ')}`);
 
+  const publicBaseUrl = String(env.COS_PUBLIC_BASE_URL).replace(/\/+$/, '');
+  const publicBase = new URL(publicBaseUrl);
+  if (publicBase.protocol !== 'https:' || publicBase.username || publicBase.password) {
+    throw new Error('COS_PUBLIC_BASE_URL must be an HTTPS URL without embedded credentials.');
+  }
+  if (!/^[a-z0-9-]+$/i.test(env.COS_REGION)) {
+    throw new Error('COS_REGION contains unsupported characters.');
+  }
+  parseBucketAppId(env.COS_BUCKET);
+
   return {
     secretId: env.TENCENT_CLOUD_SECRET_ID,
     secretKey: env.TENCENT_CLOUD_SECRET_KEY,
     bucket: env.COS_BUCKET,
     region: env.COS_REGION,
-    publicBaseUrl: String(env.COS_PUBLIC_BASE_URL).replace(/\/+$/, ''),
+    publicBaseUrl,
   };
+}
+
+function validateUploadPolicyInput({ objectKey, contentType, maxSizeBytes }) {
+  if (!/^pp\/public\/[a-z0-9-]+\/[a-z0-9-]+\/[0-9]{4}-[0-9]{2}\/[a-z0-9-]+\.[a-z0-9]+$/i.test(String(objectKey))) {
+    throw new Error('COS media object key must target one exact pp/public asset path.');
+  }
+  if (!/^(image|video)\/[a-z0-9.+-]+$/i.test(String(contentType))) {
+    throw new Error('COS media content type is invalid.');
+  }
+  if (!Number.isSafeInteger(maxSizeBytes) || maxSizeBytes <= 0) {
+    throw new Error('COS media maximum size must be a positive integer.');
+  }
 }
 
 export function parseBucketAppId(bucket) {

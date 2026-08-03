@@ -10,6 +10,7 @@ const requiredOperations = [
   'expirePendingPayments',
   'setAdminOrderStatus',
   'sendMessage',
+  'manageMediaAsset',
   'createReport',
   'applyModerationAction',
   'reviewAuditCase',
@@ -38,6 +39,8 @@ const requiredTables = [
   'admin_action_logs',
   'security_events',
   'user_sessions',
+  'media_assets',
+  'media_asset_events',
 ];
 
 for (const name of requiredOperations) {

@@ -35,6 +35,8 @@ const requiredTables = [
   'message_risk_events',
   'reports',
   'audit_cases',
+  'media_assets',
+  'media_asset_events',
   'refunds',
   'settlements',
   'ledger_entries',
@@ -76,6 +78,7 @@ checkColumns('user_sessions', ['token_hash', 'session_scope', 'user_id', 'admin_
 checkColumns('audit_logs', ['audit_case_id', 'action', 'operator_id', 'operator_type', 'comment', 'metadata']);
 checkColumns('admin_action_logs', ['admin_id', 'action', 'target_type', 'target_id', 'before_data', 'after_data']);
 checkColumns('security_events', ['event_type', 'actor_id', 'actor_role', 'target_type', 'target_id', 'target_key', 'required_role', 'actual_role', 'metadata']);
+checkColumns('media_assets', ['owner_user_id', 'object_key', 'purpose', 'content_type', 'declared_size_bytes', 'max_size_bytes', 'status', 'audit_status', 'expires_at']);
 
 psqlRows(`
   begin;
@@ -103,6 +106,7 @@ console.log(
         'audit-log-columns',
         'admin-action-columns',
         'security-event-columns',
+        'media-asset-columns',
         'slot-lock-syntax',
         'provider-callback-lock-syntax',
       ],

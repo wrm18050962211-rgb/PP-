@@ -82,7 +82,12 @@ try {
   const anonymousUpload = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg' }, { omitAuth: true, expectOk: false });
   assert(anonymousUpload.error?.code === 'AUTH_REQUIRED', 'production media policy still requires auth');
 
-  const uploadPolicy = await api('POST', '/api/media/upload-policy', { fileName: 'avatar.jpg', purpose: 'avatar' }, { expectOk: false });
+  const uploadPolicy = await api(
+    'POST',
+    '/api/media/upload-policy',
+    { fileName: 'avatar.jpg', purpose: 'avatar', contentType: 'image/jpeg', sizeBytes: 100 },
+    { expectOk: false },
+  );
   assert(uploadPolicy.error?.code === 'MEDIA_UPLOAD_NOT_CONFIGURED', 'production media policy rejects mock upload credentials');
 
   const invalidUpload = await api(
@@ -93,6 +98,14 @@ try {
   );
   assert(invalidUpload.error?.code === 'MEDIA_TYPE_NOT_ALLOWED', 'production media policy rejects unsafe content types');
 
+  const mismatchedUpload = await api(
+    'POST',
+    '/api/media/upload-policy',
+    { fileName: 'avatar.png', purpose: 'avatar', contentType: 'image/jpeg', sizeBytes: 100 },
+    { expectOk: false },
+  );
+  assert(mismatchedUpload.error?.code === 'MEDIA_EXTENSION_MISMATCH', 'production media policy rejects MIME and extension mismatch');
+
   const identityUpload = await api(
     'POST',
     '/api/media/upload-policy',
@@ -100,6 +113,22 @@ try {
     { expectOk: false },
   );
   assert(identityUpload.error?.code === 'PRIVATE_MEDIA_UPLOAD_NOT_CONFIGURED', 'public media policy rejects private identity uploads');
+
+  const untrackedCompletion = await api(
+    'POST',
+    '/api/media/assets/00000000-0000-4000-8000-000000000901/complete',
+    { sizeBytes: 100 },
+    { expectOk: false },
+  );
+  assert(untrackedCompletion.error?.code === 'MEDIA_STORAGE_NOT_CONFIGURED', 'production completion rejects JSON metadata storage');
+
+  const untrackedDeletion = await api(
+    'DELETE',
+    '/api/media/assets/00000000-0000-4000-8000-000000000901',
+    undefined,
+    { expectOk: false },
+  );
+  assert(untrackedDeletion.error?.code === 'MEDIA_STORAGE_NOT_CONFIGURED', 'production deletion rejects JSON metadata storage');
 
   const mockPayment = await api('POST', '/api/payments/production-guard-payment/mock-success', undefined, { expectOk: false });
   assert(mockPayment.error?.code === 'MOCK_PAYMENT_DISABLED', 'production rejects mock payment success endpoint');
@@ -123,7 +152,10 @@ try {
           'auth-required',
           'production-media-not-configured',
           'unsafe-media-type-rejected',
+          'mime-extension-mismatch-rejected',
           'identity-media-kept-private',
+          'untracked-media-completion-rejected',
+          'untracked-media-deletion-rejected',
           'mock-payment-disabled',
         ],
       },

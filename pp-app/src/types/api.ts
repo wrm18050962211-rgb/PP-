@@ -127,11 +127,41 @@ export type PostImage = {
 
 export type MediaUploadPurpose = 'post-image' | 'avatar' | 'portfolio' | 'identity' | 'video';
 
+export type MediaAssetStatus = 'pending_upload' | 'uploaded' | 'rejected' | 'expired' | 'deleted';
+
+export type MediaAsset = {
+  id: string;
+  ownerUserId: string;
+  provider: string;
+  bucket: string;
+  region: string;
+  objectKey: string;
+  publicUrl: string | null;
+  purpose: MediaUploadPurpose;
+  visibility: 'public' | 'private';
+  contentType: string;
+  fileExtension: string;
+  declaredSizeBytes: number;
+  sizeBytes: number | null;
+  maxSizeBytes: number;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  status: MediaAssetStatus;
+  auditStatus: 'pending' | 'approved' | 'rejected' | 'needs_change' | 'cancelled';
+  expiresAt: string;
+  uploadedAt: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type MediaUploadPolicy = {
   provider: 'tencent_cos' | string;
   mode: 'mock' | 'production' | string;
   bucket: string;
   region: string;
+  assetId: string;
   purpose: MediaUploadPurpose;
   objectKey: string;
   contentType: string;
@@ -139,6 +169,7 @@ export type MediaUploadPolicy = {
   uploadUrl: string;
   publicUrl: string;
   expiresAt: string;
+  maxSizeBytes: number;
   formFields?: Record<string, string>;
   credentials?: Record<string, unknown>;
 };

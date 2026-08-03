@@ -20,10 +20,12 @@ assert.equal(hasTencentCosMediaConfig({ ...env, TENCENT_CLOUD_SECRET_KEY: '' }),
 assert.equal(parseBucketAppId(env.COS_BUCKET), '1250000000');
 assert.throws(() => parseBucketAppId('missing-appid'), /APPID suffix/);
 assert.equal(readTencentCosConfig(env).publicBaseUrl, 'https://media.example.com');
+assert.throws(() => readTencentCosConfig({ ...env, COS_PUBLIC_BASE_URL: 'http://media.example.com' }), /HTTPS URL/);
+assert.throws(() => readTencentCosConfig({ ...env, COS_REGION: '../unsafe' }), /unsupported characters/);
 
 const uploadPolicy = await createTencentCosPostUploadPolicy({
   env,
-  objectKey: 'pp/public/avatar/user-1/2026-07/example image.jpg',
+  objectKey: 'pp/public/avatar/user-1/2026-07/example-image.jpg',
   contentType: 'image/jpeg',
   maxSizeBytes: 10 * 1024 * 1024,
   now: Date.UTC(2026, 6, 24, 0, 0, 0),
@@ -44,14 +46,14 @@ const uploadPolicy = await createTencentCosPostUploadPolicy({
 assert.equal(calls.length, 1);
 assert.deepEqual(calls[0].policy.statement[0].action, ['name/cos:PostObject']);
 assert.deepEqual(calls[0].policy.statement[0].resource, [
-  'qcs::cos:ap-shanghai:uid/1250000000:still-media-staging-1250000000/pp/public/avatar/user-1/2026-07/example image.jpg',
+  'qcs::cos:ap-shanghai:uid/1250000000:still-media-staging-1250000000/pp/public/avatar/user-1/2026-07/example-image.jpg',
 ]);
 assert.equal(uploadPolicy.mode, 'production');
 assert.equal(uploadPolicy.uploadMethod, 'POST');
 assert.equal(uploadPolicy.uploadUrl, 'https://still-media-staging-1250000000.cos.ap-shanghai.myqcloud.com');
 assert.equal(
   uploadPolicy.publicUrl,
-  'https://media.example.com/pp/public/avatar/user-1/2026-07/example%20image.jpg',
+  'https://media.example.com/pp/public/avatar/user-1/2026-07/example-image.jpg',
 );
 assert.equal(uploadPolicy.formFields.key, uploadPolicy.objectKey);
 assert.equal(uploadPolicy.formFields['Content-Type'], 'image/jpeg');
@@ -62,6 +64,16 @@ assert.equal(JSON.stringify(uploadPolicy).includes(env.TENCENT_CLOUD_SECRET_KEY)
 const decodedPolicy = JSON.parse(Buffer.from(uploadPolicy.formFields.policy, 'base64').toString('utf8'));
 assert.deepEqual(decodedPolicy.conditions.at(-2), ['eq', '$Content-Type', 'image/jpeg']);
 assert.deepEqual(decodedPolicy.conditions.at(-1), ['content-length-range', 1, 10 * 1024 * 1024]);
+await assert.rejects(
+  createTencentCosPostUploadPolicy({
+    env,
+    objectKey: 'outside/public/example.jpg',
+    contentType: 'image/jpeg',
+    maxSizeBytes: 100,
+    credentialProvider: async () => ({}),
+  }),
+  /exact pp\/public asset path/,
+);
 
 console.log(
   JSON.stringify(
@@ -69,11 +81,14 @@ console.log(
       ok: true,
       checks: [
         'complete-config',
+        'https-public-base',
+        'safe-region',
         'bucket-appid',
+        'public-prefix-boundary',
         'least-privilege-resource',
         'short-lived-post-policy',
         'content-type-and-size-limits',
-        'public-url-encoding',
+        'public-url-construction',
         'permanent-secret-not-returned',
       ],
     },
