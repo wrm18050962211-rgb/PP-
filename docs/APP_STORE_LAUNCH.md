@@ -6,7 +6,7 @@
 
 - `pp-app` 已加入 Capacitor 配置，iOS 原生工程需要在 Mac 上生成。
 - Web 构建产物目录是 `pp-app/dist`。
-- App ID 暂定为 `com.ppplatform.app`，提交前可以改成公司或个人开发者账号下的正式 Bundle ID。
+- 正式 Bundle ID 已锁定为 `com.frameyu.still`。
 - 第一版目标是 App Store 最小可审版本，不追求完整平台自动化。
 - 产品决策：支付必须进入第一版；摄影师资料审核、内容审核、交易纠纷和退款处理可以先人工运营。
 
@@ -15,8 +15,8 @@
 PP 第一版不再按“泛约拍/陪拍平台”理解，而应按 Still 的 C 端生活方式影像服务来推进：
 
 ```text
-Still
-留住此刻的样子
+Still帧遇
+发现摄影师，留住旅行与日常
 ```
 
 当前单赛道机会是“从拍照灵感到影像交付”，不是做摄影师黄页，也不是一开始做 Snappr 式 B 端视觉内容平台。
@@ -432,6 +432,17 @@ disputed
 公网材料提交前，按 `deploy/STATIC_DELIVERY_RUNBOOK.md` 逐项记录非敏感验收结果，不在仓库中保存证书私钥、账号密码或完整连接串。
 
 ## App Store Connect 必备材料
+
+### 品牌与本地化锁定（2026-08-04）
+
+- 同一个 App Store Connect 记录和 Bundle ID `com.frameyu.still` 覆盖中国与海外市场。
+- 默认及英文名称使用 `Still`，英文副标题使用 `Keep your presence in frame`。
+- 简体中文名称使用 `Still帧遇`，简体中文副标题使用 `发现摄影师，留住旅行与日常`。
+- 名称按用户语言本地化，不按物理地区切换；简体中文系统显示 `Still帧遇`，其他语言回退 `Still`。
+- App 图标源文件为 `brand/still-app-icon-1024.png`，不得叠加中文、圆角或透明通道。
+- Windows 保留 `capacitor.config.ts` 的默认 `appName: 'Still'`，Mac/iOS 节点在 `zh-Hans` 的 `InfoPlist.strings` 中设置 `CFBundleDisplayName = Still帧遇`。
+- 中国大陆 APP 备案名称和 App Store Connect 简体中文名称必须逐字一致。
+- 对外始终使用完整中文名称 `Still帧遇`，不单独使用“帧遇”；正式提交前仍需确认名称占用和商标近似检索结果。
 
 - Apple Developer Program 账号
 - App 名称、Bundle ID、SKU

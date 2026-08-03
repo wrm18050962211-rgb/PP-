@@ -1,0 +1,14 @@
+{
+  "default": {
+    "locale": "en",
+    "htmlLang": "en",
+    "name": "Still",
+    "subtitle": "Keep your presence in frame"
+  },
+  "simplifiedChinese": {
+    "locale": "zh-Hans",
+    "htmlLang": "zh-CN",
+    "name": "Still帧遇",
+    "subtitle": "发现摄影师，留住旅行与日常"
+  }
+}
