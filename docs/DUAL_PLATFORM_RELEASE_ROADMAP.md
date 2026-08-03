@@ -201,16 +201,16 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 ### WIN-MAP-1 高德 WebService 代理
 
 - Priority: P0
-- Status: pending
+- Status: blocked
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-BASE-0`, `EXT-AMAP-1`
 - Scope: 建立 `MAP_PROVIDER=amap` Provider 层及服务端地图代理；覆盖输入提示、POI 文本搜索、周边搜索、多边形搜索、地理编码和逆地理编码。
 - Acceptance criteria: 客户端通过统一业务 API 获取标准化 POI；WebService Key 不下发；超时、配额、Provider 错误有稳定错误码；输入和返回经过校验；关键查询有合理限流与缓存。
 - Shared files: `server/.env.example`, `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
-- Unblock result: 提供代理端点、请求/响应契约、错误码、测试用例和 commit SHA，解除 `IOS-MAP-1`。
+- Unblock result: 尚未解除 `IOS-MAP-1`；等待 `EXT-AMAP-1` 提供可供 staging 后端使用的 WebService 配置确认和脱敏验收证据后，才能实施代理端点、标准化契约、错误码、限流缓存与测试。
 - Result commit: pending
-- Verification: pending
-- Notes: 腾讯地图只能保留未来 Provider 接口，不得作为 P0 默认实现。
+- Verification: 2026-08-03 依赖审计确认 `WIN-BASE-0` 已 completed，`EXT-AMAP-1` 仍 pending；仓库尚无高德 WebService Provider/代理实现，当前 `server/.env.example` 仍使用本地 `MAP_PROVIDER=manual`，未执行真实高德调用。
+- Notes: EXT 交接须确认 staging 密钥管理已注入 Roadmap 约定的 `AMAP_WEBSERVICE_KEY`（不得提供 Key 值），并提供输入提示、POI 文本/周边/多边形搜索、地理编码、逆地理编码的脱敏调用结果，以及日配额/QPS、地区、限制方式和服务条款摘要。仓库现有占位名 `AMAP_WEB_KEY` 将在节点实施时统一，不能据此误报依赖已满足；腾讯地图只能保留未来 Provider 接口，不得作为 P0 默认实现。
 
 ### WIN-MAP-2 地点域模型与附近匹配
 
