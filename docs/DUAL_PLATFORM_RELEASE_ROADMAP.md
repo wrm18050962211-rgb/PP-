@@ -369,16 +369,16 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 ### WIN-DELIVERY-1 环境、不可变发布和回滚
 
 - Priority: P0
-- Status: pending
+- Status: blocked
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-SEC-1`, `EXT-CLOUD-1`, `EXT-DOMAIN-1`
 - Scope: 建立 dev/staging/production 分层、CI 质量门、按 Git commit 构建的不可变发布、版本切换、健康验证和应用回滚；禁止在线编辑生产源码。
 - Acceptance criteria: staging 与 production 密钥/数据库隔离；发布物记录完整 commit SHA、构建时间和迁移版本；生产使用独立低权限运行账号；新旧版本目录可切换；`/api/health` 和 `/api/ops/launch-check` 可用；失败可回滚上一版本；发布步骤不依赖服务器内手工改源码；CI 覆盖 server、PostgreSQL、mobile 和 Admin。
 - Shared files: `.github/workflows/**`, `deploy/**`, `server/.env.example`, `docs/APP_STORE_LAUNCH.md`
-- Unblock result: 提供 staging/production 非敏感地址、部署 SHA、发布记录、回滚结果和健康检查，解除 `WIN-OBS-1`、`WIN-BACKUP-1`、`IOS-CRASH-1` 的部署依赖。
-- Result commit: pending
-- Verification: pending
-- Notes: `.env` 和真实凭据禁止提交；应用回滚不等于数据库回滚，不可逆迁移必须单独确认。
+- Unblock result: 尚未解除 `WIN-OBS-1`、`WIN-BACKUP-1`、`IOS-CRASH-1` 的部署依赖；已完成不依赖公网放行的 Admin/官网不可变产物、发布清单、版本切换/失败恢复、Admin HTTP 启动配置、根域切换方案和支付说明草案，最终部署验收仍等待 `EXT-DOMAIN-1` completed。
+- Result commit: `13ea2628da2213f2fc998fe0991322f1d4e8a7b4`（离线可完成部分）
+- Verification: `server: npm.cmd run check:mvp`、`server: npm.cmd run check:domain-delivery-prep`、`server: npm.cmd run check:ci-workflow`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、发布清单 CLI 实跑、`bash -n deploy/switch-static-release.sh`、`git diff --check` 全部通过。
+- Notes: CI 已生成按完整 commit SHA 命名且包含构建时间/迁移版本的 Admin 与官网独立产物；静态版本切换会校验清单和 Nginx、探测失败时恢复上一版本。未操作外部控制台或生产环境，未修改 `pp-app/ios/**`。当前阻塞项为 ICP 备案放行、根域 DNS/TLS、API/Admin 公网 HTTPS、Admin 独立证书、ACME 续期演练、域名自动续费/到期提醒、正式支付说明审批和公网/真机验收；`.env`、真实凭据和证书私钥禁止提交，应用回滚不等于数据库回滚。
 
 ### WIN-OBS-1 后端可观测性和告警信号
 
@@ -1219,10 +1219,10 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Scope: 准备并持续管理 API、Admin、官网、隐私政策、用户协议、支付说明和退款规则的正式域名、DNS 与 HTTPS 生命周期。
 - Acceptance criteria: URL 可从公网和真机访问；证书有效且自动续期任务已验证；域名使用公司主体管理并开启自动续费；域名和证书配置 30/14/7 天到期提醒并通知主要/备用负责人；Admin 与 API 域名隔离；政策 URL 长期稳定；DNS/证书变更先在 staging 或安全窗口验证。
 - Shared files: 只向代码侧提供正式 URL
-- Unblock result: 提供 URL、证书检查、续期任务和到期告警结果，解除 `WIN-ADMIN-1`、`WIN-DELIVERY-1`、`IOS-COMPLIANCE-1`、`EXT-RUNBOOK-1`。
+- Unblock result: 尚未解除 `WIN-ADMIN-1`、`WIN-DELIVERY-1`、`IOS-COMPLIANCE-1`、`EXT-RUNBOOK-1`；等待备案、根域、API/Admin HTTPS、续期演练、自动续费/到期提醒和公网真机证据全部满足。
 - Result commit: not applicable
-- Verification: API `https://api.weareinframe.com` 已存在；Admin 和政策 URL 仍待确认。
-- Notes: pending
+- Verification: 2026-08-03 外部脱敏交接确认 `https://www.weareinframe.com/`、`/privacy.html`、`/terms.html`、`/refund.html` 公网 HTTPS 200、TLSv1.3，证书有效至 2026-10-17；`api.weareinframe.com` 与 `admin.weareinframe.com` 已独立 A 解析，但受 ICP 拦截，公网 HTTP 跳转至拦截页且 HTTPS 握手失败；API Nginx 监听 443、证书有效至 2026-10-21、Certbot timer active，但 `renew --dry-run` 因外部挑战不可达而失败；Admin 尚无独立证书。
+- Notes: ICP 首次备案仍为草稿/未提交；根域无网站 A/CNAME 且无可用 Cloudflare TLS；公司主体持有域名至 2027-07-18，但自动续费关闭。Windows 已在 `13ea2628da2213f2fc998fe0991322f1d4e8a7b4` 提供 `payment.html` 上线前草案、Admin 独立构建/部署入口及根域 Cloudflare Pages 或服务器 301 方案；这些准备不代表政策文本批准或公网验收完成。
 
 ### EXT-COMPLIANCE-1 隐私、协议、支付和退款文本
 
