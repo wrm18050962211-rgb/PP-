@@ -271,16 +271,16 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 ### WIN-MEDIA-1 COS、media_assets 和上传安全
 
 - Priority: P0
-- Status: pending
+- Status: completed
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-BASE-0`, `EXT-CLOUD-1`
 - Scope: 投产 COS 临时授权；建立 `media_assets` 元数据、用途、尺寸、类型、归属和审核状态。
 - Acceptance criteria: MIME、后缀、大小和用途同时校验；上传凭据最小权限且短时有效；媒体记录写入 PostgreSQL；生产拒绝 data URL/mock 存储；删除和失效可追踪。
 - Shared files: `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
-- Unblock result: 提供上传策略契约、允许类型/大小、媒体状态、真实 COS 检查和 commit SHA，解除 `IOS-MEDIA-1`、`WIN-MEDIA-2`。
-- Result commit: pending
-- Verification: pending
-- Notes: Secret Key 禁止进入客户端。
+- Unblock result: 已提供上传策略契约、允许类型/大小、`pending_upload/uploaded/rejected/expired/deleted` 生命周期、真实 COS 脱敏检查和实现 commit SHA；解除 `IOS-MEDIA-1`、`WIN-MEDIA-2`。
+- Result commit: `5d7e255bb15f5da73e7b7e048f87a302449d13d4`
+- Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过；EXT 脱敏交接确认 staging/production COS 隔离、SSE-COS、上传、SSE 属性、下载哈希及 HTTPS/CDN 200 均通过。
+- Notes: 已新增 `media_assets`、`media_asset_events` 和迁移，生产上传策略仅允许一个 `pp/public` 对象的短时 `PostObject`；MIME、后缀、用途和大小同时校验，完成/删除均校验所有权并追加事件，待上传过期由 maintenance job 批量处理。Web/小程序真实上传后必须确认 PostgreSQL 记录；生产缺少 COS 或 PostgreSQL 网关时失败关闭，不回退 data URL/mock。客户端未获得永久 Secret；本节点未执行生产数据库写入，迁移须通过受控发布流程部署，未修改 `pp-app/ios/**`。
 
 ### WIN-PAY-1 iOS 支付服务端契约
 
@@ -1171,16 +1171,16 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 ### EXT-CLOUD-1 COS、PostgreSQL 和备份资源
 
 - Priority: P0
-- Status: in_progress
+- Status: completed
 - Owner branch: User/External
 - Depends on: none
 - Scope: 准备正式 PostgreSQL、COS/CDN、自动备份、故障域分离副本、网络和最小权限账号。
 - Acceptance criteria: staging/production 资源、密钥和数据库隔离；数据库连接与 COS 上传可验证；PostgreSQL 自动备份保留周期明确；至少一份备份与生产实例故障域分离；COS/OSS 版本控制、生命周期或等价误删保护已配置；提供隔离恢复窗口；业务服务不用数据库 root/admin 账号。
 - Shared files: 无
-- Unblock result: 提供资源已配置确认、非敏感地址、备份策略和隔离恢复窗口，解除 `WIN-MEDIA-1`、`WIN-DELIVERY-1`、`WIN-BACKUP-1`。
+- Unblock result: 已提供资源配置、隔离、最小权限、备份和恢复的脱敏确认；解除 `WIN-MEDIA-1`，并解除 `WIN-DELIVERY-1`、`WIN-BACKUP-1` 的云资源依赖。`WIN-DELIVERY-1` 仍等待 `EXT-DOMAIN-1`，`WIN-BACKUP-1` 仍等待 `WIN-DELIVERY-1`。
 - Result commit: not applicable
-- Verification: `cloudDatabaseTrialReady: true`；正式 COS、备份恢复和生产隔离仍待完成。
-- Notes: Secret 通过云密钥管理；同一服务器上的数据库文件副本不视为异地备份。
+- Verification: staging/production PostgreSQL 与 COS 均已隔离；production PostgreSQL 高可用、仅内网、仅允许 API 主机访问，staging/production TLSv1.3 通过；生产 API 低权限账号通过角色边界、业务 DML 和健康检查。每日自动备份保留 7 天，2026-08-03 时间点隔离恢复得到 40 张业务表、574 个字段和精确 17 行并读取通过。两套 COS 均启用 SSE-COS，上传、SSE 属性、下载哈希和 HTTPS/CDN 200 通过；production CAM 仅覆盖指定桶 `pp/public/*` 的必要上传/下载，越权测试被拒绝。
+- Notes: Secret 继续通过云密钥管理，未写入仓库或 Roadmap。600 元预警、800 元告警及人工处置流程已验证，但不替代 `EXT-COST-1` 的完整 50%/80%/100% 预算矩阵。两台临时恢复实例和 COS 测试对象/版本/本地测试文件已清理；旧 managed staging 作为既有条目保留在回收站，本轮未永久删除。已知 PostgreSQL `pg_wal`/归档工单继续单独跟踪，本轮未对生产库执行无必要写入或高风险参数修改。
 
 ### EXT-COST-1 预算、配额和账单预警
 
