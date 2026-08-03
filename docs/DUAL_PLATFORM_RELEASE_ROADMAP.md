@@ -12,22 +12,22 @@
 - Windows branch: `codex/vertical-db-api`
 - Mac/iOS branch: `codex/mac-ios`
 - Roadmap work branch: `codex/release-roadmap`
-- Map provider: `MAP_PROVIDER=amap`
-- Current P0 map provider: 高德地图
-- Future fallback provider: 腾讯地图，仅作为未来扩展，不进入当前 P0
+- Map provider: 通过 `MAP_PROVIDER` 运行时选择，服务端必须使用统一 Provider 适配层
+- Current P0 map provider: 待 `EXT-MAP-1` 完成高德、腾讯、百度的功能、商用授权、配额和总成本比较后确定
+- Map display fallback: 可评估 MapLibre 加合法授权地图源；不得直接把 OpenStreetMap 公共瓦片服务作为生产 CDN
 - AI、增长实验和微信小程序：在 iOS TestFlight 主流程稳定前暂停
 - 用户拍摄偏好档案属于 TestFlight 稳定后的 P2 增长基础：先上线非 AI 结构化档案、订单快照和拍后反馈，再进入 P3 AI 偏好助手；首版不批量读取系统相册
 
 ### 0.1 地图技术路线
 
-- Windows 接入高德 WebService API，并通过服务端统一代理地图搜索能力。
-- 高德 WebService Key 只能存放在服务端环境变量中，禁止进入前端构建、iOS 工程、日志或 Git。
-- Mac/Capacitor 第一版使用高德 JS API 2.0 完成地图展示和选点。
-- POI 搜索、输入提示、周边搜索、多边形搜索、地理编码和逆地理编码统一调用 Windows 后端代理。
-- 客户端只接收业务需要的标准化地点结果，不直接调用高德 WebService。
-- 第一版支持拒绝定位后的手动搜索，以及调起高德地图 App 导航。
-- 只有 JS API 2.0 在真机性能或能力上不能满足需求时，才新建节点接入高德 iOS SDK。
-- User/External 必须完成高德账号、应用、WebService Key、JS API Key、安全配置和商业许可核实。
+- Windows 建立 Provider 无关的地图服务适配层，通过服务端统一代理 POI 搜索、输入提示、周边搜索、地理编码和逆地理编码；首版不自建地图数据、搜索索引或路线引擎。
+- `MAP_PROVIDER` 在高德、腾讯或百度中选择生产实现；选择前必须比较大陆 POI 质量、Capacitor 兼容性、商用授权、调用配额、年度固定许可和按量费用，不能因开发 Key 可调用就推定可免费商用。
+- Provider 的 WebService Key 只能存放在服务端密钥管理或环境变量中，禁止进入前端构建、iOS 工程、日志或 Git；服务端为不同 Provider 输出统一地点结构和稳定错误码。
+- Mac/Capacitor 第一版地图显示可以使用选定 Provider 的 JS/原生 SDK，或 MapLibre 加合法授权的地图瓦片/矢量源；不得直接依赖 OpenStreetMap 公共瓦片服务承载生产流量。
+- 客户端只接收业务需要的标准化地点结果，不直接调用 WebService；客户端公开 Key 或安全参数必须按域名、Bundle ID、调用来源和平台能力限制。
+- 第一版只实现定位、手动搜索、选点、地点快照和距离等业务必要能力；路线导航调起用户已安装的高德、腾讯或 Apple 地图，未安装时提供系统地图或网页降级，不在 Still 内实现语音导航。
+- 只有 Web/Capacitor 地图在真机性能、合规或能力上不能满足需求时，才新建节点接入原生地图 SDK；不得在 P0 内扩张为自建离线地图或导航系统。
+- User/External 必须完成候选服务商账号、应用、服务端 Key、客户端安全配置、商用许可和预算核实；生产 Provider 未获书面可上线结论时，地图节点只能用于内部 staging 验证。
 
 ### 0.2 状态定义
 
@@ -198,19 +198,19 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过；未执行真实短信发送。
 - Notes: 已完成腾讯短信 Provider 与 +86/模板参数环境校验、验证码生成/过期/冷却/手机号与 IP 小时限流/最大尝试次数、失败投递计数、稳定错误码与日志脱敏、持久会话/固定过期/重新登录/撤销、consumer/companion/admin 角色边界及 Mock/失败/生产 guard 测试。节点仅因 `EXT-SMS-1` 运营商报备阻塞，报备完成并验证真实发送前不得标记 completed；未提交任何敏感凭据，未修改 `pp-app/ios/**`。
 
-### WIN-MAP-1 高德 WebService 代理
+### WIN-MAP-1 地图 WebService Provider 适配层
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
-- Depends on: `WIN-BASE-0`, `EXT-AMAP-1`
-- Scope: 建立 `MAP_PROVIDER=amap` Provider 层及服务端地图代理；覆盖输入提示、POI 文本搜索、周边搜索、多边形搜索、地理编码和逆地理编码。
+- Depends on: `WIN-BASE-0`, `EXT-MAP-1`
+- Scope: 建立由 `MAP_PROVIDER` 选择实现的 Provider 适配层及服务端地图代理；覆盖输入提示、POI 文本搜索、周边搜索、地理编码和逆地理编码，并为业务返回统一地点结构。
 - Acceptance criteria: 客户端通过统一业务 API 获取标准化 POI；WebService Key 不下发；超时、配额、Provider 错误有稳定错误码；输入和返回经过校验；关键查询有合理限流与缓存。
 - Shared files: `server/.env.example`, `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
 - Unblock result: 提供代理端点、请求/响应契约、错误码、测试用例和 commit SHA，解除 `IOS-MAP-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: 腾讯地图只能保留未来 Provider 接口，不得作为 P0 默认实现。
+- Notes: P0 只实现 `EXT-MAP-1` 最终选定的一家 Provider，但接口和错误模型不得绑定其专有返回结构；其他候选只保留适配扩展点，不要求同时接入。
 
 ### WIN-MAP-2 地点域模型与附近匹配
 
@@ -596,28 +596,28 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Verification: pending
 - Notes: 不在客户端存放 Pepper 或短信 Secret。
 
-### IOS-MAP-1 高德 JS API 2.0 地图展示和选点
+### IOS-MAP-1 Provider 可替换的地图展示和选点
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/mac-ios`
-- Depends on: `WIN-MAP-1`, `EXT-AMAP-2`
-- Scope: 在 Capacitor 中使用高德 JS API 2.0 展示地图、标记选点；搜索、输入提示和编码通过后端代理；支持拒绝定位后的手动搜索。
-- Acceptance criteria: 真机可加载地图、搜索和选择 POI；客户端不包含 WebService Key；定位拒绝仍可完成下单；JS API 安全配置有效；错误和加载状态完整。
+- Depends on: `WIN-MAP-1`, `EXT-MAP-2`
+- Scope: 在 Capacitor 中使用获批 Provider 的 JS/原生 SDK，或 MapLibre 加合法授权地图源展示地图和标记选点；搜索、输入提示和编码通过后端代理；支持拒绝定位后的手动搜索。
+- Acceptance criteria: 真机可加载地图、搜索和选择 POI；客户端不包含 WebService Key；定位拒绝仍可完成下单；客户端公开 Key、域名或 Bundle ID 限制有效；地图源商用条件已获确认；错误和加载状态完整。
 - Shared files: `pp-app/src/services/locationService.ts`, `pp-app/src/types/api.ts`, 地图 UI 组件、`pp-app/package*.json`
 - Unblock result: 提供真机录像/截图、选点结果、拒绝定位结果、构建验证和 commit SHA，解除 `IOS-MAP-2`、`INT-MAP-1` 客户端条件。
 - Result commit: pending
 - Verification: pending
-- Notes: 首版不接高德 iOS SDK。
+- Notes: 首版优先使用 Capacitor 可复用方案；只有真机性能、合规或能力不满足时才另建原生 SDK 节点。
 
-### IOS-MAP-2 场景匹配和高德导航
+### IOS-MAP-2 场景匹配和外部地图导航
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-MAP-2`, `IOS-MAP-1`
-- Scope: 验证外滩、商圈、艺术园区、道路、滨江区域、附近摄影师和服务范围，并支持调起高德地图 App 导航。
-- Acceptance criteria: 地点别名和区域显示正确；附近匹配与服务范围符合后端结果；订单保存地点快照；未安装高德 App 时有可理解降级。
+- Scope: 验证外滩、商圈、艺术园区、道路、滨江区域、附近摄影师和服务范围，并按设备能力调起高德、腾讯或 Apple 地图等外部导航。
+- Acceptance criteria: 地点别名和区域显示正确；附近匹配与服务范围符合后端结果；订单保存地点快照；首选地图未安装时可降级到系统地图、其他已安装地图或网页路线。
 - Shared files: `pp-app/src/features/user/**`, `pp-app/src/types/api.ts`, iOS URL scheme/Info.plist 配置
 - Unblock result: 提供场景矩阵、订单地点结果、导航验证和 commit SHA，解除 `INT-MAP-1`。
 - Result commit: pending
@@ -924,19 +924,19 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Verification: pending
 - Notes: pending
 
-### INT-MAP-1 集成高德地图主流程
+### INT-MAP-1 集成地图主流程
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `WIN-MAP-2`, `IOS-MAP-2`
-- Scope: 合并高德代理、地点域模型、JS API 选点、附近匹配和导航。
+- Scope: 合并 Provider 适配层、地点域模型、地图选点、附近匹配和外部导航。
 - Acceptance criteria: WebService Key 不在客户端；地图真机用例通过；订单地点快照正确；拒绝定位可手动完成。
 - Shared files: 地图服务、API 类型、地图 UI、Info.plist
 - Unblock result: 提供 Integration SHA、冲突说明和地点场景矩阵。
 - Result commit: pending
 - Verification: pending
-- Notes: 腾讯地图不进入本节点。
+- Notes: 只验收获批的生产 Provider；适配层必须允许以后更换服务商，但 P0 不要求同时维护多家实现。
 
 ### INT-DATA-1 集成生产数据闭环
 
@@ -1126,47 +1126,47 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Verification: pending
 - Notes: Secret ID/Key 通过密钥管理配置。
 
-### EXT-AMAP-1 高德账号、应用和 WebService Key
+### EXT-MAP-1 地图服务商比较、账号和服务端接入
 
 - Priority: P0
 - Status: pending
 - Owner branch: User/External
 - Depends on: none
-- Scope: 创建高德开发者账号和应用，申请 WebService Key，确认配额。
-- Acceptance criteria: Key 可由 staging 后端调用所需 WebService；配额、地区和服务条款满足测试。
+- Scope: 比较高德、腾讯和百度的大陆 POI、地址解析、配额、Capacitor 适配、商用授权、年度固定许可、按量费用和创业扶持；选择一家 P0 Provider，创建企业账号和应用并申请服务端 Key。
+- Acceptance criteria: 有三家候选的官方功能/授权/费用对比和选择结论；选定 Provider 的 Key 可由 staging 后端调用所需 WebService；配额、地区、坐标系、数据展示限制和测试条款满足当前业务。
 - Shared files: 无
-- Unblock result: 通过密钥管理配置 `AMAP_WEBSERVICE_KEY`，只向 Windows 提供已配置确认，解除 `WIN-MAP-1`。
+- Unblock result: 通过密钥管理配置 `MAP_PROVIDER` 及选定 Provider 对应的服务端 Secret 环境变量，只向 Windows 提供变量名、已配置确认、配额和非敏感限制摘要，解除 `WIN-MAP-1`。
 - Result commit: not applicable
 - Verification: pending
-- Notes: WebService Key 禁止发给客户端。
+- Notes: WebService Key 禁止发给客户端；高德 5 万元/年基础技术服务许可未获预算批准前，不得把高德视为不可替换的生产默认项。
 
-### EXT-AMAP-2 高德 JS API Key 和安全配置
+### EXT-MAP-2 客户端地图显示方案和安全配置
 
 - Priority: P0
 - Status: pending
 - Owner branch: User/External
-- Depends on: `EXT-AMAP-1`
-- Scope: 申请 JS API Key，配置安全密钥、允许域名和 Capacitor 使用方式。
-- Acceptance criteria: staging 和 iOS Capacitor 真机可加载 JS API 2.0；安全配置不暴露 WebService Key；正式域名已加入允许范围。
+- Depends on: `EXT-MAP-1`
+- Scope: 在选定 Provider 的客户端 SDK 与 MapLibre 加合法授权地图源之间确定 P0 显示方案；申请必要的客户端公开 Key，配置安全密钥、允许域名、Bundle ID 和 Capacitor 使用方式。
+- Acceptance criteria: staging 和 iOS Capacitor 真机可加载获批地图源并完成选点；安全配置不暴露 WebService Key；正式域名和应用标识已加入允许范围；地图数据来源、署名和商用条件明确。
 - Shared files: 只提供可公开客户端配置和安全接入说明
-- Unblock result: 提供 JS Key 的安全配置方式和允许域名确认，解除 `IOS-MAP-1`。
+- Unblock result: 提供客户端公开 Key 或地图源的安全配置方式、允许域名/应用标识及已配置确认，解除 `IOS-MAP-1`。
 - Result commit: not applicable
 - Verification: pending
-- Notes: 客户端 Key 仍需按高德要求限制使用范围。
+- Notes: 客户端公开 Key 仍需按选定 Provider 要求限制范围；使用 MapLibre 不等于地图数据免费，必须另行确认地图源、配额、署名和生产 SLA。
 
-### EXT-AMAP-3 高德商业许可核实
+### EXT-MAP-3 地图商业许可、调用量和预算核实
 
 - Priority: P0
 - Status: pending
 - Owner branch: User/External
-- Depends on: `EXT-AMAP-1`
-- Scope: 根据正式业务、调用量和商业模式核实高德授权、配额和付费要求。
-- Acceptance criteria: 保存官方或合同确认；上线调用量和费用有预算。
+- Depends on: `EXT-MAP-1`, `EXT-MAP-2`
+- Scope: 根据正式业务、地图显示方式、调用量和商业模式，核实选定 Provider 及地图数据源的授权、配额、固定许可、按量费用、超额处置和续费要求。
+- Acceptance criteria: 保存官方、工单或合同的可上线确认；地图显示、POI、地址解析和外部导航边界均已覆盖；上线调用量和费用有预算、50%/80%/100% 告警及超额限流方案。
 - Shared files: 合规记录，不提交敏感合同
 - Unblock result: 提供可上线结论、配额和限制摘要，解除 `INT-RC-1` 地图外部门槛。
 - Result commit: not applicable
 - Verification: pending
-- Notes: 腾讯地图仅作为未来备用评估。
+- Notes: 高德基础许可价格超出当前早期项目预算时，优先申请创业计划并完成腾讯/百度比价；没有书面商用结论不得将 staging 测试能力视为生产许可。
 
 ### EXT-CLOUD-1 COS、PostgreSQL 和备份资源
 
@@ -1395,4 +1395,4 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - 节点 ID 唯一检查
 - 状态枚举检查
 - 依赖节点存在性检查
-- 高德 P0 Provider 决策检查
+- 地图 P0 Provider、商用许可和可替换适配层决策检查
