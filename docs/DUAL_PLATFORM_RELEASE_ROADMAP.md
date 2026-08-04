@@ -6,7 +6,7 @@
 
 ## 0. 当前基线与固定决策
 
-- Roadmap version: 3
+- Roadmap version: 4
 - Current integration baseline: `6588247c29b2082d310cc96fe110ab67866337f4`
 - Integration branch: `codex/integration`
 - Windows branch: `codex/vertical-db-api`
@@ -17,6 +17,7 @@
 - Map display fallback: 可评估 MapLibre 加合法授权地图源；不得直接把 OpenStreetMap 公共瓦片服务作为生产 CDN
 - AI、增长实验和微信小程序：在 iOS TestFlight 主流程稳定前暂停
 - 用户拍摄偏好档案属于 TestFlight 稳定后的 P2 增长基础：先上线非 AI 结构化档案、订单快照和拍后反馈，再进入 P3 AI 偏好助手；首版不批量读取系统相册
+- 双边忠诚度属于偏好与真实交易闭环之后的 P2/P3 路线：先上线不依赖补贴的复约、认证/作品来源、摄影师成长和服务恢复，再以 90/180 天指标及单位经济决定是否试点会员、降佣或奖励
 
 ### 0.1 地图技术路线
 
@@ -151,8 +152,10 @@ Still 的对外 API、官网、Admin、TestFlight 或 App Store 版本一旦可�
 3. `IOS-PREF-1` 上线轻量问卷、喜欢/不喜欢样片、少量参考图、订单确认和拍后反馈；不依赖 AI。
 4. `INT-PREF-1` 验证没有 AI 也能完成档案、订单快照、摄影师查看和反馈闭环。
 5. `EXT-AI-1` 再准备 AI Provider、隐私、成本和保留策略。
-6. `WIN-AI-1`、`IOS-AI-1` 先接文字整理、缺失信息追问和档案更新草稿。
-7. `INT-AI-1` 在真实数据证明有效后，才试点用户主动选择的少量照片分析和分场景个人摄影 Skill。
+6. `WIN-AI-1`、`IOS-AI-1` 先接文字整理、缺失信息追问、档案更新草稿，以及可选的机位/光线/路线/静态姿势参考卡。
+7. `INT-AI-1` 先验证拍摄参考是否减少前期沟通，再试点用户主动选择的少量照片分析和分场景个人摄影 Skill。
+8. `WIN-AI-POST-1`、`IOS-AI-POST-1` 在真实订单媒体链路稳定后，依次试点拍后质检、选片建议、批量色彩/修图草稿和修改意见任务化；`INT-AI-POST-1` 验证是否缩短交付时间并减少返修。
+9. 实时取景、连续姿势纠正和自动连拍时机只保留为远期候选；必须在静态参考和拍后能力证明价值后单独立项，不进入当前 P3 承诺。
 
 固定边界：
 
@@ -163,6 +166,35 @@ Still 的对外 API、官网、Admin、TestFlight 或 App Store 版本一旦可�
 - 首版不申请整个系统相册的批量读取，不把原图默认用于模型训练。
 - 不做吸引力评分、外貌缺陷判定、身体诊断或敏感属性推断。
 - 摄影师只看到当前订单已授权的最小必要偏好，不看到无关历史照片或原始 AI 推理。
+- 机位、光线、路线、构图和姿势只作为创作参考，不是服务验收标准；摄影师可以采用、调整或忽略，平台不得据此自动判责、排名或处罚。
+- 拍后 AI 只能处理当前订单明确授权的媒体；原片不可覆盖，建议选片、调色和修图草稿必须保留来源与版本，并由摄影师确认后才进入交付候选。
+
+### 0.9 用户与摄影师双边忠诚度固定路线
+
+忠诚度建设属于 TestFlight 稳定后的 P2/P3 增长工作，不得插队阻塞 P0 Release Candidate。Still 不以签到、复杂积分、强制独家或禁止摄影师发布站外作品制造表面留存；先用可信交易、复约便利、可迁移的用户偏好、稳定收益和透明成长规则形成真实留存，再评估经济激励。
+
+固定顺序：
+
+1. 先完成真实咨询、需求快照、支付托管、交付、结算、客服、通知和埋点基础；这些能力未生产化时不得启动忠诚度权益。
+2. `EXT-LOYALTY-1` 定义用户复约、摄影师认证、作品来源标识、等级、服务恢复、通知和反跳单规则，并完成双端轻量研究。
+3. `WIN-LOYALTY-1` 建立用户—摄影师关系、复约上下文、认证/作品证据、摄影师成长指标和服务恢复的服务端事实源。
+4. `IOS-LOYALTY-1` 上线用户“常约摄影师/再次预约”和摄影师“回头客/成长与收益”轻量入口，不新增一套平行交易流程。
+5. `INT-LOYALTY-1` 验证复约、跨摄影师偏好复用、认证作品、摄影师成长和服务恢复闭环；使用 90/180 天低频业务指标判断价值。
+6. 只有 `INT-LOYALTY-1` 证明便利、信任和供给工具有效，且 `EXT-LOYALTY-2` 批准单位经济后，才能启动 `WIN-LOYALTY-2`、`IOS-LOYALTY-2` 的会员、成长值、复约优惠、降佣或推荐奖励试点。
+7. `INT-LOYALTY-2` 只做可关闭、可限城市/人群、可审计的经济激励实验；不能证明增量复购或摄影师留存时停止扩大。
+8. AI 只能在上述结构化关系和偏好闭环之后降低表达、复约和运营成本，不能用不透明模型分数决定摄影师生计或用户权益。
+
+固定边界：
+
+- 用户忠诚度目标是“继续通过 Still 解决拍摄需求”，既包括复约同一摄影师，也包括带着偏好档案安全更换摄影师；不能把用户绑定单一供给者当作唯一成功。
+- 摄影师忠诚度来自高质量线索、复约客户、可信作品证明、结算/取消保障、工作台效率和透明成长权益；惩罚和消息风控只能作为明确规则下的补充。
+- “平台认证摄影师”和“平台订单验证作品”必须分开：摄影师完成身份/能力/履约审核后可获得认证和透明曝光资格；站外作品仍可上传，但必须标记为人工审核或创作者自述来源，不能冒充平台成交作品。
+- 不采用“认证摄影师只能上传平台订单作品”的封闭规则；平台订单成片获得更强真实性标识，站外作品保留冷启动和展示价值。
+- 第一阶段不做签到、每日任务、复杂积分商城、无限补贴、排行榜内卷或默认营销 Push；每个新增入口都必须能被跳过，不延长首单主流程。
+- 复约不能复制已过期档期和旧价格；只能复用摄影师、场景、需求和偏好草稿，用户必须重新确认时间、地点、价格、授权和订单快照。
+- 摄影师只能看到当前咨询/订单必要的历史关系摘要，例如“已完成 2 次平台订单”，不得获得用户电话、其他摄影师订单或未授权偏好。
+- 等级、曝光和降佣规则必须可解释、可申诉、可人工复核；投诉或取消不能未经裁定自动永久降权。
+- 所有优惠、成长值、服务恢复额度和佣金变更由服务端账本与版本化规则计算，客户端不得自行决定。
 
 ---
 
@@ -492,6 +524,20 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Verification: pending
 - Notes: 第一版不接视觉模型，不申请批量相册权限；AI 摘要不能替代结构化事实源。
 
+### WIN-LOYALTY-1 双边关系、复约与摄影师可信成长基础
+
+- Priority: P2
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-DATA-2`, `WIN-SETTLE-1`, `WIN-NOTIFY-1`, `WIN-ANALYTICS-1`, `WIN-PREF-1`, `EXT-LOYALTY-1`
+- Scope: 复用真实订单、收藏/关注、偏好和通知数据，建立用户—摄影师关系摘要、再次预约草稿、常约摄影师、档期订阅、服务恢复记录、摄影师认证状态、作品来源证据和可解释成长指标；第一版不建立积分钱包。
+- Acceptance criteria: 完成订单后才能累计平台复约和履约指标；复约只复用草稿且重新校验档期/价格/授权；用户可关闭档期通知；摄影师只能读取当前交易必要的关系摘要；平台订单作品、人工审核站外作品和自述站外作品来源可区分；认证/等级/曝光依据可查询、可申诉、可人工纠正；服务恢复额度防重复领取；生产不使用 localStorage 作为事实源。
+- Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/API_CONTRACT.md`, `server/**`, `pp-app/src/types/api.ts`, `docs/**`
+- Unblock result: 提供迁移、API、权限矩阵、来源证据/复约/通知/申诉验证和 commit SHA，解除 `IOS-LOYALTY-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 优先复用现有收藏、订单、偏好、通知和结算模型；不得把复杂 CRM、手机号导出或自动营销纳入第一版。
+
 ### WIN-RECO-1 推荐与附近排序
 
 - Priority: P2
@@ -512,13 +558,41 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `INT-PREF-1`, `EXT-AI-1`
-- Scope: 在非 AI 偏好闭环验证有效后，建立统一 AI Gateway，先提供偏好文字整理、缺失信息追问和档案更新草稿；后续仅处理用户主动选择的少量照片，生成有来源、场景和置信度的可确认观察。
-- Acceptance criteria: 前端不持有 Provider key；每次调用记录功能、模型、prompt 版本、成本和采纳反馈；AI 输出通过 schema 校验；未经用户确认不能更新长期偏好；原图、视觉观察和已确认偏好分层存储并可分别删除；AI 失败不影响档案、预约或订单。
+- Scope: 在非 AI 偏好闭环验证有效后，建立统一 AI Gateway，先提供偏好文字整理、缺失信息追问和档案更新草稿；结合已确认偏好、真实地点/时间和摄影师服务范围，生成可选的机位、光线、路线、构图和静态姿势参考卡；后续仅处理用户主动选择的少量照片，生成有来源、场景和置信度的可确认观察。
+- Acceptance criteria: 前端不持有 Provider key；每次调用记录功能、模型、prompt 版本、成本和采纳反馈；AI 输出通过 schema 校验；拍摄参考必须标明依据、有效时间和安全限制，摄影师可采用/调整/忽略；未经用户确认不能更新长期偏好；原图、视觉观察和已确认偏好分层存储并可分别删除；AI 失败不影响档案、预约或订单。
 - Shared files: `server/routes/ai.mjs`, `server/services/ai/**`, `database/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, `docs/**`
-- Unblock result: 提供文字偏好接口、有限照片分析接口、日志/限流/删除验证和 commit SHA，解除 `IOS-AI-1`。
+- Unblock result: 提供文字偏好、可选拍摄参考、有限照片分析接口及日志/限流/删除验证和 commit SHA，解除 `IOS-AI-1`。
 - Result commit: pending
 - Verification: pending
 - Notes: 当前暂停至 `INT-PREF-1` 和 `EXT-AI-1` 完成；不允许吸引力评分、外貌缺陷判定、身体诊断或敏感属性推断。
+
+### WIN-AI-POST-1 拍后质检、选片与后处理 Copilot 服务端
+
+- Priority: P3
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-AI-1`, `INT-MEDIA-1`, `EXT-AI-1`
+- Scope: 仅处理当前订单明确授权的媒体，建立重复/连拍分组、模糊/闭眼/曝光等技术质检、候选选片、批量白平衡/色彩/轻修草稿、用户修改意见任务化和原片—派生版本记录；定位为摄影师 Copilot，不自动交付成片。
+- Acceptance criteria: 原片不可覆盖且可随时回退；每个建议和派生版本可追溯到订单、原片、模型、参数、成本和操作者；摄影师可批量采用、单张调整或全部拒绝；人脸/身体重塑等高敏修改需要单独授权；AI 失败不阻塞人工选片、修图和交付；权限、删除、限流和成本开关通过验证。
+- Shared files: `server/routes/ai.mjs`, `server/services/ai/**`, `database/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, `docs/**`
+- Unblock result: 提供媒体质检、选片建议、后处理草稿、版本回退、授权/删除和成本验证及 commit SHA，解除 `IOS-AI-POST-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 第一版只做可解释的技术质检和保守草稿，不做自动瘦身、换脸、批量风格覆盖或未经摄影师确认的自动交付。
+
+### WIN-LOYALTY-2 会员、成长权益和复约经济实验服务端
+
+- Priority: P3
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `INT-LOYALTY-1`, `EXT-LOYALTY-2`
+- Scope: 在单位经济获批后，为可选会员、用户复约权益、服务恢复额度、摄影师成长权益、阶段性降佣和推荐奖励建立版本化规则、账本、预算上限、反作弊、灰度和 Kill Switch；不得默认同时上线全部方案。
+- Acceptance criteria: 每笔权益可追溯到规则版本、订单和活动；退款/取消/争议可正确冲正；预算与单用户/摄影师上限生效；客户端不能篡改；规则可按城市/人群关闭；财务可对账；实验停止后不产生新负债；等级权益不依赖不透明 AI 分数。
+- Shared files: `database/**`, `server/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, `docs/**`
+- Unblock result: 提供账本、冲正、反作弊、灰度、Kill Switch、财务对账和 commit SHA，解除 `IOS-LOYALTY-2`。
+- Result commit: pending
+- Verification: pending
+- Notes: 具体启用项由 `EXT-LOYALTY-2` 逐项批准；没有增量证据时保持关闭。
 
 ### WIN-MINI-1 微信小程序服务端
 
@@ -622,7 +696,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Unblock result: 提供场景矩阵、订单地点结果、导航验证和 commit SHA，解除 `INT-MAP-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: 如 JS API 性能不足，另建 iOS SDK 节点，不在本节点扩张范围。
+- Notes: Still 首版不自建路线规划、实时导航或语音播报；外部地图 URL Scheme 和用户选择需有安全、隐私和失败处理。
 
 ### IOS-DATA-1 真实 Feed、资料、作品和收藏
 
@@ -848,19 +922,61 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Verification: pending
 - Notes: 第一版偏好卡使用规则模板；不得使用“缺陷分析”“颜值评分”等文案。
 
+### IOS-LOYALTY-1 常约摄影师、再次预约和摄影师成长体验
+
+- Priority: P2
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `WIN-LOYALTY-1`, `IOS-PREF-1`, `IOS-NOTIFY-1`, `EXT-LOYALTY-1`
+- Scope: 用户端在订单完成页和“我的”提供“再次预约”“常约摄影师”“沿用上次需求/偏好草稿”和可选档期提醒；摄影师端在咨询/订单工作台展示回头客关系摘要、需求/报价模板、认证与作品来源标识、成长进度、收益和结算保障；所有入口复用现有咨询—报价—定金—尾款托管—交付流程。
+- Acceptance criteria: 再次预约不跳过重新选档期、价格确认、偏好授权和订单快照；首单用户不被要求建立关系或档案；通知默认关闭营销频率并可退订；摄影师看不到用户联系方式和无关历史；站外作品可继续上传且来源展示清楚；等级进度可解释并提供申诉入口；页面在 VoiceOver、键盘、弱网、空状态和失败状态下可用。
+- Shared files: 用户订单/我的/摄影师主页、咨询需求卡、摄影师工作台、通知设置、认证/作品卡片、API 类型和文案
+- Unblock result: 提供用户/摄影师双角色真机流程、跳过/退订/申诉测试和 commit SHA，解除 `INT-LOYALTY-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 第一版只显示必要摘要和一个主行动按钮；不新增签到、每日任务、复杂积分或独立 CRM 页面。
+
 ### IOS-AI-1 AI 偏好助手和用户确认交互
 
 - Priority: P3
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-AI-1`, `INT-PREF-1`, `EXT-AI-1`
-- Scope: 接入偏好摘要、缺失信息追问、档案更新草稿和有限照片分析；所有结果以可编辑建议展示，用户可选择加入长期偏好、仅用于本次、拒绝或暂不确定。
-- Acceptance criteria: AI 不自动覆盖用户输入；每条建议显示来源、适用场景和确认状态；用户可拒绝、修改和删除；照片由用户逐次主动选择；AI 失败时完整回退非 AI 偏好流程；不向摄影师展示原始 AI 推理或未授权照片。
+- Scope: 接入偏好摘要、缺失信息追问、档案更新草稿、可选拍摄参考卡和有限照片分析；机位、光线、路线、构图和静态姿势建议同时供用户与摄影师参考，所有结果均可编辑、跳过或关闭。
+- Acceptance criteria: AI 不自动覆盖用户输入；每条建议显示来源、适用场景和确认状态；摄影师可标记采用、调整或忽略，用户不能把建议当作强制交付清单；照片由用户逐次主动选择；AI 失败时完整回退非 AI 偏好流程；不向摄影师展示原始 AI 推理或未授权照片。
 - Shared files: `pp-app/src/services/aiService.ts`, AI 建议组件、偏好/预约/订单页面、隐私文案
 - Unblock result: 提供真机确认、拒绝、删除、弱网和 AI 关闭测试及 commit SHA，解除 `INT-AI-1`。
 - Result commit: pending
 - Verification: pending
 - Notes: 当前暂停；不得默认读取全相册，不得用模型结论定义用户外貌或身体问题。
+
+### IOS-AI-POST-1 拍后协作与摄影师后处理 Copilot 体验
+
+- Priority: P3
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `WIN-AI-POST-1`, `IOS-MEDIA-1`, `INT-AI-1`
+- Scope: 在订单交付工作区展示连拍分组、技术质检、候选选片和批量后处理草稿；摄影师可以对比原片、批量采用、逐张微调或拒绝，用户修改意见转换为明确任务并关联对应版本。
+- Acceptance criteria: 默认先展示原片与建议差异；任何草稿都不能自动覆盖或交付；摄影师拥有最终选片和修图确认权；用户能看懂修改状态但不能越权读取工作底稿；弱网、重复提交、后台恢复、删除和 AI 关闭流程通过真机验证；敏感人像修改有单独确认。
+- Shared files: 订单交付/选片/修图协作页面、媒体对比组件、摄影师工作台、`aiService.ts`、API 类型和正式文案
+- Unblock result: 提供双角色真机选片、草稿对比、采用/拒绝、意见任务化、版本回退和 AI 关闭测试及 commit SHA，解除 `INT-AI-POST-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 先优化摄影师交付效率和用户审美匹配，不在本节点加入实时取景或连续姿势指导。
+
+### IOS-LOYALTY-2 受控会员与双边权益界面
+
+- Priority: P3
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `WIN-LOYALTY-2`, `INT-LOYALTY-1`, `EXT-LOYALTY-2`
+- Scope: 仅呈现服务端已开启的单项权益实验，例如复约优惠、服务恢复额度、摄影师阶段性降佣或成长权益；清楚展示适用订单、有效期、退款/取消影响和关闭方式。
+- Acceptance criteria: 未开启实验时界面不留空壳；金额和资格完全以后端为准；用户支付前看到最终价格；摄影师看到预计收入和佣金依据；退款/取消后的权益状态可恢复；无暗黑模式、强制连续订阅或误导性倒计时；弱网与重复点击不产生重复领取。
+- Shared files: 订单确认、我的权益、摄影师收益/成长、实验配置客户端和正式文案
+- Unblock result: 提供真机资格、支付、退款冲正、关闭实验和 commit SHA，解除 `INT-LOYALTY-2`。
+- Result commit: pending
+- Verification: pending
+- Notes: 不要求一次实现全部权益；每次只上线通过单位经济评审的最小实验。
 
 ### IOS-MINI-1 微信小程序客户端
 
@@ -1078,19 +1194,61 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Verification: pending
 - Notes: 本节点只验证非 AI 闭环；若摄影师查看率、沟通减少或满意度没有改善，不得直接扩大照片分析范围。
 
-### INT-AI-1 集成 AI 偏好助手和个人摄影 Skill 试点
+### INT-LOYALTY-1 集成非补贴双边忠诚度闭环
+
+- Priority: P2
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `WIN-LOYALTY-1`, `IOS-LOYALTY-1`, `INT-PREF-1`
+- Scope: 合并用户常约摄影师、再次预约、跨摄影师偏好复用、档期提醒、摄影师回头客摘要、认证/作品来源、成长进度和服务恢复；验证便利、信任和供给工具在不依赖补贴时能否改善留存。
+- Acceptance criteria: 用户复约同一摄影师和更换摄影师两条路径均通过；重新确认档期/价格/授权/快照；跨设备、双角色、权限、退订、申诉和服务恢复通过；认证作品来源不可伪造；首单步骤不增加；建立 90/180 天用户复约率、偏好复用率、摄影师 30/90 天供给留存、报价响应、履约、争议、平台内复约和单位服务成本基线。
+- Shared files: 订单/咨询/偏好/通知/摄影师成长/认证集成代码、迁移、测试矩阵、分析和 Release 文档
+- Unblock result: 提供 Integration SHA、跨角色真机矩阵、指标基线和继续/停止结论，解除 `EXT-LOYALTY-2`、`WIN-LOYALTY-2`、`IOS-LOYALTY-2`。
+- Result commit: pending
+- Verification: pending
+- Notes: 低频摄影业务不以 D1/D7 打开次数作为核心成功指标；若复约便利和摄影师工具无效，不得用补贴掩盖问题。
+
+### INT-AI-1 集成 AI 偏好助手、拍摄参考和个人摄影 Skill 试点
 
 - Priority: P3
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `WIN-AI-1`, `IOS-AI-1`
-- Scope: 先集成文字偏好卡和档案更新草稿；真实指标证明有价值后，再试点用户主动选择的少量照片分析，形成按日常、旅行、纪念日、情侣/家庭等场景区分的个人摄影 Skill。
-- Acceptance criteria: AI Gateway、限流、成本、prompt 版本、采纳反馈和关闭开关有效；每条照片观察有来源、场景、置信度和用户确认；AI 关闭/失败不影响业务；纯问卷与有限照片分析有对照指标；不能证明增益时停止扩大。
+- Scope: 先集成文字偏好卡和档案更新草稿，再试点基于真实地点、时间和已确认偏好的可选机位/光线/路线/构图/静态姿势参考；证明减少沟通后，才处理用户主动选择的少量照片并形成分场景个人摄影 Skill。
+- Acceptance criteria: AI Gateway、限流、成本、prompt 版本、采纳反馈和关闭开关有效；摄影师对参考卡可采用/调整/忽略且不影响验收、排名或争议；每条照片观察有来源、场景、置信度和用户确认；AI 关闭/失败不影响业务；对比前期沟通轮次、参考采纳率和订单满意度；不能证明增益时停止扩大。
 - Shared files: AI 服务、偏好页面、订单需求卡、分析/隐私文档、Release 文档
 - Unblock result: 提供 Integration SHA、成本/质量/隐私验证、用户确认数据和是否扩大试点的结论。
 - Result commit: pending
 - Verification: pending
-- Notes: 不以批量相册导入作为默认路径，不把用户照片默认用于模型训练，不做外貌或敏感属性推断。
+- Notes: 不以批量相册导入作为默认路径，不把用户照片默认用于模型训练，不做外貌或敏感属性推断；实时取景和连续姿势纠正不在本节点范围。
+
+### INT-AI-POST-1 集成拍后质检与后处理 Copilot 闭环
+
+- Priority: P3
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `WIN-AI-POST-1`, `IOS-AI-POST-1`, `INT-AI-1`
+- Scope: 以少量真实订单灰度集成拍后技术质检、连拍分组、候选选片、批量色彩/轻修草稿、用户意见任务化、摄影师最终确认和版本化交付；验证既能贴合用户已确认审美，也能减少摄影师重复劳动。
+- Acceptance criteria: 原片—草稿—摄影师确认版—用户交付版链路可追溯并可回退；双角色权限、授权、删除、AI 关闭、失败回退和成本上限通过；同时对比摄影师选片/修图耗时、交付周期、修改轮次、草稿采用率、满意度和单订单 AI 成本；不能减少耗时或返修时不扩大灰度。
+- Shared files: AI/媒体/订单交付集成代码、迁移、真机测试矩阵、分析/隐私/Release 文档
+- Unblock result: 提供 Integration SHA、真实订单灰度结果和扩大/调整/停止结论；通过后才允许单独评审实时拍摄辅助。
+- Result commit: pending
+- Verification: pending
+- Notes: 不以“作品是否完全按 AI 方案执行”作为成功指标；核心是交付效率、用户审美匹配、可控成本和双方满意度。
+
+### INT-LOYALTY-2 集成双边权益和单位经济试点
+
+- Priority: P3
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `WIN-LOYALTY-2`, `IOS-LOYALTY-2`, `EXT-LOYALTY-2`
+- Scope: 按批准清单一次只集成一个最小经济实验，使用城市/人群灰度、对照组、预算上限和 Kill Switch 验证用户增量复约、摄影师留存及平台毛利，而不是只看领取量。
+- Acceptance criteria: 灰度、对照、账本、退款冲正、财务对账、反作弊和关闭流程通过；同时观察 90/180 天增量复约、摄影师供给留存、贡献毛利、补贴回收期、投诉和跳单风险；任何实验超预算、无增量或损害公平性时可立即停止且不影响基础交易。
+- Shared files: 权益/账本/实验集成代码、分析、财务对账、测试矩阵和 Release 文档
+- Unblock result: 提供 Integration SHA、实验报告和扩大/修改/停止结论。
+- Result commit: pending
+- Verification: pending
+- Notes: 不允许同时叠加多个无法归因的优惠；阶段完成不代表权益默认长期保留。
 
 ---
 
@@ -1336,6 +1494,34 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Verification: pending
 - Notes: 该节点不批准全相册批量读取；涉及最终法律文本时由正式合规意见确认。
 
+### EXT-LOYALTY-1 双边忠诚度规则、认证边界和用户研究
+
+- Priority: P2
+- Status: pending
+- Owner branch: User/External
+- Depends on: `EXT-COMPLIANCE-1`, `EXT-ANALYTICS-1`, `EXT-PREF-1`, `INT-TESTFLIGHT-1`
+- Scope: 用用户和摄影师访谈确认复约、常约摄影师、档期提醒、回头客摘要、需求/报价复用、服务恢复、摄影师认证、作品来源、等级曝光和反跳单规则；形成首批不含补贴的最小方案、正式文案、人工复核和申诉流程。
+- Acceptance criteria: 明确平台认证与作品来源验证的差异；站外作品允许发布但不冒充平台订单作品；认证/等级/曝光规则可解释且有申诉；通知频率和退订明确；摄影师不可获得用户联系方式或无关历史；反跳单处置有证据、分级和复核；研究同时覆盖用户操作成本、摄影师接单效率、信任、复约意愿和平台内交易理由。
+- Shared files: 认证/作品来源/等级/通知/服务恢复/反跳单正式规则、访谈提纲和批准后的字段清单
+- Unblock result: 提供批准后的 MVP 范围、权限/申诉矩阵、文案和研究结论，解除 `WIN-LOYALTY-1`、`IOS-LOYALTY-1`。
+- Result commit: not applicable
+- Verification: pending
+- Notes: 不批准认证摄影师“只能上传平台订单作品”、强制独家、默认营销 Push、签到或复杂积分。
+
+### EXT-LOYALTY-2 双边权益单位经济和试点批准
+
+- Priority: P3
+- Status: pending
+- Owner branch: User/External
+- Depends on: `INT-LOYALTY-1`, `EXT-COST-1`, `EXT-PAY-1`, `EXT-ANALYTICS-1`
+- Scope: 根据非补贴闭环数据，逐项评估可选会员、复约优惠、服务恢复额度、摄影师阶段性降佣、成长权益和推荐奖励的预算、税务/财务处理、消费者文案、反作弊、退出和长期负债；每次只批准一个可归因实验。
+- Acceptance criteria: 每个候选方案有目标人群、成本上限、贡献毛利、回收期、对照组、停止条件、退款/取消/争议处理和负责人；未证明增量复约或供给留存的方案不获批准；连续订阅、优惠价格和自动续费满足正式合规要求；财务确认账本与对账方式。
+- Shared files: 批准后的权益规则、预算、实验设计、财务/税务/合规文案和停止条件
+- Unblock result: 逐项提供批准或拒绝结论，解除对应的 `WIN-LOYALTY-2`、`IOS-LOYALTY-2`、`INT-LOYALTY-2` 子范围。
+- Result commit: not applicable
+- Verification: pending
+- Notes: 没有批准的权益保持关闭；不得用无限补贴替代产品价值验证。
+
 ### EXT-MINI-1 微信小程序资源
 
 - Priority: P3
@@ -1350,16 +1536,16 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Verification: pending
 - Notes: 当前暂停。
 
-### EXT-AI-1 AI 服务资源
+### EXT-AI-1 AI 服务与受控媒体处理资源
 
 - Priority: P3
 - Status: pending
 - Owner branch: User/External
 - Depends on: `INT-PREF-1`, `EXT-PREF-1`
-- Scope: 为文字偏好助手和后续有限照片理解选择 AI Provider、账号、数据区域、保留策略、训练使用政策、预算、配额、密钥管理和人工停用流程。
-- Acceptance criteria: staging/production 隔离；服务端密钥管理；Provider 的图片/文本保留和训练政策经过确认；默认不把用户原图用于模型训练；配置每日成本/配额告警；支持关闭图片分析但保留非 AI 档案；隐私披露覆盖 AI 用途、范围、删除和第三方处理。
+- Scope: 为文字偏好助手、可选拍摄参考、有限照片理解和后续订单媒体质检/后处理选择 AI Provider、账号、数据区域、保留策略、训练使用政策、图片派生权边界、预算、配额、密钥管理和人工停用流程。
+- Acceptance criteria: staging/production 隔离；服务端密钥管理；Provider 的图片/文本保留和训练政策经过确认；默认不把用户原图或订单媒体用于模型训练；订单媒体处理有双方授权、用途限制和删除流程；配置每日成本/配额告警；可分别关闭照片理解、拍摄参考和后处理而保留非 AI 主流程；隐私披露覆盖 AI 用途、范围、派生版本、删除和第三方处理。
 - Shared files: 非敏感 Provider/模型/数据处理/预算决策和正式政策文案
-- Unblock result: 提供 Provider 与模型选择、数据处理边界、预算/限额和已配置确认，解除 `WIN-AI-1`、`IOS-AI-1`。
+- Unblock result: 提供 Provider 与模型选择、数据处理边界、图片派生权、预算/限额和已配置确认，解除 `WIN-AI-1`、`IOS-AI-1`，并满足 `WIN-AI-POST-1`、`IOS-AI-POST-1` 的外部资源前置条件。
 - Result commit: not applicable
 - Verification: pending
 - Notes: 当前暂停至 `INT-PREF-1`；未经重新评审不得默认批量导入相册、进行外貌评分或推断敏感属性。
