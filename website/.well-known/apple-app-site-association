@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "7YH7CGR8C7.com.frameyu.still"
+        ],
+        "components": [
+          {
+            "/": "/app/",
+            "comment": "Still帧遇应用入口"
+          },
+          {
+            "/": "/app/*",
+            "comment": "Still帧遇应用子路径"
+          }
+        ]
+      }
+    ]
+  }
+}
