@@ -38,6 +38,7 @@
     "check:postgres-composite-order-read-model": "node scripts/check-postgres-composite-order-read-model.mjs",
     "check:postgres-live": "node scripts/check-postgres-live.mjs",
     "check:postgres-live-node": "node scripts/check-postgres-live-node.mjs",
+    "check:composite-order-migration-live": "node scripts/check-composite-order-migration-live.mjs",
     "check:postgres-launch-readiness": "node scripts/check-postgres-launch-readiness.mjs",
     "check:postgres-id-hygiene": "node scripts/check-postgres-id-hygiene.mjs",
     "check:postgres-write-route-guard": "node scripts/check-postgres-write-route-guard.mjs",

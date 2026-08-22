@@ -42,10 +42,18 @@ const requiredTables = [
   'ledger_entries',
 ];
 
-const client = new Client({ connectionString: databaseUrl });
+const client = new Client({
+  connectionString: databaseUrl,
+  connectionTimeoutMillis: 5000,
+  query_timeout: 5000,
+  statement_timeout: 5000,
+});
+let connected = false;
+let inTransaction = false;
 
 try {
   await client.connect();
+  connected = true;
 
   const health = await client.query(`select current_database() as database_name, current_schema() as schema_name`);
   const existingTables = new Set(
@@ -71,6 +79,7 @@ try {
   await checkColumns('security_events', ['event_type', 'actor_id', 'actor_role', 'target_type', 'target_id', 'target_key', 'required_role', 'actual_role', 'metadata']);
 
   await client.query('begin');
+  inTransaction = true;
   await client.query('select id from availability_slots order by start_at limit 0 for update skip locked');
   await client.query(`
     select id
@@ -81,6 +90,7 @@ try {
     for update skip locked
   `);
   await client.query('rollback');
+  inTransaction = false;
 
   console.log(
     JSON.stringify(
@@ -105,10 +115,14 @@ try {
     ),
   );
 } catch (error) {
-  await client.query('rollback').catch(() => {});
+  if (connected && inTransaction) {
+    await client.query('rollback').catch(() => {});
+  }
   throw error;
 } finally {
-  await client.end().catch(() => {});
+  if (connected) {
+    await client.end().catch(() => {});
+  }
 }
 
 async function checkColumns(tableName, columns) {

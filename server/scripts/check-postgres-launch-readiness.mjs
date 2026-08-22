@@ -13,6 +13,8 @@ const files = {
   serverEnvExample: 'server/.env.example',
   postgresStore: 'server/store/postgresStore.mjs',
   liveCheck: 'server/scripts/check-postgres-live.mjs',
+  liveNodeCheck: 'server/scripts/check-postgres-live-node.mjs',
+  migrationLiveCheck: 'server/scripts/check-composite-order-migration-live.mjs',
   ciWorkflow: '.github/workflows/ci.yml',
 };
 
@@ -86,6 +88,10 @@ const serverPackage = JSON.parse(read(files.serverPackage));
 const scripts = serverPackage.scripts || {};
 assert(scripts['check:postgres-launch-readiness'] === 'node scripts/check-postgres-launch-readiness.mjs', 'server package exposes launch readiness check');
 assert(scripts['check:postgres-live'] === 'node scripts/check-postgres-live.mjs', 'server package exposes live PostgreSQL check');
+assert(
+  scripts['check:composite-order-migration-live'] === 'node scripts/check-composite-order-migration-live.mjs',
+  'server package exposes isolated composite-order migration audit',
+);
 assert(scripts['job:maintenance'] === 'node scripts/run-maintenance-jobs.mjs', 'server package exposes maintenance job');
 assert(scripts['db:export-seed'] === 'node ../database/scripts/export-store-to-seed.mjs', 'server package exposes store seed export');
 checks.push('server-package-scripts');
@@ -114,16 +120,75 @@ for (const tableName of ['user_sessions', 'audit_logs', 'admin_action_logs', 'se
 assert(liveCheck.includes('for update skip locked'), 'live check verifies queue/slot locking syntax');
 checks.push('live-check-coverage');
 
+const liveNodeCheck = read(files.liveNodeCheck);
+assert(liveNodeCheck.includes('connectionTimeoutMillis: 5000'), 'Node live check bounds connection attempts');
+assert(liveNodeCheck.includes('query_timeout: 5000'), 'Node live check bounds query attempts');
+assert(liveNodeCheck.includes('let connected = false'), 'Node live check tracks successful connection state');
+assert(liveNodeCheck.includes('let inTransaction = false'), 'Node live check tracks transaction state');
+assert(liveNodeCheck.includes('if (connected && inTransaction)'), 'Node live check only rolls back an active connected transaction');
+assert(liveNodeCheck.includes('if (connected)'), 'Node live check only closes a connected client');
+checks.push('live-node-failure-boundary');
+
+const migrationLiveCheck = read(files.migrationLiveCheck);
+assert(migrationLiveCheck.includes('process.env.MIGRATION_TEST_DATABASE_URL'), 'migration audit uses its dedicated database URL');
+assert(!migrationLiveCheck.includes('process.env.DATABASE_URL'), 'migration audit ignores the application database URL');
+assert(migrationLiveCheck.includes("ALLOW_DESTRUCTIVE_MIGRATION_TEST !== '1'"), 'migration audit requires explicit destructive-test opt-in');
+assert(migrationLiveCheck.includes("const REQUIRED_DATABASE_NAME = 'pp_platform_migration_ci'"), 'migration audit pins the isolated database name');
+for (const hostname of ['localhost', '127.0.0.1', '::1']) {
+  assert(migrationLiveCheck.includes(`'${hostname}'`), `migration audit permits the local host ${hostname}`);
+}
+assert(/server_version_num\s*>?=\s*160000[\s\S]+server_version_num\s*<\s*170000/.test(migrationLiveCheck), 'migration audit pins PostgreSQL 16');
+assert(migrationLiveCheck.includes('merchant domain table(s) already exist'), 'migration audit refuses a database that already has merchant tables');
+assert(migrationLiveCheck.includes("await applyMigration(client, migrationSql, 'first')"), 'migration audit runs the first migration');
+assert(migrationLiveCheck.includes("await applyMigration(client, migrationSql, 'second')"), 'migration audit runs the repeat migration');
+assert(migrationLiveCheck.includes('repeat backfill inserted'), 'migration audit verifies repeat backfill count is zero');
+assert(migrationLiveCheck.includes("await client.query('rollback')"), 'migration audit rolls back negative probes');
+assert(migrationLiveCheck.includes('connectionTimeoutMillis: 5000'), 'migration audit bounds connection attempts');
+assert(migrationLiveCheck.includes('let connected = false'), 'migration audit tracks successful connection state');
+assert(migrationLiveCheck.includes('let inTransaction = false'), 'migration audit tracks transaction state');
+assert(migrationLiveCheck.includes('if (connected && inTransaction)'), 'migration audit only rolls back an active connected transaction');
+assert(migrationLiveCheck.includes('if (connected)'), 'migration audit only closes a connected client');
+assert(migrationLiveCheck.includes('process.exitCode = 1'), 'migration audit cannot report a safety refusal as a pass');
+checks.push('isolated-migration-audit-safety');
+
 const ciWorkflow = read(files.ciWorkflow);
 assert(/postgres:\s*\n\s*image:\s*postgres:16/.test(ciWorkflow), 'CI uses PostgreSQL 16 service');
-assert(ciWorkflow.includes('psql "$DATABASE_URL" -f database/schema.sql'), 'CI loads schema through psql');
+assert(
+  ciWorkflow.includes('psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file database/schema.sql'),
+  'CI loads schema through fail-fast psql',
+);
 assert(ciWorkflow.includes('npm run check:postgres-live'), 'CI runs live PostgreSQL check');
-checks.push('ci-postgres-service');
+assert(ciWorkflow.includes('fetch-depth: 0'), 'CI fetches the fixed baseline commit');
+assert(ciWorkflow.includes('createdb --host=localhost --port=5432 --username=postgres pp_platform_migration_ci'), 'CI creates a dedicated migration database');
+assert(ciWorkflow.includes('MIGRATION_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/pp_platform_migration_ci'), 'CI exports the dedicated migration URL');
+assert(ciWorkflow.includes('ALLOW_DESTRUCTIVE_MIGRATION_TEST: "1"'), 'CI opts into the destructive migration audit');
+const ciServerJob = ciWorkflow.match(/\n  server-check:[\s\S]*?(?=\r?\n  frontend-check:)/)?.[0] || '';
+assert(ciServerJob, 'CI defines the server-check job');
+const ciServerStepsIndex = ciServerJob.search(/\r?\n    steps:/);
+assert(ciServerStepsIndex > 0, 'CI server-check job defines steps');
+const ciServerJobEnvironment = ciServerJob.slice(0, ciServerStepsIndex);
+assert(!ciServerJobEnvironment.includes('ALLOW_DESTRUCTIVE_MIGRATION_TEST'), 'CI does not enable destructive migration audit job-wide');
+assert(
+  /name:\s*Run isolated composite-order migration audit[\s\S]*?env:\s*\n\s*ALLOW_DESTRUCTIVE_MIGRATION_TEST:\s*"1"[\s\S]*?run:\s*npm run check:composite-order-migration-live/.test(ciWorkflow),
+  'CI scopes destructive migration opt-in to the audit step',
+);
+for (const baselineFile of ['database/schema.sql', 'database/seed_mvp.sql']) {
+  assert(
+    ciWorkflow.includes(`git show cac663d0fa9772b1d1420ac2c899f95c2a4d4ba6:${baselineFile}`),
+    `CI loads ${baselineFile} from the fixed baseline commit`,
+  );
+}
+assert(ciWorkflow.includes('npm run check:composite-order-migration-live'), 'CI runs isolated composite-order migration audit');
+checks.push('ci-postgres-service', 'ci-isolated-migration-database');
 
 const runbook = read(files.runbook);
 assert(runbook.includes('TencentDB for PostgreSQL'), 'runbook mentions TencentDB for PostgreSQL');
 assert(runbook.includes('阿里云 RDS PostgreSQL'), 'runbook mentions Alibaba Cloud RDS PostgreSQL');
-assert(runbook.includes('psql "$env:DATABASE_URL" -f database/schema.sql'), 'runbook documents schema import command');
+assert(
+  runbook.includes('psql "$env:DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file database/schema.sql'),
+  'runbook documents a fail-fast schema import command',
+);
+assert(!/psql[^\r\n]*\s-f\s/.test(runbook), 'runbook contains no non-fail-fast short-form psql imports');
 assert(runbook.includes('npm.cmd run check:postgres-live'), 'runbook documents live check command');
 assert(runbook.includes('对象存储'), 'runbook separates media object storage from database');
 checks.push('cloud-runbook');
@@ -137,7 +202,9 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      cloudDatabaseTrialReady: true,
+      staticConfigurationReady: true,
+      cloudDatabaseTrialReady: false,
+      liveVerificationRequired: ['postgresql-16-migration-audit', 'cloud-connectivity', 'backup-restore'],
       productionStillRequires: ['object-storage', 'live-payment-provider', 'admin-deployment-isolation', 'monitoring-and-backups'],
       checks,
     },

@@ -23,6 +23,7 @@
 - `QUERY_AND_TRANSACTION_GUIDE.md`：核心 SQL 查询、下单/支付/结算/审核等事务手册。
 - `MIGRATION_PLAN.md`：MVP 到生产版的数据库演进计划，包括 PostGIS、隐私加密、索引、审计、风控和归档。
 - `POSTGRES_CLOUD_RUNBOOK.md`：腾讯云/阿里云 PostgreSQL 接入、建表、seed、检查和上线前注意事项。
+- `migrations/`：从既有生产基线向后演进的增量迁移；不能用当前 `schema.sql` 代替真实升级路径验收。
 
 如果后端选择 Prisma，建议以 `prisma/schema.prisma` 作为开发入口；如果需要更精细的数据库约束、初始化数据或原生 SQL 能力，以 `schema.sql` 为准。
 
@@ -37,8 +38,8 @@ npx prisma migrate dev --schema database/prisma/schema.prisma --name init
 原生 SQL 初始化参考：
 
 ```bash
-psql "$DATABASE_URL" -f database/schema.sql
-psql "$DATABASE_URL" -f database/seed_mvp.sql
+psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file database/schema.sql
+psql "$DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file database/seed_mvp.sql
 ```
 
 云数据库接入前，先在 `server` 目录运行静态准备检查：
@@ -52,6 +53,16 @@ npm run check:postgres-launch-readiness
 ```bash
 npm run check:postgres-live
 ```
+
+组合订单迁移必须在一次性 PostgreSQL 16 测试库中演练，不能使用应用 `DATABASE_URL`。仓库 CI 会创建固定名称的隔离数据库、加载商家领域落地前的 schema/seed，并连续执行迁移两次。手工复现时也必须同时满足：目标位于 localhost、数据库名为 `pp_platform_migration_ci`，并显式开启危险测试开关：
+
+```bash
+export MIGRATION_TEST_DATABASE_URL="postgres://USER:PASSWORD@127.0.0.1:5432/pp_platform_migration_ci"
+export ALLOW_DESTRUCTIVE_MIGRATION_TEST=1
+npm run check:composite-order-migration-live
+```
+
+该命令会修改并验证上述专用测试库；它刻意忽略 `DATABASE_URL`，也会拒绝远程主机、其他库名和带查询参数的连接串。
 
 ## 表分组
 
@@ -77,16 +88,18 @@ npm run check:postgres-live
 
 MVP 先支持城市 + 商圈/地点多选。后续需要地图圈选时，可用 `lat`、`lng`、`radius_meters` 或 PostGIS 字段升级。
 
-### 拍摄前妆造预留
+### 妆造商家与组合订单
 
-产品后续会在摄影预约前加入“化妆”和“穿衣”两个前置能力，但不建议在 MVP 阶段直接混入摄影师订单模型：
+冷启动方案把妆造、服装作为摄影订单中的可选服务，不新增独立“找商家”市场。用户仍看到一个订单、一份服务清单、一个总价、一次支付和一个售后入口；数据库内部按服务项拆分提供方、履约、退款与结算责任：
 
-- 化妆师应作为独立服务身份，例如后续扩展 `makeup_artists`、`makeup_artist_kyc`、`makeup_artist_tags`、`makeup_service_areas`、`makeup_packages`、`makeup_availability_slots`。
-- 化妆师必须通过管理员后台审核后才能展示和接单，审核仍进入 `audit_cases`，但 `target_type` 应与摄影师区分。
-- 化妆预约和摄影预约可以在产品流程上串联，但订单、支付、结算、纠纷应分别建模，避免一个摄影订单同时承担化妆师和摄影师两套履约责任。
-- 化妆师服务同样需要平台内聊天、风控、举报、退款和评价能力，后续可复用消息、风控、审核和结算的通用表。
-- 穿衣能力等 LT 项目可用后接入。PP 侧只沉淀拍摄地点、风格标签、常见穿搭、作品参考和跳转参数；LT 侧负责背景试穿、服装推荐和购买链路。
-- 与 LT 的连接数据建议先独立为 `location_outfit_insights`、`outfit_recommendation_links` 等扩展表，避免污染 `posts` 和摄影订单主表。
+- `merchants`：妆造/服装商家主体及非公开营业电话；正式确认前 API 不得返回电话号码。
+- `merchant_offerings`：商家固定价套餐的版本化记录；套餐更新不能覆盖历史订单快照。
+- `photographer_merchant_links`：摄影师与商家的双方确认合作关系；冷启动阶段一名摄影师最多一个已确认主要商家。
+- `order_items`：订单内部服务项。摄影和商家服务分别保存提供方、价格、内容、时间、接单、履约、退款与结算状态。
+
+商家服务不能塞入 `order_extras`：加购项没有独立提供方、接单、履约、退款和结算语义。父订单金额必须等于各服务项用户应付金额之和，当前纯摄影订单兼容为一个摄影服务项。
+
+这部分领域骨架由 `ENABLE_COMPOSITE_ORDER_DOMAIN` 默认关闭保护，组合支付继续硬关闭。完成真实 PostgreSQL 迁移、商家权限、部分退款、多方结算、支付与合规联合验收前，只能做结构和模拟流程验证，不能开放真实组合交易。
 
 ### 作品图片流
 

@@ -54,8 +54,8 @@ $env:DATABASE_URL="postgres://USER:PASSWORD@HOST:5432/still_staging"
 在项目根目录执行：
 
 ```powershell
-psql "$env:DATABASE_URL" -f database/schema.sql
-psql "$env:DATABASE_URL" -f database/seed_mvp.sql
+psql "$env:DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file database/schema.sql
+psql "$env:DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file database/seed_mvp.sql
 ```
 
 如果你要把当前本地演示的摄影师、作品、时间段导成测试数据：
@@ -64,7 +64,7 @@ psql "$env:DATABASE_URL" -f database/seed_mvp.sql
 cd server
 npm.cmd run db:export-seed
 cd ..
-psql "$env:DATABASE_URL" -f database/generated/store_seed.sql
+psql "$env:DATABASE_URL" --no-psqlrc --set ON_ERROR_STOP=1 --file database/generated/store_seed.sql
 ```
 
 `database/generated/store_seed.sql` 是生成物，不提交 Git。第一次接云库时建议先只导入 `schema.sql` 和 `seed_mvp.sql`，等确认结构没问题后再考虑导入本地演示数据。

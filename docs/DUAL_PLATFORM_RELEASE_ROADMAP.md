@@ -358,8 +358,8 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/migrations/**`, `database/API_CONTRACT.md`, `server/store/postgresStore.mjs`, `server/store/postgresMappers.mjs`, `pp-app/src/types/api.ts`, `server/scripts/**`
 - Unblock result: 提供迁移、schema parity、领域约束、mapper/read-model 和纯摄影兼容验证及 commit SHA，解除 `WIN-MERCHANT-1` 的领域依赖。
 - Result commit: pending
-- Verification: 本地 schema parity、组合订单领域约束、mapper/read-model、纯摄影订单写入及支付/确认/完成/取消/退款/争议生命周期同步检查通过；`server npm.cmd run check:mvp`、移动端 build、Admin build、production guards 和 `git diff --check` 通过。当前机器无 `psql`、Docker/Podman 和 `DATABASE_URL`，尚未完成 PostgreSQL 16 首次/重复迁移与真实约束验收。
-- Notes: 本节点是隔离的数据骨架，功能开关默认关闭，组合支付继续硬关闭；不实现商家登录、用户 UI、组合支付、部分退款或多方结算。2026-08-22 本地实现与静态/回归验证已完成，等待真实 PostgreSQL 16 环境执行两次迁移并核对历史金额/状态、回填、复合外键、最后服务项保护、延迟金额约束和开启开关后的生命周期，再取得推送后的完整 SHA。
+- Verification: 本地 schema parity、组合订单领域约束、mapper/read-model、纯摄影订单写入及支付/确认/完成/取消/退款/争议生命周期同步检查通过；`server npm.cmd run check:mvp`、移动端 build、Admin build、production guards 和 `git diff --check` 通过。2026-08-23 已新增安全隔离的 PostgreSQL 16 迁移验收脚本与 CI 步骤：CI 将从固定的商家骨架前置 commit 加载 schema/seed，并将在专用本地数据库连续执行迁移两次，验证历史订单不变、回填幂等、复合外键、最后服务项保护和延迟金额守恒；本地静态检查及误连远程主机、错误库名、缺少显式授权的拒绝测试通过。当前机器仍无 `psql`、Docker/Podman，专用 PostgreSQL 16 实例尚未实际运行，因此真实迁移验收仍未完成；真实库中的订单生命周期同步也不能由本地 mock 事务测试替代。
+- Notes: 本节点是隔离的数据骨架，功能开关默认关闭，组合支付继续硬关闭；不实现商家登录、用户 UI、组合支付、部分退款或多方结算。`server/.env` 虽存在远程数据库配置，但只读普通/TLS 连接均被远端终止，且该目标未被确认是一次性测试库，因此未对其执行任何写入；迁移演练脚本刻意忽略应用 `DATABASE_URL`，只接受 localhost、固定测试库名和显式危险测试开关。等待该 CI 在推送后运行并取得完整 SHA；若 CI 未通过，再在明确的一次性 PostgreSQL 16 环境复现处理。
 
 ### WIN-MERCHANT-1 商家、固定套餐与摄影师合作搜索服务端
 
@@ -1496,7 +1496,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Shared files: 无
 - Unblock result: 提供资源已配置确认、非敏感地址、备份策略和隔离恢复窗口，解除 `WIN-MEDIA-1`、`WIN-DELIVERY-1`、`WIN-BACKUP-1`。
 - Result commit: not applicable
-- Verification: `cloudDatabaseTrialReady: true`；正式 COS、备份恢复和生产隔离仍待完成。
+- Verification: 仓库 PostgreSQL 接入、隔离迁移演练和 CI 配置的静态检查通过（`staticConfigurationReady: true`）；这不代表云数据库已经可试点（`cloudDatabaseTrialReady: false`）。当前已配置远程目标的只读普通/TLS 连接均被远端终止，尚未取得 PostgreSQL 16 迁移、云连通性和备份恢复证据。
 - Notes: Secret 通过云密钥管理；同一服务器上的数据库文件副本不视为异地备份。
 
 ### EXT-COST-1 预算、配额和账单预警
