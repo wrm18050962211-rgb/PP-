@@ -6,7 +6,7 @@
 
 ## 0. 当前基线与固定决策
 
-- Roadmap version: 7
+- Roadmap version: 8
 - Current integration baseline: `6588247c29b2082d310cc96fe110ab67866337f4`
 - Integration branch: `codex/integration`
 - Windows branch: `codex/vertical-db-api`
@@ -48,6 +48,7 @@
 5. 节点因依赖无法继续时，将其更新为 `blocked`，输出跨端依赖通知，然后继续下一个依赖满足的独立节点。
 6. 不得为了绕开阻塞而恢复生产 mock、localStorage fallback、模拟支付或客户端密钥。
 7. P0 全部完成前不实施 P2/P3；P1 仅在不阻塞 P0 时并行。
+8. 节点可在不移除原验收范围的前提下拆成独立子切片；子切片完成只满足父节点明确列出的内部依赖，不自动继承父节点的 `Unblock result`，也不得让仍依赖父节点的下游提前实施。
 
 ### 0.4 Roadmap 编辑权
 
@@ -328,24 +329,38 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Scope: 将 Feed、摄影师公开资料、作品、收藏/关注的读取与写入切换到 PostgreSQL。
 - Acceptance criteria: 生产接口支持分页、刷新和跨设备恢复；API 失败返回明确错误；生产模式不静默返回 mock、localStorage 或空数组；权限和资源归属有效。
 - Shared files: `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
-- Unblock result: 已提供 Feed、公开摄影师资料/作品、本人资料/投稿、收藏/点赞/关注端点，统一游标分页契约、收藏目标索引迁移、生产 guard 和实现 commit SHA；解除 `IOS-DATA-1`，并解除 `WIN-DATA-2` 的数据前置依赖（仍等待 `WIN-MAP-2`）。
+- Unblock result: 已提供 Feed、公开摄影师资料/作品、本人资料/投稿、收藏/点赞/关注端点，统一游标分页契约、收藏目标索引迁移、生产 guard 和实现 commit SHA；解除 `IOS-DATA-1`，并解除 `WIN-DATA-2A` 的数据前置依赖。
 - Result commit: `b415a9086cf08cb2e6e229acfbcc3ec66a118984`
 - Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过。
 - Notes: 生产读写已切换到 PostgreSQL content gateway，分页、权限/资源归属、稳定错误和跨设备收藏状态均有回归覆盖；development mock 仅在非生产 guard 下保留。作品写入要求持久化 HTTPS 媒体 URL，完整 COS 上传与 `media_assets` 生命周期由 `WIN-MEDIA-1` 继续完成；未手工修改 `pp-app/ios/**`。
 
-### WIN-DATA-2 咨询、订单工作区和跨设备恢复
+### WIN-DATA-2A 订单 PostgreSQL 权威读取与恢复
+
+- Priority: P0
+- Status: in_progress
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-DATA-1`
+- Scope: 将用户与摄影师订单列表、订单详情、状态日志、加购和既有文本/坐标地点字段切换为请求级 PostgreSQL 权威读取；实现按资源归属过滤的稳定 keyset 分页、明确刷新语义和公开白名单 DTO，移除订单读取对全局最新 100 条启动快照及生产 JSON 主数据的依赖。
+- Acceptance criteria: 用户只能读取自己的订单，摄影师只能读取 `companion_id` 与本人匹配的订单；`role`、`status`、`limit` 和 opaque cursor 均严格校验；列表返回稳定的 `items`、`nextCursor` 和 `hasMore`，超过 100 条交错订单仍无重复、遗漏或串单；详情从 PostgreSQL 恢复状态日志、加购和既有 `place_name/place_address/place_lat/place_lng` 快照；不存在与无权限采用统一且不泄露资源存在性的策略；公开 DTO 不返回平台佣金、服务方收入、结算状态或原始价格快照；两个独立 session 可恢复同一服务端状态；数据库失败返回明确错误，不伪装为空数组；生产订单读取不使用 JSON、mock 或全局 read model；现有纯摄影订单写入和状态流无回归。
+- Shared files: `server/server.mjs`, `server/security/requestSecurity.mjs`, `server/store/**`, `server/scripts/**`, `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
+- Unblock result: 仅满足 `WIN-DATA-2` 的订单权威读取内部前置；不解除 `IOS-DATA-2`、`WIN-MSG-1`、`WIN-PAY-1`、`WIN-MERCHANT-1`、`INT-DATA-1` 或任何组合交易节点。
+- Result commit: pending
+- Verification: pending
+- Notes: 本节点不实现咨询、报价转订单、成片工作区、客户端页面接入、消息、支付或媒体；只透传既有 legacy 地点名称、地址和坐标，不创建或推断 `placeId`、Provider POI、区域、别名、服务范围或附近匹配。对 feature-gated `serviceItems` 只保持现有行为无回归，不把它作为本节点验收或解锁条件，完整服务项仍由 `WIN-MERCHANT-0`、`WIN-MERCHANT-1` 负责。子切片完成后父 `WIN-DATA-2` 仍保持 pending，所有原下游继续依赖父节点。
+
+### WIN-DATA-2 咨询、订单工作区、结构化地点和跨设备恢复
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
-- Depends on: `WIN-DATA-1`, `WIN-MAP-2`
-- Scope: 将咨询、订单工作区、订单刷新、状态日志和地点快照全部接入 PostgreSQL。
-- Acceptance criteria: 用户和摄影师只访问自己的资源；订单分页和状态刷新真实可用；卸载重装或换设备后可恢复；读取失败不伪装成功。
-- Shared files: `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
+- Depends on: `WIN-DATA-2A`, `WIN-MAP-2`
+- Scope: 在 `WIN-DATA-2A` 基础上，将咨询、版本化报价、报价接受/关闭/转订单关联、成片订单工作区以及 `WIN-MAP-2` 提供的结构化地点标识和不可变地点快照接入 PostgreSQL，并对完整数据链路做聚合验收。
+- Acceptance criteria: 用户和摄影师只访问自己的咨询、订单和工作区资源；咨询创建、报价、接受、关闭和转订单关联由服务端校验并具备事务与幂等语义；工作区不能由客户端修改支付、退款、结算或资金状态；订单与咨询保存当时的 Provider、Provider POI ID、地点名称、地址、经纬度、区域和快照版本，地点资料或别名后续变化不改写历史；订单分页、详情和状态刷新继续真实可用；卸载重装或换设备后可恢复；读取失败不伪装成功；`WIN-DATA-2A` 的权限、分页、公开 DTO 和跨会话恢复全部回归通过。
+- Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/migrations/**`, `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`, `server/**`
 - Unblock result: 提供订单/咨询契约、权限矩阵、真实库验证和 commit SHA，解除 `IOS-DATA-2`、`WIN-MSG-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: 禁止用 JSON store 作为生产主数据。
+- Notes: 禁止用 JSON store 作为生产主数据。`WIN-DATA-2A` 完成只作为本节点的局部实现证据，不改变本节点状态，也不提前解除任何下游依赖；咨询参考图和工作区媒体只能引用经 `WIN-MEDIA-1` 验证的持久化资产，不能保存 data URL 或任意临时外链。
 
 ### WIN-MERCHANT-0 商家与组合订单服务项领域骨架
 
