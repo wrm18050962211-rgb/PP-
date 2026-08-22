@@ -9,6 +9,7 @@ import {
   resolveAccessPolicy,
   rotatingSecretValues,
   validateRouteInput,
+  validateRouteQuery,
 } from '../security/requestSecurity.mjs';
 
 let timestamp = 1_000;
@@ -71,6 +72,7 @@ assert.deepEqual(resolveAccessPolicy('PUT', '/api/companion/me/profile'), { acce
 assert.deepEqual(resolveAccessPolicy('GET', '/api/me/collections'), { access: 'member', targetType: 'user_data' });
 assert.deepEqual(resolveAccessPolicy('POST', '/api/orders/quote'), { access: 'anonymous', targetType: 'order_quote' });
 assert.deepEqual(resolveAccessPolicy('GET', '/api/orders'), { access: 'member', targetType: 'orders_api' });
+assert.deepEqual(resolveAccessPolicy('GET', '/api/orders/00000000-0000-4000-8000-000000000901'), { access: 'member', targetType: 'order' });
 assert.deepEqual(resolveAccessPolicy('POST', '/api/orders/order-1/status'), { access: 'admin', targetType: 'order_status' });
 assert.deepEqual(resolveAccessPolicy('POST', '/api/payments/wechat/notify'), {
   access: 'anonymous',
@@ -108,6 +110,74 @@ assert.doesNotThrow(() =>
     role: 'consumer',
     intent: 'login',
   }),
+);
+assert.doesNotThrow(() => validateRouteInput('POST', '/api/orders', { placeLat: 31.2, placeLng: 121.4 }));
+assert.throws(
+  () => validateRouteInput('POST', '/api/orders', { placeLat: 31.2 }),
+  (error) => error instanceof RequestSecurityError && error.code === 'VALIDATION_ERROR',
+);
+assert.throws(
+  () => validateRouteInput('POST', '/api/orders', { placeLat: 91, placeLng: 121.4 }),
+  (error) => error instanceof RequestSecurityError && error.code === 'VALIDATION_ERROR',
+);
+for (const invalidCoordinates of [
+  { placeLat: null },
+  { placeLat: null, placeLng: null },
+  { placeLat: 31.2, placeLng: null },
+  { placeLat: '31.2', placeLng: 121.4 },
+]) {
+  assert.throws(
+    () => validateRouteInput('POST', '/api/orders', invalidCoordinates),
+    (error) => error instanceof RequestSecurityError && error.code === 'VALIDATION_ERROR',
+  );
+}
+
+assert.doesNotThrow(() =>
+  validateRouteQuery('GET', '/api/orders', new URLSearchParams('role=companion&status=confirmed&limit=25')),
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('role=admin')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('role=consumer')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('role=')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('role=user&role=user')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('status=unknown')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('limit=51')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('cursor=not+base64')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_CURSOR_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders/order-1', new URLSearchParams('status=confirmed')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('status=')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('limit=')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('cursor=')),
+  (error) => error instanceof RequestSecurityError && error.code === 'ORDER_CURSOR_INVALID',
 );
 
 assert.deepEqual(
@@ -150,6 +220,7 @@ console.log(
         'json-content-type-and-size',
         'unsafe-object-rejection',
         'route-validation',
+        'order-query-validation',
         'rotating-keyring',
         'log-redaction',
         'request-completion-log',

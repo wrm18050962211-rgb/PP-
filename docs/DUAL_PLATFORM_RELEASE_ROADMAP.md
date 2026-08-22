@@ -345,8 +345,8 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Shared files: `server/server.mjs`, `server/security/requestSecurity.mjs`, `server/store/**`, `server/scripts/**`, `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
 - Unblock result: 仅满足 `WIN-DATA-2` 的订单权威读取内部前置；不解除 `IOS-DATA-2`、`WIN-MSG-1`、`WIN-PAY-1`、`WIN-MERCHANT-1`、`INT-DATA-1` 或任何组合交易节点。
 - Result commit: pending
-- Verification: pending
-- Notes: 本节点不实现咨询、报价转订单、成片工作区、客户端页面接入、消息、支付或媒体；只透传既有 legacy 地点名称、地址和坐标，不创建或推断 `placeId`、Provider POI、区域、别名、服务范围或附近匹配。对 feature-gated `serviceItems` 只保持现有行为无回归，不把它作为本节点验收或解锁条件，完整服务项仍由 `WIN-MERCHANT-0`、`WIN-MERCHANT-1` 负责。子切片完成后父 `WIN-DATA-2` 仍保持 pending，所有原下游继续依赖父节点。
+- Verification: 本地已通过 `server: npm.cmd run check:postgres-order-read-gateway`、`check:postgres-order-read-route`、`check:postgres-admin-order-route`、`check:mvp`，以及 `pp-app: npm.cmd run build`、`build:admin`、`check:production-guards` 和 `git diff --check`。已新增只接受本机专用 `pp_platform_ci`、显式授权且全程回滚的 PostgreSQL 16 live 验收脚本与 CI 步骤；无授权、仅提供应用 `DATABASE_URL`、远程主机和错误库名均会拒绝执行。当前机器无可用 PostgreSQL 16 服务，新增 CI 步骤尚未通过 push 实际运行，因此超过 100 条交错订单、双独立 session 和微秒游标的真实数据库证据仍待取得。
+- Notes: 已实现请求级 PostgreSQL 订单列表/详情、用户与摄影师 SQL 归属过滤、严格 role/status/limit/cursor、保留微秒精度的 keyset 游标、统一防枚举 404、公开白名单 DTO、上海时区展示、legacy 坐标写读闭环，以及用户/摄影师/管理员状态操作脱离全局最新 100 条快照；生产 JSON 读取保持 fail-closed。当前本地证据包含 mock SQL、静态路由、development smoke 和 production guard，不能替代真实 PostgreSQL 16/跨 session 验收，故状态保持 `in_progress` 且不解除任何下游。本节点不实现咨询、报价转订单、成片工作区、客户端页面接入、消息、支付或媒体；只透传既有 legacy 地点名称、地址和坐标，不创建或推断 `placeId`、Provider POI、区域、别名、服务范围或附近匹配。对 feature-gated `serviceItems` 只保持现有行为无回归，不把它作为本节点验收或解锁条件，完整服务项仍由 `WIN-MERCHANT-0`、`WIN-MERCHANT-1` 负责。子切片完成后父 `WIN-DATA-2` 仍保持 pending，所有原下游继续依赖父节点。
 
 ### WIN-DATA-2 咨询、订单工作区、结构化地点和跨设备恢复
 

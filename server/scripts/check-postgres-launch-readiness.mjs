@@ -14,6 +14,7 @@ const files = {
   postgresStore: 'server/store/postgresStore.mjs',
   liveCheck: 'server/scripts/check-postgres-live.mjs',
   liveNodeCheck: 'server/scripts/check-postgres-live-node.mjs',
+  orderReadLiveCheck: 'server/scripts/check-postgres-order-read-live.mjs',
   migrationLiveCheck: 'server/scripts/check-composite-order-migration-live.mjs',
   ciWorkflow: '.github/workflows/ci.yml',
 };
@@ -89,6 +90,10 @@ const scripts = serverPackage.scripts || {};
 assert(scripts['check:postgres-launch-readiness'] === 'node scripts/check-postgres-launch-readiness.mjs', 'server package exposes launch readiness check');
 assert(scripts['check:postgres-live'] === 'node scripts/check-postgres-live.mjs', 'server package exposes live PostgreSQL check');
 assert(
+  scripts['check:postgres-order-read-live'] === 'node scripts/check-postgres-order-read-live.mjs',
+  'server package exposes isolated order-read PostgreSQL audit',
+);
+assert(
   scripts['check:composite-order-migration-live'] === 'node scripts/check-composite-order-migration-live.mjs',
   'server package exposes isolated composite-order migration audit',
 );
@@ -129,6 +134,45 @@ assert(liveNodeCheck.includes('if (connected && inTransaction)'), 'Node live che
 assert(liveNodeCheck.includes('if (connected)'), 'Node live check only closes a connected client');
 checks.push('live-node-failure-boundary');
 
+const orderReadLiveCheck = read(files.orderReadLiveCheck);
+assert(orderReadLiveCheck.includes('process.env.ORDER_READ_TEST_DATABASE_URL'), 'order-read audit uses its dedicated database URL');
+assert(!orderReadLiveCheck.includes('process.env.DATABASE_URL'), 'order-read audit ignores the application database URL');
+assert(orderReadLiveCheck.includes("ALLOW_ORDER_READ_LIVE_TEST !== '1'"), 'order-read audit requires explicit opt-in');
+assert(orderReadLiveCheck.includes("const REQUIRED_DATABASE_NAME = 'pp_platform_ci'"), 'order-read audit pins the CI database name');
+for (const hostname of ['localhost', '127.0.0.1', '::1']) {
+  assert(orderReadLiveCheck.includes(`'${hostname}'`), `order-read audit permits the local host ${hostname}`);
+}
+assert(/server_version_num\s*>?=\s*160000[\s\S]+server_version_num\s*<\s*170000/.test(orderReadLiveCheck), 'order-read audit pins PostgreSQL 16');
+assert(orderReadLiveCheck.includes('connectionTimeoutMillis: 5000'), 'order-read audit bounds connection attempts');
+assert(orderReadLiveCheck.includes('idle_in_transaction_session_timeout: 30000'), 'order-read audit bounds idle fixture transactions');
+assert(orderReadLiveCheck.includes("await client.query('begin')"), 'order-read audit opens one fixture transaction');
+assert(orderReadLiveCheck.includes("await client.query('rollback')"), 'order-read audit rolls back its fixture transaction');
+assert(orderReadLiveCheck.includes('if (connected && inTransaction)'), 'order-read audit only rolls back an active connected transaction');
+assert(orderReadLiveCheck.includes('jsonb_to_recordset($1::jsonb)'), 'order-read audit parameterizes fixture payloads');
+const orderReadFixtureTables = ['users', 'companions', 'user_sessions', 'orders', 'order_extras', 'order_status_logs'];
+for (const tableName of orderReadFixtureTables) {
+  assert(new RegExp(`insert\\s+into\\s+${escapeRegExp(tableName)}\\b`, 'i').test(orderReadLiveCheck), `order-read audit inserts ${tableName} fixture rows`);
+}
+const orderReadInsertTables = [...orderReadLiveCheck.matchAll(/\binsert\s+into\s+([a-z_]+)\b/gi)].map((match) => match[1].toLowerCase());
+assert(orderReadInsertTables.length === orderReadFixtureTables.length, 'order-read audit has exactly one insert per fixture table');
+assert(orderReadInsertTables.every((tableName) => orderReadFixtureTables.includes(tableName)), 'order-read audit inserts only approved fixture tables');
+assert((orderReadLiveCheck.match(/jsonb_to_recordset\(\$1::jsonb\)/g) || []).length === orderReadFixtureTables.length, 'every order-read fixture insert uses one parameterized JSON payload');
+assert(!/\b(?:create|alter|truncate|drop|grant|revoke|comment|vacuum|reindex|delete|update|commit|savepoint)\b/i.test(orderReadLiveCheck), 'order-read audit contains no DDL, destructive, or persistent SQL verb');
+for (const gateway of ['sessionWrites.create', 'sessionWrites.touchToken', 'sessionWrites.revokeToken', 'orderWrites.']) {
+  assert(!orderReadLiveCheck.includes(gateway), `order-read audit does not call transactional gateway ${gateway}`);
+}
+assert(orderReadLiveCheck.includes('const ORDER_COUNT = 240'), 'order-read audit covers more than the legacy 100-row ceiling');
+assert(orderReadLiveCheck.includes("['000900', '000100', '000800', '000200']"), 'order-read audit includes distinct PostgreSQL microseconds inside one millisecond');
+assert(orderReadLiveCheck.includes('assertMicrosecondCursorParameters(orderReadQueryTrace)'), 'order-read audit verifies microsecond cursor SQL parameters');
+assert(orderReadLiveCheck.includes('featureFlags: { domainEnabled: false }'), 'order-read audit cannot activate composite service-item reads');
+assert(orderReadLiveCheck.includes('hashSessionToken(token)'), 'order-read audit stores only hashed session tokens');
+assert(orderReadLiveCheck.includes('await assertFixtureAbsent(client, fixture)'), 'order-read audit verifies fixture absence after rollback');
+assert(orderReadLiveCheck.includes('store.sessionWrites.findByToken'), 'order-read audit recovers actors through the PostgreSQL session gateway');
+assert(orderReadLiveCheck.includes('store.orderReads.listOrders'), 'order-read audit exercises the PostgreSQL order list gateway');
+assert(orderReadLiveCheck.includes('store.orderReads.getOrder'), 'order-read audit exercises the PostgreSQL order detail gateway');
+assert(orderReadLiveCheck.includes('process.exitCode = 1'), 'order-read audit cannot report a safety refusal as a pass');
+checks.push('isolated-order-read-audit-safety');
+
 const migrationLiveCheck = read(files.migrationLiveCheck);
 assert(migrationLiveCheck.includes('process.env.MIGRATION_TEST_DATABASE_URL'), 'migration audit uses its dedicated database URL');
 assert(!migrationLiveCheck.includes('process.env.DATABASE_URL'), 'migration audit ignores the application database URL');
@@ -158,6 +202,7 @@ assert(
   'CI loads schema through fail-fast psql',
 );
 assert(ciWorkflow.includes('npm run check:postgres-live'), 'CI runs live PostgreSQL check');
+assert(ciWorkflow.includes('npm run check:postgres-order-read-live'), 'CI runs isolated order-read PostgreSQL audit');
 assert(ciWorkflow.includes('fetch-depth: 0'), 'CI fetches the fixed baseline commit');
 assert(ciWorkflow.includes('createdb --host=localhost --port=5432 --username=postgres pp_platform_migration_ci'), 'CI creates a dedicated migration database');
 assert(ciWorkflow.includes('MIGRATION_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/pp_platform_migration_ci'), 'CI exports the dedicated migration URL');
@@ -168,6 +213,12 @@ const ciServerStepsIndex = ciServerJob.search(/\r?\n    steps:/);
 assert(ciServerStepsIndex > 0, 'CI server-check job defines steps');
 const ciServerJobEnvironment = ciServerJob.slice(0, ciServerStepsIndex);
 assert(!ciServerJobEnvironment.includes('ALLOW_DESTRUCTIVE_MIGRATION_TEST'), 'CI does not enable destructive migration audit job-wide');
+assert(!ciServerJobEnvironment.includes('ALLOW_ORDER_READ_LIVE_TEST'), 'CI does not enable order-read fixture audit job-wide');
+assert(!ciServerJobEnvironment.includes('ORDER_READ_TEST_DATABASE_URL'), 'CI does not export the order-read test URL job-wide');
+assert(
+  /name:\s*Run isolated order-read PostgreSQL audit[\s\S]*?env:\s*\n\s*ORDER_READ_TEST_DATABASE_URL:\s*postgres:\/\/postgres:postgres@localhost:5432\/pp_platform_ci\s*\n\s*ALLOW_ORDER_READ_LIVE_TEST:\s*"1"[\s\S]*?run:\s*npm run check:postgres-order-read-live/.test(ciWorkflow),
+  'CI scopes the order-read database URL and opt-in to its audit step',
+);
 assert(
   /name:\s*Run isolated composite-order migration audit[\s\S]*?env:\s*\n\s*ALLOW_DESTRUCTIVE_MIGRATION_TEST:\s*"1"[\s\S]*?run:\s*npm run check:composite-order-migration-live/.test(ciWorkflow),
   'CI scopes destructive migration opt-in to the audit step',

@@ -66,6 +66,13 @@ jobs:
         working-directory: server
         run: npm run check:mvp
 
+      - name: Run isolated order-read PostgreSQL audit
+        working-directory: server
+        env:
+          ORDER_READ_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/pp_platform_ci
+          ALLOW_ORDER_READ_LIVE_TEST: "1"
+        run: npm run check:postgres-order-read-live
+
       - name: Run live PostgreSQL check
         working-directory: server
         run: npm run check:postgres-live

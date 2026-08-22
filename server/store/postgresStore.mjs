@@ -17,6 +17,7 @@ import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransacti
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
 import { applyModerationActionTransaction, createReportTransaction, reviewAuditCaseTransaction } from './postgresModerationWrites.mjs';
+import { getOrderDetailForActor, getOrderDetailForAdmin, listOrdersForActor } from './postgresOrderReads.mjs';
 import { createOrderTransaction, expirePendingPaymentsTransaction, markPaymentPaidTransaction, markPaymentTerminalTransaction, markRefundTerminalTransaction, setAdminOrderStatusTransaction, transitionOrderTransaction } from './postgresOrderWrites.mjs';
 import { issuePhoneVerificationChallengeTransaction, markPhoneVerificationFailedTransaction, markPhoneVerificationSentTransaction, verifyPhoneVerificationChallengeTransaction } from './postgresPhoneVerificationWrites.mjs';
 import { claimDueProviderCallbacksTransaction, markProviderCallbackFailedTransaction, markProviderCallbackProcessedTransaction, recordProviderCallbackReceivedTransaction } from './postgresProviderCallbackWrites.mjs';
@@ -44,6 +45,7 @@ export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {
       securityWrites: true,
       sessionWrites: true,
       idempotencyWrites: true,
+      orderReads: true,
       orderWrites: true,
       messageWrites: true,
       moderationWrites: true,
@@ -92,6 +94,29 @@ export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {
       findRequest: (draft) => withClient((client) => findIdempotencyRequest(client, draft)),
       beginRequest: (draft) => withClient((client) => beginIdempotencyRequestTransaction(client, draft)),
       completeRequest: (draft) => withClient((client) => completeIdempotencyRequestTransaction(client, draft)),
+    },
+    orderReads: {
+      listOrders: (options) =>
+        withClient((client) =>
+          listOrdersForActor(client, {
+            ...options,
+            includeServiceItems: compositeOrderDomainEnabled,
+          }),
+        ),
+      getOrder: (options) =>
+        withClient((client) =>
+          getOrderDetailForActor(client, {
+            ...options,
+            includeServiceItems: compositeOrderDomainEnabled,
+          }),
+        ),
+      getOrderForAdmin: (options) =>
+        withClient((client) =>
+          getOrderDetailForAdmin(client, {
+            ...options,
+            includeServiceItems: compositeOrderDomainEnabled,
+          }),
+        ),
     },
     orderWrites: {
       createOrder: (draft) =>

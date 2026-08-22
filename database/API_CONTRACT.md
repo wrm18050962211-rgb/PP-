@@ -42,13 +42,15 @@
 
 | HTTP | code | 说明 |
 |---|---|---|
-| 400 | `INVALID_JSON` / `REQUEST_BODY_INVALID` / `VALIDATION_ERROR` | JSON 或入口字段无效 |
+| 400 | `INVALID_JSON` / `REQUEST_BODY_INVALID` / `VALIDATION_ERROR` / `ORDER_QUERY_INVALID` / `ORDER_CURSOR_INVALID` | JSON、入口字段、订单查询参数或分页游标无效 |
 | 401 | `AUTH_REQUIRED` | 缺少或失效会话 |
-| 403 | `FORBIDDEN` | 角色或资源权限不足 |
+| 403 | `FORBIDDEN` / `ORDER_ROLE_FORBIDDEN` | 角色或资源权限不足 |
+| 404 | `NOT_FOUND` / `ORDER_NOT_FOUND` | 资源不存在，或公开订单详情接口为避免枚举而隐藏无权限资源 |
 | 413 | `REQUEST_BODY_TOO_LARGE` | 请求体超过配置上限 |
 | 415 | `CONTENT_TYPE_UNSUPPORTED` | 非空请求体不是 JSON |
 | 429 | `RATE_LIMITED` / `SENSITIVE_RATE_LIMITED` | 全局或敏感接口限流 |
-| 500 | `SERVER_ERROR` | 未知服务端错误；通过 request ID 追踪 |
+| 500 | `SERVER_ERROR` / `ORDER_READ_ERROR` | 未知服务端或订单读取错误；通过 request ID 追踪 |
+| 503 | `ORDER_POSTGRES_REQUIRED` / `ORDER_READ_FAILED` | 生产订单读取缺少 PostgreSQL 权威能力，或权威数据库读取暂时不可用 |
 
 ### 金额
 
@@ -469,10 +471,14 @@ companions.service_enabled = true
   "activityPricingId": "pricing_uuid",
   "placeName": "武康路",
   "placeAddress": "上海市徐汇区武康路",
+  "placeLat": 31.2109000,
+  "placeLng": 121.4457000,
   "userNote": "想拍自然一点，不太会摆动作",
   "extras": []
 }
 ```
+
+`placeLat`、`placeLng` 是可选的 legacy 地点快照字段，只能同时提交或同时省略。提交时必须是 JSON number，纬度范围 `[-90, 90]`、经度范围 `[-180, 180]`；单边缺失、字符串、非有限数值或越界值返回 `400 VALIDATION_ERROR`。它们只写入已有 `orders.place_lat/place_lng`，不得在本切片引入 `placeId`、Provider、区域 ID 或其他尚未落库的结构化地点字段。
 
 返回：
 
@@ -516,15 +522,26 @@ availability_slots.status = booked
 
 ### GET `/api/orders`
 
-获取用户或陪拍者订单列表。
+获取当前用户或摄影师自己的订单列表。该接口返回公开 `OrderSummary`，使用稳定游标分页；身份和资源范围始终由服务端会话决定，客户端传入的 `role` 不能扩大权限。
 
 查询参数：
 
-| 参数 | 类型 | 说明 |
+| 参数 | 类型 | 严格规则 |
 |---|---|---|
-| role | string | user / companion |
-| status | string | 可选 |
-| cursor | string | 分页 |
+| role | string | 可选；省略时由会话推导。提供时只接受精确值 `user` / `companion`。consumer 会话只能使用 `user`，companion 会话只能使用 `companion`；不接受 `consumer`、大小写变体或多值参数。 |
+| status | string | 可选，只接受一个 `OrderStatus` 精确值：`pending_payment`、`paid_pending_confirm`、`confirmed`、`in_service`、`completed`、`cancelled`、`refunding`、`refunded`、`disputed`。 |
+| limit | integer | 可选，默认 20，范围 1—50；小数、零、负数、超上限和多值参数均返回 `400 ORDER_QUERY_INVALID`。 |
+| cursor | string | 可选。只能原样传回服务端上一页签发的不透明游标，最大 512 字符；客户端不得解析或自行构造。 |
+
+分页与校验规则：
+
+- 固定按 `createdAt DESC, id DESC` 做 keyset pagination；游标保留 PostgreSQL `created_at` 的完整微秒精度，相同创建时间再由 `id` 保证稳定顺序，不能因 JavaScript 毫秒时间截断而跳单。
+- 游标包含当前主体、`role`、`status` 和上一页位置的上下文校验信息。格式非法或用于不同主体、角色、状态筛选时返回 `400 ORDER_CURSOR_INVALID`，不得静默退回第一页；本阶段不把游标描述为加密凭证或授权边界，资源权限仍由每次 SQL 的会话归属条件保证。
+- 未知查询参数、同名多值参数和显式空白 `role` 均返回 `400 ORDER_QUERY_INVALID`。
+- 已登录但 `role` 与当前会话不匹配时返回 `403 ORDER_ROLE_FORBIDDEN`，不得返回另一角色的订单或用空列表掩盖越权请求。
+- `hasMore` 必须等于 `nextCursor !== null`；最后一页固定返回 `nextCursor: null`、`hasMore: false`。
+- 生产环境缺少 PostgreSQL 权威订单读取能力时返回 `503 ORDER_POSTGRES_REQUIRED`；数据库查询或映射异常返回 `503 ORDER_READ_FAILED`。两者都不得降级为 JSON store、mock、localStorage 或 `200` 空数组。
+- 只有查询成功且当前主体确实没有匹配订单时，才返回 `200`、`items: []`、`nextCursor: null`、`hasMore: false`。
 
 返回：
 
@@ -537,21 +554,143 @@ availability_slots.status = booked
       "status": "paid_pending_confirm",
       "statusText": "待确认",
       "title": "Citywalk 陪拍",
-      "time": "今天 17:30",
+      "time": "2026-05-24 17:30-19:30",
       "place": "武康路",
+      "locationSnapshot": {
+        "name": "武康路",
+        "address": "上海市徐汇区武康路",
+        "lat": 31.2109000,
+        "lng": 121.4457000
+      },
       "amountCents": 39900,
       "amountText": "¥399",
-      "companion": {
-        "id": "companion_uuid",
-        "name": "Mori",
-        "avatarUrl": "https://example.com/avatar.jpg"
-      },
+      "companion": "Mori",
+      "companionId": "companion_uuid",
+      "postId": "post_uuid",
+      "activityId": "pricing_uuid",
+      "activityName": "Citywalk",
+      "slotId": "slot_uuid",
+      "startAt": "2026-05-24T09:30:00.000Z",
+      "endAt": "2026-05-24T11:30:00.000Z",
+      "dateLabel": "2026-05-24",
+      "timeLabel": "17:30-19:30",
+      "durationMinutes": 120,
+      "durationLabel": "2小时",
+      "createdAt": "2026-05-20T08:00:00.000Z",
+      "updatedAt": "2026-05-20T08:05:00.000Z",
       "currentStep": 1,
-      "steps": ["已支付", "待陪拍者确认", "服务开始", "完成评价"]
+      "steps": ["已创建", "已支付", "已确认", "已完成"]
+    }
+  ],
+  "nextCursor": "opaque_server_cursor",
+  "hasMore": true
+}
+```
+
+兼容约定：
+
+- `place` 继续保留，固定等于 `locationSnapshot.name`，现有客户端可以继续显示 `place`。
+- `locationSnapshot` 是 WIN-DATA-2A 的 legacy 地点快照，只包含 `name/address/lat/lng`。它复制订单创建时的 `orders.place_*`，后续地点改名不得覆盖历史订单。
+- 未保存地址时 `address` 返回 `null`；只有经纬度同时有效时才返回数值，否则 `lat`、`lng` 必须同时为 `null`。不得填充 `0,0`，也不得根据名称在读取时临时反查坐标。
+- `locationSnapshot` 不代表 WIN-MAP-2 的结构化地点域；当前不得加入或伪造 `placeId`、`providerPoiId`、Provider、区域 ID、服务范围或距离结果。
+- `startAt`、`endAt` 保持 UTC ISO 时间；当前中国区 legacy 订单的 `time`、`dateLabel`、`timeLabel` 统一按 `Asia/Shanghai` 生成，不得直接截取 UTC 字符串。跨本地日期时，`timeLabel` 必须带出结束日期，避免把跨日预约显示为同一天。
+- companion 视图可以返回经过公开资料过滤的 `creatorId`、`creatorName`；任何列表视图都不得返回用户或摄影师手机号。
+
+### GET `/api/orders/:orderId`
+
+获取单个公开 `OrderDetail`。当前 consumer 只能读取 `orders.user_id` 属于自己的订单；当前 companion 只能读取 `orders.companion_id` 属于自己的订单。Admin 使用独立的 `/api/admin/**` 接口，不复用本接口。
+
+路径与权限规则：
+
+- `orderId` 必须是规范 UUID；格式非法、订单不存在、已不可见或当前主体无权读取时，一律返回完全相同的 `404 ORDER_NOT_FOUND`，不得通过状态码、消息、耗时或响应字段泄露订单是否存在。
+- 缺少或失效会话仍返回 `401 AUTH_REQUIRED`。
+- 响应中的 `statusLogs` 按 `createdAt ASC, id ASC` 排列；没有日志时返回空数组，不能省略字段。
+- `OrderStatusLogPublic.message` 只能是面向用户的安全文案。不得透传数据库原始 `reason`、操作人 ID、内部操作人类型或内部 metadata。
+
+返回：
+
+```json
+{
+  "id": "order_uuid",
+  "orderNo": "PP26052401",
+  "status": "paid_pending_confirm",
+  "statusText": "待确认",
+  "title": "Citywalk 陪拍",
+  "time": "2026-05-24 17:30-19:30",
+  "place": "武康路",
+  "locationSnapshot": {
+    "name": "武康路",
+    "address": "上海市徐汇区武康路",
+    "lat": 31.2109000,
+    "lng": 121.4457000
+  },
+  "amountCents": 39900,
+  "amountText": "¥399",
+  "companion": "Mori",
+  "companionId": "companion_uuid",
+  "postId": "post_uuid",
+  "activityId": "pricing_uuid",
+  "activityName": "Citywalk",
+  "slotId": "slot_uuid",
+  "startAt": "2026-05-24T09:30:00.000Z",
+  "endAt": "2026-05-24T11:30:00.000Z",
+  "dateLabel": "2026-05-24",
+  "timeLabel": "17:30-19:30",
+  "durationMinutes": 120,
+  "durationLabel": "2小时",
+  "pricing": {
+    "baseAmountCents": 39900,
+    "extraAmountCents": 0,
+    "totalAmountCents": 39900,
+    "totalAmountText": "¥399",
+    "currency": "CNY"
+  },
+  "addOns": [],
+  "createdAt": "2026-05-20T08:00:00.000Z",
+  "updatedAt": "2026-05-20T08:05:00.000Z",
+  "currentStep": 1,
+  "steps": ["已创建", "已支付", "已确认", "已完成"],
+  "statusLogs": [
+    {
+      "id": "status_log_uuid",
+      "fromStatus": "pending_payment",
+      "toStatus": "paid_pending_confirm",
+      "statusText": "待确认",
+      "message": "支付成功，等待摄影师确认",
+      "createdAt": "2026-05-20T08:05:00.000Z"
     }
   ]
 }
 ```
+
+`serviceItems` 是 feature-gated 兼容字段：组合订单领域开关关闭时省略；只有 `WIN-MERCHANT-0` 的领域开关安全启用后才按公开 `OrderServiceItem` 白名单返回。它不是 `WIN-DATA-2A` 的验收或解锁条件。
+
+`OrderServiceItem.serviceDescription` 是可选的公开套餐说明。服务项拒绝原因在建立独立的用户可见原因枚举或审核文案字段前不通过该公开 DTO 返回；数据库原始 `decline_reason` 始终属于内部履约记录。
+
+详情中的 `userNote` 可供订单双方查看；`companionNote` 只在摄影师本人视图返回；`cancellationReason` 可供订单双方查看。三者均不得包含平台内部风控、财务、结算或操作人 metadata。
+
+不存在与无权限的统一响应：
+
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "ORDER_NOT_FOUND",
+    "message": "Order not found",
+    "requestId": "f5da48bf-9c40-4622-81ea-df1ad3d08a4f"
+  }
+}
+```
+
+`OrderSummary`、`OrderDetail`、`OrderStatusLogPublic` 和嵌套的公开 `OrderServiceItem` 均不得包含：
+
+- `platformFeeCents` 或其他平台佣金；
+- `companionIncomeCents`、`providerIncomeCents`、服务方应结收入或对手方补偿；
+- `settlementStatus`、服务项结算状态或内部账本状态；
+- `pricingSnapshot`、`rawPricingSnapshot` 或任何原始内部计价快照；
+- 操作人 ID、内部风控 metadata、数据库原始状态原因；
+- 用户、摄影师或商家电话。
 
 ### POST `/api/orders/:orderId/confirm`
 

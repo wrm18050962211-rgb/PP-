@@ -53,6 +53,16 @@ try {
   const anonymousOrders = await api('GET', '/api/orders?role=user', undefined, { omitAuth: true, expectOk: false });
   assert(anonymousOrders.error?.code === 'AUTH_REQUIRED', 'production public orders API requires auth');
 
+  const publicOrdersWithoutPostgres = await api('GET', '/api/orders?role=user', undefined, { expectOk: false });
+  assert(publicOrdersWithoutPostgres.error?.code === 'ORDER_POSTGRES_REQUIRED', 'production order list refuses JSON fallback');
+  const publicOrderDetailWithoutPostgres = await api(
+    'GET',
+    '/api/orders/00000000-0000-4000-8000-000000000901',
+    undefined,
+    { expectOk: false },
+  );
+  assert(publicOrderDetailWithoutPostgres.error?.code === 'ORDER_POSTGRES_REQUIRED', 'production order detail refuses JSON fallback');
+
   const anonymousConversations = await api('GET', '/api/conversations', undefined, { omitAuth: true, expectOk: false });
   assert(anonymousConversations.error?.code === 'AUTH_REQUIRED', 'production conversations API requires auth');
 
@@ -115,6 +125,8 @@ try {
           'local-admin-login-disabled',
           'anonymous-admin-api-auth-required',
           'anonymous-public-order-api-auth-required',
+          'production-order-list-postgres-required',
+          'production-order-detail-postgres-required',
           'anonymous-conversations-api-auth-required',
           'public-token-admin-api-forbidden',
           'admin-token-public-api-forbidden',

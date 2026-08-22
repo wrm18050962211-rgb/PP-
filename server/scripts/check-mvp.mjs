@@ -23,6 +23,8 @@ const checks = [
   ['postgres-store-session-gateway', ['scripts/check-postgres-store-session-gateway.mjs']],
   ['postgres-store-idempotency-gateway', ['scripts/check-postgres-store-idempotency-gateway.mjs']],
   ['postgres-content-gateway', ['scripts/check-postgres-content-gateway.mjs']],
+  ['postgres-order-read-gateway', ['scripts/check-postgres-order-read-gateway.mjs']],
+  ['postgres-order-read-route', ['scripts/check-postgres-order-read-route.mjs']],
   ['postgres-store-read-model', ['scripts/check-postgres-store-read-model.mjs']],
   ['postgres-composite-order-read-model', ['scripts/check-postgres-composite-order-read-model.mjs']],
   ['postgres-launch-readiness', ['scripts/check-postgres-launch-readiness.mjs']],

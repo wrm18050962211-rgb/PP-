@@ -24,12 +24,12 @@ export async function createOrderTransaction(client, draft, options = {}) {
         id, order_no, user_id, companion_id, post_id, activity_pricing_id, availability_slot_id,
         city, place_name, place_address, activity_name, duration_minutes, start_at, end_at,
         base_amount_cents, extra_amount_cents, total_amount_cents, platform_fee_cents, companion_income_cents,
-        status, user_note
+        status, user_note, place_lat, place_lng
       ) values (
         $1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10, $11, $12, $13, $14,
         $15, $16, $17, $18, $19,
-        'pending_payment', $20
+        'pending_payment', $20, $21, $22
       )
       returning *`,
       [
@@ -53,6 +53,8 @@ export async function createOrderTransaction(client, draft, options = {}) {
         draft.platformFeeCents,
         draft.companionIncomeCents,
         draft.userNote || null,
+        draft.placeLat ?? null,
+        draft.placeLng ?? null,
       ],
     );
 

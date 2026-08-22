@@ -48,6 +48,13 @@ try {
     'postgres store exposes idempotency write gateway',
   );
   assert(
+    postgresStore.capabilities?.orderReads === true &&
+      typeof postgresStore.orderReads?.listOrders === 'function' &&
+      typeof postgresStore.orderReads?.getOrder === 'function' &&
+      typeof postgresStore.orderReads?.getOrderForAdmin === 'function',
+    'postgres store exposes authoritative order read gateway',
+  );
+  assert(
     postgresStore.capabilities?.orderWrites === true &&
       typeof postgresStore.orderWrites?.createOrder === 'function' &&
       typeof postgresStore.orderWrites?.setAdminOrderStatus === 'function' &&
@@ -88,6 +95,7 @@ try {
           'postgres-security-gateway',
           'postgres-session-gateway',
           'postgres-idempotency-gateway',
+          'postgres-order-read-gateway',
           'postgres-order-gateway',
           'postgres-message-gateway',
           'postgres-moderation-gateway',

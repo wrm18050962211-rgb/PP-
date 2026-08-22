@@ -15,6 +15,7 @@ assert(/const orderId = dataStore\.kind !== 'json' \? postgresId\(\) : id\('orde
 assert(/const paymentId = dataStore\.kind !== 'json' \? postgresId\(\) : id\('payment'\)/.test(source), 'postgres order route uses uuid payment id');
 assert(/idempotencyId: postgresId\(\)/.test(source), 'postgres order route uses uuid idempotency id');
 assert(/availabilitySlotId: order\.slotId/.test(source), 'postgres order route passes slot id');
+assert(/placeLat: order\.placeLat/.test(source) && /placeLng: order\.placeLng/.test(source), 'postgres order route passes legacy coordinates');
 assert(/paymentId: payment\.id/.test(source), 'postgres order route passes payment id');
 assert(/statusLogId: postgresId\(\)/.test(source), 'postgres order route creates uuid status log id');
 assert(/id: postgresId\(\),[\s\S]*extraId: extra\.extraId/.test(source), 'postgres order route creates uuid extra row ids');
@@ -25,7 +26,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['order-route-gateway', 'order-idempotency-begin', 'order-idempotency-complete', 'uuid-route-ids', 'slot-lock-draft', 'payment-draft', 'no-json-save'],
+      checks: ['order-route-gateway', 'order-idempotency-begin', 'order-idempotency-complete', 'uuid-route-ids', 'slot-lock-draft', 'legacy-coordinate-draft', 'payment-draft', 'no-json-save'],
     },
     null,
     2,

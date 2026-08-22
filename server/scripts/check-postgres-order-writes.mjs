@@ -11,6 +11,8 @@ const draft = {
   city: 'Shanghai',
   placeName: 'Wukang Road',
   placeAddress: 'Wukang Road, Xuhui District, Shanghai',
+  placeLat: 31.2104,
+  placeLng: 121.4386,
   activityName: 'Citywalk',
   durationMinutes: 120,
   startAt: '2026-06-12T06:00:00.000Z',
@@ -41,12 +43,15 @@ const draft = {
 const successClient = createMockClient([{ id: draft.availabilitySlotId, status: 'available' }]);
 const result = await createOrderTransaction(successClient, draft);
 const successSql = successClient.calls.map((call) => call.sql);
+const orderInsertCall = successClient.calls.find((call) => /insert into orders/i.test(call.sql));
 
 assert(result.order?.id === draft.orderId, 'returns inserted order');
 assert(result.payment?.id === draft.paymentId, 'returns inserted payment');
 assert(successSql[0] === 'begin', 'transaction begins first');
 assert(successSql.some((sql) => /for update/i.test(sql)), 'locks availability slot for update');
 assert(successSql.some((sql) => /insert into orders/i.test(sql)), 'inserts order');
+assert(/place_lat, place_lng/i.test(orderInsertCall?.sql || ''), 'order insert persists the legacy coordinate snapshot');
+assert(orderInsertCall?.params?.[20] === draft.placeLat && orderInsertCall?.params?.[21] === draft.placeLng, 'order insert parameterizes both coordinates');
 assert(successSql.some((sql) => /insert into order_extras/i.test(sql)), 'inserts order extras');
 assert(!successSql.some((sql) => /insert into order_items/i.test(sql)), 'disabled composite domain leaves the legacy order write unchanged');
 assert(successSql.some((sql) => /insert into payments/i.test(sql)), 'inserts payment');
@@ -276,6 +281,7 @@ console.log(
         'create-begin',
         'slot-for-update',
         'insert-order',
+        'insert-legacy-location-coordinates',
         'insert-extras',
         'disabled-domain-no-item-write',
         'enabled-domain-photography-item',

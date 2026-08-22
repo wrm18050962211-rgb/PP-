@@ -144,7 +144,7 @@ export type OrderServiceItem = {
   merchantOfferingId?: string;
   offeringVersion?: number;
   serviceName: string;
-  serviceDescription: string;
+  serviceDescription?: string;
   durationMinutes: number;
   startAt: string;
   endAt: string;
@@ -166,7 +166,7 @@ export type OrderServiceItem = {
     deadlineAt?: string;
     acceptedAt?: string;
     declinedAt?: string;
-    declineReason: string;
+    declineReason?: string;
   };
   fulfillment: {
     status: OrderItemFulfillmentStatus;
@@ -433,6 +433,109 @@ export type OrderStep = {
 
 export type OrderImageQuantityMode = '4' | '9' | 'custom' | 'unlimited';
 
+/**
+ * WIN-DATA-2A compatibility snapshot for orders created before the structured
+ * place domain is available. Missing address or coordinates stay null; clients
+ * must not infer them from the display name.
+ */
+export type LegacyOrderLocationSnapshot = {
+  name: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+};
+
+/** Public order status history. Internal operator identity and raw reasons are excluded. */
+export type OrderStatusLogPublic = {
+  id: string;
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus;
+  statusText: string;
+  message?: string;
+  createdAt: string;
+};
+
+export type OrderPublicPricing = {
+  baseAmountCents: number;
+  extraAmountCents: number;
+  totalAmountCents: number;
+  totalAmountText: string;
+  currency: 'CNY' | string;
+};
+
+export type OrderAddOnPublic = {
+  id: string;
+  extraId?: string;
+  name: string;
+  quantity: number;
+  unitPriceCents: number;
+  unitPriceText: string;
+  amountCents: number;
+  amountText: string;
+  createdAt?: string;
+};
+
+/**
+ * Public list item shared by consumer and companion order views.
+ * `place` is retained as the legacy display alias for `locationSnapshot.name`.
+ */
+export type OrderSummary = {
+  id: string;
+  orderNo: string;
+  status: OrderStatus;
+  statusText: string;
+  title: string;
+  time: string;
+  place: string;
+  locationSnapshot: LegacyOrderLocationSnapshot;
+  amountCents: number;
+  amountText: string;
+  companion: string;
+  companionId: string;
+  companionAvatarUrl?: string;
+  creatorId?: string;
+  creatorName?: string;
+  creatorAvatarUrl?: string;
+  postId?: string;
+  activityId?: string;
+  activityName?: string;
+  slotId?: string;
+  startAt: string;
+  endAt: string;
+  dateLabel: string;
+  timeLabel: string;
+  durationMinutes: number;
+  durationLabel: string;
+  paymentExpiresAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+  steps: string[];
+  currentStep: number;
+  serviceItems?: OrderServiceItem[];
+};
+
+/** Public order detail. Provider settlement and internal pricing fields are intentionally absent. */
+export type OrderDetail = OrderSummary & {
+  pricing: OrderPublicPricing;
+  addOns: OrderAddOnPublic[];
+  userNote?: string;
+  companionNote?: string;
+  cancellationReason?: string;
+  paidAt?: string;
+  confirmedAt?: string;
+  serviceStartedAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  statusLogs: OrderStatusLogPublic[];
+};
+
+export type OrderListPage = {
+  items: OrderSummary[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+/** Legacy in-app state model. New public order APIs use OrderSummary/OrderDetail. */
 export type AppOrder = {
   id: string;
   orderNo: string;
@@ -441,6 +544,9 @@ export type AppOrder = {
   title: string;
   time: string;
   place: string;
+  placeAddress?: string;
+  placeLat?: number;
+  placeLng?: number;
   amountCents: number;
   amountText: string;
   companion: string;
@@ -501,6 +607,9 @@ export type CreateOrderInput = {
   title: string;
   time: string;
   place: string;
+  placeAddress?: string;
+  placeLat?: number;
+  placeLng?: number;
   amountCents: number;
   companion: string;
   companionId: string;

@@ -155,12 +155,27 @@ try {
 
   const orders = await api('GET', '/api/orders?role=user');
   assert(orders.items.some((item) => item.id === paid.order.id), 'paid order appears in order list');
+  assert(orders.nextCursor === null && orders.hasMore === false, 'json fallback preserves the public order page shape');
+  const consumerOrderSummary = orders.items.find((item) => item.id === paid.order.id);
+  assert(consumerOrderSummary.locationSnapshot?.name === consumerOrderSummary.place, 'json fallback returns the public legacy location snapshot');
+  assertNoPrivateOrderFields(orders, 'consumer order list');
+  await reverseOrderStatusLogsInStore(paid.order.id);
+  const consumerOrderDetail = await api('GET', `/api/orders/${paid.order.id}`);
+  assert(consumerOrderDetail.id === paid.order.id && Array.isArray(consumerOrderDetail.statusLogs), 'json fallback returns the public order detail shape');
+  assert(consumerOrderDetail.statusLogs.every((item) => item.message && !('note' in item)), 'json fallback derives safe public status messages');
+  assert(
+    consumerOrderDetail.statusLogs.every((item, index, items) => index === 0 || items[index - 1].createdAt <= item.createdAt),
+    'json fallback sorts public status logs by creation time',
+  );
+  assertNoPrivateOrderFields(consumerOrderDetail, 'consumer order detail');
   const consumerStatusUpdate = await api('POST', `/api/orders/${paid.order.id}/status`, { status: 'disputed' }, { expectOk: false });
   assert(consumerStatusUpdate.error?.code === 'FORBIDDEN', 'consumer token cannot use admin order status endpoint');
   const otherConsumer = await api('POST', '/api/auth/wechat/login', { code: 'mock-other-consumer' });
   assert(otherConsumer.user?.id !== consumerSession.user?.id, 'second consumer login creates a distinct user');
   const otherConsumerPayment = await api('GET', `/api/payments/${order.payment.paymentId}/status`, undefined, { expectOk: false });
   assert(otherConsumerPayment.error?.code === 'FORBIDDEN', 'consumer cannot view another consumer order payment status');
+  const otherConsumerOrderDetail = await api('GET', `/api/orders/${paid.order.id}`, undefined, { expectOk: false });
+  assert(otherConsumerOrderDetail.error?.code === 'ORDER_NOT_FOUND', 'public order detail does not reveal another consumer order');
   const crossUserSecurityStore = JSON.parse(await readFile(storePath, 'utf8'));
   assert(
     crossUserSecurityStore.securityEvents?.some((item) => item.type === 'permission_denied' && item.targetType === 'order' && item.targetId === paid.order.id),
@@ -194,6 +209,7 @@ try {
   assert(ownCompanionSession.companionId === paid.order.companionId, 'mock companion login switches to requested order companion');
   const companionOrders = await api('GET', '/api/orders?role=companion');
   assert(companionOrders.items.every((item) => item.companionId === paid.order.companionId), 'companion order list is scoped to current companion');
+  assertNoPrivateOrderFields(companionOrders, 'companion order list');
   assert(
     companionOrders.items.some((item) => item.id === paid.order.id),
     `companion order list includes own paid order: ${JSON.stringify({
@@ -244,6 +260,17 @@ try {
   assert(cancelledConfirmed.cancellationActor === 'creator', 'confirmed cancellation records client actor');
   assert(cancelledConfirmed.cancellationPhase === 'confirmed_before_balance', 'confirmed cancellation records phase');
   assert(typeof cancelledConfirmed.refundToCreatorCents === 'number', 'confirmed cancellation records refund amount');
+  const jsonPageOne = await api('GET', '/api/orders?role=user&limit=1');
+  assert(jsonPageOne.items.length === 1 && jsonPageOne.hasMore === true && jsonPageOne.nextCursor, 'json fallback returns a bounded first page');
+  const jsonPageTwo = await api('GET', `/api/orders?role=user&limit=1&cursor=${encodeURIComponent(jsonPageOne.nextCursor)}`);
+  assert(jsonPageTwo.items.length === 1 && jsonPageTwo.items[0].id !== jsonPageOne.items[0].id, 'json fallback cursor continues without duplicating an order');
+  const mismatchedJsonCursor = await api(
+    'GET',
+    `/api/orders?role=user&status=cancelled&limit=1&cursor=${encodeURIComponent(jsonPageOne.nextCursor)}`,
+    undefined,
+    { expectOk: false },
+  );
+  assert(mismatchedJsonCursor.error?.code === 'ORDER_CURSOR_INVALID', 'json fallback cursor is bound to the status filter');
 
   authToken = primaryConsumerToken;
   const conversation = await api('GET', `/api/orders/${paid.order.id}/conversation`);
@@ -442,8 +469,48 @@ async function expirePendingOrderInStore(orderId) {
   await writeFile(storePath, JSON.stringify(store, null, 2), 'utf8');
 }
 
+async function reverseOrderStatusLogsInStore(orderId) {
+  const store = JSON.parse(await readFile(storePath, 'utf8'));
+  const order = store.orders.find((item) => item.id === orderId);
+  assert(order?.statusLogs?.length >= 2, 'order has status logs for public ordering check');
+  order.statusLogs.reverse();
+  await writeFile(storePath, JSON.stringify(store, null, 2), 'utf8');
+}
+
 function assert(condition, message) {
   if (!condition) throw new Error(`Smoke check failed: ${message}`);
+}
+
+function assertNoPrivateOrderFields(value, label) {
+  const forbidden = new Set([
+    'creatorPhone',
+    'companionPhone',
+    'contactPhone',
+    'phone',
+    'quote',
+    'platformFeeCents',
+    'companionIncomeCents',
+    'providerIncomeCents',
+    'settlementStatus',
+    'pricingSnapshot',
+    'operatorId',
+    'operatorType',
+    'note',
+    'reason',
+  ]);
+  walk(value, (key) => assert(!forbidden.has(key), `${label} omits private field ${key}`));
+}
+
+function walk(value, visitor) {
+  if (Array.isArray(value)) {
+    value.forEach((item) => walk(item, visitor));
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  for (const [key, entry] of Object.entries(value)) {
+    visitor(key, entry);
+    walk(entry, visitor);
+  }
 }
 
 function delay(ms) {

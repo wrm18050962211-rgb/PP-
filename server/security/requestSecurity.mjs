@@ -6,6 +6,19 @@ const DEFAULT_GLOBAL_LIMIT = 600;
 const DEFAULT_SENSITIVE_LIMIT = 20;
 const DEFAULT_WINDOW_MS = 60 * 1000;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
+const ORDER_CURSOR_PATTERN = /^[A-Za-z0-9_-]+$/;
+const ORDER_READ_ROLES = ['user', 'companion'];
+const ORDER_STATUSES = [
+  'pending_payment',
+  'paid_pending_confirm',
+  'confirmed',
+  'in_service',
+  'completed',
+  'cancelled',
+  'refunding',
+  'refunded',
+  'disputed',
+];
 const SENSITIVE_KEY_PATTERN =
   /^(authorization|cookie|set-cookie|password|passcode|otp|verificationcode|token|accesstoken|refreshtoken|secret|secretid|secretkey|apikey|privatekey|pepper|signature)$/i;
 const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -171,6 +184,44 @@ export function validateRouteInput(method, path, body) {
     requireString(body.passcode, 'passcode', 1, 128);
   } else if (route === 'POST /api/orders') {
     optionalString(body.idempotencyKey || body.clientRequestId, 'idempotencyKey', 1, 120);
+    optionalCoordinatePair(body, 'placeLat', 'placeLng');
+  }
+}
+
+export function validateRouteQuery(method, path, searchParams) {
+  if (String(method || 'GET').toUpperCase() !== 'GET') return;
+  const params = searchParams instanceof URLSearchParams ? searchParams : new URLSearchParams(searchParams || '');
+  const isOrderList = path === '/api/orders';
+  const isOrderDetail = /^\/api\/orders\/[^/]+$/.test(path);
+  if (!isOrderList && !isOrderDetail) return;
+
+  const allowed = new Set(isOrderList ? ['role', 'status', 'limit', 'cursor'] : []);
+  for (const key of params.keys()) {
+    if (!allowed.has(key)) {
+      throw new RequestSecurityError(400, 'ORDER_QUERY_INVALID', `Unsupported order query parameter: ${key}`);
+    }
+    if (params.getAll(key).length !== 1) {
+      throw new RequestSecurityError(400, 'ORDER_QUERY_INVALID', `Order query parameter must not be repeated: ${key}`);
+    }
+  }
+
+  const role = params.get('role');
+  if (params.has('role') && !ORDER_READ_ROLES.includes(role)) {
+    throw new RequestSecurityError(400, 'ORDER_QUERY_INVALID', `role must be one of: ${ORDER_READ_ROLES.join(', ')}`);
+  }
+  if (!isOrderList) return;
+
+  const status = params.get('status');
+  if (params.has('status') && !ORDER_STATUSES.includes(status)) {
+    throw new RequestSecurityError(400, 'ORDER_QUERY_INVALID', `status must be one of: ${ORDER_STATUSES.join(', ')}`);
+  }
+  const limit = params.get('limit');
+  if (params.has('limit') && (!/^[1-9]\d*$/.test(limit) || Number(limit) > 50)) {
+    throw new RequestSecurityError(400, 'ORDER_QUERY_INVALID', 'limit must be an integer between 1 and 50');
+  }
+  const cursor = params.get('cursor');
+  if (params.has('cursor') && (!cursor || cursor.length > 512 || !ORDER_CURSOR_PATTERN.test(cursor))) {
+    throw new RequestSecurityError(400, 'ORDER_CURSOR_INVALID', 'cursor must be an opaque base64url token');
   }
 }
 
@@ -325,6 +376,23 @@ function optionalEnum(value, field, allowed) {
   if (value === undefined || value === null || value === '') return;
   if (!allowed.includes(value)) {
     throw new RequestSecurityError(400, 'VALIDATION_ERROR', `${field} must be one of: ${allowed.join(', ')}`);
+  }
+}
+
+function optionalCoordinatePair(body, latKey, lngKey) {
+  const hasLat = Object.prototype.hasOwnProperty.call(body, latKey);
+  const hasLng = Object.prototype.hasOwnProperty.call(body, lngKey);
+  if (!hasLat && !hasLng) return;
+  if (hasLat !== hasLng) {
+    throw new RequestSecurityError(400, 'VALIDATION_ERROR', 'placeLat and placeLng must be provided together');
+  }
+  const lat = body[latKey];
+  const lng = body[lngKey];
+  if (typeof lat !== 'number' || !Number.isFinite(lat) || lat < -90 || lat > 90) {
+    throw new RequestSecurityError(400, 'VALIDATION_ERROR', 'placeLat must be a number between -90 and 90');
+  }
+  if (typeof lng !== 'number' || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+    throw new RequestSecurityError(400, 'VALIDATION_ERROR', 'placeLng must be a number between -180 and 180');
   }
 }
 

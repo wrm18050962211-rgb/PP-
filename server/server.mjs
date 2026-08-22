@@ -14,6 +14,7 @@ import {
   rotatingSecretValues,
   safeErrorMessage,
   validateRouteInput,
+  validateRouteQuery,
 } from './security/requestSecurity.mjs';
 import { createPhoneVerificationService, PhoneVerificationError, readPhoneVerificationConfig } from './services/phoneVerification.mjs';
 import { createTencentCosPostUploadPolicy, hasTencentCosMediaConfig } from './services/tencentCosMedia.mjs';
@@ -61,6 +62,41 @@ const orderStatusText = {
   disputed: 'Disputed',
 };
 
+const publicOrderStatusText = {
+  pending_payment: '待支付',
+  paid_pending_confirm: '待确认',
+  confirmed: '已确认',
+  in_service: '服务中',
+  completed: '已完成',
+  cancelled: '已取消',
+  refunding: '退款中',
+  refunded: '已退款',
+  disputed: '争议处理中',
+};
+
+const publicOrderStatusMessage = {
+  pending_payment: '订单已创建，等待支付',
+  paid_pending_confirm: '支付成功，等待摄影师确认',
+  confirmed: '摄影师已确认订单',
+  in_service: '服务已开始',
+  completed: '订单已完成',
+  cancelled: '订单已取消',
+  refunding: '退款处理中',
+  refunded: '退款已完成',
+  disputed: '订单进入争议处理',
+};
+
+const publicOrderDisplayTimeZone = 'Asia/Shanghai';
+const publicOrderDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: publicOrderDisplayTimeZone,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
 const orderStepIndex = {
   pending_payment: 0,
   paid_pending_confirm: 1,
@@ -105,7 +141,10 @@ http
     try {
       requestSecurity.enforceRateLimit(req, requestContext);
       const url = new URL(req.url || '/', 'http://local');
-      const { store, changed: storeChanged } = await dataStore.load();
+      const requestScopedOrderStore = shouldUseRequestScopedOrderStore(req.method || 'GET', url.pathname);
+      const { store, changed: storeChanged } = requestScopedOrderStore
+        ? { store: createRequestScopedStore(), changed: false }
+        : await dataStore.load();
       const cleanupChanged = dataStore.kind === 'json' ? expirePendingPaymentOrders(store) : false;
       if (dataStore.kind !== 'json') await expirePostgresPendingPaymentOrders();
       await applyRequestSession(store, req);
@@ -114,6 +153,7 @@ http
         if (storeChanged || cleanupChanged || access.changed) await dataStore.save(store);
         return sendJson(req, res, access.status, access.payload);
       }
+      validateRouteQuery(req.method || 'GET', url.pathname, url.searchParams);
       const body = await readJsonRequest(req, { maxBodyBytes: requestSecurity.config.maxBodyBytes });
       validateRouteInput(req.method || 'GET', url.pathname, body);
       const result = await route(req.method || 'GET', url, body, store, req);
@@ -177,6 +217,7 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && path === '/api/orders/quote') return quoteOrder(store, body);
   if (method === 'POST' && path === '/api/orders') return createOrder(store, body);
   if (method === 'GET' && path === '/api/orders') return listOrders(store, url);
+  if (method === 'GET' && /^\/api\/orders\/[^/]+$/.test(path)) return getOrderDetail(store, path, url);
   if (method === 'GET' && isNestedRoute(path, '/api/payments/', '/status')) return getPaymentStatus(store, path);
   if (method === 'POST' && isNestedRoute(path, '/api/payments/', '/mock-success')) return mockPaymentSuccess(store, path);
   if (method === 'POST' && path === '/api/payments/wechat/notify') return wechatPaymentNotify(store, body, req);
@@ -184,7 +225,7 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/confirm')) return transitionOrder(store, path, 'confirm', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/complete')) return transitionOrder(store, path, 'complete', body);
   if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/cancel')) return transitionOrder(store, path, 'cancel', body);
-  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/status')) return setOrderStatus(store, path, body.status);
+  if (method === 'POST' && isNestedRoute(path, '/api/orders/', '/status')) return setAdminOrderStatus(store, path, body.status);
 
   if (method === 'GET' && path === '/api/conversations') return listConversations(store, url);
   if (method === 'GET' && isNestedRoute(path, '/api/orders/', '/conversation')) return getConversation(store, path);
@@ -213,6 +254,41 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && isNestedRoute(path, '/api/admin/moderation/', '/actions')) return applyModerationAction(store, path, body);
 
   return error(404, 'NOT_FOUND', 'Route not found');
+}
+
+function shouldUseRequestScopedOrderStore(method, path) {
+  if (!(dataStore.kind === 'postgres' && dataStore.capabilities?.orderReads)) return false;
+  if (method === 'GET' && (path === '/api/orders' || /^\/api\/orders\/[^/]+$/.test(path))) return true;
+  if (method !== 'POST') return false;
+  return (
+    /^\/api\/orders\/[^/]+\/(confirm|complete|cancel|status)$/.test(path) ||
+    /^\/api\/admin\/orders\/[^/]+\/status$/.test(path)
+  );
+}
+
+function createRequestScopedStore() {
+  return {
+    meta: { version: 3 },
+    users: [],
+    activeSession: null,
+    sessions: [],
+    companions: [],
+    posts: [],
+    orders: [],
+    payments: [],
+    conversations: {},
+    riskCases: [],
+    messageRiskEvents: [],
+    reports: [],
+    auditCases: [],
+    auditLogs: [],
+    adminActionLogs: [],
+    securityEvents: [],
+    settlements: [],
+    ledgerEntries: [],
+    refunds: [],
+    wallets: [],
+  };
 }
 
 function listFeedPostPage(store, url) {
@@ -820,7 +896,9 @@ function createSession(store, role, existingUser = null, options = {}) {
   const user = existingUser || store.activeSession?.user || ensureDemoUser(store, role);
   const companionId =
     role === 'companion'
-      ? resolveSessionCompanionId(store, options.companionId || existingUser?.companionId || store.activeSession?.companionId)
+      ? options.trustCompanionId && options.companionId
+        ? options.companionId
+        : resolveSessionCompanionId(store, options.companionId || existingUser?.companionId || store.activeSession?.companionId)
       : null;
   const userRoles = Array.isArray(existingUser?.roles) && existingUser.roles.length ? existingUser.roles : rolesForSessionRole(role);
   const session = {
@@ -856,6 +934,7 @@ function ensureActiveSession(store, fallbackRole = 'consumer') {
     loginAt: store.activeSession?.loginAt,
     expiresAt: store.activeSession?.expiresAt,
     provider: store.activeSession?.provider,
+    trustCompanionId: dataStore.kind === 'postgres',
   });
   return saveSession(store, session);
 }
@@ -966,6 +1045,7 @@ function refreshSession(store, session) {
     loginAt: session.loginAt,
     expiresAt: session.expiresAt,
     provider: session.provider,
+    trustCompanionId: dataStore.kind === 'postgres',
   });
 }
 
@@ -1144,7 +1224,7 @@ function canAccessOrder(store, order, session, requestedRole = session.role) {
   const role = normalizeRole(requestedRole);
   if (session.role === 'admin' || role === 'admin') return false;
   if (role === 'companion') return Boolean(order.companionId && order.companionId === session.companionId);
-  return !order.userId || order.userId === session.user.id;
+  return Boolean(order.userId && order.userId === session.user.id);
 }
 
 function requireOrderAccess(store, orderOrId, session, requestedRole = session.role, forbiddenMessage = 'Order is not accessible for current role') {
@@ -1345,6 +1425,8 @@ async function createOrder(store, input) {
     durationLabel: context.activity.durationLabel,
     addOns: quote.addOns,
     placeAddress: input.placeAddress || '',
+    placeLat: input.placeLat ?? null,
+    placeLng: input.placeLng ?? null,
     userNote: input.userNote || '',
     quote,
     idempotencyKey,
@@ -1426,6 +1508,8 @@ async function createPostgresOrder(context, quote, order, payment, input, idempo
     city: input.city || context.post.city || context.companion.baseCity || '',
     placeName: order.place,
     placeAddress: order.placeAddress || null,
+    placeLat: order.placeLat,
+    placeLng: order.placeLng,
     activityName: order.activityName,
     durationMinutes: order.durationMinutes,
     startAt: order.startAt,
@@ -1547,18 +1631,158 @@ async function markPostgresPaymentPaid(order, payment) {
   );
 }
 
-function listOrders(store, url) {
+async function listOrders(store, url) {
   const publicSession = requirePublicSession(store, 'consumer', 'orders_api');
   if (publicSession.response) return publicSession.response;
   const { session } = publicSession;
 
-  const role = normalize(url.searchParams.get('role') || session.role || 'user');
+  const actor = resolveOrderReadActor(session, url.searchParams.get('role'));
+  if (actor.response) return actor.response;
   const status = normalize(url.searchParams.get('status'));
-  const items = store.orders
+  const limit = url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined;
+  const cursor = url.searchParams.get('cursor') || undefined;
+
+  if (dataStore.kind === 'postgres' && dataStore.capabilities?.orderReads && dataStore.orderReads?.listOrders) {
+    try {
+      const page = await dataStore.orderReads.listOrders({
+        ...actor,
+        status: status || undefined,
+        limit,
+        cursor,
+      });
+      return json(page);
+    } catch (cause) {
+      return orderReadErrorResponse(cause);
+    }
+  }
+  if (isProductionServerEnv) {
+    return error(503, 'ORDER_POSTGRES_REQUIRED', 'Authoritative PostgreSQL order reads are required');
+  }
+
+  try {
+    return json(listPublicJsonOrders(store, session, actor, { status, limit, cursor }));
+  } catch (cause) {
+    return orderReadErrorResponse(cause);
+  }
+}
+
+async function getOrderDetail(store, path, url) {
+  const publicSession = requirePublicSession(store, 'consumer', 'orders_api');
+  if (publicSession.response) return publicSession.response;
+  const { session } = publicSession;
+  const actor = resolveOrderReadActor(session, url.searchParams.get('role'));
+  if (actor.response) return actor.response;
+  const orderId = path.split('/')[3] || '';
+
+  if (dataStore.kind === 'postgres' && dataStore.capabilities?.orderReads && dataStore.orderReads?.getOrder) {
+    try {
+      return json(await dataStore.orderReads.getOrder({ ...actor, orderId }));
+    } catch (cause) {
+      return orderReadErrorResponse(cause);
+    }
+  }
+  if (isProductionServerEnv) {
+    return error(503, 'ORDER_POSTGRES_REQUIRED', 'Authoritative PostgreSQL order reads are required');
+  }
+
+  const order = findOrder(store, orderId);
+  if (!order || !canAccessOrder(store, order, session, actor.role)) {
+    return error(404, 'ORDER_NOT_FOUND', 'Order not found');
+  }
+  return json(viewPublicOrderDetail(order, actor.role));
+}
+
+function resolveOrderReadActor(session, requestedRole) {
+  const sessionRole = session.role === 'companion' ? 'companion' : 'user';
+  const publicRole = requestedRole || sessionRole;
+  if (publicRole !== sessionRole) {
+    return { response: error(403, 'ORDER_ROLE_FORBIDDEN', 'Order role is not available for the current session') };
+  }
+  return publicRole === 'companion'
+    ? { role: 'companion', companionId: session.companionId }
+    : { role: 'consumer', userId: session.user.id };
+}
+
+function orderReadErrorResponse(cause) {
+  const code = String(cause?.code || '');
+  if (code === 'ORDER_NOT_FOUND' || code === 'ORDER_ID_INVALID') {
+    return error(404, 'ORDER_NOT_FOUND', 'Order not found');
+  }
+  if (code === 'ORDER_CURSOR_INVALID') {
+    return error(400, 'ORDER_CURSOR_INVALID', 'Order cursor is invalid');
+  }
+  if (['ORDER_ROLE_INVALID', 'ORDER_STATUS_INVALID', 'ORDER_LIMIT_INVALID', 'ORDER_SERVICE_ITEMS_OPTION_INVALID'].includes(code)) {
+    return error(400, code, isProductionServerEnv ? 'Order query is invalid' : safeErrorMessage(cause));
+  }
+  if (code === 'ORDER_READ_FAILED') {
+    return error(503, 'ORDER_READ_FAILED', 'Order data is temporarily unavailable');
+  }
+  return error(500, 'ORDER_READ_ERROR', isProductionServerEnv ? 'Unable to read order data' : safeErrorMessage(cause));
+}
+
+function listPublicJsonOrders(store, session, actor, { status, limit, cursor }) {
+  const pageSize = limit ?? 20;
+  const ownerId = actor.role === 'companion' ? actor.companionId : actor.userId;
+  const position = parsePublicJsonOrderCursor(cursor, actor.role, ownerId, status || null);
+  const ordered = store.orders
     .filter((order) => !status || normalize(order.status) === status)
-    .filter((order) => canAccessOrder(store, order, session, role))
-    .map(viewOrder);
-  return json({ items });
+    .filter((order) => canAccessOrder(store, order, session, actor.role))
+    .map((order) => ({ order, createdAt: requiredPublicOrderIso(order.createdAt, 'createdAt'), id: text(order.id) }))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id))
+    .filter((entry) => !position || entry.createdAt < position.createdAt || (entry.createdAt === position.createdAt && entry.id < position.id));
+  const page = ordered.slice(0, pageSize + 1);
+  const hasMore = page.length > pageSize;
+  const visible = page.slice(0, pageSize);
+  const lastEntry = hasMore ? visible.at(-1) : null;
+  return {
+    items: visible.map(({ order }) => viewPublicOrderSummary(order, actor.role)),
+    nextCursor: lastEntry
+      ? encodePublicJsonOrderCursor(lastEntry.createdAt, lastEntry.id, actor.role, ownerId, status || null)
+      : null,
+    hasMore,
+  };
+}
+
+function parsePublicJsonOrderCursor(value, role, ownerId, status) {
+  if (value === undefined || value === null) return null;
+  const cursor = text(value);
+  if (!cursor || cursor.length > 512 || !/^[A-Za-z0-9_-]+$/.test(cursor)) throw publicJsonCursorError();
+  try {
+    const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (
+      !decoded
+      || decoded.v !== 1
+      || decoded.role !== role
+      || decoded.ownerId !== ownerId
+      || (decoded.status ?? null) !== status
+      || typeof decoded.createdAt !== 'string'
+      || typeof decoded.id !== 'string'
+      || !decoded.id
+    ) {
+      throw publicJsonCursorError();
+    }
+    return {
+      createdAt: requiredPublicOrderIso(decoded.createdAt, 'cursor.createdAt'),
+      id: decoded.id,
+    };
+  } catch (cause) {
+    if (cause?.code === 'ORDER_CURSOR_INVALID') throw cause;
+    throw publicJsonCursorError();
+  }
+}
+
+function encodePublicJsonOrderCursor(createdAt, idValue, role, ownerId, status) {
+  return Buffer.from(
+    JSON.stringify({ v: 1, createdAt, id: idValue, role, ownerId, status }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function publicJsonCursorError() {
+  const cause = new Error('Order cursor is invalid');
+  cause.code = 'ORDER_CURSOR_INVALID';
+  cause.status = 400;
+  return cause;
 }
 
 async function getPaymentStatus(store, path) {
@@ -1599,7 +1823,7 @@ async function transitionOrder(store, path, action, body = {}) {
   if (publicSession.response) return publicSession.response;
   const { session } = publicSession;
 
-  const access = requireOrderMutationAccess(store, path.split('/')[3], session, action);
+  const access = await resolveOrderMutationAccess(store, path.split('/')[3], session, action);
   if (access.response) return access.response;
   const { order } = access;
   const idempotencyKey = normalizeOrderIdempotencyKey(body.idempotencyKey || body.clientRequestId);
@@ -1639,6 +1863,23 @@ async function transitionOrder(store, path, action, body = {}) {
   }
 
   return error(400, 'VALIDATION_ERROR', 'Unknown action');
+}
+
+async function resolveOrderMutationAccess(store, orderId, session, action) {
+  if (!(dataStore.kind === 'postgres' && dataStore.capabilities?.orderReads && dataStore.orderReads?.getOrder)) {
+    return requireOrderMutationAccess(store, orderId, session, action);
+  }
+  if (['confirm', 'complete'].includes(action) && session.role !== 'companion') {
+    return { response: error(403, 'FORBIDDEN', 'Order action is not allowed for current role') };
+  }
+  const actor = session.role === 'companion'
+    ? { role: 'companion', companionId: session.companionId }
+    : { role: 'consumer', userId: session.user.id };
+  try {
+    return { order: await dataStore.orderReads.getOrder({ ...actor, orderId }) };
+  } catch (cause) {
+    return { response: orderReadErrorResponse(cause) };
+  }
 }
 
 async function findPostgresOrderActionIdempotency(session, order, action, idempotencyKey) {
@@ -1741,25 +1982,25 @@ async function transitionPostgresOrder(order, action, session, reason, idempoten
   return json(nextOrder, 200, false);
 }
 
-function setOrderStatus(store, path, status) {
-  const admin = requireAdminSession(store);
-  if (admin.response) return admin.response;
-
-  const order = findOrder(store, path.split('/')[3]);
-  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
-  if (!orderStatusText[status]) return error(400, 'VALIDATION_ERROR', 'Unknown order status');
-  const result = updateOrder(store, order, status, 'Manual status update');
-  if (status === 'completed') createSettlement(store, order);
-  return result;
-}
-
 async function setAdminOrderStatus(store, path, status) {
   const admin = requireAdminSession(store);
   if (admin.response) return admin.response;
-
-  const order = findOrder(store, path.split('/')[4]);
-  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
   if (!orderStatusText[status]) return error(400, 'VALIDATION_ERROR', 'Unknown order status');
+
+  const pathSegments = path.split('/');
+  const orderId = pathSegments[2] === 'admin' ? pathSegments[4] : pathSegments[3];
+  let order;
+  if (dataStore.kind === 'postgres' && dataStore.capabilities?.orderReads && dataStore.orderReads?.getOrderForAdmin) {
+    try {
+      order = await dataStore.orderReads.getOrderForAdmin({ orderId });
+    } catch (cause) {
+      return orderReadErrorResponse(cause);
+    }
+  } else {
+    order = findOrder(store, orderId);
+  }
+  if (!order) return error(404, 'NOT_FOUND', 'Order not found');
+
   if (dataStore.kind !== 'json' && dataStore.orderWrites?.setAdminOrderStatus) {
     const result = await setPostgresAdminOrderStatus(order, status, admin.session);
     recordAdminAction(store, admin.session, 'order_status_update', 'order', order.id, {
@@ -3366,6 +3607,196 @@ function viewOrder(order) {
     steps: ['Created', 'Paid', 'Confirmed', 'Completed'],
     currentStep: orderStepIndex[order.status] ?? 0,
   };
+}
+
+function viewPublicOrderSummary(order, role) {
+  const status = normalize(order.status) || 'pending_payment';
+  const startAt = requiredPublicOrderIso(order.startAt, 'startAt');
+  const endAt = requiredPublicOrderIso(order.endAt, 'endAt');
+  const createdAt = requiredPublicOrderIso(order.createdAt, 'createdAt');
+  const labels = formatPublicOrderLabels(startAt, endAt);
+  const amountCents = finiteOrderNumber(order.amountCents);
+  const locationSnapshot = publicLegacyLocationSnapshot(order);
+  const result = {
+    id: text(order.id),
+    orderNo: text(order.orderNo) || text(order.id),
+    status,
+    statusText: publicOrderStatusText[status] || status,
+    title: text(order.title || order.activityName) || '订单',
+    time: labels.time,
+    place: locationSnapshot.name,
+    locationSnapshot,
+    amountCents,
+    amountText: formatMoney(amountCents),
+    companion: text(order.companion),
+    companionId: text(order.companionId),
+    startAt,
+    endAt,
+    dateLabel: labels.dateLabel,
+    timeLabel: labels.timeLabel,
+    durationMinutes: finiteOrderNumber(order.durationMinutes),
+    durationLabel: text(order.durationLabel) || formatPublicOrderDuration(order.durationMinutes),
+    steps: ['已创建', '已支付', '已确认', '已完成'],
+    currentStep: orderStepIndex[status] ?? 0,
+    createdAt,
+  };
+
+  assignPublicText(result, 'postId', order.postId);
+  assignPublicText(result, 'activityId', order.activityId);
+  assignPublicText(result, 'activityName', order.activityName);
+  assignPublicText(result, 'slotId', order.slotId);
+  assignPublicText(result, 'companionAvatarUrl', order.companionAvatarUrl);
+  assignPublicIso(result, 'paymentExpiresAt', order.paymentExpiresAt);
+  assignPublicIso(result, 'updatedAt', order.updatedAt);
+
+  if (role === 'companion') {
+    assignPublicText(result, 'creatorId', order.userId || order.creatorId);
+    assignPublicText(result, 'creatorName', order.userName || order.creatorName);
+    assignPublicText(result, 'creatorAvatarUrl', order.creatorAvatarUrl);
+  }
+  return result;
+}
+
+function viewPublicOrderDetail(order, role) {
+  const summary = viewPublicOrderSummary(order, role);
+  const addOns = Array.isArray(order.addOns) ? order.addOns.map(viewPublicOrderAddOn) : [];
+  const quotedBaseAmount = finiteOrderNumber(order.quote?.baseAmountCents ?? order.amountCents);
+  const quotedExtraAmount = finiteOrderNumber(
+    order.quote?.extraAmountCents ?? addOns.reduce((total, item) => total + item.amountCents, 0),
+  );
+  const result = {
+    ...summary,
+    pricing: {
+      baseAmountCents: quotedBaseAmount,
+      extraAmountCents: quotedExtraAmount,
+      totalAmountCents: summary.amountCents,
+      totalAmountText: formatMoney(summary.amountCents),
+      currency: 'CNY',
+    },
+    addOns,
+    statusLogs: viewPublicOrderStatusLogs(order.statusLogs),
+  };
+
+  assignPublicText(result, 'userNote', order.userNote);
+  if (role === 'companion') assignPublicText(result, 'companionNote', order.companionNote);
+  assignPublicText(result, 'cancellationReason', order.cancellationReason || order.cancelReason);
+  assignPublicIso(result, 'paidAt', order.paidAt);
+  assignPublicIso(result, 'confirmedAt', order.confirmedAt);
+  assignPublicIso(result, 'serviceStartedAt', order.serviceStartedAt);
+  assignPublicIso(result, 'completedAt', order.completedAt);
+  assignPublicIso(result, 'cancelledAt', order.cancelledAt);
+  return result;
+}
+
+function viewPublicOrderAddOn(addOn = {}) {
+  const unitPriceCents = finiteOrderNumber(addOn.unitPriceCents);
+  const amountCents = finiteOrderNumber(addOn.amountCents);
+  const result = {
+    id: text(addOn.id || addOn.extraId),
+    name: text(addOn.name),
+    quantity: finiteOrderNumber(addOn.quantity),
+    unitPriceCents,
+    unitPriceText: formatMoney(unitPriceCents),
+    amountCents,
+    amountText: formatMoney(amountCents),
+  };
+  assignPublicText(result, 'extraId', addOn.extraId);
+  assignPublicIso(result, 'createdAt', addOn.createdAt);
+  return result;
+}
+
+function viewPublicOrderStatusLogs(logs) {
+  const source = (Array.isArray(logs) ? logs : [])
+    .map((log) => ({ ...log, publicCreatedAt: requiredPublicOrderIso(log.createdAt, 'statusLogs.createdAt') }))
+    .sort((left, right) => left.publicCreatedAt.localeCompare(right.publicCreatedAt) || text(left.id).localeCompare(text(right.id)));
+  let previousStatus = null;
+  return source.map((log, index) => {
+    const toStatus = normalize(log.toStatus || log.status);
+    const fromStatus = text(log.fromStatus) || previousStatus;
+    previousStatus = toStatus || previousStatus;
+    return {
+      id: text(log.id) || `status-log-${index + 1}`,
+      fromStatus: fromStatus || null,
+      toStatus,
+      statusText: publicOrderStatusText[toStatus] || toStatus,
+      message: publicOrderStatusMessage[toStatus] || '订单状态已更新',
+      createdAt: log.publicCreatedAt,
+    };
+  });
+}
+
+function publicLegacyLocationSnapshot(order) {
+  const lat = nullableOrderNumber(order.placeLat);
+  const lng = nullableOrderNumber(order.placeLng);
+  const hasCoordinatePair = lat !== null && lng !== null;
+  return {
+    name: text(order.place || order.placeName),
+    address: text(order.placeAddress) || null,
+    lat: hasCoordinatePair ? lat : null,
+    lng: hasCoordinatePair ? lng : null,
+  };
+}
+
+function formatPublicOrderLabels(startAt, endAt) {
+  const start = publicOrderDateTimeParts(startAt);
+  const end = publicOrderDateTimeParts(endAt);
+  const timeLabel = start.dateLabel === end.dateLabel
+    ? `${start.timeLabel}-${end.timeLabel}`
+    : `${start.timeLabel}-${end.dateLabel} ${end.timeLabel}`;
+  return {
+    dateLabel: start.dateLabel,
+    timeLabel,
+    time: `${start.dateLabel} ${timeLabel}`,
+  };
+}
+
+function publicOrderDateTimeParts(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new Error('Public order timestamp is invalid');
+  const parts = Object.fromEntries(
+    publicOrderDateTimeFormatter
+      .formatToParts(date)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    dateLabel: `${parts.year}-${parts.month}-${parts.day}`,
+    timeLabel: `${parts.hour}:${parts.minute}`,
+  };
+}
+
+function requiredPublicOrderIso(value, fieldName) {
+  const timestamp = value instanceof Date ? value.getTime() : Date.parse(String(value || ''));
+  if (!Number.isFinite(timestamp)) throw new Error(`Public order ${fieldName} is missing or invalid`);
+  return new Date(timestamp).toISOString();
+}
+
+function assignPublicText(target, key, value) {
+  const normalized = text(value);
+  if (normalized) target[key] = normalized;
+}
+
+function assignPublicIso(target, key, value) {
+  if (value === undefined || value === null || value === '') return;
+  target[key] = requiredPublicOrderIso(value, key);
+}
+
+function finiteOrderNumber(value) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function nullableOrderNumber(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatPublicOrderDuration(minutesValue) {
+  const minutes = finiteOrderNumber(minutesValue);
+  if (!minutes) return '';
+  if (minutes % 60 === 0) return `${minutes / 60}小时`;
+  return `${Number((minutes / 60).toFixed(1))}小时`;
 }
 
 function publicPayment(payment) {
