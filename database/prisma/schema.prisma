@@ -88,6 +88,75 @@ enum SettlementStatus {
   cancelled
 }
 
+enum MerchantStatus {
+  draft
+  pending_review
+  active
+  suspended
+  closed
+}
+
+enum MerchantLinkStatus {
+  pending
+  confirmed
+  rejected
+  ended
+}
+
+enum OrderItemServiceType {
+  photography
+  makeup
+  clothing
+  makeup_clothing
+  venue
+  other
+}
+
+enum OrderItemProviderType {
+  companion
+  merchant
+}
+
+enum OrderItemAcceptanceStatus {
+  not_requested
+  pending
+  accepted
+  declined
+  expired
+  cancelled
+}
+
+enum OrderItemFulfillmentStatus {
+  not_started
+  in_service
+  completed
+  cancelled
+  disputed
+}
+
+enum OrderItemRefundStatus {
+  not_requested
+  pending
+  processing
+  partially_refunded
+  refunded
+  rejected
+  cancelled
+}
+
+enum OrderItemSettlementStatus {
+  not_ready
+  pending
+  frozen
+  settled
+  cancelled
+}
+
+enum OrderItemSource {
+  legacy_backfill
+  composite
+}
+
 model User {
   id          String     @id @default(uuid()) @db.Uuid
   phone       String?    @unique @db.VarChar(32)
@@ -120,6 +189,7 @@ model User {
   favorites            Favorite[]
   submittedAuditCases  AuditCase[]
   sessions             UserSession[]
+  ownedMerchants       Merchant[]
 
   @@index([city])
   @@index([status])
@@ -222,6 +292,8 @@ model Companion {
   settlements    Settlement[]
   ledgerEntries  LedgerEntry[]
   withdrawals    Withdrawal[]
+  merchantLinks  PhotographerMerchantLink[]
+  orderItems     OrderItem[]
 
   @@index([baseCity, status])
   @@index([serviceEnabled])
@@ -313,8 +385,10 @@ model ActivityPricing {
 
   companion Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
   orders    Order[]
+  orderItems OrderItem[]
 
   @@unique([companionId, activityName, durationMinutes])
+  @@unique([companionId, id], map: "uq_activity_pricing_identity")
   @@index([companionId, enabled])
   @@map("activity_pricings")
 }
@@ -334,6 +408,81 @@ model CompanionExtra {
   orderExtras OrderExtra[]
 
   @@map("companion_extras")
+}
+
+model Merchant {
+  id                     String         @id @default(uuid()) @db.Uuid
+  ownerUserId            String?        @map("owner_user_id") @db.Uuid
+  name                   String         @db.VarChar(120)
+  legalName              String?        @map("legal_name") @db.VarChar(160)
+  status                 MerchantStatus @default(draft)
+  city                   String         @db.VarChar(80)
+  address                String?
+  timezone               String         @default("Asia/Shanghai") @db.VarChar(80)
+  businessHours          Json           @default("{}") @map("business_hours")
+  contactPhone           String         @map("contact_phone") @db.VarChar(32)
+  contactPhoneVisibility String         @default("confirmed_order_only") @map("contact_phone_visibility") @db.VarChar(40)
+  serviceEnabled         Boolean        @default(false) @map("service_enabled")
+  createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner             User?                        @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  offerings         MerchantOffering[]
+  photographerLinks PhotographerMerchantLink[]
+  orderItems        OrderItem[]
+
+  @@index([city, status, serviceEnabled])
+  @@index([ownerUserId])
+  @@map("merchants")
+}
+
+model MerchantOffering {
+  id              String               @id @default(uuid()) @db.Uuid
+  merchantId      String               @map("merchant_id") @db.Uuid
+  offeringCode    String               @map("offering_code") @db.VarChar(80)
+  version         Int                  @default(1)
+  serviceType     OrderItemServiceType @map("service_type")
+  name            String               @db.VarChar(120)
+  description     String?
+  durationMinutes Int                  @map("duration_minutes")
+  fixedPriceCents Int                  @map("fixed_price_cents")
+  currency        String               @default("CNY") @db.VarChar(3)
+  inclusions      Json                 @default("[]")
+  enabled         Boolean              @default(false)
+  publishedAt     DateTime?            @map("published_at") @db.Timestamptz(6)
+  retiredAt       DateTime?            @map("retired_at") @db.Timestamptz(6)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  merchant  Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@unique([merchantId, offeringCode, version])
+  @@unique([id, merchantId, version, serviceType], map: "uq_merchant_offering_identity")
+  @@index([merchantId, enabled, serviceType])
+  @@map("merchant_offerings")
+}
+
+model PhotographerMerchantLink {
+  id                       String             @id @default(uuid()) @db.Uuid
+  companionId              String             @map("companion_id") @db.Uuid
+  merchantId               String             @map("merchant_id") @db.Uuid
+  status                   MerchantLinkStatus @default(pending)
+  relationshipLabel        String?            @map("relationship_label") @db.VarChar(80)
+  photographerConfirmedAt  DateTime?          @map("photographer_confirmed_at") @db.Timestamptz(6)
+  merchantConfirmedAt      DateTime?          @map("merchant_confirmed_at") @db.Timestamptz(6)
+  isPrimary                Boolean            @default(false) @map("is_primary")
+  rejectedAt               DateTime?          @map("rejected_at") @db.Timestamptz(6)
+  endedAt                  DateTime?          @map("ended_at") @db.Timestamptz(6)
+  createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  photographer Companion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  merchant     Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([companionId, merchantId])
+  @@index([merchantId, status])
+  @@map("photographer_merchant_links")
 }
 
 model AvailabilitySlot {
@@ -460,6 +609,7 @@ model Order {
   availabilitySlot AvailabilitySlot?  @relation("OrderSlot", fields: [availabilitySlotId], references: [id])
   lockedSlots      AvailabilitySlot[] @relation("LockedSlotOrder")
   extras           OrderExtra[]
+  serviceItems     OrderItem[]
   statusLogs       OrderStatusLog[]
   payments         Payment[]
   refunds          Refund[]
@@ -474,6 +624,7 @@ model Order {
   @@index([companionId, status, startAt])
   @@index([orderNo])
   @@index([startAt])
+  @@unique([id, companionId], map: "uq_orders_id_companion")
   @@map("orders")
 }
 
@@ -491,6 +642,67 @@ model OrderExtra {
   extra CompanionExtra? @relation(fields: [extraId], references: [id])
 
   @@map("order_extras")
+}
+
+/// Raw SQL additionally enforces conditional composite foreign keys for the
+/// aggregate photographer and merchant offering identity, plus deferred
+/// aggregate amount-conservation triggers. Prisma cannot express those
+/// conditional/deferred constraints; keep the SQL migration as authority.
+model OrderItem {
+  id                         String                       @id @default(uuid()) @db.Uuid
+  orderId                    String                       @map("order_id") @db.Uuid
+  itemNo                     Int                          @map("item_no")
+  serviceType                OrderItemServiceType         @map("service_type")
+  providerType               OrderItemProviderType        @map("provider_type")
+  providerCompanionId        String?                      @map("provider_companion_id") @db.Uuid
+  providerMerchantId         String?                      @map("provider_merchant_id") @db.Uuid
+  activityPricingId          String?                      @map("activity_pricing_id") @db.Uuid
+  merchantOfferingId         String?                      @map("merchant_offering_id") @db.Uuid
+  offeringVersion            Int?                         @map("offering_version")
+  serviceNameSnapshot        String                       @map("service_name_snapshot") @db.VarChar(120)
+  serviceDescriptionSnapshot String?                      @map("service_description_snapshot")
+  durationMinutes            Int                          @map("duration_minutes")
+  startAt                    DateTime                     @map("start_at") @db.Timestamptz(6)
+  endAt                      DateTime                     @map("end_at") @db.Timestamptz(6)
+  timezone                   String                       @default("Asia/Shanghai") @db.VarChar(80)
+  baseAmountCents            Int                          @default(0) @map("base_amount_cents")
+  extraAmountCents           Int                          @default(0) @map("extra_amount_cents")
+  discountAmountCents        Int                          @default(0) @map("discount_amount_cents")
+  totalAmountCents           Int                          @default(0) @map("total_amount_cents")
+  platformSubsidyCents       Int                          @default(0) @map("platform_subsidy_cents")
+  userPayableCents           Int                          @default(0) @map("user_payable_cents")
+  platformFeeCents           Int                          @default(0) @map("platform_fee_cents")
+  providerIncomeCents        Int                          @default(0) @map("provider_income_cents")
+  currency                   String                       @default("CNY") @db.VarChar(3)
+  pricingSnapshot            Json                         @default("{}") @map("pricing_snapshot")
+  acceptanceStatus           OrderItemAcceptanceStatus    @default(not_requested) @map("acceptance_status")
+  acceptanceDeadlineAt       DateTime?                    @map("acceptance_deadline_at") @db.Timestamptz(6)
+  acceptedAt                 DateTime?                    @map("accepted_at") @db.Timestamptz(6)
+  declinedAt                 DateTime?                    @map("declined_at") @db.Timestamptz(6)
+  declineReason              String?                      @map("decline_reason")
+  fulfillmentStatus          OrderItemFulfillmentStatus   @default(not_started) @map("fulfillment_status")
+  serviceStartedAt           DateTime?                    @map("service_started_at") @db.Timestamptz(6)
+  completedAt                DateTime?                    @map("completed_at") @db.Timestamptz(6)
+  cancelledAt                DateTime?                    @map("cancelled_at") @db.Timestamptz(6)
+  refundStatus               OrderItemRefundStatus        @default(not_requested) @map("refund_status")
+  refundedAmountCents        Int                          @default(0) @map("refunded_amount_cents")
+  settlementStatus           OrderItemSettlementStatus    @default(not_ready) @map("settlement_status")
+  source                     OrderItemSource               @default(composite)
+  createdAt                  DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order              Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  providerCompanion  Companion?        @relation(fields: [providerCompanionId], references: [id])
+  providerMerchant   Merchant?         @relation(fields: [providerMerchantId], references: [id])
+  activityPricing    ActivityPricing?  @relation(fields: [providerCompanionId, activityPricingId], references: [companionId, id])
+  merchantOffering   MerchantOffering? @relation(fields: [merchantOfferingId], references: [id])
+
+  @@unique([orderId, itemNo])
+  @@index([orderId, itemNo])
+  @@index([providerCompanionId, acceptanceStatus, startAt])
+  @@index([providerMerchantId, acceptanceStatus, startAt])
+  @@index([acceptanceStatus, acceptanceDeadlineAt])
+  @@map("order_items")
 }
 
 model OrderStatusLog {

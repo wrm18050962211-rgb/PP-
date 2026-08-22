@@ -46,6 +46,144 @@ export type ReportStatus = 'pending' | 'investigating' | 'resolved' | 'rejected'
 export type SettlementStatus = 'pending' | 'frozen' | 'settled' | 'cancelled';
 export type CancellationActor = 'creator' | 'photographer' | 'admin';
 
+export type CompositeOrderFeatureState = {
+  domainEnabled: boolean;
+  compositePaymentsEnabled: false;
+};
+
+export type MerchantStatus = 'draft' | 'pending_review' | 'active' | 'suspended' | 'closed';
+export type MerchantLinkStatus = 'pending' | 'confirmed' | 'rejected' | 'ended';
+export type OrderItemServiceType = 'photography' | 'makeup' | 'clothing' | 'makeup_clothing' | 'venue' | 'other';
+export type OrderItemProviderType = 'photographer' | 'merchant';
+export type OrderItemAcceptanceStatus = 'not_requested' | 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
+export type OrderItemFulfillmentStatus = 'not_started' | 'in_service' | 'completed' | 'cancelled' | 'disputed';
+export type OrderItemRefundStatus =
+  | 'not_requested'
+  | 'pending'
+  | 'processing'
+  | 'partially_refunded'
+  | 'refunded'
+  | 'rejected'
+  | 'cancelled';
+export type OrderItemSettlementStatus = 'not_ready' | 'pending' | 'frozen' | 'settled' | 'cancelled';
+export type OrderItemSource = 'legacy_backfill' | 'composite';
+
+// Public/read-model merchant data intentionally excludes the phone number.
+// A confirmed-order contact response must use MerchantOrderContact instead.
+export type MerchantSummary = {
+  id: string;
+  name: string;
+  status: MerchantStatus;
+  city: string;
+  address?: string;
+  timezone: string;
+  businessHours: Record<string, unknown>;
+  hasContactPhone: boolean;
+  contactPhoneVisibility: 'confirmed_order_only';
+  serviceEnabled: boolean;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type MerchantOrderContact = {
+  merchantId: string;
+  merchantName: string;
+  contactPhone: string;
+  releasePolicy: 'confirmed_order_only';
+  releasedAt: string;
+};
+
+export type MerchantOffering = {
+  id: string;
+  merchantId: string;
+  offeringCode: string;
+  version: number;
+  serviceType: Exclude<OrderItemServiceType, 'photography'>;
+  name: string;
+  description: string;
+  durationMinutes: number;
+  fixedPriceCents: number;
+  fixedPriceText: string;
+  currency: 'CNY' | string;
+  inclusions: string[];
+  enabled: boolean;
+  publishedAt?: string;
+  retiredAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type PhotographerMerchantLink = {
+  id: string;
+  photographerId: string;
+  photographerName: string;
+  merchantId: string;
+  merchantName: string;
+  status: MerchantLinkStatus;
+  relationshipLabel: string;
+  photographerConfirmedAt?: string;
+  merchantConfirmedAt?: string;
+  isPrimary: boolean;
+  rejectedAt?: string;
+  endedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type OrderServiceItem = {
+  id: string;
+  orderId: string;
+  itemNo: number;
+  serviceType: OrderItemServiceType;
+  provider: {
+    type: OrderItemProviderType;
+    id: string;
+    name: string;
+  };
+  activityPricingId?: string;
+  merchantOfferingId?: string;
+  offeringVersion?: number;
+  serviceName: string;
+  serviceDescription: string;
+  durationMinutes: number;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  pricing: {
+    baseAmountCents: number;
+    extraAmountCents: number;
+    discountAmountCents: number;
+    totalAmountCents: number;
+    totalAmountText: string;
+    platformSubsidyCents: number;
+    platformSubsidyText: string;
+    userPayableCents: number;
+    userPayableText: string;
+    currency: 'CNY' | string;
+  };
+  acceptance: {
+    status: OrderItemAcceptanceStatus;
+    deadlineAt?: string;
+    acceptedAt?: string;
+    declinedAt?: string;
+    declineReason: string;
+  };
+  fulfillment: {
+    status: OrderItemFulfillmentStatus;
+    serviceStartedAt?: string;
+    completedAt?: string;
+    cancelledAt?: string;
+  };
+  refund: {
+    status: OrderItemRefundStatus;
+    refundedAmountCents: number;
+    refundedAmountText: string;
+  };
+  source: OrderItemSource;
+  createdAt: string;
+  updatedAt?: string;
+};
+
 export type ReviewStatus = '草稿' | '待审核' | '已通过' | '需修改';
 
 export type Money = {
@@ -345,6 +483,7 @@ export type AppOrder = {
   createdAt: string;
   steps: string[];
   currentStep: number;
+  serviceItems?: OrderServiceItem[];
 };
 
 export type OrderAddOnInput = {

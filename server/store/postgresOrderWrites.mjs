@@ -1,6 +1,10 @@
-export async function createOrderTransaction(client, draft) {
+export async function createOrderTransaction(client, draft, options = {}) {
   assertClient(client);
   assertDraft(draft);
+  const compositeOrderDomainEnabled = options.compositeOrderDomainEnabled === true;
+  if (compositeOrderDomainEnabled && !options.photographyItemId) {
+    throw new Error('photographyItemId is required when the composite order domain is enabled');
+  }
 
   await client.query('begin');
   try {
@@ -61,6 +65,57 @@ export async function createOrderTransaction(client, draft) {
       );
     }
 
+    if (compositeOrderDomainEnabled) {
+      const providerDiscountCents = Number(draft.discountAmountCents || 0);
+      const pricingTotalCents = Number(draft.baseAmountCents) + Number(draft.extraAmountCents) - providerDiscountCents;
+      if (pricingTotalCents !== Number(draft.totalAmountCents)) {
+        throw new Error('Photography item pricing must reconcile to the aggregate order total');
+      }
+      await client.query(
+        `insert into order_items (
+          id, order_id, item_no, service_type, provider_type,
+          provider_companion_id, activity_pricing_id, service_name_snapshot,
+          duration_minutes, start_at, end_at,
+          base_amount_cents, extra_amount_cents, discount_amount_cents, total_amount_cents,
+          platform_subsidy_cents, user_payable_cents,
+          platform_fee_cents, provider_income_cents, pricing_snapshot
+        ) values (
+          $1, $2, 1, 'photography', 'companion',
+          $3, $4, $5,
+          $6, $7, $8,
+          $9, $10, $11, $12,
+          0, $12,
+          $13, $14, $15::jsonb
+        )`,
+        [
+          options.photographyItemId,
+          draft.orderId,
+          draft.companionId,
+          draft.activityPricingId,
+          draft.activityName,
+          draft.durationMinutes,
+          draft.startAt,
+          draft.endAt,
+          draft.baseAmountCents,
+          draft.extraAmountCents,
+          providerDiscountCents,
+          draft.totalAmountCents,
+          draft.platformFeeCents,
+          draft.companionIncomeCents,
+          JSON.stringify({
+            source: 'native_order',
+            activityPricingId: draft.activityPricingId,
+            baseAmountCents: draft.baseAmountCents,
+            extraAmountCents: draft.extraAmountCents,
+            providerDiscountCents,
+            pricingTotalCents: draft.totalAmountCents,
+            platformSubsidyCents: 0,
+            userPayableCents: draft.totalAmountCents,
+          }),
+        ],
+      );
+    }
+
     const paymentResult = await client.query(
       `insert into payments (
         id, order_id, payment_no, channel, amount_cents, status
@@ -97,7 +152,7 @@ export async function createOrderTransaction(client, draft) {
   }
 }
 
-export async function markPaymentPaidTransaction(client, draft) {
+export async function markPaymentPaidTransaction(client, draft, options = {}) {
   assertClient(client);
   assertPaymentDraft(draft);
 
@@ -154,6 +209,10 @@ export async function markPaymentPaidTransaction(client, draft) {
        returning *`,
       [paidAt, payment.order_id],
     );
+
+    if (options.compositeOrderDomainEnabled === true) {
+      await syncPrimaryPhotographyItemState(client, payment.order_id, 'paid_pending_confirm', paidAt);
+    }
 
     await client.query(
       `update availability_slots
@@ -234,7 +293,7 @@ export async function markPaymentTerminalTransaction(client, draft) {
   }
 }
 
-export async function expirePendingPaymentsTransaction(client, draft = {}) {
+export async function expirePendingPaymentsTransaction(client, draft = {}, options = {}) {
   assertClient(client);
 
   const occurredAt = draft.occurredAt || new Date().toISOString();
@@ -242,6 +301,27 @@ export async function expirePendingPaymentsTransaction(client, draft = {}) {
   const limit = normalizePositiveInteger(draft.limit, 100, 500);
   await client.query('begin');
   try {
+    const cancelledItemsCte = options.compositeOrderDomainEnabled === true
+      ? `cancelled_items as (
+         update order_items oi
+         set acceptance_status = 'cancelled',
+             fulfillment_status = 'cancelled',
+             cancelled_at = coalesce(oi.cancelled_at, $1),
+             refund_status = 'not_requested',
+             refunded_amount_cents = 0,
+             settlement_status = 'cancelled',
+             updated_at = now()
+         from cancelled_orders o
+         where oi.order_id = o.id
+           and oi.service_type = 'photography'
+           and oi.provider_type = 'companion'
+         returning oi.id
+       ),`
+      : '';
+    const cancelledItemCountSelect = options.compositeOrderDomainEnabled === true
+      ? `,
+         (select count(*)::int from cancelled_items) as cancelled_item_count`
+      : '';
     const result = await client.query(
       `with expired as (
          select o.id as order_id,
@@ -284,6 +364,7 @@ export async function expirePendingPaymentsTransaction(client, draft = {}) {
            and o.status = 'pending_payment'
          returning o.id
        ),
+       ${cancelledItemsCte}
        released_slots as (
          update availability_slots s
          set status = 'available',
@@ -309,7 +390,8 @@ export async function expirePendingPaymentsTransaction(client, draft = {}) {
          (select count(*)::int from closed_payments) as closed_payment_count,
          (select count(*)::int from cancelled_orders) as cancelled_order_count,
          (select count(*)::int from released_slots) as released_slot_count,
-         (select count(*)::int from status_logs) as status_log_count`,
+         (select count(*)::int from status_logs) as status_log_count
+         ${cancelledItemCountSelect}`,
       [occurredAt, reason, limit, draft.operatorId || null],
     );
     await client.query('commit');
@@ -318,6 +400,7 @@ export async function expirePendingPaymentsTransaction(client, draft = {}) {
       expiredCount: normalizeCount(row.expired_count),
       closedPaymentCount: normalizeCount(row.closed_payment_count),
       cancelledOrderCount: normalizeCount(row.cancelled_order_count),
+      cancelledItemCount: normalizeCount(row.cancelled_item_count),
       releasedSlotCount: normalizeCount(row.released_slot_count),
       statusLogCount: normalizeCount(row.status_log_count),
     };
@@ -327,7 +410,7 @@ export async function expirePendingPaymentsTransaction(client, draft = {}) {
   }
 }
 
-export async function markRefundTerminalTransaction(client, draft = {}) {
+export async function markRefundTerminalTransaction(client, draft = {}, options = {}) {
   assertClient(client);
   assertRefundTerminalDraft(draft);
 
@@ -385,6 +468,9 @@ export async function markRefundTerminalTransaction(client, draft = {}) {
       updatedOrder = orderResult.rows?.[0] || null;
 
       if (updatedOrder) {
+        if (options.compositeOrderDomainEnabled === true) {
+          await syncPrimaryPhotographyItemState(client, refund.order_id, 'refunded', occurredAt);
+        }
         await client.query(
           `insert into order_status_logs (
             id, order_id, from_status, to_status, operator_type, operator_id, reason
@@ -392,6 +478,8 @@ export async function markRefundTerminalTransaction(client, draft = {}) {
           [draft.statusLogId, refund.order_id, refund.order_status, draft.operatorType || 'system', draft.operatorId || null, draft.reason || 'Refund succeeded'],
         );
       }
+    } else if (options.compositeOrderDomainEnabled === true && ['failed', 'rejected'].includes(draft.status)) {
+      await markPrimaryPhotographyItemRefundRejected(client, refund.order_id);
     }
 
     await client.query('commit');
@@ -408,7 +496,7 @@ export async function markRefundTerminalTransaction(client, draft = {}) {
   }
 }
 
-export async function transitionOrderTransaction(client, draft) {
+export async function transitionOrderTransaction(client, draft, options = {}) {
   assertClient(client);
   assertTransitionDraft(draft);
 
@@ -455,6 +543,10 @@ export async function transitionOrderTransaction(client, draft) {
       [nextStatus, occurredAt, draft.reason || null, draft.orderId],
     );
 
+    if (options.compositeOrderDomainEnabled === true) {
+      await syncPrimaryPhotographyItemState(client, draft.orderId, nextStatus, occurredAt);
+    }
+
     if (draft.action === 'complete') {
       await insertSettlementSideEffects(client, draft, order, occurredAt);
     }
@@ -500,7 +592,7 @@ export async function transitionOrderTransaction(client, draft) {
   }
 }
 
-export async function setAdminOrderStatusTransaction(client, draft) {
+export async function setAdminOrderStatusTransaction(client, draft, options = {}) {
   assertClient(client);
   assertAdminStatusDraft(draft);
 
@@ -534,6 +626,10 @@ export async function setAdminOrderStatusTransaction(client, draft) {
        returning *`,
       [draft.status, occurredAt, draft.reason || null, draft.orderId],
     );
+
+    if (options.compositeOrderDomainEnabled === true) {
+      await syncPrimaryPhotographyItemState(client, draft.orderId, draft.status, occurredAt);
+    }
 
     if (draft.status === 'completed') {
       await insertSettlementSideEffects(client, draft, order, occurredAt);
@@ -648,6 +744,82 @@ function normalizePositiveInteger(value, fallback, max) {
 function normalizeCount(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function syncPrimaryPhotographyItemState(client, orderId, orderStatus, occurredAt) {
+  await client.query(
+    `update order_items
+     set acceptance_status = (
+           case
+             when $2::text in ('confirmed', 'in_service', 'completed', 'disputed') then 'accepted'
+             when $2::text = 'paid_pending_confirm' then 'pending'
+             when $2::text in ('cancelled', 'refunding', 'refunded') then 'cancelled'
+             else 'not_requested'
+           end
+         )::order_item_acceptance_status,
+         accepted_at = case
+           when $2::text in ('confirmed', 'in_service', 'completed', 'disputed') then coalesce(accepted_at, $3::timestamptz)
+           else accepted_at
+         end,
+         fulfillment_status = (
+           case
+             when $2::text = 'completed' then 'completed'
+             when $2::text = 'in_service' then 'in_service'
+             when $2::text = 'disputed' then 'disputed'
+             when $2::text in ('cancelled', 'refunding', 'refunded') then 'cancelled'
+             else 'not_started'
+           end
+         )::order_item_fulfillment_status,
+         service_started_at = case
+           when $2::text = 'in_service' then coalesce(service_started_at, $3::timestamptz)
+           else service_started_at
+         end,
+         completed_at = case
+           when $2::text = 'completed' then coalesce(completed_at, $3::timestamptz)
+           else completed_at
+         end,
+         cancelled_at = case
+           when $2::text in ('cancelled', 'refunding', 'refunded') then coalesce(cancelled_at, $3::timestamptz)
+           else cancelled_at
+         end,
+         refund_status = (
+           case
+             when $2::text = 'refunding' then 'processing'
+             when $2::text = 'refunded' then 'refunded'
+             else 'not_requested'
+           end
+         )::order_item_refund_status,
+         refunded_amount_cents = case
+           when $2::text = 'refunded' then user_payable_cents
+           else 0
+         end,
+         settlement_status = (
+           case
+             when $2::text = 'completed' then 'pending'
+             when $2::text = 'disputed' then 'frozen'
+             when $2::text in ('cancelled', 'refunding', 'refunded') then 'cancelled'
+             else 'not_ready'
+           end
+         )::order_item_settlement_status,
+         updated_at = now()
+     where order_id = $1
+       and service_type = 'photography'
+       and provider_type = 'companion'`,
+    [orderId, orderStatus, occurredAt],
+  );
+}
+
+async function markPrimaryPhotographyItemRefundRejected(client, orderId) {
+  await client.query(
+    `update order_items
+     set refund_status = 'rejected',
+         settlement_status = 'frozen',
+         updated_at = now()
+     where order_id = $1
+       and service_type = 'photography'
+       and provider_type = 'companion'`,
+    [orderId],
+  );
 }
 
 function isIdempotentTransition(status, action) {

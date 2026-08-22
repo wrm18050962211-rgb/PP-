@@ -48,10 +48,23 @@ assert(successSql[0] === 'begin', 'transaction begins first');
 assert(successSql.some((sql) => /for update/i.test(sql)), 'locks availability slot for update');
 assert(successSql.some((sql) => /insert into orders/i.test(sql)), 'inserts order');
 assert(successSql.some((sql) => /insert into order_extras/i.test(sql)), 'inserts order extras');
+assert(!successSql.some((sql) => /insert into order_items/i.test(sql)), 'disabled composite domain leaves the legacy order write unchanged');
 assert(successSql.some((sql) => /insert into payments/i.test(sql)), 'inserts payment');
 assert(successSql.some((sql) => /update availability_slots/i.test(sql) && /locked_order_id/i.test(sql)), 'locks slot to order');
 assert(successSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'inserts status log');
 assert(successSql.at(-1) === 'commit', 'transaction commits last');
+
+const compositeClient = createMockClient([{ id: draft.availabilitySlotId, status: 'available' }]);
+await createOrderTransaction(compositeClient, draft, {
+  compositeOrderDomainEnabled: true,
+  photographyItemId: '00000000-0000-4000-8000-000000000019',
+});
+const photographyItemCall = compositeClient.calls.find((call) => /insert into order_items/i.test(call.sql));
+assert(Boolean(photographyItemCall), 'enabled composite domain writes a photography item in the order transaction');
+assert(/platform_subsidy_cents, user_payable_cents/i.test(photographyItemCall.sql), 'photography item stores subsidy and final payable fields');
+assert(photographyItemCall.params[0] === '00000000-0000-4000-8000-000000000019', 'photography item uses the supplied id');
+assert(photographyItemCall.params[11] === draft.totalAmountCents, 'photography item payable reconciles to the aggregate total');
+assert(compositeClient.calls.at(-1).sql === 'commit', 'photography item commits atomically with the order');
 
 const unavailableClient = createMockClient([{ id: draft.availabilitySlotId, status: 'booked' }]);
 await assertRejects(() => createOrderTransaction(unavailableClient, draft), 'Slot is not available', 'unavailable slot rejects');
@@ -81,6 +94,12 @@ assert(paymentSql.some((sql) => /update availability_slots/i.test(sql) && /statu
 assert(paymentSql.some((sql) => /insert into conversations/i.test(sql) && /on conflict/i.test(sql)), 'creates or reuses conversation');
 assert(paymentSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'records payment status log');
 assert(paymentSql.at(-1) === 'commit', 'payment transaction commits last');
+
+const compositePaymentClient = createMockClient([{ payment_status: 'pending', order_status: 'pending_payment' }]);
+await markPaymentPaidTransaction(compositePaymentClient, paymentDraft, { compositeOrderDomainEnabled: true });
+const compositePaymentItemCall = compositePaymentClient.calls.find((call) => /update order_items/i.test(call.sql));
+assert(Boolean(compositePaymentItemCall), 'enabled domain synchronizes the photography item after payment');
+assert(compositePaymentItemCall.params[1] === 'paid_pending_confirm', 'paid photography item enters pending acceptance');
 
 const duplicatePaymentClient = createMockClient([{ payment_status: 'paid', order_status: 'paid_pending_confirm' }]);
 const duplicatePaid = await markPaymentPaidTransaction(duplicatePaymentClient, paymentDraft);
@@ -122,6 +141,16 @@ assert(expiredPaymentSql.some((sql) => /update availability_slots/i.test(sql) &&
 assert(expiredPaymentSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'expired payment job writes status logs');
 assert(expiredPaymentSql.at(-1) === 'commit', 'expired payment job commits');
 
+const compositeExpiredPaymentClient = createMockClient([{ expired_count: 1, closed_payment_count: 1, cancelled_order_count: 1, cancelled_item_count: 1, released_slot_count: 1, status_log_count: 1 }]);
+const compositeExpiredPayments = await expirePendingPaymentsTransaction(compositeExpiredPaymentClient, {
+  occurredAt: '2026-06-12T06:16:00.000Z',
+  reason: 'Payment window expired',
+  limit: 50,
+}, { compositeOrderDomainEnabled: true });
+const compositeExpiredSql = compositeExpiredPaymentClient.calls.map((call) => call.sql);
+assert(compositeExpiredPayments.cancelledItemCount === 1, 'enabled timeout reports cancelled photography items');
+assert(compositeExpiredSql.some((sql) => /cancelled_items as/i.test(sql) && /update order_items/i.test(sql)), 'enabled timeout cancels photography items in the same statement');
+
 const confirmClient = createMockClient([{ order_status: 'paid_pending_confirm' }]);
 const confirmed = await transitionOrderTransaction(confirmClient, {
   orderId: draft.orderId,
@@ -129,11 +158,13 @@ const confirmed = await transitionOrderTransaction(confirmClient, {
   statusLogId: '00000000-0000-4000-8000-000000000013',
   operatorType: 'companion',
   operatorId: draft.companionId,
-});
+}, { compositeOrderDomainEnabled: true });
 const confirmSql = confirmClient.calls.map((call) => call.sql);
 assert(confirmed.toStatus === 'confirmed' && confirmed.order?.status === 'confirmed', 'confirm transitions to confirmed');
 assert(confirmSql.some((sql) => /from orders/i.test(sql) && /for update/i.test(sql)), 'confirm locks order for update');
 assert(confirmSql.some((sql) => /update orders/i.test(sql) && /confirmed_at/i.test(sql)), 'confirm updates order');
+assert(confirmSql.some((sql) => /update order_items/i.test(sql)), 'confirm synchronizes the photography item');
+assert(confirmClient.calls.find((call) => /update order_items/i.test(call.sql))?.params[1] === 'confirmed', 'confirmed photography item records accepted state');
 assert(confirmSql.at(-1) === 'commit', 'confirm commits');
 
 const duplicateConfirmClient = createMockClient([{ order_status: 'confirmed' }]);
@@ -153,12 +184,13 @@ const completed = await transitionOrderTransaction(completeClient, {
   statusLogId: '00000000-0000-4000-8000-000000000014',
   settlementId: '00000000-0000-4000-8000-000000000015',
   ledgerEntryId: '00000000-0000-4000-8000-000000000016',
-});
+}, { compositeOrderDomainEnabled: true });
 const completeSql = completeClient.calls.map((call) => call.sql);
 assert(completed.toStatus === 'completed', 'complete transitions to completed');
 assert(completeSql.some((sql) => /insert into settlements/i.test(sql)), 'complete inserts settlement');
 assert(completeSql.some((sql) => /insert into companion_wallets/i.test(sql)), 'complete upserts companion wallet');
 assert(completeSql.some((sql) => /insert into ledger_entries/i.test(sql)), 'complete inserts ledger entry');
+assert(completeClient.calls.find((call) => /update order_items/i.test(call.sql))?.params[1] === 'completed', 'completed photography item records fulfillment and settlement state');
 assert(completeSql.at(-1) === 'commit', 'complete commits');
 
 const cancelClient = createMockClient([{ order_status: 'paid_pending_confirm' }]);
@@ -170,11 +202,12 @@ const cancelled = await transitionOrderTransaction(cancelClient, {
   refundId: '00000000-0000-4000-8000-000000000018',
   refundNo: 'RF2606110001',
   expectRefund: true,
-});
+}, { compositeOrderDomainEnabled: true });
 const cancelSql = cancelClient.calls.map((call) => call.sql);
 assert(cancelled.toStatus === 'refunding', 'paid cancel transitions to refunding');
 assert(cancelSql.some((sql) => /update availability_slots/i.test(sql) && /status = 'available'/i.test(sql)), 'cancel releases slot');
 assert(cancelSql.some((sql) => /insert into refunds/i.test(sql)), 'paid cancel inserts refund');
+assert(cancelClient.calls.find((call) => /update order_items/i.test(call.sql))?.params[1] === 'refunding', 'paid cancellation marks the photography item refunding');
 assert(cancelSql.at(-1) === 'commit', 'cancel commits');
 
 const invalidTransitionClient = createMockClient([{ order_status: 'completed' }]);
@@ -188,12 +221,13 @@ const disputed = await setAdminOrderStatusTransaction(adminStatusClient, {
   statusLogId: '00000000-0000-4000-8000-000000000020',
   adminId: '00000000-0000-4000-8000-000000000021',
   reason: 'Manual admin status update',
-});
+}, { compositeOrderDomainEnabled: true });
 const adminStatusSql = adminStatusClient.calls.map((call) => call.sql);
 assert(disputed.toStatus === 'disputed' && disputed.order?.status === 'disputed', 'admin status updates arbitrary status');
 assert(adminStatusSql.some((sql) => /from orders/i.test(sql) && /for update/i.test(sql)), 'admin status locks order for update');
 assert(adminStatusSql.some((sql) => /update orders/i.test(sql) && /status = \$1/i.test(sql)), 'admin status updates order status');
 assert(adminStatusSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'admin status writes status log');
+assert(adminStatusClient.calls.find((call) => /update order_items/i.test(call.sql))?.params[1] === 'disputed', 'admin dispute freezes the photography item');
 assert(adminStatusSql.at(-1) === 'commit', 'admin status commits');
 
 const adminCompletedClient = createMockClient([{ order_status: 'confirmed' }]);
@@ -203,7 +237,7 @@ await setAdminOrderStatusTransaction(adminCompletedClient, {
   statusLogId: '00000000-0000-4000-8000-000000000022',
   settlementId: '00000000-0000-4000-8000-000000000023',
   ledgerEntryId: '00000000-0000-4000-8000-000000000024',
-});
+}, { compositeOrderDomainEnabled: true });
 const adminCompletedSql = adminCompletedClient.calls.map((call) => call.sql);
 assert(adminCompletedSql.some((sql) => /insert into settlements/i.test(sql)), 'admin completed inserts settlement');
 assert(adminCompletedSql.some((sql) => /insert into ledger_entries/i.test(sql)), 'admin completed inserts ledger entry');
@@ -215,12 +249,13 @@ const refundTerminal = await markRefundTerminalTransaction(refundTerminalClient,
   statusLogId: '00000000-0000-4000-8000-000000000026',
   thirdPartyRefundNo: 'wx-refund-0001',
   rawCallback: { refund_status: 'SUCCESS' },
-});
+}, { compositeOrderDomainEnabled: true });
 const refundTerminalSql = refundTerminalClient.calls.map((call) => call.sql);
 assert(refundTerminal.toStatus === 'refunded', 'refund terminal success transitions order to refunded');
 assert(refundTerminalSql.some((sql) => /from refunds r/i.test(sql) && /for update of r, o/i.test(sql)), 'refund terminal locks refund and order');
 assert(refundTerminalSql.some((sql) => /update refunds/i.test(sql) && /raw_callback/i.test(sql)), 'refund terminal updates refund audit fields');
 assert(refundTerminalSql.some((sql) => /update orders/i.test(sql) && /status = 'refunded'/i.test(sql)), 'refund terminal updates order to refunded');
+assert(refundTerminalClient.calls.find((call) => /update order_items/i.test(call.sql))?.params[1] === 'refunded', 'refund success synchronizes the photography item');
 assert(refundTerminalSql.some((sql) => /insert into order_status_logs/i.test(sql)), 'refund terminal writes order status log');
 assert(refundTerminalSql.at(-1) === 'commit', 'refund terminal commits');
 
@@ -242,6 +277,8 @@ console.log(
         'slot-for-update',
         'insert-order',
         'insert-extras',
+        'disabled-domain-no-item-write',
+        'enabled-domain-photography-item',
         'insert-payment',
         'lock-slot',
         'create-status-log',
@@ -255,23 +292,30 @@ console.log(
         'conversation',
         'payment-status-log',
         'pay-commit',
+        'enabled-domain-pay-item-sync',
         'pay-idempotent-skip',
         'pay-rollback',
         'terminal-payment',
         'expire-pending-payments',
+        'enabled-domain-expire-item-sync',
         'confirm-order',
+        'enabled-domain-confirm-item-sync',
         'confirm-idempotent-skip',
         'complete-order',
         'complete-settlement',
         'complete-wallet',
         'complete-ledger',
+        'enabled-domain-complete-item-sync',
         'cancel-release-slot',
         'cancel-refund',
+        'enabled-domain-cancel-item-sync',
         'transition-rollback',
         'admin-status-update',
         'admin-status-log',
+        'enabled-domain-admin-item-sync',
         'admin-complete-settlement',
         'refund-terminal',
+        'enabled-domain-refund-item-sync',
         'refund-terminal-idempotent',
       ],
       successQueryCount: successClient.calls.length,
@@ -340,6 +384,7 @@ function createMockClient(slotRows) {
               expired_count: row.expired_count || 0,
               closed_payment_count: row.closed_payment_count || 0,
               cancelled_order_count: row.cancelled_order_count || 0,
+              cancelled_item_count: row.cancelled_item_count || 0,
               released_slot_count: row.released_slot_count || 0,
               status_log_count: row.status_log_count || 0,
             },

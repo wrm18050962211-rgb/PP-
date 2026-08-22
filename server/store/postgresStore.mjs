@@ -24,11 +24,13 @@ import { createSessionTransaction, revokeSessionTransaction, touchSessionTransac
 import { recordSecurityEventTransaction } from './postgresSecurityWrites.mjs';
 import { hashSessionToken } from './sessionTokenHash.mjs';
 
-export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
+export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {} } = {}) {
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required when STORE_DRIVER=postgres');
   }
 
+  const compositeOrderDomainEnabled = featureFlags.domainEnabled === true;
+  const compositeOrderDomainOptions = Object.freeze({ compositeOrderDomainEnabled });
   let poolPromise;
 
   return {
@@ -49,6 +51,8 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       phoneVerificationWrites: true,
       contentReads: true,
       contentWrites: true,
+      compositeOrderDomain: compositeOrderDomainEnabled,
+      compositeOrderPayments: false,
     },
     content: {
       listPublicPosts: (options) => withClient((client) => listPublicPosts(client, options)),
@@ -90,13 +94,19 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
       completeRequest: (draft) => withClient((client) => completeIdempotencyRequestTransaction(client, draft)),
     },
     orderWrites: {
-      createOrder: (draft) => withClient((client) => createOrderTransaction(client, draft)),
-      markPaymentPaid: (draft) => withClient((client) => markPaymentPaidTransaction(client, draft)),
+      createOrder: (draft) =>
+        withClient((client) =>
+          createOrderTransaction(client, draft, {
+            compositeOrderDomainEnabled,
+            photographyItemId: compositeOrderDomainEnabled ? randomUUID() : undefined,
+          }),
+        ),
+      markPaymentPaid: (draft) => withClient((client) => markPaymentPaidTransaction(client, draft, compositeOrderDomainOptions)),
       markPaymentTerminal: (draft) => withClient((client) => markPaymentTerminalTransaction(client, draft)),
-      expirePendingPayments: (draft) => withClient((client) => expirePendingPaymentsTransaction(client, draft)),
-      markRefundTerminal: (draft) => withClient((client) => markRefundTerminalTransaction(client, draft)),
-      transitionOrder: (draft) => withClient((client) => transitionOrderTransaction(client, draft)),
-      setAdminOrderStatus: (draft) => withClient((client) => setAdminOrderStatusTransaction(client, draft)),
+      expirePendingPayments: (draft) => withClient((client) => expirePendingPaymentsTransaction(client, draft, compositeOrderDomainOptions)),
+      markRefundTerminal: (draft) => withClient((client) => markRefundTerminalTransaction(client, draft, compositeOrderDomainOptions)),
+      transitionOrder: (draft) => withClient((client) => transitionOrderTransaction(client, draft, compositeOrderDomainOptions)),
+      setAdminOrderStatus: (draft) => withClient((client) => setAdminOrderStatusTransaction(client, draft, compositeOrderDomainOptions)),
     },
     messageWrites: {
       sendMessage: (draft) => withClient((client) => sendMessageTransaction(client, draft)),
@@ -114,7 +124,7 @@ export function createPostgresStore({ databaseUrl, poolFactory } = {}) {
     },
     async load() {
       const pool = await getPool();
-      const rows = await fetchReadModelRows(pool);
+      const rows = await fetchReadModelRows(pool, { compositeOrderDomainEnabled });
       return { store: buildStoreFromPostgresRows(rows), changed: false };
     },
     async save() {
@@ -302,7 +312,7 @@ function toIsoString(value) {
   return String(value);
 }
 
-async function fetchReadModelRows(pool) {
+async function fetchReadModelRows(pool, { compositeOrderDomainEnabled = false } = {}) {
   const [
     companions,
     companionTags,
@@ -337,7 +347,7 @@ async function fetchReadModelRows(pool) {
     queryRows(pool, `select * from posts where status = 'approved' and is_feed_visible = true order by is_featured desc, published_at desc nulls last, created_at desc limit 100`),
     queryRows(pool, `select * from post_images where audit_status = 'approved' order by sort_order asc, created_at asc`),
     queryRows(pool, `select * from post_tags`),
-    queryRows(pool, `select * from orders order by created_at desc limit 100`),
+    queryRows(pool, `select * from orders order by created_at desc, id desc limit 100`),
     queryRows(pool, `select * from payments order by created_at desc limit 100`),
     queryRows(pool, `select * from conversations order by coalesce(last_message_at, updated_at, created_at) desc limit 100`),
     queryRows(
@@ -365,6 +375,92 @@ async function fetchReadModelRows(pool) {
     queryRows(pool, `select * from security_events order by created_at desc limit 100`),
   ]);
 
+  let merchants = [];
+  let merchantOfferings = [];
+  let photographerMerchantLinks = [];
+  let orderItems = [];
+
+  if (compositeOrderDomainEnabled) {
+    const orderIds = uniqueIds(orders.map((row) => row.id));
+    const companionIds = uniqueIds(companions.map((row) => row.id));
+
+    [orderItems, photographerMerchantLinks] = await Promise.all([
+      orderIds.length > 0
+        ? queryRows(
+            pool,
+            `select oi.*
+             from order_items oi
+             where oi.order_id = any($1::uuid[])
+             order by oi.order_id, oi.item_no`,
+            [orderIds],
+          )
+        : Promise.resolve([]),
+      companionIds.length > 0
+        ? queryRows(
+            pool,
+            `select *
+             from photographer_merchant_links
+             where companion_id = any($1::uuid[])
+             order by created_at desc, id desc`,
+            [companionIds],
+          )
+        : Promise.resolve([]),
+    ]);
+
+    const itemOrderIds = new Set(
+      orderItems.filter((row) => row.service_type === 'photography').map((row) => String(row.order_id)),
+    );
+    const missingItemOrderIds = orderIds.filter((orderId) => !itemOrderIds.has(orderId));
+    if (missingItemOrderIds.length > 0) {
+      const error = new Error(
+        `Composite order domain activation requires backfilling ${missingItemOrderIds.length} order(s). Run select backfill_missing_photography_order_items(); before enabling the flag.`,
+      );
+      error.code = 'COMPOSITE_ORDER_BACKFILL_REQUIRED';
+      throw error;
+    }
+
+    const merchantIds = uniqueIds([
+      ...orderItems.map((row) => row.provider_merchant_id),
+      ...photographerMerchantLinks.map((row) => row.merchant_id),
+    ]);
+    const offeringIds = uniqueIds(orderItems.map((row) => row.merchant_offering_id));
+
+    [merchants, merchantOfferings] = await Promise.all([
+      merchantIds.length > 0
+        ? queryRows(
+            pool,
+            `select id,
+                    name,
+                    status,
+                    city,
+                    address,
+                    timezone,
+                    business_hours,
+                    (contact_phone is not null and btrim(contact_phone) <> '') as has_contact_phone,
+                    contact_phone_visibility,
+                    service_enabled,
+                    created_at,
+                    updated_at
+             from merchants
+             where id = any($1::uuid[])
+             order by created_at desc, id desc`,
+            [merchantIds],
+          )
+        : Promise.resolve([]),
+      offeringIds.length > 0 || merchantIds.length > 0
+        ? queryRows(
+            pool,
+            `select *
+             from merchant_offerings
+             where id = any($1::uuid[])
+                or (merchant_id = any($2::uuid[]) and enabled = true)
+             order by merchant_id, offering_code, version desc`,
+            [offeringIds, merchantIds],
+          )
+        : Promise.resolve([]),
+    ]);
+  }
+
   return {
     companions,
     companionTags,
@@ -389,10 +485,18 @@ async function fetchReadModelRows(pool) {
     auditLogs,
     adminActionLogs,
     securityEvents,
+    merchants,
+    merchantOfferings,
+    photographerMerchantLinks,
+    orderItems,
   };
 }
 
-async function queryRows(pool, sql) {
-  const result = await pool.query(sql);
+async function queryRows(pool, sql, params = []) {
+  const result = await pool.query(sql, params);
   return result.rows;
+}
+
+function uniqueIds(values) {
+  return [...new Set(values.filter(Boolean).map((value) => String(value)))];
 }

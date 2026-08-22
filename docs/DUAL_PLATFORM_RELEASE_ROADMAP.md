@@ -6,7 +6,7 @@
 
 ## 0. 当前基线与固定决策
 
-- Roadmap version: 6
+- Roadmap version: 7
 - Current integration baseline: `6588247c29b2082d310cc96fe110ab67866337f4`
 - Integration branch: `codex/integration`
 - Windows branch: `codex/vertical-db-api`
@@ -227,6 +227,36 @@ Still 的长期产品定位从单一“摄影陪伴撮合”扩展为“内容�
 
 完整产品定义、信任边界、服务梯度和分阶段数据闸门记录在 `STILL_CODE_MODULE_ROADMAP.md` 第 10 节。该节当前不包含最终页面结构决策；页面和导航必须在内容上线后的真实行为数据基础上另行评审。
 
+### 0.11 妆造商家冷启动与模块化组合交易固定路线
+
+本路线是摄影交易内的窄范围 P1 试点，不是提前建设泛商家、本地生活或第三个搜索市场。当前 P0 Release Candidate、TestFlight 和 App Store 主链路不把商家功能作为反向依赖；商家功能以默认关闭的功能开关分阶段交付，`INT-COMBO-1` 完成前禁止真实组合支付。产品、合作和运营规则的事实源为 [Still 妆造商家冷启动合作与组合订单实施方案](./STILL_MERCHANT_COLD_START_PARTNERSHIP_PLAN.md)。
+
+固定顺序：
+
+1. 用户端继续只保留“找作品、找摄影师”两个主要入口；搜索商家名称时仍返回与该商家存在双方确认合作关系的摄影师，不新增“找商家”或“找方案”。
+2. 用户先选摄影师和拍摄时间，再在摄影师页选择仅摄影、摄影＋妆造或摄影＋妆造＋服装。冷启动阶段一名摄影师最多展示零个或一个主要合作商家；一个商家可关联多名摄影师。
+3. 摄影价格由摄影师预设的时长和需求模块叠加；商家服务采用 1—3 个固定价套餐。服务端汇总总价并保存不可变价格、内容、时间和套餐版本快照，服务方接单时不得改价。
+4. 用户看到一份服务清单、一个总价、一次预付款、一个订单状态和一个售后入口；后台必须以服务项分别保存提供方、时间、接单、履约、退款、佣金和结算状态，妆造不得伪装成普通摄影加购项。
+5. 用户提交明确的期望妆造时间，摄影师与商家并行接受或拒绝。摄影师普通订单为 4 个有效接单小时，商家为 2 个有效营业小时；不足 24 小时的紧急订单只向主动开启者展示，确认时限 30 分钟。
+6. 摄影师拒绝或超时，整单取消并全额退款；商家拒绝或超时，用户可保留摄影或取消整单。普通订单选择时限为 2 个有效小时，紧急订单为 30 分钟，超时默认整单取消并全额退款。
+7. 商家接受即代表承诺订单中的明确时间。MVP 不建设门店排期 SaaS、不同步美团/抖音、不要求预留 Still 库存，也不承诺实时商家库存。
+8. 组合订单正式确认前不向用户返回商家电话；确认后只显示商家公开营业电话，用于路线、准备和临近时间核对。用户不打电话不影响预约效力，电话中改期仍须回到订单确认。
+9. 当前地图 URI 无法返回路线耗时。MVP 以套餐时长和 15/30/60/90 分钟可调交通缓冲推荐妆造时间，只拦截明显不可能的组合，不承诺准确路程或据此自动取消。
+10. 服务时间经过后默认正常推进，只有一方发起异常/取消后才归责。确认前或超过 24 小时用户取消全退；不足 24 小时且确认用户责任时，受影响服务项退 80%、20%作为全额归服务方的非计佣档期补偿；服务方责任全退。
+11. 改期只重新确认受影响服务项。同日拍摄向后延迟且不影响妆造、服装归还、地点或商家现场安排时，只需用户与摄影师确认。
+12. 试点为首笔真实组合订单起 30 个自然日或 10 笔已完成组合订单，先到为准；不收入驻费、软件费或年费。摄影和商家服务项分别按各自计佣基数收取 8%：计价金额＝锁定原价－服务方承担优惠，计佣基数＝计价金额－按服务价值计算的退款－非计佣档期补偿，服务方应结＝计佣基数×92%＋非计佣档期补偿。MVP 支付通道费和平台主动优惠由 Still 承担，平台优惠不降低服务方计价金额；费率变化必须另行书面确认。
+13. 用户侧一个订单不等于后台整单结算。服务方标记完成后，用户主动确认即可让该服务项进入可结算；用户未操作时，服务计划结束 72 小时且无异常才自动进入可结算。原则上只冻结争议服务项，只有责任无法拆分、支付异常或整单欺诈风险时才冻结整单。平台先行退款后的扣回必须可通知、可申诉、可审计。平台优惠按服务项保存不可变分摊快照，退款时按退款比例退回或等值补发，现金退款不得超过对应服务项的用户实付金额。
+14. 服装押金不进入订单；押金、归还、超时和损坏规则在下单前公开，争议由订单客服处理。
+15. 普通用户只可公开 Still 真实订单作品；摄影师站外作品标注为作品集；关注保留，但评论、社交私信、转发链和排行榜不随本路线自动开放。
+16. Agent 不进入本 P1。未来只作为菜单后的需求拆解和字段填写器，与手动菜单读写同一结构化需求和服务项草稿；没有真实库存时不能承诺预约，也不得自动付款、改价或取消。
+
+发布闸门：
+
+- `WIN-MERCHANT-0` 只建立兼容的领域骨架，默认关闭，不改变当前纯摄影订单行为；
+- `INT-MERCHANT-1` 完成后才允许展示真实商家供给和合作关系；
+- `INT-COMBO-1`、`INT-PAY-1` 和 `INT-COMPLIANCE-1` 全部完成后才允许真实组合支付；
+- 每家商家必须先通过资料审核和模拟订单，`EXT-MERCHANT-PILOT-1` 完成后才进入受控真实试点。
+
 ---
 
 ## A. Windows Roadmap
@@ -317,6 +347,48 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Verification: pending
 - Notes: 禁止用 JSON store 作为生产主数据。
 
+### WIN-MERCHANT-0 商家与组合订单服务项领域骨架
+
+- Priority: P1
+- Status: blocked
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-DATA-1`
+- Scope: 在不改变当前纯摄影交易行为的前提下，建立商家、固定价套餐、摄影师—商家双方确认合作关系和订单服务项的 PostgreSQL/Prisma/API 领域骨架；历史纯摄影订单可兼容表示为一个摄影服务项；功能开关默认关闭。
+- Acceptance criteria: SQL、Prisma、迁移和 API 类型一致；商家营业电话具备非公开字段语义；服务项可分别保存提供方、服务类型、价格/内容/时间快照、接单、履约、退款和结算状态；摄影套餐必须属于订单摄影师，已有服务项的订单不能删除最后一个服务项；功能开关开启时纯摄影服务项随支付、确认、完成、取消、退款和争议状态原子同步；一名摄影师最多一个已确认主要商家；迁移可重复执行且不改变历史订单金额/状态；生产主流程不读取 mock/JSON 商家数据；当前纯摄影回归通过。
+- Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/migrations/**`, `database/API_CONTRACT.md`, `server/store/postgresStore.mjs`, `server/store/postgresMappers.mjs`, `pp-app/src/types/api.ts`, `server/scripts/**`
+- Unblock result: 提供迁移、schema parity、领域约束、mapper/read-model 和纯摄影兼容验证及 commit SHA，解除 `WIN-MERCHANT-1` 的领域依赖。
+- Result commit: pending
+- Verification: 本地 schema parity、组合订单领域约束、mapper/read-model、纯摄影订单写入及支付/确认/完成/取消/退款/争议生命周期同步检查通过；`server npm.cmd run check:mvp`、移动端 build、Admin build、production guards 和 `git diff --check` 通过。当前机器无 `psql`、Docker/Podman 和 `DATABASE_URL`，尚未完成 PostgreSQL 16 首次/重复迁移与真实约束验收。
+- Notes: 本节点是隔离的数据骨架，功能开关默认关闭，组合支付继续硬关闭；不实现商家登录、用户 UI、组合支付、部分退款或多方结算。2026-08-22 本地实现与静态/回归验证已完成，等待真实 PostgreSQL 16 环境执行两次迁移并核对历史金额/状态、回填、复合外键、最后服务项保护、延迟金额约束和开启开关后的生命周期，再取得推送后的完整 SHA。
+
+### WIN-MERCHANT-1 商家、固定套餐与摄影师合作搜索服务端
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-MERCHANT-0`, `WIN-DATA-2`, `EXT-MERCHANT-1`
+- Scope: 建立运营辅助入驻、商家成员权限、固定套餐版本、合作关系双方确认，以及“搜索商家名称仍召回真实合作摄影师”的服务端查询；正式确认前不向用户返回商家营业电话。
+- Acceptance criteria: 商家和套餐来自 PostgreSQL；套餐变更不覆盖订单快照；合作关系不可由一方伪造；解除关系后搜索不再命中；一名摄影师最多一个主要商家；普通摄影师搜索无回归；电话字段按订单确认状态服务端脱敏；功能开关关闭时不影响现有页面和 API。
+- Shared files: `database/**`, `server/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, Admin 商家录入页面
+- Unblock result: 提供迁移/API、权限矩阵、搜索和电话脱敏测试及 commit SHA，解除 `IOS-MERCHANT-1`、`INT-MERCHANT-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 冷启动由运营辅助录入；生产商家自主短信登录仍依赖 `WIN-AUTH-1`，本节点不得以测试账号冒充该验收。
+
+### WIN-COMBO-1 组合报价、并行接单、分项退款与结算服务端
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-MERCHANT-1`, `WIN-PAY-2`, `WIN-SETTLE-1`, `WIN-NOTIFY-1`, `EXT-MERCHANT-1`
+- Scope: 实现摄影模块叠加价、商家固定套餐价、服务端锁价、一次预付款、平台优惠服务项分摊、摄影师/商家并行接单、有效营业小时截止任务、拒绝分支、受影响服务项改期/退款、每服务项 8%佣金、非计佣档期补偿、分项结算、争议冻结和平台先行退款扣回。
+- Acceptance criteria: 订单父支付金额等于各服务项用户应付金额之和；每项满足“用户应付＋平台优惠＝计价金额”，整单金额守恒；正常 100 元应结 92 元、10 元平台券后仍应结 92 元、用户责任取消退 80 元时 20 元补偿全额归服务方且佣金为 0；优惠券退款按服务项分摊比例退回或等值补发；接单和截止任务幂等；摄影师拒绝整单全退；商家拒绝后用户可保留摄影或取消整单，选择超时按规则全退；电话只在双方接受后返回；默认不因迟到自动取消；20%/80%只作用于归责后的受影响服务项；同日只延后拍摄且商家不受影响时不要求其重接；服务方标记完成且用户确认后可立即进入可结算，用户未操作时结束 72 小时无异常才自动进入；每服务项结算、退款冲正、冻结和先赔后扣可审计且不重复；现有纯摄影流程无回归。
+- Shared files: `database/**`, `server/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, Admin 财务/争议页面
+- Unblock result: 提供状态机、并发/幂等、金额守恒、部分退款、分项结算、电话脱敏和纯摄影回归结果及 commit SHA，解除 `IOS-COMBO-1`、`INT-COMBO-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: `INT-PAY-1` 和支付/合规确认完成前只可在测试环境验证，不得开放真实组合支付；不在客户端计算佣金或最终退款。
+
 ### WIN-MSG-1 真实聊天同步、分页和发送可靠性
 
 - Priority: P0
@@ -380,12 +452,12 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-PAY-2`
 - Scope: 明确平台佣金、摄影师应结算金额、结算周期、退款冲正、异常冻结和人工处理。
-- Acceptance criteria: 每笔完成订单可追溯到结算与账本；退款可冲正；异常可冻结；Admin 可查看并审计人工操作；金额使用整数分并保持幂等。
+- Acceptance criteria: 每笔完成订单可追溯到结算与账本；退款可冲正；异常可冻结；Admin 可查看并审计人工操作；金额使用整数分并保持幂等；平台费率只有一个服务端版本化事实源，清理当前 8%/10%/15% 的前后端不一致；基础模型可以由 `WIN-COMBO-1` 扩展为每服务项一笔结算，不能把摄影师写死为永久唯一收款方。
 - Shared files: `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
 - Unblock result: 提供结算状态机、账本测试、Admin 操作要求和 commit SHA，解除 `IOS-OPS-1`、`WIN-ADMIN-2` 的财务部分。
 - Result commit: pending
 - Verification: pending
-- Notes: 不在客户端计算最终佣金或结算金额。
+- Notes: 不在客户端计算最终佣金或结算金额。P0 仍只验收单摄影师结算；商家分项结算、72 小时窗口和争议项冻结由 `WIN-COMBO-1` 完成。
 
 ### WIN-COMPLIANCE-1 用户合规数据闭环
 
@@ -757,6 +829,34 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Verification: pending
 - Notes: 生产禁止 `virtualOrderLedger` 兜底。
 
+### IOS-MERCHANT-1 摄影师页妆造加购与商家轻量工作台
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `WIN-MERCHANT-1`, `IOS-DATA-2`, `EXT-MERCHANT-1`
+- Scope: 保持“找作品、找摄影师”两个入口，实现商家名称筛选合作摄影师、摄影师页合作关系/固定套餐展示、期望妆造时间选择，以及同一代码库中的轻量移动 Web 商家待接单、已确认订单、套餐和门店设置工作台。
+- Acceptance criteria: 不出现独立商家搜索入口；“店内摄影师/可搭配该店”关系清楚；用户可选仅摄影、摄影＋妆造或摄影＋妆造＋服装；商家只查看和处理自己的服务项；接受/拒绝操作幂等；组合订单正式确认前页面和网络响应均无商家电话；功能关闭时原摄影师页和搜索无回归；弱网、空状态、键盘和 VoiceOver 可用。
+- Shared files: 搜索/摄影师页面、商家工作台、订单时间选择、API 类型、Capacitor 路由
+- Unblock result: 提供用户/摄影师/商家三角色真机、搜索、套餐、接单和电话隐私结果及 commit SHA，解除 `INT-MERCHANT-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 不开发独立商家 App、本地 SaaS、员工/工位库存或美团/抖音同步；商家生产登录能力受真实认证节点约束。
+
+### IOS-COMBO-1 组合订单支付、拒绝分支、退改与异常体验
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `WIN-COMBO-1`, `IOS-MERCHANT-1`, `IOS-PAY-1`, `IOS-REFUND-1`
+- Scope: 用户一次预付并查看分项清单；摄影师和商家分别处理自己的服务项；实现双方接受、拒绝/超时、保留摄影、全单取消、成交后电话、受影响服务项改期、主动异常和分项售后状态。
+- Acceptance criteria: 服务端价格和状态为事实源；重复支付/接受/拒绝/取消不重复产生副作用；商家拒绝后用户选择和默认超时分支正确；未发起异常时不自动判定迟到；只要求受影响方确认改期；电话显示、20%/80%说明、部分退款和分项冻结状态准确；刷新、重启和跨设备可恢复；纯摄影订单无回归。
+- Shared files: Checkout、订单详情、摄影师/商家工作台、退款/异常页面、API 类型
+- Unblock result: 提供三角色真机、弱网、重复操作、拒绝/超时、电话、退改和状态恢复测试及 commit SHA，解除 `INT-COMBO-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 客户端不得自行推断最终退款、佣金或结算金额。
+
 ### IOS-MSG-1 真实聊天分页、同步和重试
 
 - Priority: P0
@@ -1099,6 +1199,20 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Verification: pending
 - Notes: pending
 
+### INT-MERCHANT-1 集成商家供给、合作搜索和妆造加购
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `WIN-MERCHANT-1`, `IOS-MERCHANT-1`, `INT-TESTFLIGHT-1`
+- Scope: 合并商家、固定套餐、双方确认合作关系、商家名称筛选摄影师、摄影师页妆造加购和商家轻量工作台；保持功能开关默认关闭并验证纯摄影主流程不受影响。
+- Acceptance criteria: PostgreSQL 为事实源；用户、摄影师、商家和 Admin 权限隔离；合作关系不可单方伪造；搜索没有第三入口；电话在组合订单正式确认前无法通过 UI 或 API 获取；跨设备恢复、弱网和生产 guard 通过；关闭功能后当前 Release Candidate 行为不变。
+- Shared files: 商家/搜索/摄影师页/工作台集成代码、迁移、API 类型、测试矩阵、Release 文档
+- Unblock result: 提供 Integration SHA、四角色权限、搜索/套餐/电话隐私、跨设备和关闭开关测试，解除 `INT-COMBO-1` 的供给依赖。
+- Result commit: pending
+- Verification: pending
+- Notes: 本节点只允许展示和测试供给，不开放真实组合支付。
+
 ### INT-MSG-1 集成聊天和通知
 
 - Priority: P1
@@ -1140,6 +1254,20 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Result commit: pending
 - Verification: pending
 - Notes: pending
+
+### INT-COMBO-1 组合交易、部分退款与多方结算联合验收
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `INT-MERCHANT-1`, `WIN-COMBO-1`, `IOS-COMBO-1`, `INT-PAY-1`, `INT-COMPLIANCE-1`
+- Scope: 在功能开关和受控账号下，联合验收组合报价、一次预付、并行接单、拒绝/超时分支、电话隐私、受影响服务项改期、主动异常、部分退款、分项结算和先赔后扣。
+- Acceptance criteria: 覆盖仅摄影、摄影＋妆造、双方接受、各方拒绝/超时、保留摄影、确认前取消、24 小时两档取消、服务方取消、同日延后、商家不受影响改期、分项争议和整单支付异常；真实 PostgreSQL、支付幂等、金额守恒、四角色权限、跨设备、电话脱敏和纯摄影回归通过；每服务项 8%佣金与客户端无权威金额计算通过检查；外部合规/财务已确认资金、开票和先赔后扣表述。
+- Shared files: 组合订单/支付/退款/结算集成代码、迁移、真机矩阵、财务对账和 Release 文档
+- Unblock result: 提供 Integration SHA、脱敏真实支付/部分退款记录、金额守恒、分项结算、三服务角色真机和扩大/停止结论，解除 `EXT-MERCHANT-PILOT-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 本节点完成前禁止真实组合支付；若支付机构不支持合法的多服务方结算，必须修改资金方案和对外措辞，不能用内部账本模拟生产验收。
 
 ### INT-COMPLIANCE-1 集成合规与上线运营能力
 
@@ -1391,8 +1519,8 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Status: pending
 - Owner branch: User/External
 - Depends on: none
-- Scope: 根据产品交易类型确认 iOS 支付渠道，准备商户、证书、API 权限、回调域名和测试能力。
-- Acceptance criteria: 支付方案经过审核要求核实；商户和证书可用；可完成一笔小额测试和退款。
+- Scope: 根据产品交易类型确认 iOS 支付渠道，准备商户、证书、API 权限、回调域名和测试能力；同时核实未来一次总价预付、多个服务项、部分退款、分别结算和平台先行退款扣回的合法可用方案。
+- Acceptance criteria: 支付方案经过审核要求核实；商户和证书可用；可完成一笔小额测试和退款；明确支付机构是否支持组合订单的部分退款、多服务方结算、开票和资金停留方式，并确认对外能否使用“预付款”“待结算”或“托管”等表述。
 - Shared files: 无
 - Unblock result: 提供支付渠道决定、非敏感商户标识、证书配置方式和测试窗口，解除 `WIN-PAY-1`、`IOS-PAY-1`。
 - Result commit: not applicable
@@ -1419,8 +1547,8 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Status: pending
 - Owner branch: User/External
 - Depends on: none
-- Scope: 定稿隐私政策、用户协议、支付说明、退款规则、客服和数据权利说明。
-- Acceptance criteria: 文本覆盖定位、媒体、账号、订单、支付、分析和第三方 Provider；版本和生效日期明确。
+- Scope: 定稿隐私政策、用户协议、支付说明、退款规则、客服和数据权利说明；补充组合订单、商家营业电话、多服务方责任、部分退款、分别结算、平台先赔后扣和服装押金边界。
+- Acceptance criteria: 文本覆盖定位、媒体、账号、订单、支付、分析和第三方 Provider；组合订单各服务方身份、服务责任、取消/改期、20%档期补偿、申诉和开票边界可理解；版本和生效日期明确。
 - Shared files: 正式文本或 URL
 - Unblock result: 提供最终版本和 URL，解除 `WIN-COMPLIANCE-1`、`IOS-COMPLIANCE-1`。
 - Result commit: not applicable
@@ -1447,13 +1575,41 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Status: pending
 - Owner branch: User/External
 - Depends on: none
-- Scope: 确定客服渠道、服务时间、退款/争议/审核/财务负责人和操作权限。
-- Acceptance criteria: 每类 case 有负责人、SLA 和升级路径；审核账号和客服入口可用。
+- Scope: 确定客服渠道、服务时间、退款/争议/审核/财务负责人和操作权限；覆盖商家审核、组合订单归责、部分退款、分项冻结、先赔后扣和多方结算。
+- Acceptance criteria: 每类 case 有负责人、SLA 和升级路径；审核账号和客服入口可用；商家、摄影师和用户争议能按服务项留证、通知、申诉和执行，不能用电话口头结果直接改账。
 - Shared files: 运营说明
 - Unblock result: 提供角色和流程摘要，解除 `WIN-ADMIN-2`、`IOS-OPS-1`。
 - Result commit: not applicable
 - Verification: pending
 - Notes: 不在仓库保存个人敏感信息。
+
+### EXT-MERCHANT-1 商家冷启动规则、合作材料与试点批准
+
+- Priority: P1
+- Status: blocked
+- Owner branch: User/External
+- Depends on: none
+- Scope: 固定商家准入、1—3 个套餐模板、接单时限、电话边界、退改矩阵、试点佣金/周期、结算原则、30 天试点指标和停止条件；完成一致的 Word 合作沟通文件、PPT 讲解稿、FAQ 和模拟订单检查表。
+- Acceptance criteria: 明确 30 个自然日或 10 笔已完成组合订单试点、两类服务项分别按计佣基数收取 8%、20%档期补偿不计佣、无入驻/软件/年费、通道费和平台优惠由平台承担；材料用 100 元正常履约、平台券和用户责任取消样例解释金额；不承诺订单量、实时库存、准确路程或永久免费；明确正式确认前无电话、接单后承诺明确时间、20%/80%只在归责后生效；支付/合规/财务待确认的表述不伪装为已上线能力；DOCX/PPTX 均完成渲染和逐页检查。
+- Shared files: `docs/STILL_MERCHANT_COLD_START_PARTNERSHIP_PLAN.md`, 商家 Word/PPT、运营说明
+- Unblock result: 提供最终材料、规则版本、渲染验证和审批结论，解除 `WIN-MERCHANT-1`、`WIN-COMBO-1` 的商务规则依赖。
+- Result commit: pending
+- Verification: 事实源、FAQ、模拟订单检查表、100 元/平台券/80%—20%案例已统一；最终 DOCX（14 页）和 PPTX（10 页、10 组讲者备注）完成结构、敏感信息、溢出和逐页视觉验收。DOCX SHA256 `1FA1E7EE027F40B4D09FA95618B5610B7D88AD45C08E91D2835DBC1AFC04624D`；PPTX SHA256 `4D754F19F5489EA5D62F37E06F3C2712AB2AED0E8818D58A3AB3532675A7CBB2`。
+- Notes: 本节点的本地材料已经完成，当前仅等待 User/External 对规则、Word 和 PPT 作最终批准；批准前只能用于内部审阅和模拟流程，不作为真实组合交易放行依据。本节点固定合作方案，不代表支付机构或法律顾问已经批准资金/开票结构；相关结论仍由 `EXT-PAY-1`、`EXT-COMPLIANCE-1` 提供。
+
+### EXT-MERCHANT-PILOT-1 首批商家入驻与受控真实试点
+
+- Priority: P1
+- Status: pending
+- Owner branch: User/External
+- Depends on: `INT-COMBO-1`, `INT-STORE-1`, `EXT-OPS-1`, `EXT-COMPLIANCE-1`, `EXT-PAY-1`
+- Scope: 按准入标准招募首批 1—3 家商家，每家上架 1—3 个套餐，完成资料/电话/主体/收款与开票核验、负责人培训、模拟订单和首笔受控真实订单。
+- Acceptance criteria: 每家合作关系真实且双方确认；不要求独家、预留库存或安装本地 SaaS；每家完成一笔模拟订单并通过接单、电话、履约、异常、退款和结算检查；至少一笔真实组合订单完成且复盘无重大资金/权限/电话泄露问题后才扩大；指标和停止条件按实施方案记录。
+- Shared files: 脱敏试点清单、套餐模板、培训/模拟订单记录、周复盘
+- Unblock result: 提供首批商家数量、模拟/真实订单脱敏结果、继续/调整/停止结论和下一阶段容量上限。
+- Result commit: not applicable
+- Verification: pending
+- Notes: 不在仓库保存身份证、营业执照原件、个人电话、收款账号或订单敏感信息。
 
 ### EXT-OBS-1 崩溃和监控服务
 

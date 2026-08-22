@@ -1,5 +1,6 @@
 import { createJsonStore } from './jsonStore.mjs';
 import { createPostgresStore } from './postgresStore.mjs';
+import { readCompositeOrderFeatureFlags } from '../services/compositeOrderFeature.mjs';
 
 export function createDataStore(options) {
   const driver = normalizeStoreDriver(process.env.STORE_DRIVER);
@@ -11,6 +12,7 @@ export function createDataStore(options) {
   return createPostgresStore({
     ...options,
     databaseUrl: process.env.DATABASE_URL,
+    featureFlags: readCompositeOrderFeatureFlags(process.env),
   });
 }
 

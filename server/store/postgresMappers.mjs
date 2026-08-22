@@ -1,14 +1,23 @@
 export function buildStoreFromPostgresRows(rows) {
   const companions = mapCompanions(rows);
   const companionById = new Map(companions.map((companion) => [companion.id, companion]));
+  const merchants = mapMerchants(rows);
+  const merchantById = new Map(merchants.map((merchant) => [merchant.id, merchant]));
+  const merchantOfferings = mapMerchantOfferings(rows);
+  const photographerMerchantLinks = mapPhotographerMerchantLinks(rows, companionById, merchantById);
+  const orderItems = mapOrderItems(rows, companionById, merchantById);
   const posts = mapPosts(rows, companionById);
-  const orders = mapOrders(rows, companionById);
+  const orders = mapOrders(rows, companionById, orderItems);
   const reports = mapReports(rows, orders);
   const settlements = mapSettlements(rows, orders);
 
   return {
     meta: { version: 3 },
     companions,
+    merchants,
+    merchantOfferings,
+    photographerMerchantLinks,
+    orderItems,
     posts,
     users: [],
     activeSession: null,
@@ -130,7 +139,7 @@ function mapPosts(rows, companionById) {
   });
 }
 
-function mapOrders(rows, companionById) {
+function mapOrders(rows, companionById, orderItems) {
   return (rows.orders || []).map((row) => {
     const id = stringId(row.id);
     const status = row.status || 'pending_payment';
@@ -138,6 +147,7 @@ function mapOrders(rows, companionById) {
     const endAt = toIso(row.end_at);
     const companion = companionById.get(stringId(row.companion_id));
     const amountCents = number(row.total_amount_cents);
+    const serviceItems = orderItems.filter((item) => item.orderId === id).map(toPublicOrderServiceItem);
     return {
       id,
       orderNo: row.order_no || id,
@@ -165,8 +175,208 @@ function mapOrders(rows, companionById) {
       currentStep: orderStepIndex[status] ?? 0,
       createdAt: toIso(row.created_at),
       updatedAt: toIso(row.updated_at),
+      ...(serviceItems.length > 0 ? { serviceItems } : {}),
     };
   });
+}
+
+function mapMerchants(rows) {
+  return (rows.merchants || []).map((row) => ({
+    id: stringId(row.id),
+    name: row.name || '',
+    status: row.status || 'draft',
+    city: row.city || '',
+    address: row.address || undefined,
+    timezone: row.timezone || 'Asia/Shanghai',
+    businessHours: jsonObject(row.business_hours),
+    hasContactPhone: Boolean(row.has_contact_phone),
+    contactPhoneVisibility: row.contact_phone_visibility || 'confirmed_order_only',
+    serviceEnabled: row.service_enabled === true,
+    createdAt: toIso(row.created_at),
+    updatedAt: toOptionalIso(row.updated_at),
+  }));
+}
+
+function mapMerchantOfferings(rows) {
+  return (rows.merchantOfferings || []).map((row) => {
+    const fixedPriceCents = number(row.fixed_price_cents);
+    return {
+      id: stringId(row.id),
+      merchantId: stringId(row.merchant_id),
+      offeringCode: row.offering_code || '',
+      version: number(row.version),
+      serviceType: row.service_type || 'other',
+      name: row.name || '',
+      description: row.description || '',
+      durationMinutes: number(row.duration_minutes),
+      fixedPriceCents,
+      fixedPriceText: formatMoney(fixedPriceCents),
+      currency: row.currency || 'CNY',
+      inclusions: arrayValue(row.inclusions),
+      enabled: row.enabled === true,
+      publishedAt: toOptionalIso(row.published_at),
+      retiredAt: toOptionalIso(row.retired_at),
+      createdAt: toIso(row.created_at),
+      updatedAt: toOptionalIso(row.updated_at),
+    };
+  });
+}
+
+function mapPhotographerMerchantLinks(rows, companionById, merchantById) {
+  return (rows.photographerMerchantLinks || []).map((row) => {
+    const photographerId = stringId(row.companion_id);
+    const merchantId = stringId(row.merchant_id);
+    return {
+      id: stringId(row.id),
+      photographerId,
+      photographerName: companionById.get(photographerId)?.name || '',
+      merchantId,
+      merchantName: merchantById.get(merchantId)?.name || '',
+      status: row.status || 'pending',
+      relationshipLabel: row.relationship_label || '',
+      photographerConfirmedAt: toOptionalIso(row.photographer_confirmed_at),
+      merchantConfirmedAt: toOptionalIso(row.merchant_confirmed_at),
+      isPrimary: row.is_primary === true,
+      rejectedAt: toOptionalIso(row.rejected_at),
+      endedAt: toOptionalIso(row.ended_at),
+      createdAt: toIso(row.created_at),
+      updatedAt: toOptionalIso(row.updated_at),
+    };
+  });
+}
+
+function mapOrderItems(rows, companionById, merchantById) {
+  return (rows.orderItems || [])
+    .map((row) => {
+      const databaseProviderType = row.provider_type || 'companion';
+      const providerType = databaseProviderType === 'merchant' ? 'merchant' : 'photographer';
+      const providerId =
+        databaseProviderType === 'merchant' ? stringId(row.provider_merchant_id) : stringId(row.provider_companion_id);
+      const providerName =
+        databaseProviderType === 'merchant'
+          ? merchantById.get(providerId)?.name || ''
+          : companionById.get(providerId)?.name || '';
+      const merchantOfferingId = row.merchant_offering_id ? stringId(row.merchant_offering_id) : undefined;
+      const totalAmountCents = number(row.total_amount_cents);
+      const platformSubsidyCents = number(row.platform_subsidy_cents);
+      const userPayableCents = number(row.user_payable_cents);
+      const refundedAmountCents = number(row.refunded_amount_cents);
+
+      return {
+        id: stringId(row.id),
+        orderId: stringId(row.order_id),
+        itemNo: number(row.item_no),
+        serviceType: row.service_type || 'other',
+        provider: {
+          type: providerType,
+          id: providerId,
+          name: providerName,
+        },
+        activityPricingId: row.activity_pricing_id ? stringId(row.activity_pricing_id) : undefined,
+        merchantOfferingId,
+        offeringVersion: row.offering_version == null ? undefined : number(row.offering_version),
+        serviceName: row.service_name_snapshot || '',
+        serviceDescription: row.service_description_snapshot || '',
+        durationMinutes: number(row.duration_minutes),
+        startAt: toIso(row.start_at),
+        endAt: toIso(row.end_at),
+        timezone: row.timezone || 'Asia/Shanghai',
+        pricing: {
+          baseAmountCents: number(row.base_amount_cents),
+          extraAmountCents: number(row.extra_amount_cents),
+          discountAmountCents: number(row.discount_amount_cents),
+          totalAmountCents,
+          totalAmountText: formatMoney(totalAmountCents),
+          platformSubsidyCents,
+          platformSubsidyText: formatMoney(platformSubsidyCents),
+          userPayableCents,
+          userPayableText: formatMoney(userPayableCents),
+          platformFeeCents: number(row.platform_fee_cents),
+          providerIncomeCents: number(row.provider_income_cents),
+          currency: row.currency || 'CNY',
+          snapshot: jsonObject(row.pricing_snapshot),
+        },
+        acceptance: {
+          status: row.acceptance_status || 'not_requested',
+          deadlineAt: toOptionalIso(row.acceptance_deadline_at),
+          acceptedAt: toOptionalIso(row.accepted_at),
+          declinedAt: toOptionalIso(row.declined_at),
+          declineReason: row.decline_reason || '',
+        },
+        fulfillment: {
+          status: row.fulfillment_status || 'not_started',
+          serviceStartedAt: toOptionalIso(row.service_started_at),
+          completedAt: toOptionalIso(row.completed_at),
+          cancelledAt: toOptionalIso(row.cancelled_at),
+        },
+        refund: {
+          status: row.refund_status || 'not_requested',
+          refundedAmountCents,
+          refundedAmountText: formatMoney(refundedAmountCents),
+        },
+        settlementStatus: row.settlement_status || 'not_ready',
+        source: row.source || 'composite',
+        createdAt: toIso(row.created_at),
+        updatedAt: toOptionalIso(row.updated_at),
+      };
+    })
+    .sort((left, right) => left.orderId.localeCompare(right.orderId) || left.itemNo - right.itemNo);
+}
+
+function toPublicOrderServiceItem(item) {
+  return {
+    id: item.id,
+    orderId: item.orderId,
+    itemNo: item.itemNo,
+    serviceType: item.serviceType,
+    provider: {
+      type: item.provider.type,
+      id: item.provider.id,
+      name: item.provider.name,
+    },
+    activityPricingId: item.activityPricingId,
+    merchantOfferingId: item.merchantOfferingId,
+    offeringVersion: item.offeringVersion,
+    serviceName: item.serviceName,
+    serviceDescription: item.serviceDescription,
+    durationMinutes: item.durationMinutes,
+    startAt: item.startAt,
+    endAt: item.endAt,
+    timezone: item.timezone,
+    pricing: {
+      baseAmountCents: item.pricing.baseAmountCents,
+      extraAmountCents: item.pricing.extraAmountCents,
+      discountAmountCents: item.pricing.discountAmountCents,
+      totalAmountCents: item.pricing.totalAmountCents,
+      totalAmountText: item.pricing.totalAmountText,
+      platformSubsidyCents: item.pricing.platformSubsidyCents,
+      platformSubsidyText: item.pricing.platformSubsidyText,
+      userPayableCents: item.pricing.userPayableCents,
+      userPayableText: item.pricing.userPayableText,
+      currency: item.pricing.currency,
+    },
+    acceptance: {
+      status: item.acceptance.status,
+      deadlineAt: item.acceptance.deadlineAt,
+      acceptedAt: item.acceptance.acceptedAt,
+      declinedAt: item.acceptance.declinedAt,
+      declineReason: item.acceptance.declineReason,
+    },
+    fulfillment: {
+      status: item.fulfillment.status,
+      serviceStartedAt: item.fulfillment.serviceStartedAt,
+      completedAt: item.fulfillment.completedAt,
+      cancelledAt: item.fulfillment.cancelledAt,
+    },
+    refund: {
+      status: item.refund.status,
+      refundedAmountCents: item.refund.refundedAmountCents,
+      refundedAmountText: item.refund.refundedAmountText,
+    },
+    source: item.source,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
 }
 
 function mapPayments(rows) {

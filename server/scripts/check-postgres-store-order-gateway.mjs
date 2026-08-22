@@ -9,7 +9,7 @@ const store = createPostgresStore({
 assert(store.capabilities.orderWrites === true, 'postgres store advertises order writes');
 assert(typeof store.orderWrites.setAdminOrderStatus === 'function', 'postgres store exposes admin order status gateway');
 
-const result = await store.orderWrites.createOrder({
+const orderDraft = {
   orderId: '00000000-0000-4000-8000-000000000821',
   orderNo: 'ST2607080001',
   userId: '00000000-0000-4000-8000-000000000822',
@@ -45,17 +45,42 @@ const result = await store.orderWrites.createOrder({
       amountCents: 3000,
     },
   ],
-});
+};
+const result = await store.orderWrites.createOrder(orderDraft);
 
 const client = pool.clients[0];
 assert(result.order?.id === '00000000-0000-4000-8000-000000000821', 'order gateway returns inserted order');
 assert(result.payment?.id === '00000000-0000-4000-8000-000000000827', 'order gateway returns inserted payment');
 assert(client.calls.some((call) => /from availability_slots/i.test(call.sql) && /for update/i.test(call.sql)), 'order gateway locks slot');
 assert(client.calls.some((call) => /insert into orders/i.test(call.sql)), 'order gateway inserts order');
+assert(!client.calls.some((call) => /insert into order_items/i.test(call.sql)), 'disabled domain does not write a photography item');
 assert(client.calls.some((call) => /insert into payments/i.test(call.sql)), 'order gateway inserts payment');
 assert(client.calls.some((call) => /update availability_slots/i.test(call.sql)), 'order gateway updates slot');
 assert(client.calls.some((call) => /^commit$/i.test(call.sql)), 'order gateway commits transaction');
 assert(client.released === true, 'order gateway releases client');
+
+const compositePool = createMockPool();
+const compositeStore = createPostgresStore({
+  databaseUrl: 'postgres://user:pass@127.0.0.1:5432/pp',
+  poolFactory: () => compositePool,
+  featureFlags: { domainEnabled: true, compositePaymentsEnabled: false },
+});
+await compositeStore.orderWrites.createOrder(orderDraft);
+const compositeClient = compositePool.clients[0];
+assert(compositeClient.calls.some((call) => /insert into order_items/i.test(call.sql)), 'enabled domain writes the photography item through the store gateway');
+assert(compositeClient.calls.some((call) => /^commit$/i.test(call.sql)), 'enabled domain commits the item with the aggregate order');
+assert(compositeClient.released === true, 'enabled domain releases the order client');
+
+await compositeStore.orderWrites.setAdminOrderStatus({
+  orderId: '00000000-0000-4000-8000-000000000821',
+  status: 'disputed',
+  statusLogId: '00000000-0000-4000-8000-000000000835',
+  adminId: '00000000-0000-4000-8000-000000000836',
+});
+const compositeAdminClient = compositePool.clients[1];
+assert(compositeAdminClient.calls.some((call) => /update order_items/i.test(call.sql)), 'enabled domain propagates lifecycle state through the store gateway');
+assert(compositeAdminClient.calls.find((call) => /update order_items/i.test(call.sql))?.params[1] === 'disputed', 'enabled gateway freezes the photography item on dispute');
+assert(compositeAdminClient.released === true, 'enabled lifecycle gateway releases the client');
 
 const adminResult = await store.orderWrites.setAdminOrderStatus({
   orderId: '00000000-0000-4000-8000-000000000821',
@@ -106,8 +131,8 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      checks: ['order-write-capability', 'create-order-gateway', 'admin-status-gateway', 'terminal-payment-gateway', 'expire-pending-payment-gateway', 'refund-terminal-gateway', 'client-release'],
-      queryCount: client.calls.length + adminClient.calls.length + terminalClient.calls.length + expiredClient.calls.length + refundClient.calls.length,
+      checks: ['order-write-capability', 'create-order-gateway', 'feature-gated-photography-item', 'feature-gated-lifecycle-sync', 'admin-status-gateway', 'terminal-payment-gateway', 'expire-pending-payment-gateway', 'refund-terminal-gateway', 'client-release'],
+      queryCount: client.calls.length + compositeClient.calls.length + compositeAdminClient.calls.length + adminClient.calls.length + terminalClient.calls.length + expiredClient.calls.length + refundClient.calls.length,
     },
     null,
     2,

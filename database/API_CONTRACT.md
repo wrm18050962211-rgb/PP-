@@ -316,6 +316,85 @@ companions.service_enabled = true
 按 matchScore、distanceMeters、ratingAvg 排序
 ```
 
+## 1.8. 商家与组合订单领域骨架（默认关闭）
+
+本节只固定后续组合订单使用的数据契约，不增加用户入口、不开放商家 API，也不启用真实组合支付。运行时开关 `ENABLE_COMPOSITE_ORDER_DOMAIN` 默认是 `false`；即使打开，该首个切片的 `compositePaymentsEnabled` 仍固定为 `false`。
+
+涉及表：
+
+- `merchants`
+- `merchant_offerings`
+- `photographer_merchant_links`
+- `order_items`
+
+领域约定：
+
+- 商家套餐按 `merchant_id + offering_code + version` 保存固定价格和标准时长；订单项同时保存版本、价格和时间快照，套餐后续改价不得影响历史订单。
+- `discount_amount_cents` 只表示服务方承担的服务优惠；`total_amount_cents` 是服务项计价金额；`platform_subsidy_cents` 是平台承担的补贴；用户实付满足 `user_payable_cents = total_amount_cents - platform_subsidy_cents`。
+- 商家订单项必须引用同一商家、同一版本和同一服务类型的套餐；摄影订单项的摄影师必须与聚合订单摄影师一致，其 `activity_pricing_id` 也必须属于该摄影师。只要订单已有服务项，所有服务项 `user_payable_cents` 合计必须等于聚合订单总额；已有服务项的订单不能删除最后一个服务项。
+- 摄影师和商家合作关系必须分别留下确认时间；只有双方确认的关系才能标记为主要合作关系，同一摄影师最多一个已确认主要商家。
+- 用户侧继续保留一个聚合订单；内部的摄影、妆造、服装等服务分别保存提供方、接单、履约、退款与结算状态。
+- 当前 `orders` 仍是生产订单、支付和状态流的唯一权威来源。迁移为已有纯摄影订单回填一个 `photography` 服务项；功能开关关闭时现有写入事务保持不变，打开时在同一事务同步写入纯摄影服务项，并把支付后待接单、确认、完成、取消、退款、争议和结算准备状态同步到摄影服务项，但仍不开放组合支付。
+- 从关闭切换为打开前必须执行 `select backfill_missing_photography_order_items();`；该函数可重复执行，只补缺失服务项，并使用订单内下一个可用 `item_no` 避免与实验数据冲突。读模型会拒绝在最近订单仍缺服务项时激活，避免静默产生新旧订单结构倒挂。
+
+公开商家摘要不包含电话原文：
+
+```json
+{
+  "id": "merchant_uuid",
+  "name": "示例妆造店",
+  "city": "上海",
+  "hasContactPhone": true,
+  "contactPhoneVisibility": "confirmed_order_only"
+}
+```
+
+电话只能由未来的“已确认订单联系人”授权接口单独返回。该接口必须同时校验当前用户属于订单、组合订单已经正式确认、商家是订单服务项提供方；不得复用公开商家摘要或搜索接口返回号码。
+
+订单服务项只读结构：
+
+```json
+{
+  "id": "order_item_uuid",
+  "orderId": "order_uuid",
+  "itemNo": 2,
+  "serviceType": "makeup",
+  "provider": {
+    "type": "merchant",
+    "id": "merchant_uuid",
+    "name": "示例妆造店"
+  },
+  "merchantOfferingId": "offering_uuid",
+  "offeringVersion": 1,
+  "serviceName": "基础妆发",
+  "durationMinutes": 90,
+  "startAt": "2026-08-20T04:30:00.000Z",
+  "endAt": "2026-08-20T06:00:00.000Z",
+  "pricing": {
+    "baseAmountCents": 29900,
+    "extraAmountCents": 0,
+    "discountAmountCents": 0,
+    "totalAmountCents": 29900,
+    "platformSubsidyCents": 0,
+    "userPayableCents": 29900,
+    "currency": "CNY"
+  },
+  "acceptance": {
+    "status": "pending",
+    "deadlineAt": "2026-08-19T10:00:00.000Z"
+  },
+  "fulfillment": {
+    "status": "not_started"
+  },
+  "refund": {
+    "status": "not_requested",
+    "refundedAmountCents": 0
+  }
+}
+```
+
+公开订单服务项不得包含平台佣金、服务方应结收入、内部计价快照或结算状态；这些字段只存在于服务端内部订单项和 Admin 账本中。
+
 ## 2. 下单与支付
 
 对应页面：
