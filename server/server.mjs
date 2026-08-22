@@ -3728,7 +3728,7 @@ function viewPublicOrderStatusLogs(logs) {
 function publicLegacyLocationSnapshot(order) {
   const lat = nullableOrderNumber(order.placeLat);
   const lng = nullableOrderNumber(order.placeLng);
-  const hasCoordinatePair = lat !== null && lng !== null;
+  const hasCoordinatePair = lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
   return {
     name: text(order.place || order.placeName),
     address: text(order.placeAddress) || null,

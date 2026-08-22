@@ -5,6 +5,7 @@ const ids = {
   sessionId: '00000000-0000-4000-8000-000000000601',
   userId: '00000000-0000-4000-8000-000000000602',
   companionId: '00000000-0000-4000-8000-000000000603',
+  otherCompanionId: '00000000-0000-4000-8000-000000000699',
 };
 
 const pool = createMockPool();
@@ -52,7 +53,15 @@ assert(foundUserSession.companionId === ids.companionId, 'find gateway maps comp
 const findUserCall = pool.clients[3].calls.find((call) => /from user_sessions s/i.test(call.sql));
 assert(findUserCall.params[0] === hashSessionToken('raw-session-token'), 'find gateway queries by token hash');
 assert(!findUserCall.params.includes('raw-session-token'), 'find gateway never sends raw token to PostgreSQL');
+assert(/c\.user_id = u\.id[\s\S]*s\.companion_id is null or c\.id = s\.companion_id/i.test(findUserCall.sql), 'session lookup only joins a companion owned by the session user');
+assert(/c\.id as companion_id/i.test(findUserCall.sql) && !/coalesce\(s\.companion_id, c\.id\)/i.test(findUserCall.sql), 'session lookup never trusts an unverified stored companion id');
 assert(pool.clients[3].released === true, 'find user gateway releases client');
+
+const derivedCompanionSession = await store.sessionWrites.findByToken('raw-consumer-derived-companion-token');
+assert(derivedCompanionSession.role === 'consumer', 'consumer session keeps its active role');
+assert(derivedCompanionSession.roles.includes('companion'), 'consumer session can discover its own approved companion role');
+assert(derivedCompanionSession.companionId === ids.companionId, 'consumer session derives only its joined approved companion id');
+assert(pool.clients[4].released === true, 'derived companion lookup releases its client');
 
 const foundAdminSession = await store.sessionWrites.findByToken('raw-admin-token');
 assert(foundAdminSession.role === 'admin', 'find gateway maps admin session role');
@@ -61,7 +70,7 @@ assert(foundAdminSession.user.nickname === 'Ops Admin', 'find gateway maps admin
 assert(foundAdminSession.roles.length === 1 && foundAdminSession.roles[0] === 'admin', 'find gateway keeps admin roles isolated');
 assert(!foundAdminSession.roles.includes('consumer') && !foundAdminSession.roles.includes('companion'), 'find gateway does not leak public roles into admin session');
 assert(foundAdminSession.adminScope.includes('risk'), 'find gateway maps admin scope from metadata');
-assert(pool.clients[4].released === true, 'find admin gateway releases client');
+assert(pool.clients[5].released === true, 'find admin gateway releases client');
 
 const pendingConsumerSession = await store.sessionWrites.findByToken('raw-pending-consumer-token');
 assert(pendingConsumerSession.role === 'consumer', 'pending companion keeps consumer session role');
@@ -77,6 +86,9 @@ assert(inactiveAdminSession === null, 'inactive admin session is rejected');
 const pendingCompanionSession = await store.sessionWrites.findByToken('raw-pending-companion-token');
 assert(pendingCompanionSession === null, 'pending companion session is rejected');
 
+const mismatchedCompanionSession = await store.sessionWrites.findByToken('raw-mismatched-companion-token');
+assert(mismatchedCompanionSession === null, 'companion session whose companion does not belong to the user is rejected');
+
 console.log(
   JSON.stringify(
     {
@@ -87,12 +99,14 @@ console.log(
         'touch-session-gateway',
         'revoke-session-gateway',
         'find-user-session-gateway',
+        'consumer-approved-companion-derivation',
         'find-admin-session-gateway',
         'admin-role-isolation',
         'pending-companion-role-boundary',
         'inactive-user-rejection',
         'inactive-admin-rejection',
         'stale-companion-session-rejection',
+        'companion-user-ownership-boundary',
         'client-release',
       ],
       clientCount: pool.clients.length,
@@ -151,6 +165,14 @@ function sessionRowForTokenHash(tokenHash) {
     };
   }
 
+  if (tokenHash === hashSessionToken('raw-consumer-derived-companion-token')) {
+    return {
+      ...activeUserSessionRow(),
+      session_role: 'consumer',
+      session_companion_id: null,
+    };
+  }
+
   if (tokenHash === hashSessionToken('raw-pending-consumer-token')) {
     return {
       ...activeUserSessionRow(),
@@ -187,6 +209,14 @@ function sessionRowForTokenHash(tokenHash) {
     return {
       ...activeUserSessionRow(),
       companion_status: 'pending_review',
+    };
+  }
+  if (tokenHash === hashSessionToken('raw-mismatched-companion-token')) {
+    return {
+      ...activeUserSessionRow(),
+      session_companion_id: ids.otherCompanionId,
+      companion_id: null,
+      companion_status: null,
     };
   }
 

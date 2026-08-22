@@ -253,12 +253,14 @@ async function findSessionByToken(client, token) {
             a.name as admin_name,
             a.role as admin_role,
             a.status as admin_status,
-            coalesce(s.companion_id, c.id) as companion_id,
+            c.id as companion_id,
             c.status as companion_status
      from user_sessions s
      left join users u on u.id = s.user_id
      left join admin_users a on a.id = s.admin_id
-     left join companions c on c.user_id = u.id
+     left join companions c
+       on c.user_id = u.id
+      and (s.companion_id is null or c.id = s.companion_id)
      where s.token_hash = $1
        and s.revoked_at is null
        and s.expires_at > now()

@@ -40,6 +40,29 @@ const draft = {
   ],
 };
 
+const invalidCoordinateClient = createMockClient([]);
+await assertRejects(
+  () => createOrderTransaction(invalidCoordinateClient, { ...draft, placeLat: null }),
+  'coordinates must be provided as a pair',
+  'single coordinate rejects before the transaction starts',
+);
+await assertRejects(
+  () => createOrderTransaction(invalidCoordinateClient, { ...draft, placeLat: 91 }),
+  'latitude must be a finite number between -90 and 90',
+  'out-of-range latitude rejects before the transaction starts',
+);
+await assertRejects(
+  () => createOrderTransaction(invalidCoordinateClient, { ...draft, placeLng: '121.4386' }),
+  'longitude must be a finite number between -180 and 180',
+  'string longitude rejects before the transaction starts',
+);
+assert(invalidCoordinateClient.calls.length === 0, 'invalid coordinates never reach PostgreSQL');
+
+const emptyCoordinateClient = createMockClient([{ id: draft.availabilitySlotId, status: 'available' }]);
+await createOrderTransaction(emptyCoordinateClient, { ...draft, placeLat: null, placeLng: null });
+const emptyCoordinateInsert = emptyCoordinateClient.calls.find((call) => /insert into orders/i.test(call.sql));
+assert(emptyCoordinateInsert?.params?.[20] === null && emptyCoordinateInsert?.params?.[21] === null, 'double-null legacy coordinates remain compatible');
+
 const successClient = createMockClient([{ id: draft.availabilitySlotId, status: 'available' }]);
 const result = await createOrderTransaction(successClient, draft);
 const successSql = successClient.calls.map((call) => call.sql);
@@ -282,6 +305,7 @@ console.log(
         'slot-for-update',
         'insert-order',
         'insert-legacy-location-coordinates',
+        'validate-legacy-location-coordinates',
         'insert-extras',
         'disabled-domain-no-item-write',
         'enabled-domain-photography-item',

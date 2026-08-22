@@ -73,6 +73,15 @@ assert(
   'partial legacy coordinates are returned as a null pair',
 );
 
+const invalidCoordinateClient = mockClient(() => ({
+  rows: [orderRow(ids.order1, '2026-08-23T10:00:00.000Z', { place_lat: '91.0000000', place_lng: '121.4380000' })],
+}));
+const invalidCoordinatePage = await listOrdersForActor(invalidCoordinateClient, { role: 'consumer', userId: ids.user });
+assert(
+  invalidCoordinatePage.items[0].locationSnapshot.lat === null && invalidCoordinatePage.items[0].locationSnapshot.lng === null,
+  'out-of-range persisted coordinates fail closed as a null pair',
+);
+
 const firstListCall = consumerClient.calls[0];
 assert(/o\.user_id = \$1::uuid/i.test(firstListCall.sql), 'consumer ownership is enforced in SQL');
 assert(/\(o\.created_at, o\.id\) < \(\$3::timestamptz, \$4::uuid\)/i.test(firstListCall.sql), 'list uses composite keyset pagination');

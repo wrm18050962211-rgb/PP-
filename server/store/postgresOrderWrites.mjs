@@ -687,6 +687,18 @@ function assertDraft(draft) {
   ];
   const missing = required.filter((key) => draft?.[key] === undefined || draft?.[key] === null || draft?.[key] === '');
   if (missing.length) throw new Error(`Missing createOrder draft fields: ${missing.join(', ')}`);
+
+  const hasLatitude = draft.placeLat !== undefined && draft.placeLat !== null;
+  const hasLongitude = draft.placeLng !== undefined && draft.placeLng !== null;
+  if (hasLatitude !== hasLongitude) throw new Error('Order location coordinates must be provided as a pair');
+  if (hasLatitude) {
+    if (typeof draft.placeLat !== 'number' || !Number.isFinite(draft.placeLat) || draft.placeLat < -90 || draft.placeLat > 90) {
+      throw new Error('Order latitude must be a finite number between -90 and 90');
+    }
+    if (typeof draft.placeLng !== 'number' || !Number.isFinite(draft.placeLng) || draft.placeLng < -180 || draft.placeLng > 180) {
+      throw new Error('Order longitude must be a finite number between -180 and 180');
+    }
+  }
 }
 
 function assertPaymentDraft(draft) {

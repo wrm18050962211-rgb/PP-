@@ -419,7 +419,7 @@ function mapOrderDetail(row, role, serviceItems) {
 function mapLocationSnapshot(row) {
   const lat = nullableNumber(row.place_lat);
   const lng = nullableNumber(row.place_lng);
-  const hasCoordinatePair = lat !== null && lng !== null;
+  const hasCoordinatePair = lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
   return {
     name: normalize(row.place_name) || normalize(row.city),
     address: optionalText(row.place_address) ?? null,
