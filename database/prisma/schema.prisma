@@ -157,6 +157,18 @@ enum OrderItemSource {
   composite
 }
 
+enum BookingRequestStatus {
+  submitted
+  confirmed
+  declined
+  cancelled
+}
+
+enum BookingRequestActorType {
+  user
+  admin
+}
+
 model User {
   id          String     @id @default(uuid()) @db.Uuid
   phone       String?    @unique @db.VarChar(32)
@@ -190,6 +202,8 @@ model User {
   submittedAuditCases  AuditCase[]
   sessions             UserSession[]
   ownedMerchants       Merchant[]
+  bookingRequests      BookingRequest[]          @relation("BookingRequestUser")
+  bookingStatusActions BookingRequestStatusLog[] @relation("BookingRequestStatusUserActor")
 
   @@index([city])
   @@index([status])
@@ -294,6 +308,7 @@ model Companion {
   withdrawals    Withdrawal[]
   merchantLinks  PhotographerMerchantLink[]
   orderItems     OrderItem[]
+  bookingRequests BookingRequest[] @relation("BookingRequestCompanion")
 
   @@index([baseCity, status])
   @@index([serviceEnabled])
@@ -1091,9 +1106,72 @@ model AdminUser {
   actionLogs    AdminActionLog[]
   systemConfigs SystemConfig[]
   sessions      UserSession[]
+  bookingStatusActions BookingRequestStatusLog[] @relation("BookingRequestStatusAdminActor")
 
   @@index([role])
   @@map("admin_users")
+}
+
+/// Raw SQL additionally enforces the Store Lite status machine, complete
+/// confirmation snapshots, actor XOR rules, and user-owner composite FK.
+/// Keep the additive SQL migration as authority for those constraints.
+model BookingRequest {
+  id                       String               @id @default(uuid()) @db.Uuid
+  userId                   String               @map("user_id") @db.Uuid
+  companionId              String               @map("companion_id") @db.Uuid
+  clientRequestId          String               @map("client_request_id") @db.VarChar(160)
+  requestFingerprint       String               @map("request_fingerprint") @db.VarChar(128)
+  requestedStartAt         DateTime             @map("requested_start_at") @db.Timestamptz(6)
+  requestedEndAt           DateTime             @map("requested_end_at") @db.Timestamptz(6)
+  timezone                 String               @default("Asia/Shanghai") @db.VarChar(80)
+  city                     String               @db.VarChar(80)
+  addressText              String               @map("address_text") @db.VarChar(500)
+  requirements             String               @db.VarChar(2000)
+  status                   BookingRequestStatus @default(submitted)
+  confirmedStartAt         DateTime?            @map("confirmed_start_at") @db.Timestamptz(6)
+  confirmedEndAt           DateTime?            @map("confirmed_end_at") @db.Timestamptz(6)
+  confirmedCity            String?              @map("confirmed_city") @db.VarChar(80)
+  confirmedAddressText     String?              @map("confirmed_address_text") @db.VarChar(500)
+  arrivalInstructions      String?              @map("arrival_instructions") @db.VarChar(1000)
+  supportChannelKey        String?              @map("support_channel_key") @db.VarChar(80)
+  confirmedAt              DateTime?            @map("confirmed_at") @db.Timestamptz(6)
+  declinedAt               DateTime?            @map("declined_at") @db.Timestamptz(6)
+  cancelledAt              DateTime?            @map("cancelled_at") @db.Timestamptz(6)
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user       User                      @relation("BookingRequestUser", fields: [userId], references: [id], onDelete: NoAction)
+  companion  Companion                 @relation("BookingRequestCompanion", fields: [companionId], references: [id], onDelete: NoAction)
+  statusLogs BookingRequestStatusLog[]
+
+  @@unique([id, userId], map: "uq_booking_requests_id_user")
+  @@unique([userId, clientRequestId], map: "uq_booking_requests_user_client")
+  @@index([userId, createdAt, id], map: "idx_booking_requests_user_created")
+  @@index([userId, status, createdAt, id], map: "idx_booking_requests_user_status_created")
+  @@index([status, createdAt, id], map: "idx_booking_requests_operator_queue")
+  @@index([companionId, status, requestedStartAt, id], map: "idx_booking_requests_companion_time")
+  @@map("booking_requests")
+}
+
+model BookingRequestStatusLog {
+  id               String                  @id @default(uuid()) @db.Uuid
+  bookingRequestId String                  @map("booking_request_id") @db.Uuid
+  fromStatus       BookingRequestStatus?   @map("from_status")
+  toStatus         BookingRequestStatus    @map("to_status")
+  actorType        BookingRequestActorType @map("actor_type")
+  actorUserId      String?                 @map("actor_user_id") @db.Uuid
+  actorAdminId     String?                 @map("actor_admin_id") @db.Uuid
+  reasonCode       String?                 @map("reason_code") @db.VarChar(80)
+  reason           String?                 @db.VarChar(1000)
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  bookingRequest BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+  actorUser     User?          @relation("BookingRequestStatusUserActor", fields: [actorUserId], references: [id], onDelete: NoAction)
+  actorAdmin    AdminUser?     @relation("BookingRequestStatusAdminActor", fields: [actorAdminId], references: [id], onDelete: NoAction)
+
+  @@index([bookingRequestId, createdAt, id], map: "idx_booking_request_status_logs_request")
+  @@index([actorAdminId, createdAt], map: "idx_booking_request_status_logs_admin")
+  @@map("booking_request_status_logs")
 }
 
 model UserSession {

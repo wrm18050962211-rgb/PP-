@@ -12,7 +12,19 @@ import {
   updateCompanionProfileTransaction,
 } from './postgresContentGateway.mjs';
 import { recordAdminActionTransaction, recordAuditLogTransaction } from './postgresAuditWrites.mjs';
+import { adminScopesForRole, authenticateAdmin } from './postgresAdminAuth.mjs';
 import { upsertAuthIdentityUserTransaction } from './postgresAuthWrites.mjs';
+import {
+  cancelBookingRequestForAdmin,
+  cancelBookingRequestForConsumer,
+  confirmBookingRequestForAdmin,
+  createBookingRequestForConsumer,
+  declineBookingRequestForAdmin,
+  getBookingRequestDetailForAdmin,
+  getBookingRequestDetailForConsumer,
+  listBookingRequestsForAdmin,
+  listBookingRequestsForConsumer,
+} from './postgresBookingRequests.mjs';
 import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransaction, findIdempotencyRequest } from './postgresIdempotencyWrites.mjs';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
@@ -31,6 +43,7 @@ export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {
   }
 
   const compositeOrderDomainEnabled = featureFlags.domainEnabled === true;
+  const storeLiteBookingsEnabled = featureFlags.storeLiteBookingsEnabled === true;
   const compositeOrderDomainOptions = Object.freeze({ compositeOrderDomainEnabled });
   let poolPromise;
 
@@ -39,6 +52,7 @@ export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {
     capabilities: {
       readModel: true,
       authWrites: true,
+      adminAuth: true,
       writes: false,
       transactions: false,
       auditWrites: true,
@@ -55,6 +69,7 @@ export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {
       contentWrites: true,
       compositeOrderDomain: compositeOrderDomainEnabled,
       compositeOrderPayments: false,
+      bookingRequests: storeLiteBookingsEnabled,
     },
     content: {
       listPublicPosts: (options) => withClient((client) => listPublicPosts(client, options)),
@@ -71,6 +86,24 @@ export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {
     authWrites: {
       upsertIdentityUser: (identity) => withClient((client) => upsertAuthIdentityUserTransaction(client, toAuthIdentityDraft(identity))),
     },
+    adminAuth: {
+      authenticate: (credentials) => withClient((client) => authenticateAdmin(client, credentials)),
+    },
+    ...(storeLiteBookingsEnabled
+      ? {
+          bookingRequests: {
+            createForConsumer: (draft) => withClient((client) => createBookingRequestForConsumer(client, draft)),
+            listForConsumer: (options) => withClient((client) => listBookingRequestsForConsumer(client, options)),
+            getForConsumer: (options) => withClient((client) => getBookingRequestDetailForConsumer(client, options)),
+            cancelForConsumer: (draft) => withClient((client) => cancelBookingRequestForConsumer(client, draft)),
+            listForAdmin: (options) => withClient((client) => listBookingRequestsForAdmin(client, options)),
+            getForAdmin: (options) => withClient((client) => getBookingRequestDetailForAdmin(client, options)),
+            confirmForAdmin: (draft) => withClient((client) => confirmBookingRequestForAdmin(client, draft)),
+            declineForAdmin: (draft) => withClient((client) => declineBookingRequestForAdmin(client, draft)),
+            cancelForAdmin: (draft) => withClient((client) => cancelBookingRequestForAdmin(client, draft)),
+          },
+        }
+      : {}),
     phoneVerificationWrites: {
       issue: (draft) => withClient((client) => issuePhoneVerificationChallengeTransaction(client, draft)),
       markSent: (draft) => withClient((client) => markPhoneVerificationSentTransaction(client, draft)),
@@ -309,7 +342,7 @@ function mapSessionRow(row, token) {
     user,
     companionId: isAdmin || !hasApprovedCompanion ? null : row.companion_id || row.session_companion_id || null,
     adminId: isAdmin ? row.admin_id || row.session_admin_id || null : null,
-    adminScope: isAdmin ? metadata.adminScope || ['audit', 'orders', 'risk', 'finance'] : [],
+    adminScope: isAdmin ? normalizeAdminScopes(metadata.adminScope, row.admin_role) : [],
     mode: metadata.mode || null,
     loginAt: toIsoString(row.login_at),
     updatedAt: toIsoString(row.last_seen_at),
@@ -331,6 +364,13 @@ function isSessionPrincipalActive(row) {
 function normalizeJsonObject(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value;
+}
+
+function normalizeAdminScopes(value, role) {
+  const roleScopes = adminScopesForRole(role);
+  if (!Array.isArray(value)) return roleScopes;
+  const persistedScopes = new Set(value.map((item) => String(item || '').trim()).filter(Boolean));
+  return roleScopes.filter((scope) => persistedScopes.has(scope));
 }
 
 function toIsoString(value) {

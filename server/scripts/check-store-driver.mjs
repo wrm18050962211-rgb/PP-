@@ -38,6 +38,8 @@ try {
   assert(postgresStore.kind === 'postgres', 'postgres driver can be selected when DATABASE_URL exists');
   assert(postgresStore.capabilities?.readModel === true && postgresStore.capabilities?.writes === false, 'postgres store advertises read-only MVP state');
   assert(postgresStore.capabilities?.authWrites === true && typeof postgresStore.authWrites?.upsertIdentityUser === 'function', 'postgres store exposes auth write gateway');
+  assert(postgresStore.capabilities?.adminAuth === true && typeof postgresStore.adminAuth?.authenticate === 'function', 'postgres store exposes admin password auth gateway');
+  assert(postgresStore.capabilities?.bookingRequests === false && !postgresStore.bookingRequests, 'Store Lite booking gateway is disabled by default');
   assert(postgresStore.capabilities?.auditWrites === true && typeof postgresStore.auditWrites?.recordAdminAction === 'function', 'postgres store exposes audit write gateway');
   assert(postgresStore.capabilities?.securityWrites === true && typeof postgresStore.securityWrites?.recordSecurityEvent === 'function', 'postgres store exposes security write gateway');
   assert(postgresStore.capabilities?.sessionWrites === true && typeof postgresStore.sessionWrites?.create === 'function', 'postgres store exposes session write gateway');
@@ -46,6 +48,23 @@ try {
       typeof postgresStore.idempotencyWrites?.findRequest === 'function' &&
       typeof postgresStore.idempotencyWrites?.beginRequest === 'function',
     'postgres store exposes idempotency write gateway',
+  );
+  process.env.ENABLE_STORE_LITE_BOOKINGS = 'true';
+  const storeLitePostgresStore = createDataStore({
+    storePath: resolve(tempDir, 'store.json'),
+    initialStore: () => ({ meta: { version: 1 } }),
+    normalizeStore: (store) => ({ store, changed: false }),
+  });
+  assert(
+    storeLitePostgresStore.capabilities?.bookingRequests === true &&
+      typeof storeLitePostgresStore.bookingRequests?.createForConsumer === 'function' &&
+      typeof storeLitePostgresStore.bookingRequests?.listForConsumer === 'function' &&
+      typeof storeLitePostgresStore.bookingRequests?.cancelForConsumer === 'function' &&
+      typeof storeLitePostgresStore.bookingRequests?.listForAdmin === 'function' &&
+      typeof storeLitePostgresStore.bookingRequests?.confirmForAdmin === 'function' &&
+      typeof storeLitePostgresStore.bookingRequests?.declineForAdmin === 'function' &&
+      typeof storeLitePostgresStore.bookingRequests?.cancelForAdmin === 'function',
+    'Store Lite flag exposes the complete PostgreSQL booking gateway',
   );
   assert(
     postgresStore.capabilities?.orderReads === true &&
@@ -91,6 +110,9 @@ try {
           'postgres-requires-database-url',
           'postgres-selectable',
           'postgres-auth-gateway',
+          'postgres-admin-auth-gateway',
+          'store-lite-booking-default-off',
+          'store-lite-booking-flagged-gateway',
           'postgres-audit-gateway',
           'postgres-security-gateway',
           'postgres-session-gateway',
@@ -110,6 +132,7 @@ try {
 } finally {
   delete process.env.STORE_DRIVER;
   delete process.env.DATABASE_URL;
+  delete process.env.ENABLE_STORE_LITE_BOOKINGS;
   await rm(tempDir, { recursive: true, force: true });
 }
 

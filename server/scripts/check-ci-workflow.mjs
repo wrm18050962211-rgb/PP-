@@ -5,6 +5,10 @@ const migrationCheck = readFileSync(
   new URL('./check-composite-order-migration-live.mjs', import.meta.url),
   'utf8',
 );
+const storeLiteBookingLiveCheck = readFileSync(
+  new URL('./check-postgres-store-lite-booking-live.mjs', import.meta.url),
+  'utf8',
+);
 const serverPackage = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const baselineCommit = 'cac663d0fa9772b1d1420ac2c899f95c2a4d4ba6';
 
@@ -22,6 +26,8 @@ const serverStepsIndex = serverJob.search(/\r?\n    steps:/);
 assert(serverStepsIndex > 0, 'server-check job defines steps');
 const serverJobEnvironment = serverJob.slice(0, serverStepsIndex);
 assert(!serverJobEnvironment.includes('ALLOW_DESTRUCTIVE_MIGRATION_TEST'), 'destructive migration opt-in is not job-wide');
+assert(!serverJobEnvironment.includes('ALLOW_STORE_LITE_LIVE_TEST'), 'Store Lite booking live opt-in is not job-wide');
+assert(!serverJobEnvironment.includes('STORE_LITE_TEST_DATABASE_URL'), 'Store Lite booking test URL is not job-wide');
 assert(
   /name:\s*Run isolated composite-order migration audit[\s\S]*?env:\s*\n\s*ALLOW_DESTRUCTIVE_MIGRATION_TEST:\s*["']?1["']?[\s\S]*?run:\s*npm run check:composite-order-migration-live/.test(workflow),
   'destructive migration opt-in is scoped to the audit step',
@@ -31,6 +37,11 @@ assert(
   'workflow loads the canonical schema with fail-fast psql settings',
 );
 assert(/createdb[^\n]+pp_platform_migration_ci/.test(workflow), 'workflow creates the dedicated migration database');
+assert(/createdb[^\n]+pp_platform_store_lite_ci/.test(workflow), 'workflow creates the dedicated Store Lite booking database');
+assert(
+  workflow.includes('psql "postgres://postgres:postgres@localhost:5432/pp_platform_store_lite_ci" --no-psqlrc --set ON_ERROR_STOP=1 --file database/schema.sql'),
+  'workflow loads canonical schema into the Store Lite booking database with fail-fast settings',
+);
 assert(
   workflow.includes(`git show ${baselineCommit}:database/schema.sql`)
     && workflow.includes(`git show ${baselineCommit}:database/seed_mvp.sql`),
@@ -43,6 +54,7 @@ assert(
 );
 assert(/npm run check:mvp/.test(workflow), 'workflow runs server MVP checks');
 assert(/npm run check:postgres-live/.test(workflow), 'workflow runs live PostgreSQL checks');
+assert(/npm run check:postgres-store-lite-booking-live/.test(workflow), 'workflow runs the isolated Store Lite booking audit');
 assert(/npm run check:composite-order-migration-live/.test(workflow), 'workflow runs isolated composite-order migration audit');
 assert(/cache-dependency-path:\s*pp-app\/package-lock\.json/.test(workflow), 'workflow caches frontend dependencies by lockfile');
 assert(/npm ci/.test(workflow), 'workflow installs frontend dependencies reproducibly');
@@ -59,6 +71,36 @@ assert(
     === 'node scripts/check-composite-order-migration-live.mjs',
   'server package exposes isolated composite-order migration audit',
 );
+assert(
+  serverPackage.scripts?.['check:postgres-store-lite-booking-live']
+    === 'node scripts/check-postgres-store-lite-booking-live.mjs',
+  'server package exposes isolated Store Lite booking audit',
+);
+assert(storeLiteBookingLiveCheck.includes('process.env.STORE_LITE_TEST_DATABASE_URL'), 'Store Lite booking audit reads only its dedicated URL');
+assert(!storeLiteBookingLiveCheck.includes('process.env.DATABASE_URL'), 'Store Lite booking audit never reads the application database URL');
+assert(storeLiteBookingLiveCheck.includes("ALLOW_STORE_LITE_LIVE_TEST !== '1'"), 'Store Lite booking audit requires an explicit opt-in');
+assert(storeLiteBookingLiveCheck.includes("const REQUIRED_DATABASE_NAME = 'pp_platform_store_lite_ci'"), 'Store Lite booking audit pins the database name');
+for (const hostname of ['localhost', '127.0.0.1', '::1']) {
+  assert(storeLiteBookingLiveCheck.includes(`'${hostname}'`), `Store Lite booking audit allows ${hostname}`);
+}
+assert(/server_version_num\s*>?=\s*160000[\s\S]+server_version_num\s*<\s*170000/.test(storeLiteBookingLiveCheck), 'Store Lite booking audit requires PostgreSQL 16');
+assert(storeLiteBookingLiveCheck.includes('const PAGINATION_BOOKING_COUNT = 112'), 'Store Lite booking audit crosses the legacy 100-row ceiling');
+assert(storeLiteBookingLiveCheck.includes('await assertCreateIdempotencyAndIsolation'), 'Store Lite booking audit verifies idempotency and ownership isolation');
+assert(storeLiteBookingLiveCheck.includes('await assertConcurrentConfirm'), 'Store Lite booking audit verifies concurrent admin confirmation');
+assert(storeLiteBookingLiveCheck.includes('await assertAdminAuditRollback'), 'Store Lite booking audit verifies transactional admin audit rollback');
+assert(storeLiteBookingLiveCheck.includes('await cleanupFixture(control, fixture)'), 'Store Lite booking audit cleans its random UUID fixtures');
+assert(storeLiteBookingLiveCheck.includes('await assertFixtureAbsent(control, fixture)'), 'Store Lite booking audit verifies fixture cleanup');
+assert(!/\b(?:create|alter|truncate|drop|grant|revoke|vacuum|reindex)\b\s+(?:table|type|index|schema|database)\b/i.test(storeLiteBookingLiveCheck), 'Store Lite booking audit contains no DDL');
+assert(storeLiteBookingLiveCheck.includes('process.exitCode = 1'), 'a skipped Store Lite booking audit exits unsuccessfully');
+const storeLiteAuditStep = workflowStep(workflow, 'Run isolated Store Lite booking PostgreSQL audit');
+assert(storeLiteAuditStep, 'workflow defines the isolated Store Lite booking audit step');
+assert(
+  /env:\s*\n\s*STORE_LITE_TEST_DATABASE_URL:\s*postgres:\/\/postgres:postgres@localhost:5432\/pp_platform_store_lite_ci\s*\n\s*ALLOW_STORE_LITE_LIVE_TEST:\s*"1"/.test(storeLiteAuditStep)
+    && /run:\s*npm run check:postgres-store-lite-booking-live/.test(storeLiteAuditStep),
+  'Store Lite booking URL, opt-in, and command are contained in one audit step',
+);
+assert((workflow.match(/STORE_LITE_TEST_DATABASE_URL/g) || []).length === 1, 'Store Lite booking test URL appears only in its audit step');
+assert((workflow.match(/ALLOW_STORE_LITE_LIVE_TEST/g) || []).length === 1, 'Store Lite booking opt-in appears only in its audit step');
 assert(migrationCheck.includes('process.env.MIGRATION_TEST_DATABASE_URL'), 'migration audit reads only its dedicated URL');
 assert(!migrationCheck.includes('process.env.DATABASE_URL'), 'migration audit never reads the application database URL');
 assert(migrationCheck.includes("ALLOW_DESTRUCTIVE_MIGRATION_TEST !== '1'"), 'migration audit requires an explicit destructive-test flag');
@@ -96,8 +138,10 @@ console.log(
         'server-mvp',
         'live-postgres',
         'isolated-migration-database',
+        'isolated-store-lite-booking-database',
         'fixed-baseline-load',
         'migration-audit-safety-guards',
+        'store-lite-booking-live',
         'composite-order-migration-live',
         'full-git-history',
         'frontend-guards',
@@ -112,4 +156,12 @@ console.log(
 
 function assert(condition, message) {
   if (!condition) throw new Error(`CI workflow check failed: ${message}`);
+}
+
+function workflowStep(source, name) {
+  const marker = `      - name: ${name}`;
+  const start = source.indexOf(marker);
+  if (start < 0) return '';
+  const next = source.indexOf('\n      - ', start + marker.length);
+  return source.slice(start, next < 0 ? source.length : next);
 }

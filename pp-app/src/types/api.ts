@@ -68,6 +68,147 @@ export type OrderItemRefundStatus =
 export type OrderItemSettlementStatus = 'not_ready' | 'pending' | 'frozen' | 'settled' | 'cancelled';
 export type OrderItemSource = 'legacy_backfill' | 'composite';
 
+/** Store Lite 预约申请状态。该领域不代表订单、付款或资金托管状态。 */
+export type BookingRequestStatus = 'submitted' | 'confirmed' | 'declined' | 'cancelled';
+
+export type BookingRequestActorType = 'user' | 'admin';
+
+export type BookingRequestPhotographer = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+};
+
+export type BookingRequestRequestedSchedule = {
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  city: string;
+  addressText: string;
+};
+
+/**
+ * 仅运营确认后存在的履约快照。supportChannel 是平台配置键，
+ * 不是电话号码或可直接跳转的外部联系方式。
+ */
+export type BookingRequestConfirmation = {
+  startAt: string;
+  endAt: string;
+  city: string;
+  addressText: string;
+  arrivalInstructions: string;
+  supportChannel: string;
+  confirmedAt: string;
+};
+
+/** 消费者可见的状态轨迹；不包含操作人 ID、内部备注或原始审计字段。 */
+export type BookingRequestPublicStatusLog = {
+  id: string;
+  fromStatus: BookingRequestStatus | null;
+  toStatus: BookingRequestStatus;
+  message: string;
+  createdAt: string;
+};
+
+export type BookingRequestConsumerSummary = {
+  id: string;
+  status: BookingRequestStatus;
+  photographer: BookingRequestPhotographer;
+  requestedSchedule: BookingRequestRequestedSchedule;
+  confirmation: BookingRequestConfirmation | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BookingRequestConsumerDetail = BookingRequestConsumerSummary & {
+  requirements: string;
+  statusLogs: BookingRequestPublicStatusLog[];
+};
+
+export type BookingRequestConsumerListPage = {
+  items: BookingRequestConsumerSummary[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type BookingRequestAdminStatusLog = BookingRequestPublicStatusLog & {
+  actorType: BookingRequestActorType;
+  reasonCode: string | null;
+};
+
+export type BookingRequestAdminSummary = BookingRequestConsumerSummary & {
+  consumer: {
+    id: string;
+    name: string;
+    phoneMasked: string | null;
+  };
+  companionPhoneMasked: string | null;
+  requirementsPreview: string;
+};
+
+export type BookingRequestAdminDetail = Omit<BookingRequestConsumerDetail, 'statusLogs'> & {
+  consumer: {
+    id: string;
+    name: string;
+    phone: string | null;
+  };
+  companionPhone: string | null;
+  statusLogs: BookingRequestAdminStatusLog[];
+};
+
+export type BookingRequestAdminListPage = {
+  items: BookingRequestAdminSummary[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type BookingRequestListQuery = {
+  status?: BookingRequestStatus;
+  limit?: number;
+  cursor?: string;
+};
+
+export type CreateBookingRequestInput = {
+  companionId: string;
+  clientRequestId: string;
+  requestedStartAt: string;
+  requestedEndAt: string;
+  timezone?: string;
+  city: string;
+  addressText: string;
+  requirements: string;
+};
+
+export type ConfirmBookingRequestInput = {
+  confirmedStartAt: string;
+  confirmedEndAt: string;
+  confirmedCity: string;
+  confirmedAddressText: string;
+  arrivalInstructions: string;
+  supportChannelKey: string;
+  publicMessage?: string;
+  internalNote?: string;
+};
+
+export type DeclineBookingRequestInput = {
+  reasonCode: string;
+  publicMessage: string;
+  internalNote?: string;
+};
+
+/** 消费者取消输入；预约 ID 与消费者身份分别来自路径和 session。 */
+export type CancelBookingRequestInput = {
+  reasonCode?: string;
+  reason?: string;
+};
+
+/** 运营代表供给侧取消输入；内部备注只写审计日志，不进入响应 DTO。 */
+export type AdminCancelBookingRequestInput = {
+  reasonCode: string;
+  publicMessage: string;
+  internalNote?: string;
+};
+
 // Public/read-model merchant data intentionally excludes the phone number.
 // A confirmed-order contact response must use MerchantOrderContact instead.
 export type MerchantSummary = {

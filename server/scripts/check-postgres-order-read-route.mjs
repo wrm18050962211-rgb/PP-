@@ -24,11 +24,11 @@ assert((serverSource.match(/ORDER_POSTGRES_REQUIRED/g) || []).length >= 2, 'prod
 assert(/ORDER_READ_FAILED/.test(serverSource) && /ORDER_CURSOR_INVALID/.test(serverSource), 'gateway failures map to stable public errors');
 assert(/validateRouteQuery\(req\.method \|\| 'GET', url\.pathname, url\.searchParams\)/.test(serverSource), 'query validation runs before routing');
 assert(
-  /const requestScopedOrderStore = shouldUseRequestScopedOrderStore\(req\.method \|\| 'GET', url\.pathname\)[\s\S]*requestScopedOrderStore[\s\S]*createRequestScopedStore\(\)[\s\S]*dataStore\.load\(\)/.test(serverSource),
+  /const requestScopedStore = shouldUseRequestScopedStore\(req\.method \|\| 'GET', url\.pathname\)[\s\S]*requestScopedStore[\s\S]*createRequestScopedStore\(\)[\s\S]*dataStore\.load\(\)/.test(serverSource),
   'authoritative order routes choose a request-scoped store before the global read model',
 );
 assert(
-  /function shouldUseRequestScopedOrderStore[\s\S]*path === '\/api\/orders'[\s\S]*confirm\|complete\|cancel\|status[\s\S]*\/api\\\/admin\\\/orders/.test(serverSource),
+  /function shouldUseRequestScopedStore[\s\S]*path === '\/api\/orders'[\s\S]*confirm\|complete\|cancel\|status[\s\S]*\/api\\\/admin\\\/orders/.test(serverSource),
   'request-scoped store covers list, detail, public lifecycle actions, and both admin status routes',
 );
 assert(

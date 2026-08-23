@@ -397,6 +397,210 @@ companions.service_enabled = true
 
 公开订单服务项不得包含平台佣金、服务方应结收入、内部计价快照或结算状态；这些字段只存在于服务端内部订单项和 Admin 账本中。
 
+## 1.9. Store Lite 预约申请（无支付）
+
+本节定义 Store Lite 首发版的独立预约申请域。预约申请用于让消费者提交时间、地点和拍摄需求，再由平台运营确认或拒绝；它不是订单，不锁定资金，也不代表已付款。该域不读写 `orders`、`payments`、`messages`、媒体或商家组合订单数据。
+
+生产边界：
+
+- 仅在 `ENABLE_STORE_LITE_BOOKINGS=true` 时注册这组能力；请求通过统一鉴权入口后，开关关闭的端点返回 `404 NOT_FOUND`，不暴露功能存在。
+- Store Lite 生产部署必须同时设置 `RELEASE_PROFILE=store_lite`。该发行配置在服务端关闭订单、支付/回调、聊天、摄影师工作台、上传和旧订单 Admin 路由，返回 `404 STORE_LITE_ROUTE_DISABLED`；不能只依靠 iOS 导航隐藏这些商业能力。
+- 开关打开后必须使用 PostgreSQL，并且数据层明确声明 `bookingRequests` capability；缺少任一条件时返回 `503 BOOKING_POSTGRES_REQUIRED`。生产环境不得回退 JSON、localStorage、模拟数据或空数组成功。
+- 用户端 4 个端点只允许真实 `consumer` session；不能从 body 或 query 接受角色、用户 ID。陪拍者角色暂不开放预约处理能力。
+- Admin 读接口要求 `booking_requests:read` scope；确认、拒绝、取消要求 `booking_requests:write` scope。管理员 ID、IP、User-Agent 和日志 ID 均由服务端会话及请求上下文取得，不接受客户端传入。
+- 用户只能读取和取消自己的预约。不存在、无归属或不可见的详情及变更目标统一返回 `404 BOOKING_REQUEST_NOT_FOUND`，不得用错误差异帮助枚举 UUID。
+- 创建幂等性固定在 `booking_requests` 表内：唯一键是 `(user_id, client_request_id)`。同一用户以相同 `clientRequestId` 重放完全相同的规范化请求时返回原详情；相同键配不同请求内容时返回 `409 BOOKING_IDEMPOTENCY_CONFLICT`。不得复用全局幂等网关。
+- 消费者响应永不包含消费者或摄影师电话、`internalNote`、`requestFingerprint`、`adminId`、操作人 ID、IP 或 User-Agent。Admin 列表只返回双方脱敏电话，Admin 详情才返回双方完整电话；完整电话不得进入公开接口或列表日志。
+- `confirmation.supportChannel` 是平台管理的支持渠道键，不是电话、微信号或任意外链。客户端只能把该键映射到平台批准的渠道展示；不得把它作为原始 URI 直接拉起。
+
+状态只允许：
+
+```text
+submitted -> confirmed | declined | cancelled
+confirmed -> cancelled
+```
+
+- 平台运营可执行 `submitted -> confirmed/declined/cancelled` 以及 `confirmed -> cancelled`；每次变更在同一事务写公开状态日志和 `admin_action_logs`。
+- 用户可执行 `submitted/confirmed -> cancelled`。重复执行已经完成的同一目标状态按幂等成功返回当前详情；其他越权迁移返回 `409 BOOKING_STATUS_CONFLICT`。
+- `confirmation` 在运营确认前为 `null`。已经确认后再取消时仍保留原确认快照，供双方理解被取消的是哪一次安排。
+
+公共只读结构：
+
+```json
+{
+  "id": "booking_request_uuid",
+  "status": "submitted",
+  "photographer": {
+    "id": "companion_uuid",
+    "name": "摄影师昵称",
+    "avatarUrl": null
+  },
+  "requestedSchedule": {
+    "startAt": "2026-09-01T06:00:00.000Z",
+    "endAt": "2026-09-01T08:00:00.000Z",
+    "timezone": "Asia/Shanghai",
+    "city": "上海",
+    "addressText": "武康路附近"
+  },
+  "confirmation": null,
+  "createdAt": "2026-08-23T10:00:00.000Z",
+  "updatedAt": "2026-08-23T10:00:00.000Z"
+}
+```
+
+确认快照结构：
+
+```json
+{
+  "startAt": "2026-09-01T06:30:00.000Z",
+  "endAt": "2026-09-01T08:30:00.000Z",
+  "city": "上海",
+  "addressText": "武康路 100 号门口",
+  "arrivalInstructions": "请提前 10 分钟到达，出示预约编号",
+  "supportChannel": "store_lite.support",
+  "confirmedAt": "2026-08-23T11:00:00.000Z"
+}
+```
+
+公开状态日志只包含 `id`、`fromStatus`、`toStatus`、面向用户的 `message` 和 `createdAt`。Admin 状态日志额外包含 `actorType=user|admin` 与 `reasonCode`，但仍不返回 `adminId`、`userId` 或内部备注。
+
+列表接口共同接受以下 query；不允许其他参数或重复参数：
+
+| 参数 | 类型 | 约束 |
+|---|---|---|
+| status | `BookingRequestStatus` | 可选，精确筛选四种状态 |
+| limit | integer | 可选，默认 20，范围 1—50 |
+| cursor | string | 可选，不超过 512 字符的 opaque base64url token；与主体和筛选条件绑定 |
+
+分页统一返回：
+
+```json
+{
+  "items": [],
+  "nextCursor": null,
+  "hasMore": false
+}
+```
+
+### POST `/api/booking-requests`
+
+consumer-only。创建一条 `submitted` 预约申请，成功返回消费者详情，HTTP `201`。
+
+请求：
+
+```json
+{
+  "companionId": "companion_uuid",
+  "clientRequestId": "device-generated-request-id",
+  "requestedStartAt": "2026-09-01T06:00:00.000Z",
+  "requestedEndAt": "2026-09-01T08:00:00.000Z",
+  "timezone": "Asia/Shanghai",
+  "city": "上海",
+  "addressText": "武康路附近",
+  "requirements": "希望拍一组自然街拍，具体集合点可由运营确认"
+}
+```
+
+约束：`companionId` 必须是已审批且已启用服务的摄影师；`clientRequestId` 为 8—120 字符；开始与结束时间必须是含时区的 ISO 8601，且结束晚于开始；`timezone` 省略时默认为 `Asia/Shanghai`；城市、地址、需求最大长度分别为 80、500、2000。
+
+### GET `/api/booking-requests`
+
+consumer-only。只返回当前消费者自己的摘要列表；每项不包含 `requirements`、状态日志或任何电话。
+
+### GET `/api/booking-requests/:bookingRequestId`
+
+consumer-only。返回当前消费者自己的详情：公共摘要加 `requirements` 和公开状态日志。无归属目标按不存在处理。
+
+### POST `/api/booking-requests/:bookingRequestId/cancel`
+
+consumer-only。允许从 `submitted` 或 `confirmed` 取消，成功返回更新后的消费者详情。
+
+请求：
+
+```json
+{
+  "reasonCode": "user_schedule_changed",
+  "reason": "行程有变，无法按计划到达"
+}
+```
+
+两个字段均可省略；`reasonCode` 最长 80，`reason` 最长 1000。预约 ID 和用户身份不得出现在 body。
+
+### GET `/api/admin/booking-requests`
+
+要求 `booking_requests:read`。返回 Admin 摘要分页，每项在公共摘要之外只增加：
+
+```json
+{
+  "consumer": {
+    "id": "user_uuid",
+    "name": "用户昵称",
+    "phoneMasked": "138****5678"
+  },
+  "companionPhoneMasked": "139****4321",
+  "requirementsPreview": "希望拍一组自然街拍"
+}
+```
+
+列表不得返回任一方完整电话、完整需求、内部备注或请求指纹。
+
+### GET `/api/admin/booking-requests/:bookingRequestId`
+
+要求 `booking_requests:read`。返回 Admin 详情：完整 `requirements`、带 `actorType`/`reasonCode` 的状态日志，以及 `consumer.phone`、`companionPhone`。完整电话仅用于运营执行本次预约，不得透传消费者端或写入普通请求日志。响应仍不包含 `internalNote`、请求指纹或操作人 ID。
+
+### POST `/api/admin/booking-requests/:bookingRequestId/confirm`
+
+要求 `booking_requests:write`。确认最终时间、地点、到场指引和平台支持渠道，成功返回 Admin 详情。
+
+请求：
+
+```json
+{
+  "confirmedStartAt": "2026-09-01T06:30:00.000Z",
+  "confirmedEndAt": "2026-09-01T08:30:00.000Z",
+  "confirmedCity": "上海",
+  "confirmedAddressText": "武康路 100 号门口",
+  "arrivalInstructions": "请提前 10 分钟到达，出示预约编号",
+  "supportChannelKey": "store_lite.support",
+  "publicMessage": "摄影师已确认，请按确认时间到达",
+  "internalNote": "已由运营电话核对供给侧档期"
+}
+```
+
+开始与结束时间必须包含时区且结束晚于开始；`supportChannelKey` 只能使用平台预先配置的 1—80 位键，首位为小写字母或数字，其余位可再使用点、下划线或连字符。`publicMessage` 会进入用户可见状态轨迹；`internalNote` 只写 Admin 审计日志。
+
+### POST `/api/admin/booking-requests/:bookingRequestId/decline`
+
+要求 `booking_requests:write`。仅允许拒绝 `submitted` 申请，成功返回 Admin 详情。
+
+```json
+{
+  "reasonCode": "photographer_unavailable",
+  "publicMessage": "摄影师无法承接该时段，请重新选择时间或摄影师",
+  "internalNote": "供给侧确认档期冲突"
+}
+```
+
+`reasonCode` 与 `publicMessage` 必填，最长分别为 80、1000；`internalNote` 可选，最长 1000。
+
+### POST `/api/admin/booking-requests/:bookingRequestId/cancel`
+
+要求 `booking_requests:write`。平台运营可代表供给侧取消 `submitted` 或 `confirmed` 申请；输入字段和长度与拒绝接口相同。成功返回 Admin 详情，并在同一事务留下状态日志和 Admin 审计日志。
+
+本节共 9 个端点：用户端 4 个、Admin 端 5 个。
+
+稳定错误码：
+
+| HTTP | code | 说明 |
+|---|---|---|
+| 400 | `REQUEST_BODY_INVALID` / `VALIDATION_ERROR` / `BOOKING_REQUEST_INVALID` | 额外字段、必填/长度、UUID 或时间范围无效 |
+| 400 | `BOOKING_QUERY_INVALID` / `BOOKING_CURSOR_INVALID` | 列表参数或 opaque cursor 无效 |
+| 401 / 403 | `AUTH_REQUIRED` / `FORBIDDEN` / `ADMIN_SCOPE_REQUIRED` | 缺少会话、角色不符或缺少 Admin scope |
+| 404 | `NOT_FOUND` / `BOOKING_TARGET_UNAVAILABLE` / `BOOKING_REQUEST_NOT_FOUND` | 功能关闭、摄影师不可预约，或目标不存在/无权访问 |
+| 409 | `BOOKING_IDEMPOTENCY_CONFLICT` / `BOOKING_STATUS_CONFLICT` | 幂等键复用冲突或状态迁移冲突 |
+| 503 | `BOOKING_POSTGRES_REQUIRED` / `BOOKING_STORE_UNAVAILABLE` | 缺少 PostgreSQL 权威能力或数据库读取/事务不可用 |
+| 503 | `STORE_LITE_SUPPORT_NOT_CONFIGURED` | 运营确认前尚未配置平台客服渠道，禁止写入无法展示的确认记录 |
+
 ## 2. 下单与支付
 
 对应页面：

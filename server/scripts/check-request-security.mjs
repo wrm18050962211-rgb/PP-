@@ -72,6 +72,15 @@ assert.deepEqual(resolveAccessPolicy('PUT', '/api/companion/me/profile'), { acce
 assert.deepEqual(resolveAccessPolicy('GET', '/api/me/collections'), { access: 'member', targetType: 'user_data' });
 assert.deepEqual(resolveAccessPolicy('POST', '/api/orders/quote'), { access: 'anonymous', targetType: 'order_quote' });
 assert.deepEqual(resolveAccessPolicy('GET', '/api/orders'), { access: 'member', targetType: 'orders_api' });
+assert.deepEqual(resolveAccessPolicy('POST', '/api/booking-requests'), { access: 'member', targetType: 'booking_request' });
+assert.deepEqual(resolveAccessPolicy('GET', '/api/booking-requests/00000000-0000-4000-8000-000000000901'), {
+  access: 'member',
+  targetType: 'booking_request',
+});
+assert.deepEqual(resolveAccessPolicy('POST', '/api/admin/booking-requests/00000000-0000-4000-8000-000000000901/confirm'), {
+  access: 'admin',
+  targetType: 'admin_api',
+});
 assert.deepEqual(resolveAccessPolicy('GET', '/api/orders/00000000-0000-4000-8000-000000000901'), { access: 'member', targetType: 'order' });
 assert.deepEqual(resolveAccessPolicy('POST', '/api/orders/order-1/status'), { access: 'admin', targetType: 'order_status' });
 assert.deepEqual(resolveAccessPolicy('POST', '/api/payments/wechat/notify'), {
@@ -109,6 +118,55 @@ assert.doesNotThrow(() =>
     code: '123456',
     role: 'consumer',
     intent: 'login',
+  }),
+);
+assert.doesNotThrow(() =>
+  validateRouteInput('POST', '/api/admin/auth/login', {
+    username: 'store-lite-ops',
+    password: 'correct-password-2026',
+  }),
+);
+assert.throws(
+  () => validateRouteInput('POST', '/api/admin/auth/login', { username: 'store-lite-ops' }),
+  (error) => error instanceof RequestSecurityError && error.code === 'ADMIN_LOGIN_INVALID',
+);
+assert.throws(
+  () => validateRouteInput('POST', '/api/admin/auth/login', { username: 'store-lite-ops', password: 'correct-password-2026', passcode: '000000' }),
+  (error) => error instanceof RequestSecurityError && error.code === 'ADMIN_LOGIN_INVALID',
+);
+const validBookingCreate = {
+  companionId: '00000000-0000-4000-8000-000000000901',
+  requestedStartAt: '2026-09-01T05:00:00.000Z',
+  requestedEndAt: '2026-09-01T07:00:00.000Z',
+  timezone: 'Asia/Shanghai',
+  city: '上海',
+  addressText: '武康路',
+  requirements: '自然纪实风格',
+  clientRequestId: 'booking-request-check-001',
+};
+assert.doesNotThrow(() => validateRouteInput('POST', '/api/booking-requests', validBookingCreate));
+assert.throws(
+  () => validateRouteInput('POST', '/api/booking-requests', { ...validBookingCreate, userId: 'forged-user' }),
+  (error) => error instanceof RequestSecurityError && error.code === 'REQUEST_BODY_INVALID',
+);
+assert.throws(
+  () => validateRouteInput('POST', '/api/booking-requests', { ...validBookingCreate, requestedEndAt: validBookingCreate.requestedStartAt }),
+  (error) => error instanceof RequestSecurityError && error.code === 'BOOKING_REQUEST_INVALID',
+);
+assert.doesNotThrow(() =>
+  validateRouteInput('POST', '/api/admin/booking-requests/00000000-0000-4000-8000-000000000901/confirm', {
+    confirmedStartAt: '2026-09-01T05:00:00.000Z',
+    confirmedEndAt: '2026-09-01T07:00:00.000Z',
+    confirmedCity: '上海',
+    confirmedAddressText: '武康路',
+    arrivalInstructions: '请提前十分钟到达集合点',
+    supportChannelKey: 'still.support',
+  }),
+);
+assert.doesNotThrow(() =>
+  validateRouteInput('POST', '/api/admin/booking-requests/00000000-0000-4000-8000-000000000901/decline', {
+    reasonCode: 'photographer_unavailable',
+    publicMessage: '摄影师该时段无法承接',
   }),
 );
 assert.doesNotThrow(() => validateRouteInput('POST', '/api/orders', { placeLat: 31.2, placeLng: 121.4 }));
@@ -178,6 +236,24 @@ assert.throws(
 assert.throws(
   () => validateRouteQuery('GET', '/api/orders', new URLSearchParams('cursor=')),
   (error) => error instanceof RequestSecurityError && error.code === 'ORDER_CURSOR_INVALID',
+);
+assert.doesNotThrow(() =>
+  validateRouteQuery('GET', '/api/booking-requests', new URLSearchParams('status=submitted&limit=20')),
+);
+assert.doesNotThrow(() =>
+  validateRouteQuery('GET', '/api/admin/booking-requests', new URLSearchParams('status=confirmed&limit=50')),
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/booking-requests', new URLSearchParams('status=paid')),
+  (error) => error instanceof RequestSecurityError && error.code === 'BOOKING_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/booking-requests', new URLSearchParams('userId=forged')),
+  (error) => error instanceof RequestSecurityError && error.code === 'BOOKING_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/booking-requests/00000000-0000-4000-8000-000000000901', new URLSearchParams('status=submitted')),
+  (error) => error instanceof RequestSecurityError && error.code === 'BOOKING_QUERY_INVALID',
 );
 
 assert.deepEqual(

@@ -384,7 +384,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 ### WIN-STORE-LITE-1 无支付预约申请与最小运营服务端
 
 - Priority: P0
-- Status: pending
+- Status: in_progress
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-DATA-1`, `WIN-SEC-1`
 - Scope: 建立 Store Lite 的消费者预约申请、申请状态、用户取消、受保护运营确认或拒绝、客服申请，以及内容/摄影师举报与用户侧屏蔽的 PostgreSQL 事实源；提供窄范围运营页面/API 维护精选内容和处理申请，不要求完整 Admin；复用真实作品和摄影师资料，只保存城市、地址文字和用户明确填写的需求，不接支付、完整地图、聊天或媒体上传。
@@ -392,8 +392,8 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/migrations/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, Store Lite 运营路由/页面
 - Unblock result: 提供迁移、预约/举报/客服 API、权限矩阵、真实库验证和 commit SHA，解除 `IOS-STORE-LITE-1`、`INT-STORE-LITE-1` 的服务端依赖。
 - Result commit: pending
-- Verification: pending
-- Notes: 联系人和手机号只按已批准政策最小化收集；“提交申请不等于服务已确认，当前版本不发生扣款”必须进入用户可见文案；首审不创建订单或支付单，不允许客户端提交资金状态；完整履约聊天、摄影师电话、报价版本、成片工作区、结构化地点和媒体仍由后续节点负责。本节点可直接实施，不等待 P1 `WIN-DATA-2A`。
+- Verification: 预约 schema/parity、管理员鉴权、预约 PostgreSQL gateway、路由与生产 Store Lite fail-closed 检查已纳入并通过 `server: npm.cmd run check:mvp`；`pp-app: npm.cmd run build:mobile`, `npm.cmd run build:admin`, `npm.cmd run check:production-guards` 通过。已新增固定本机专库与显式授权保护的 PostgreSQL 16 live 验收脚本和 CI 步骤；本机无该隔离库，未执行真实 fixture，须等待推送后 CI 证据。
+- Notes: 已完成预约申请领域、消费者/运营权限、幂等创建、稳定分页、确认/拒绝/取消、运营审计、生产 PostgreSQL fail-closed 和 `store_lite` 服务端商业路由禁用边界。当前仍需完成客服申请、举报/屏蔽、窄范围运营页面、审核样例和真实 PostgreSQL 16 CI，故本节点保持 `in_progress`，不解除任何下游。联系人和手机号只按已批准政策最小化收集；“提交申请不等于服务已确认，当前版本不发生扣款”必须进入用户可见文案；首审不创建订单或支付单，不允许客户端提交资金状态；完整履约聊天、摄影师电话、报价版本、成片工作区、结构化地点和媒体仍由后续节点负责。本节点可直接实施，不等待 P1 `WIN-DATA-2A`。
 
 ### WIN-DATA-2 咨询、订单工作区、结构化地点和跨设备恢复
 

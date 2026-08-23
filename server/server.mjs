@@ -19,6 +19,7 @@ import {
 import { createPhoneVerificationService, PhoneVerificationError, readPhoneVerificationConfig } from './services/phoneVerification.mjs';
 import { createTencentCosPostUploadPolicy, hasTencentCosMediaConfig } from './services/tencentCosMedia.mjs';
 import { createMockSmsSender, createTencentSmsSender, hasTencentSmsConfig } from './services/tencentSms.mjs';
+import { readStoreLiteFeatureFlags } from './services/storeLiteFeature.mjs';
 import { createDataStore } from './store/index.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -27,12 +28,19 @@ const dataStore = createDataStore({ storePath, initialStore, normalizeStore });
 const port = Number(process.env.PORT || 8787);
 const appEnv = String(process.env.APP_ENV || 'development').trim().toLowerCase();
 const isProductionServerEnv = appEnv === 'production';
+const releaseProfile = normalizeReleaseProfile(process.env.RELEASE_PROFILE, appEnv);
+const isStoreLiteRelease = releaseProfile === 'store_lite';
 const sessionTtlDays = readBoundedIntegerEnv('SESSION_TTL_DAYS', 30, 1, 90);
 const sessionTtlMs = sessionTtlDays * 24 * 60 * 60 * 1000;
+const adminSessionTtlHours = readBoundedIntegerEnv('ADMIN_SESSION_TTL_HOURS', 8, 1, 24);
+const adminSessionTtlMs = adminSessionTtlHours * 60 * 60 * 1000;
 const requestSecurity = createRequestSecurity({ env: process.env });
 const phoneSmsProvider = String(process.env.PHONE_SMS_PROVIDER || (isProductionServerEnv ? 'tencent' : 'mock')).trim().toLowerCase();
 const corsAllowedOrigins = parseEnvList(process.env.CORS_ALLOWED_ORIGINS);
 const enableTestRoleSwitch = String(process.env.ENABLE_TEST_ROLE_SWITCH ?? 'true').trim().toLowerCase();
+const storeLiteBookingsEnabled = readStoreLiteFeatureFlags(process.env).storeLiteBookingsEnabled;
+const storeLiteSupportChannelKeys = parseEnvList(process.env.STORE_LITE_SUPPORT_CHANNEL_KEYS);
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const platformFeeRate = 0.08;
 const pendingPaymentHoldMinutes = Number(process.env.PENDING_PAYMENT_HOLD_MINUTES || 15);
 const pendingPaymentHoldMs = Math.max(1, pendingPaymentHoldMinutes) * 60 * 1000;
@@ -141,8 +149,16 @@ http
     try {
       requestSecurity.enforceRateLimit(req, requestContext);
       const url = new URL(req.url || '/', 'http://local');
-      const requestScopedOrderStore = shouldUseRequestScopedOrderStore(req.method || 'GET', url.pathname);
-      const { store, changed: storeChanged } = requestScopedOrderStore
+      if (isStoreLiteRelease && !isStoreLiteAllowedRequest(req.method || 'GET', url.pathname)) {
+        return sendJson(
+          req,
+          res,
+          404,
+          fail('STORE_LITE_ROUTE_DISABLED', 'Route is not available in Store Lite'),
+        );
+      }
+      const requestScopedStore = shouldUseRequestScopedStore(req.method || 'GET', url.pathname);
+      const { store, changed: storeChanged } = requestScopedStore
         ? { store: createRequestScopedStore(), changed: false }
         : await dataStore.load();
       const cleanupChanged = dataStore.kind === 'json' ? expirePendingPaymentOrders(store) : false;
@@ -214,6 +230,13 @@ async function route(method, url, body, store, req) {
   if (method === 'GET' && path === '/api/me/collections') return getUserCollectionsRoute(store, url);
   if (['PUT', 'DELETE'].includes(method) && path.startsWith('/api/me/collections/')) return setUserCollectionRoute(store, path, method === 'PUT');
 
+  if (method === 'POST' && path === '/api/booking-requests') return createBookingRequestRoute(store, body);
+  if (method === 'GET' && path === '/api/booking-requests') return listBookingRequestsRoute(store, url);
+  if (method === 'GET' && /^\/api\/booking-requests\/[^/]+$/.test(path)) return getBookingRequestRoute(store, path);
+  if (method === 'POST' && /^\/api\/booking-requests\/[^/]+\/cancel$/.test(path)) {
+    return cancelBookingRequestRoute(store, path, body);
+  }
+
   if (method === 'POST' && path === '/api/orders/quote') return quoteOrder(store, body);
   if (method === 'POST' && path === '/api/orders') return createOrder(store, body);
   if (method === 'GET' && path === '/api/orders') return listOrders(store, url);
@@ -243,6 +266,19 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && isNestedRoute(path, '/api/companion/posts/', '/submit-review')) return submitCompanionPostReviewRoute(store, path);
 
   if (method === 'GET' && path === '/api/admin/dashboard') return adminDashboard(store);
+  if (method === 'GET' && path === '/api/admin/booking-requests') return listAdminBookingRequestsRoute(store, url, req);
+  if (method === 'GET' && /^\/api\/admin\/booking-requests\/[^/]+$/.test(path)) {
+    return getAdminBookingRequestRoute(store, path, req);
+  }
+  if (method === 'POST' && /^\/api\/admin\/booking-requests\/[^/]+\/confirm$/.test(path)) {
+    return transitionAdminBookingRequestRoute(store, path, body, req, 'confirm');
+  }
+  if (method === 'POST' && /^\/api\/admin\/booking-requests\/[^/]+\/decline$/.test(path)) {
+    return transitionAdminBookingRequestRoute(store, path, body, req, 'decline');
+  }
+  if (method === 'POST' && /^\/api\/admin\/booking-requests\/[^/]+\/cancel$/.test(path)) {
+    return transitionAdminBookingRequestRoute(store, path, body, req, 'cancel');
+  }
   if (method === 'GET' && path === '/api/admin/orders') return adminOrders(store, url);
   if (method === 'POST' && isNestedRoute(path, '/api/admin/orders/', '/status')) return setAdminOrderStatus(store, path, body.status);
   if (method === 'GET' && path === '/api/admin/action-logs') return adminActionLogs(store, url);
@@ -256,8 +292,20 @@ async function route(method, url, body, store, req) {
   return error(404, 'NOT_FOUND', 'Route not found');
 }
 
-function shouldUseRequestScopedOrderStore(method, path) {
-  if (!(dataStore.kind === 'postgres' && dataStore.capabilities?.orderReads)) return false;
+function shouldUseRequestScopedStore(method, path) {
+  if (dataStore.kind !== 'postgres') return false;
+  if (method === 'POST' && path === '/api/admin/auth/login' && dataStore.capabilities?.adminAuth) return true;
+  if (
+    storeLiteBookingsEnabled &&
+    dataStore.capabilities?.bookingRequests &&
+    (path === '/api/booking-requests' ||
+      path.startsWith('/api/booking-requests/') ||
+      path === '/api/admin/booking-requests' ||
+      path.startsWith('/api/admin/booking-requests/'))
+  ) {
+    return true;
+  }
+  if (!dataStore.capabilities?.orderReads) return false;
   if (method === 'GET' && (path === '/api/orders' || /^\/api\/orders\/[^/]+$/.test(path))) return true;
   if (method !== 'POST') return false;
   return (
@@ -789,8 +837,40 @@ function mockWechatLogin(store, body = {}) {
   return json(saveSession(store, session), 200, true);
 }
 
-function adminLogin(store, body = {}) {
-  if (dataStore.kind !== 'json') return error(501, 'ADMIN_PASSWORD_LOGIN_NOT_CONFIGURED', 'Admin password login is not connected to PostgreSQL yet');
+async function adminLogin(store, body = {}) {
+  if (dataStore.kind !== 'json') {
+    if (!dataStore.adminAuth?.authenticate) return error(503, 'ADMIN_AUTH_NOT_CONFIGURED', 'Admin authentication is unavailable');
+    try {
+      const admin = await dataStore.adminAuth.authenticate({
+        username: body.username,
+        password: body.password,
+        pepper: process.env.ADMIN_PASSWORD_PEPPER,
+        previousPepper: process.env.ADMIN_PASSWORD_PEPPER_PREVIOUS,
+      });
+      const user = {
+        id: admin.id,
+        nickname: admin.name || 'Store Lite Ops',
+        avatarUrl: '',
+        gender: 'unknown',
+        city: '',
+        status: 'active',
+        roles: ['admin'],
+      };
+      const session = createSession(store, 'admin', user, {
+        adminId: admin.id,
+        adminScope: admin.scopes,
+        provider: 'admin_password',
+        expiresAt: new Date(Date.now() + adminSessionTtlMs).toISOString(),
+      });
+      const storedSession = await persistSession(store, session);
+      recordAdminAction(store, storedSession, 'admin_login', 'admin_auth', admin.id, {
+        note: 'Admin logged in',
+      });
+      return json(storedSession, 200, false);
+    } catch (cause) {
+      return adminAuthError(cause);
+    }
+  }
   if (!isTestRoleSwitchAllowed()) return error(403, 'TEST_LOGIN_DISABLED', 'Local admin login is disabled in this environment');
   if (String(body.passcode || '') !== '000000') {
     recordSecurityEvent(store, store.activeSession || null, 'admin_login_failed', {
@@ -802,13 +882,25 @@ function adminLogin(store, body = {}) {
     });
     return error(401, 'INVALID_ADMIN_PASSCODE', 'Invalid admin passcode', true);
   }
-  const session = createSession(store, 'admin');
+  const session = createSession(store, 'admin', null, {
+    adminScope: ['audit', 'orders', 'risk', 'finance'],
+  });
   session.provider = 'local_admin';
   const storedSession = saveSession(store, session);
   recordAdminAction(store, storedSession, 'admin_login', 'admin_auth', storedSession.user?.id || null, {
     note: 'Admin logged in',
   });
   return json(storedSession, 200, true);
+}
+
+function adminAuthError(cause) {
+  if (cause?.code === 'ADMIN_CREDENTIALS_INVALID') {
+    return error(401, 'ADMIN_CREDENTIALS_INVALID', 'Admin credentials are invalid');
+  }
+  if (cause?.code === 'ADMIN_AUTH_NOT_CONFIGURED') {
+    return error(503, 'ADMIN_AUTH_NOT_CONFIGURED', 'Admin authentication is unavailable');
+  }
+  throw cause;
 }
 
 async function adminLogout(store) {
@@ -908,9 +1000,13 @@ function createSession(store, role, existingUser = null, options = {}) {
     roles: role === 'admin' ? ['admin'] : Array.from(new Set(['consumer', ...userRoles.filter((item) => item === 'companion')])),
     user,
     companionId,
-    adminScope: role === 'admin' ? ['audit', 'orders', 'risk', 'finance'] : [],
+    adminId: role === 'admin' ? options.adminId || store.activeSession?.adminId || user?.id || null : null,
+    adminScope:
+      role === 'admin'
+        ? Array.from(new Set((options.adminScope || store.activeSession?.adminScope || []).map((item) => String(item || '').trim()).filter(Boolean)))
+        : [],
     loginAt: options.loginAt || now(),
-    expiresAt: options.expiresAt || new Date(Date.now() + sessionTtlMs).toISOString(),
+    expiresAt: options.expiresAt || new Date(Date.now() + (role === 'admin' ? adminSessionTtlMs : sessionTtlMs)).toISOString(),
   };
   return session;
 }
@@ -934,6 +1030,8 @@ function ensureActiveSession(store, fallbackRole = 'consumer') {
     loginAt: store.activeSession?.loginAt,
     expiresAt: store.activeSession?.expiresAt,
     provider: store.activeSession?.provider,
+    adminId: store.activeSession?.adminId,
+    adminScope: store.activeSession?.adminScope,
     trustCompanionId: dataStore.kind === 'postgres',
   });
   return saveSession(store, session);
@@ -1004,6 +1102,20 @@ function requirePublicSession(store, fallbackRole = 'consumer', targetType = 'pu
   return { session };
 }
 
+function requireConsumerSession(store, auditDetails = {}) {
+  const gate = requirePublicSession(store, 'consumer', 'booking_request', auditDetails);
+  if (gate.response) return gate;
+  if (gate.session.role === 'consumer') return gate;
+  recordSecurityEvent(store, gate.session, 'permission_denied', {
+    ...auditDetails,
+    targetType: 'booking_request',
+    requiredRole: 'consumer',
+    actualRole: gate.session.role,
+    reason: 'Store Lite booking requests are consumer-only',
+  });
+  return { response: error(403, 'FORBIDDEN', 'Consumer role is required', runtimeSecurityChanged()) };
+}
+
 function requireAdminSession(store, auditDetails = {}) {
   const session = ensureActiveSession(store, 'admin');
   if (!session) return { response: authRequired() };
@@ -1018,6 +1130,20 @@ function requireAdminSession(store, auditDetails = {}) {
     return { response: adminRequired(runtimeSecurityChanged()) };
   }
   return { session };
+}
+
+function requireAdminScope(store, requiredScope, auditDetails = {}) {
+  const gate = requireAdminSession(store, auditDetails);
+  if (gate.response) return gate;
+  if (gate.session.adminScope?.includes(requiredScope)) return gate;
+  recordSecurityEvent(store, gate.session, 'permission_denied', {
+    ...auditDetails,
+    targetType: 'booking_request',
+    requiredRole: requiredScope,
+    actualRole: 'admin',
+    reason: 'Admin session lacks the required booking-request scope',
+  });
+  return { response: error(403, 'ADMIN_SCOPE_REQUIRED', 'Admin scope is required', runtimeSecurityChanged()) };
 }
 
 function requireCompanionSession(store, options = {}) {
@@ -1045,6 +1171,8 @@ function refreshSession(store, session) {
     loginAt: session.loginAt,
     expiresAt: session.expiresAt,
     provider: session.provider,
+    adminId: session.adminId,
+    adminScope: session.adminScope,
     trustCompanionId: dataStore.kind === 'postgres',
   });
 }
@@ -1629,6 +1757,192 @@ async function markPostgresPaymentPaid(order, payment) {
     200,
     false,
   );
+}
+
+async function createBookingRequestRoute(store, body = {}) {
+  const readiness = bookingRequestReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  try {
+    const detail = await dataStore.bookingRequests.createForConsumer({
+      ...body,
+      userId: gate.session.user.id,
+    });
+    return json(detail, 201, false);
+  } catch (cause) {
+    return bookingGatewayResponse(cause);
+  }
+}
+
+async function listBookingRequestsRoute(store, url) {
+  const readiness = bookingRequestReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  try {
+    return json(
+      await dataStore.bookingRequests.listForConsumer({
+        userId: gate.session.user.id,
+        status: url.searchParams.get('status'),
+        limit: url.searchParams.get('limit'),
+        cursor: url.searchParams.get('cursor'),
+      }),
+    );
+  } catch (cause) {
+    return bookingGatewayResponse(cause);
+  }
+}
+
+async function getBookingRequestRoute(store, path) {
+  const readiness = bookingRequestReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  const bookingRequestId = bookingRequestIdFromPath(path);
+  if (!bookingRequestId) return bookingRequestNotFound();
+  try {
+    return json(
+      await dataStore.bookingRequests.getForConsumer({
+        userId: gate.session.user.id,
+        bookingRequestId,
+      }),
+    );
+  } catch (cause) {
+    return bookingGatewayResponse(cause);
+  }
+}
+
+async function cancelBookingRequestRoute(store, path, body = {}) {
+  const readiness = bookingRequestReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  const bookingRequestId = bookingRequestIdFromPath(path);
+  if (!bookingRequestId) return bookingRequestNotFound();
+  try {
+    return json(
+      await dataStore.bookingRequests.cancelForConsumer({
+        bookingRequestId,
+        userId: gate.session.user.id,
+        reasonCode: body.reasonCode,
+        reason: body.reason,
+      }),
+    );
+  } catch (cause) {
+    return bookingGatewayResponse(cause);
+  }
+}
+
+async function listAdminBookingRequestsRoute(store, url, req) {
+  const readiness = bookingRequestReadiness();
+  if (readiness) return readiness;
+  const gate = requireAdminScope(store, 'booking_requests:read', bookingAuditDetails(req));
+  if (gate.response) return gate.response;
+  try {
+    return json(
+      await dataStore.bookingRequests.listForAdmin({
+        adminId: gate.session.adminId || gate.session.user.id,
+        status: url.searchParams.get('status'),
+        limit: url.searchParams.get('limit'),
+        cursor: url.searchParams.get('cursor'),
+      }),
+    );
+  } catch (cause) {
+    return bookingGatewayResponse(cause);
+  }
+}
+
+async function getAdminBookingRequestRoute(store, path, req) {
+  const readiness = bookingRequestReadiness();
+  if (readiness) return readiness;
+  const gate = requireAdminScope(store, 'booking_requests:read', bookingAuditDetails(req));
+  if (gate.response) return gate.response;
+  const bookingRequestId = bookingRequestIdFromPath(path);
+  if (!bookingRequestId) return bookingRequestNotFound();
+  try {
+    return json(
+      await dataStore.bookingRequests.getForAdmin({
+        adminId: gate.session.adminId || gate.session.user.id,
+        bookingRequestId,
+      }),
+    );
+  } catch (cause) {
+    return bookingGatewayResponse(cause);
+  }
+}
+
+async function transitionAdminBookingRequestRoute(store, path, body, req, action) {
+  const readiness = bookingRequestReadiness();
+  if (readiness) return readiness;
+  const gate = requireAdminScope(store, 'booking_requests:write', bookingAuditDetails(req));
+  if (gate.response) return gate.response;
+  const bookingRequestId = bookingRequestIdFromPath(path);
+  if (!bookingRequestId) return bookingRequestNotFound();
+  const handler = {
+    confirm: dataStore.bookingRequests.confirmForAdmin,
+    decline: dataStore.bookingRequests.declineForAdmin,
+    cancel: dataStore.bookingRequests.cancelForAdmin,
+  }[action];
+  if (!handler) return error(400, 'BOOKING_ACTION_INVALID', 'Booking request action is invalid');
+  if (action === 'confirm') {
+    if (storeLiteSupportChannelKeys.length === 0) {
+      return error(503, 'STORE_LITE_SUPPORT_NOT_CONFIGURED', 'Store Lite support channel is unavailable');
+    }
+    if (!storeLiteSupportChannelKeys.includes(String(body.supportChannelKey || '').trim())) {
+      return error(400, 'BOOKING_REQUEST_INVALID', 'supportChannelKey is not an approved platform support channel');
+    }
+  }
+  try {
+    return json(
+      await handler({
+        ...body,
+        bookingRequestId,
+        adminId: gate.session.adminId || gate.session.user.id,
+        ip: getClientIp(req),
+        userAgent: String(req?.headers?.['user-agent'] || '').slice(0, 2000) || null,
+      }),
+    );
+  } catch (cause) {
+    return bookingGatewayResponse(cause);
+  }
+}
+
+function bookingRequestReadiness() {
+  if (!storeLiteBookingsEnabled) return error(404, 'NOT_FOUND', 'Route not found');
+  if (
+    dataStore.kind !== 'postgres' ||
+    dataStore.capabilities?.bookingRequests !== true ||
+    !dataStore.bookingRequests
+  ) {
+    return error(503, 'BOOKING_POSTGRES_REQUIRED', 'Booking requests require PostgreSQL');
+  }
+  return null;
+}
+
+function bookingRequestIdFromPath(path) {
+  const match = String(path || '').match(/\/booking-requests\/([^/]+)/);
+  const value = String(match?.[1] || '').trim();
+  return uuidPattern.test(value) ? value : null;
+}
+
+function bookingGatewayResponse(cause) {
+  if (cause?.code && String(cause.code).startsWith('BOOKING_')) {
+    return error(Number(cause.status) || 500, String(cause.code), String(cause.message || 'Booking request failed'));
+  }
+  throw cause;
+}
+
+function bookingRequestNotFound() {
+  return error(404, 'BOOKING_REQUEST_NOT_FOUND', 'Booking request not found');
+}
+
+function bookingAuditDetails(req) {
+  return {
+    ip: getClientIp(req),
+    userAgent: String(req?.headers?.['user-agent'] || '').slice(0, 500) || null,
+    metadata: { requestId: req?.securityContext?.requestId || null },
+  };
 }
 
 async function listOrders(store, url) {
@@ -4283,9 +4597,20 @@ function randomString(length) {
 }
 
 function launchCheck() {
-  const requiredForProduction = [
+  const storeLiteRequired = [
     'STORE_DRIVER',
     'DATABASE_URL',
+    'PUBLIC_API_ORIGIN',
+    'PHONE_SMS_PROVIDER',
+    'PHONE_OTP_PEPPER',
+    'TENCENT_SMS_SDK_APP_ID',
+    'TENCENT_SMS_SIGN_NAME',
+    'TENCENT_SMS_TEMPLATE_ID',
+    'ADMIN_PASSWORD_PEPPER',
+    'STORE_LITE_SUPPORT_CHANNEL_KEYS',
+  ];
+  const commercialRequired = [
+    ...storeLiteRequired,
     'WECHAT_MINI_PROGRAM_APP_ID',
     'WECHAT_MINI_PROGRAM_APP_SECRET',
     'WECHAT_PAY_MODE',
@@ -4300,21 +4625,26 @@ function launchCheck() {
     'COS_PUBLIC_BASE_URL',
     'TENCENT_CLOUD_SECRET_ID',
     'TENCENT_CLOUD_SECRET_KEY',
-    'PHONE_SMS_PROVIDER',
-    'PHONE_OTP_PEPPER',
-    'TENCENT_SMS_SDK_APP_ID',
-    'TENCENT_SMS_SIGN_NAME',
-    'TENCENT_SMS_TEMPLATE_ID',
   ];
+  const requiredForProduction = isStoreLiteRelease ? storeLiteRequired : commercialRequired;
   const missing = requiredForProduction.filter((name) => !isLaunchEnvConfigured(name));
+  const misconfigured = [];
+  if (dataStore.kind !== 'postgres') misconfigured.push('STORE_DRIVER must be postgres');
+  if (isStoreLiteRelease && !storeLiteBookingsEnabled) misconfigured.push('ENABLE_STORE_LITE_BOOKINGS must be true');
+  if (phoneSmsProvider !== 'tencent') misconfigured.push('PHONE_SMS_PROVIDER must be tencent');
+  if (!hasTencentSmsConfig()) misconfigured.push('Tencent SMS configuration is incomplete');
+  if (isStoreLiteRelease && storeLiteSupportChannelKeys.length === 0) misconfigured.push('Store Lite support channel is missing');
   return json({
-    ready: missing.length === 0,
+    ready: missing.length === 0 && misconfigured.length === 0,
+    profile: releaseProfile,
     missing,
+    misconfigured,
     current: {
       storeDriver: dataStore.kind,
       wechatAuth: hasWechatAuthConfig() ? 'configured' : 'mock',
-      wechatPay: useLiveWechatPay() ? 'live' : 'mock',
-      media: hasTencentCosMediaConfig() ? 'cos-configured' : 'mock',
+      wechatPay: isStoreLiteRelease ? 'disabled' : useLiveWechatPay() ? 'live' : 'mock',
+      media: isStoreLiteRelease ? 'read-only-content' : hasTencentCosMediaConfig() ? 'cos-configured' : 'mock',
+      bookingRequests: storeLiteBookingsEnabled ? 'enabled' : 'disabled',
       phoneSms: phoneSmsProvider === 'tencent' && hasTencentSmsConfig() ? 'tencent-configured' : phoneSmsProvider,
     },
   });
@@ -4333,6 +4663,41 @@ function readBoundedIntegerEnv(name, fallback, minimum, maximum) {
     throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
   }
   return value;
+}
+
+function normalizeReleaseProfile(value, environment) {
+  const fallback = environment === 'production' ? 'commercial' : 'development';
+  const normalized = String(value || fallback).trim().toLowerCase();
+  if (['development', 'store_lite', 'commercial'].includes(normalized)) return normalized;
+  throw new Error('RELEASE_PROFILE must be development, store_lite, or commercial.');
+}
+
+function isStoreLiteAllowedRequest(method, path) {
+  const routeKey = `${String(method || 'GET').toUpperCase()} ${String(path || '')}`;
+  const exactRoutes = new Set([
+    'GET /api/health',
+    'GET /api/ops/launch-check',
+    'GET /api/auth/session',
+    'POST /api/auth/phone/request-code',
+    'POST /api/auth/phone/verify',
+    'POST /api/auth/logout',
+    'POST /api/admin/auth/login',
+    'POST /api/admin/auth/logout',
+    'GET /api/feed/posts',
+    'GET /api/matching/companions',
+    'POST /api/booking-requests',
+    'GET /api/booking-requests',
+    'GET /api/admin/booking-requests',
+  ]);
+  if (exactRoutes.has(routeKey)) return true;
+  return (
+    /^GET \/api\/posts\/[^/]+$/.test(routeKey) ||
+    /^GET \/api\/companions\/[^/]+(?:\/posts)?$/.test(routeKey) ||
+    /^GET \/api\/booking-requests\/[^/]+$/.test(routeKey) ||
+    /^POST \/api\/booking-requests\/[^/]+\/cancel$/.test(routeKey) ||
+    /^GET \/api\/admin\/booking-requests\/[^/]+$/.test(routeKey) ||
+    /^POST \/api\/admin\/booking-requests\/[^/]+\/(?:confirm|decline|cancel)$/.test(routeKey)
+  );
 }
 
 function actionLabel(actionType) {

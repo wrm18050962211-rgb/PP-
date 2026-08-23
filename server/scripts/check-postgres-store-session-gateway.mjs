@@ -69,8 +69,19 @@ assert(foundAdminSession.adminId === '00000000-0000-4000-8000-000000000604', 'fi
 assert(foundAdminSession.user.nickname === 'Ops Admin', 'find gateway maps admin display name');
 assert(foundAdminSession.roles.length === 1 && foundAdminSession.roles[0] === 'admin', 'find gateway keeps admin roles isolated');
 assert(!foundAdminSession.roles.includes('consumer') && !foundAdminSession.roles.includes('companion'), 'find gateway does not leak public roles into admin session');
-assert(foundAdminSession.adminScope.includes('risk'), 'find gateway maps admin scope from metadata');
+assert(
+  foundAdminSession.adminScope.length === 2
+    && foundAdminSession.adminScope.includes('booking_requests:read')
+    && foundAdminSession.adminScope.includes('booking_requests:write'),
+  'find gateway intersects persisted scopes with the current admin role',
+);
 assert(pool.clients[5].released === true, 'find admin gateway releases client');
+
+const downgradedAdminSession = await store.sessionWrites.findByToken('raw-downgraded-admin-token');
+assert(downgradedAdminSession.role === 'admin', 'downgraded admin keeps an authenticated admin session');
+assert(downgradedAdminSession.adminScope.includes('booking_requests:read'), 'viewer keeps current-role read scope');
+assert(!downgradedAdminSession.adminScope.includes('booking_requests:write'), 'old session cannot retain write scope after role downgrade');
+assert(pool.clients[6].released === true, 'downgraded admin lookup releases client');
 
 const pendingConsumerSession = await store.sessionWrites.findByToken('raw-pending-consumer-token');
 assert(pendingConsumerSession.role === 'consumer', 'pending companion keeps consumer session role');
@@ -101,6 +112,7 @@ console.log(
         'find-user-session-gateway',
         'consumer-approved-companion-derivation',
         'find-admin-session-gateway',
+        'admin-role-downgrade-scope-revocation',
         'admin-role-isolation',
         'pending-companion-role-boundary',
         'inactive-user-rejection',
@@ -153,13 +165,33 @@ function sessionRowForTokenHash(tokenHash) {
       session_scope: 'admin',
       session_role: 'admin',
       provider: 'password',
-      metadata: { adminScope: ['audit', 'risk'] },
+      metadata: { adminScope: ['booking_requests:read', 'booking_requests:write'] },
       login_at: new Date('2026-07-08T09:00:00.000Z'),
       last_seen_at: new Date('2026-07-08T10:00:00.000Z'),
       expires_at: new Date('2026-08-08T09:00:00.000Z'),
       admin_id: '00000000-0000-4000-8000-000000000604',
       admin_username: 'ops',
       admin_name: 'Ops Admin',
+      admin_role: 'store_lite_ops',
+      admin_status: 'active',
+      companion_id: null,
+    };
+  }
+
+  if (tokenHash === hashSessionToken('raw-downgraded-admin-token')) {
+    return {
+      session_id: '00000000-0000-4000-8000-000000000607',
+      session_scope: 'admin',
+      session_role: 'admin',
+      provider: 'password',
+      metadata: { adminScope: ['booking_requests:read', 'booking_requests:write'] },
+      login_at: new Date('2026-07-08T09:00:00.000Z'),
+      last_seen_at: new Date('2026-07-08T10:00:00.000Z'),
+      expires_at: new Date('2026-08-08T09:00:00.000Z'),
+      admin_id: '00000000-0000-4000-8000-000000000604',
+      admin_username: 'ops',
+      admin_name: 'Ops Admin',
+      admin_role: 'store_lite_viewer',
       admin_status: 'active',
       companion_id: null,
     };

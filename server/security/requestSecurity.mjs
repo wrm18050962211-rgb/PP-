@@ -7,6 +7,7 @@ const DEFAULT_SENSITIVE_LIMIT = 20;
 const DEFAULT_WINDOW_MS = 60 * 1000;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const ORDER_CURSOR_PATTERN = /^[A-Za-z0-9_-]+$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ORDER_READ_ROLES = ['user', 'companion'];
 const ORDER_STATUSES = [
   'pending_payment',
@@ -19,6 +20,8 @@ const ORDER_STATUSES = [
   'refunded',
   'disputed',
 ];
+const BOOKING_REQUEST_STATUSES = ['submitted', 'confirmed', 'declined', 'cancelled'];
+const BOOKING_CURSOR_PATTERN = /^[A-Za-z0-9_-]+$/;
 const SENSITIVE_KEY_PATTERN =
   /^(authorization|cookie|set-cookie|password|passcode|otp|verificationcode|token|accesstoken|refreshtoken|secret|secretid|secretkey|apikey|privatekey|pepper|signature)$/i;
 const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -181,16 +184,91 @@ export function validateRouteInput(method, path, body) {
     optionalEnum(body.role, 'role', ['consumer', 'companion']);
     optionalEnum(body.intent, 'intent', ['login', 'register']);
   } else if (route === 'POST /api/admin/auth/login') {
-    requireString(body.passcode, 'passcode', 1, 128);
+    requireAllowedFields(body, ['username', 'password', 'passcode']);
+    const hasUsername = body.username !== undefined;
+    const hasPassword = body.password !== undefined;
+    if (hasUsername !== hasPassword) {
+      throw new RequestSecurityError(400, 'ADMIN_LOGIN_INVALID', 'Provide username and password');
+    }
+    const hasPasswordLogin = hasUsername && hasPassword;
+    const hasLocalPasscode = body.passcode !== undefined;
+    if (hasPasswordLogin === hasLocalPasscode) {
+      throw new RequestSecurityError(400, 'ADMIN_LOGIN_INVALID', 'Provide username and password');
+    }
+    if (hasPasswordLogin) {
+      requireString(body.username, 'username', 3, 120);
+      requireString(body.password, 'password', 10, 256);
+    } else {
+      requireString(body.passcode, 'passcode', 1, 128);
+    }
   } else if (route === 'POST /api/orders') {
     optionalString(body.idempotencyKey || body.clientRequestId, 'idempotencyKey', 1, 120);
     optionalCoordinatePair(body, 'placeLat', 'placeLng');
+  } else if (route === 'POST /api/booking-requests') {
+    requireAllowedFields(body, [
+      'companionId',
+      'requestedStartAt',
+      'requestedEndAt',
+      'timezone',
+      'city',
+      'addressText',
+      'requirements',
+      'clientRequestId',
+    ]);
+    requireUuid(body.companionId, 'companionId');
+    requireIsoDateTime(body.requestedStartAt, 'requestedStartAt');
+    requireIsoDateTime(body.requestedEndAt, 'requestedEndAt');
+    if (new Date(body.requestedEndAt).getTime() <= new Date(body.requestedStartAt).getTime()) {
+      throw new RequestSecurityError(400, 'BOOKING_REQUEST_INVALID', 'requestedEndAt must be after requestedStartAt');
+    }
+    optionalString(body.timezone, 'timezone', 1, 80);
+    requireString(body.city, 'city', 1, 80);
+    requireString(body.addressText, 'addressText', 1, 500);
+    requireString(body.requirements, 'requirements', 1, 2000);
+    requireString(body.clientRequestId, 'clientRequestId', 8, 120);
+  } else if (/^POST \/api\/booking-requests\/[^/]+\/cancel$/.test(route)) {
+    requireAllowedFields(body, ['reasonCode', 'reason']);
+    optionalString(body.reasonCode, 'reasonCode', 1, 80);
+    optionalString(body.reason, 'reason', 1, 1000);
+  } else if (/^POST \/api\/admin\/booking-requests\/[^/]+\/confirm$/.test(route)) {
+    requireAllowedFields(body, [
+      'confirmedStartAt',
+      'confirmedEndAt',
+      'confirmedCity',
+      'confirmedAddressText',
+      'arrivalInstructions',
+      'supportChannelKey',
+      'publicMessage',
+      'internalNote',
+    ]);
+    requireIsoDateTime(body.confirmedStartAt, 'confirmedStartAt');
+    requireIsoDateTime(body.confirmedEndAt, 'confirmedEndAt');
+    if (new Date(body.confirmedEndAt).getTime() <= new Date(body.confirmedStartAt).getTime()) {
+      throw new RequestSecurityError(400, 'BOOKING_REQUEST_INVALID', 'confirmedEndAt must be after confirmedStartAt');
+    }
+    requireString(body.confirmedCity, 'confirmedCity', 1, 80);
+    requireString(body.confirmedAddressText, 'confirmedAddressText', 1, 500);
+    requireString(body.arrivalInstructions, 'arrivalInstructions', 1, 1000);
+    requireString(body.supportChannelKey, 'supportChannelKey', 1, 80);
+    optionalString(body.publicMessage, 'publicMessage', 1, 1000);
+    optionalString(body.internalNote, 'internalNote', 1, 1000);
+  } else if (/^POST \/api\/admin\/booking-requests\/[^/]+\/(decline|cancel)$/.test(route)) {
+    requireAllowedFields(body, ['reasonCode', 'publicMessage', 'internalNote']);
+    requireString(body.reasonCode, 'reasonCode', 1, 80);
+    requireString(body.publicMessage, 'publicMessage', 1, 1000);
+    optionalString(body.internalNote, 'internalNote', 1, 1000);
   }
 }
 
 export function validateRouteQuery(method, path, searchParams) {
   if (String(method || 'GET').toUpperCase() !== 'GET') return;
   const params = searchParams instanceof URLSearchParams ? searchParams : new URLSearchParams(searchParams || '');
+  const isBookingList = path === '/api/booking-requests' || path === '/api/admin/booking-requests';
+  const isBookingDetail = /^\/api\/(?:admin\/)?booking-requests\/[^/]+$/.test(path);
+  if (isBookingList || isBookingDetail) {
+    validateBookingQuery(params, { list: isBookingList });
+    return;
+  }
   const isOrderList = path === '/api/orders';
   const isOrderDetail = /^\/api\/orders\/[^/]+$/.test(path);
   if (!isOrderList && !isOrderDetail) return;
@@ -234,6 +312,9 @@ export function resolveAccessPolicy(method, path) {
   if (normalizedMethod === 'POST' && path === '/api/auth/logout') return policy('member', 'auth_session');
   if (path === '/api/media/upload-policy') return policy('member', 'media_upload');
   if (path.startsWith('/api/me/')) return policy('member', 'user_data');
+  if (path === '/api/booking-requests' || path.startsWith('/api/booking-requests/')) {
+    return policy('member', 'booking_request');
+  }
 
   if (normalizedMethod === 'POST' && /^\/api\/orders\/[^/]+\/status$/.test(path)) {
     return policy('admin', 'order_status');
@@ -309,6 +390,9 @@ function sensitiveRouteGroup(method, path) {
   if (path === '/api/auth/wechat/login') return 'wechat_login';
   if (path === '/api/auth/wechat/mock-login') return 'mock_login';
   if (path === '/api/admin/auth/login') return 'admin_login';
+  if (path === '/api/booking-requests' || /\/api\/(?:admin\/)?booking-requests\/[^/]+\/(?:confirm|decline|cancel)$/.test(path)) {
+    return 'booking_mutation';
+  }
   if (path === '/api/media/upload-policy') return 'media_policy';
   return '';
 }
@@ -364,6 +448,55 @@ function requireString(value, field, min, max) {
   const normalized = String(value ?? '').trim();
   if (normalized.length < min || normalized.length > max) {
     throw new RequestSecurityError(400, 'VALIDATION_ERROR', `${field} must contain between ${min} and ${max} characters`);
+  }
+}
+
+function requireAllowedFields(body, allowedFields) {
+  const allowed = new Set(allowedFields);
+  for (const key of Object.keys(body || {})) {
+    if (!allowed.has(key)) {
+      throw new RequestSecurityError(400, 'REQUEST_BODY_INVALID', `Unsupported request field: ${key}`);
+    }
+  }
+}
+
+function requireUuid(value, field) {
+  if (!UUID_PATTERN.test(String(value || '').trim())) {
+    throw new RequestSecurityError(400, 'BOOKING_REQUEST_INVALID', `${field} must be a UUID`);
+  }
+}
+
+function requireIsoDateTime(value, field) {
+  const normalized = String(value || '').trim();
+  const timestamp = Date.parse(normalized);
+  if (!normalized || !Number.isFinite(timestamp) || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(normalized)) {
+    throw new RequestSecurityError(400, 'BOOKING_REQUEST_INVALID', `${field} must be an ISO 8601 timestamp with timezone`);
+  }
+}
+
+function validateBookingQuery(params, { list }) {
+  const allowed = new Set(list ? ['status', 'limit', 'cursor'] : []);
+  for (const key of params.keys()) {
+    if (!allowed.has(key)) {
+      throw new RequestSecurityError(400, 'BOOKING_QUERY_INVALID', `Unsupported booking query parameter: ${key}`);
+    }
+    if (params.getAll(key).length !== 1) {
+      throw new RequestSecurityError(400, 'BOOKING_QUERY_INVALID', `Booking query parameter must not be repeated: ${key}`);
+    }
+  }
+  if (!list) return;
+
+  const status = params.get('status');
+  if (params.has('status') && !BOOKING_REQUEST_STATUSES.includes(status)) {
+    throw new RequestSecurityError(400, 'BOOKING_QUERY_INVALID', `status must be one of: ${BOOKING_REQUEST_STATUSES.join(', ')}`);
+  }
+  const limit = params.get('limit');
+  if (params.has('limit') && (!/^[1-9]\d*$/.test(limit) || Number(limit) > 50)) {
+    throw new RequestSecurityError(400, 'BOOKING_QUERY_INVALID', 'limit must be an integer between 1 and 50');
+  }
+  const cursor = params.get('cursor');
+  if (params.has('cursor') && (!cursor || cursor.length > 512 || !BOOKING_CURSOR_PATTERN.test(cursor))) {
+    throw new RequestSecurityError(400, 'BOOKING_CURSOR_INVALID', 'cursor must be an opaque base64url token');
   }
 }
 
