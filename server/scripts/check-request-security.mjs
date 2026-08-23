@@ -67,6 +67,29 @@ const proxyContext = trustedProxySecurity.begin(
 );
 assert.equal(proxyContext.clientIp, '203.0.113.9');
 
+const complianceRateSecurity = createRequestSecurity({
+  env: {
+    RATE_LIMIT_GLOBAL_MAX: '100',
+    RATE_LIMIT_SENSITIVE_MAX: '1',
+    RATE_LIMIT_SENSITIVE_WINDOW_MS: '60000',
+  },
+});
+for (const [first, second] of [
+  [request('POST', '/api/user-requests'), request('POST', '/api/user-requests/invalid/cancel')],
+  [request('POST', '/api/content-reports'), request('POST', '/api/admin/content-reports/invalid/resolve')],
+  [request('PUT', '/api/me/blocked-companions/invalid'), request('DELETE', '/api/me/blocked-companions/invalid')],
+]) {
+  complianceRateSecurity.enforceRateLimit(first, complianceRateSecurity.begin(first));
+  assert.throws(
+    () => complianceRateSecurity.enforceRateLimit(second, complianceRateSecurity.begin(second)),
+    (error) => error instanceof RequestSecurityError && error.code === 'SENSITIVE_RATE_LIMITED',
+  );
+}
+const complianceReadOne = request('GET', '/api/user-requests');
+const complianceReadTwo = request('GET', '/api/user-requests');
+assert.doesNotThrow(() => complianceRateSecurity.enforceRateLimit(complianceReadOne, complianceRateSecurity.begin(complianceReadOne)));
+assert.doesNotThrow(() => complianceRateSecurity.enforceRateLimit(complianceReadTwo, complianceRateSecurity.begin(complianceReadTwo)));
+
 assert.deepEqual(resolveAccessPolicy('GET', '/api/admin/orders'), { access: 'admin', targetType: 'admin_api' });
 assert.deepEqual(resolveAccessPolicy('PUT', '/api/companion/me/profile'), { access: 'companion', targetType: 'companion_api' });
 assert.deepEqual(resolveAccessPolicy('GET', '/api/me/collections'), { access: 'member', targetType: 'user_data' });
@@ -80,6 +103,22 @@ assert.deepEqual(resolveAccessPolicy('GET', '/api/booking-requests/00000000-0000
 assert.deepEqual(resolveAccessPolicy('POST', '/api/admin/booking-requests/00000000-0000-4000-8000-000000000901/confirm'), {
   access: 'admin',
   targetType: 'admin_api',
+});
+assert.deepEqual(resolveAccessPolicy('POST', '/api/user-requests'), {
+  access: 'member',
+  targetType: 'user_request',
+});
+assert.deepEqual(resolveAccessPolicy('POST', '/api/content-reports'), {
+  access: 'member',
+  targetType: 'content_report',
+});
+assert.deepEqual(resolveAccessPolicy('DELETE', '/api/me/blocked-companions/00000000-0000-4000-8000-000000000901'), {
+  access: 'member',
+  targetType: 'companion_block',
+});
+assert.deepEqual(resolveAccessPolicy('POST', '/api/admin/content-reports/00000000-0000-4000-8000-000000000901/resolve'), {
+  access: 'admin',
+  targetType: 'store_lite_compliance_admin',
 });
 assert.deepEqual(resolveAccessPolicy('GET', '/api/orders/00000000-0000-4000-8000-000000000901'), { access: 'member', targetType: 'order' });
 assert.deepEqual(resolveAccessPolicy('POST', '/api/orders/order-1/status'), { access: 'admin', targetType: 'order_status' });
@@ -105,6 +144,10 @@ await assert.rejects(
 );
 await assert.rejects(
   readJsonRequest(jsonRequest('{"__proto__":{"polluted":true}}')),
+  (error) => error instanceof RequestSecurityError && error.code === 'REQUEST_BODY_INVALID',
+);
+await assert.rejects(
+  readJsonRequest(jsonRequest('{"targetType":"post","targetType":"companion"}')),
   (error) => error instanceof RequestSecurityError && error.code === 'REQUEST_BODY_INVALID',
 );
 
@@ -169,6 +212,113 @@ assert.doesNotThrow(() =>
     publicMessage: '摄影师该时段无法承接',
   }),
 );
+const complianceUuid = '00000000-0000-4000-8000-000000000901';
+const validUserRequestCreate = {
+  requestType: 'support',
+  supportCategory: 'booking',
+  bookingRequestId: complianceUuid,
+  description: '想确认预约状态',
+  clientRequestId: 'user-request-security-001',
+};
+assert.doesNotThrow(() => validateRouteInput('POST', '/api/user-requests', validUserRequestCreate));
+assert.doesNotThrow(() =>
+  validateRouteInput('POST', '/api/user-requests', {
+    requestType: 'data_access',
+    clientRequestId: 'user-request-security-002',
+  }),
+);
+assert.throws(
+  () => validateRouteInput('POST', '/api/user-requests', { ...validUserRequestCreate, userId: complianceUuid }),
+  (error) => error instanceof RequestSecurityError && error.code === 'USER_REQUEST_INVALID',
+);
+assert.throws(
+  () =>
+    validateRouteInput('POST', '/api/user-requests', {
+      requestType: 'account_deletion',
+      supportCategory: 'account',
+      clientRequestId: 'user-request-security-003',
+    }),
+  (error) => error instanceof RequestSecurityError && error.code === 'USER_REQUEST_INVALID',
+);
+assert.doesNotThrow(() =>
+  validateRouteInput('POST', `/api/user-requests/${complianceUuid}/cancel`, {
+    reasonCode: 'changed_mind',
+    reason: '暂时不再需要处理',
+  }),
+);
+assert.doesNotThrow(() =>
+  validateRouteInput('POST', `/api/admin/user-requests/${complianceUuid}/start`, {
+    publicMessage: '平台已开始处理',
+  }),
+);
+assert.throws(
+  () => validateRouteInput('POST', `/api/admin/user-requests/${complianceUuid}/complete`, {}),
+  (error) => error instanceof RequestSecurityError && error.code === 'USER_REQUEST_INVALID',
+);
+assert.doesNotThrow(() =>
+  validateRouteInput('POST', `/api/admin/user-requests/${complianceUuid}/decline`, {
+    reasonCode: 'request_not_supported',
+    publicMessage: '当前请求无法处理',
+    internalNote: '运营复核完成',
+  }),
+);
+
+const validContentReportCreate = {
+  targetType: 'post',
+  targetId: complianceUuid,
+  category: 'content_violation',
+  description: '作品包含不适宜内容',
+  clientRequestId: 'content-report-security-001',
+};
+assert.doesNotThrow(() => validateRouteInput('POST', '/api/content-reports', validContentReportCreate));
+assert.throws(
+  () => validateRouteInput('POST', '/api/content-reports', { ...validContentReportCreate, reportedUserId: complianceUuid }),
+  (error) => error instanceof RequestSecurityError && error.code === 'CONTENT_REPORT_INVALID',
+);
+assert.throws(
+  () => validateRouteInput('POST', '/api/content-reports', { ...validContentReportCreate, category: 'payment_dispute' }),
+  (error) => error instanceof RequestSecurityError && error.code === 'CONTENT_REPORT_INVALID',
+);
+assert.doesNotThrow(() =>
+  validateRouteInput('POST', `/api/admin/content-reports/${complianceUuid}/investigate`, {
+    internalNote: '进入人工审核',
+  }),
+);
+assert.doesNotThrow(() =>
+  validateRouteInput('POST', `/api/admin/content-reports/${complianceUuid}/resolve`, {
+    resolutionAction: 'remove_post',
+    publicMessage: '举报已处理',
+  }),
+);
+assert.throws(
+  () =>
+    validateRouteInput('POST', `/api/admin/content-reports/${complianceUuid}/resolve`, {
+      resolutionAction: 'refund',
+      publicMessage: '举报已处理',
+    }),
+  (error) => error instanceof RequestSecurityError && error.code === 'CONTENT_REPORT_INVALID',
+);
+assert.doesNotThrow(() => validateRouteInput('PUT', `/api/me/blocked-companions/${complianceUuid}`, {}));
+assert.doesNotThrow(() => validateRouteInput('DELETE', `/api/me/blocked-companions/${complianceUuid}`, {}));
+assert.throws(
+  () => validateRouteInput('PUT', `/api/me/blocked-companions/${complianceUuid}`, { userId: complianceUuid }),
+  (error) => error instanceof RequestSecurityError && error.code === 'REQUEST_BODY_INVALID',
+);
+const deleteBody = await readJsonRequest(jsonRequest('{"unexpected":true}', 'application/json', 'DELETE'));
+assert.throws(
+  () => validateRouteInput('DELETE', `/api/me/blocked-companions/${complianceUuid}`, deleteBody),
+  (error) => error instanceof RequestSecurityError && error.code === 'REQUEST_BODY_INVALID',
+);
+for (const [method, path] of [
+  ['GET', '/api/user-requests/not-a-uuid'],
+  ['POST', `/api/user-requests/${complianceUuid}/cancel/extra`],
+  ['POST', `/api/me/blocked-companions/${complianceUuid}`],
+]) {
+  assert.throws(
+    () => validateRouteInput(method, path, {}),
+    (error) => error instanceof RequestSecurityError && error.status === 404 && error.code === 'NOT_FOUND',
+  );
+}
 assert.doesNotThrow(() => validateRouteInput('POST', '/api/orders', { placeLat: 31.2, placeLng: 121.4 }));
 assert.throws(
   () => validateRouteInput('POST', '/api/orders', { placeLat: 31.2 }),
@@ -255,6 +405,100 @@ assert.throws(
   () => validateRouteQuery('GET', '/api/booking-requests/00000000-0000-4000-8000-000000000901', new URLSearchParams('status=submitted')),
   (error) => error instanceof RequestSecurityError && error.code === 'BOOKING_QUERY_INVALID',
 );
+assert.doesNotThrow(() =>
+  validateRouteQuery(
+    'GET',
+    '/api/user-requests',
+    new URLSearchParams('requestType=support&status=processing&limit=20&cursor=opaque_cursor'),
+  ),
+);
+assert.doesNotThrow(() =>
+  validateRouteQuery(
+    'GET',
+    '/api/admin/user-requests',
+    new URLSearchParams('requestType=account_deletion&status=submitted&limit=50'),
+  ),
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/user-requests', new URLSearchParams('userId=forged')),
+  (error) => error instanceof RequestSecurityError && error.code === 'USER_REQUEST_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/user-requests', new URLSearchParams('status=submitted&status=processing')),
+  (error) => error instanceof RequestSecurityError && error.code === 'USER_REQUEST_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/user-requests', new URLSearchParams('requestType=')),
+  (error) => error instanceof RequestSecurityError && error.code === 'USER_REQUEST_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/user-requests', new URLSearchParams('cursor=not+base64')),
+  (error) => error instanceof RequestSecurityError && error.code === 'USER_REQUEST_CURSOR_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', `/api/user-requests/${complianceUuid}`, new URLSearchParams('status=submitted')),
+  (error) => error instanceof RequestSecurityError && error.code === 'USER_REQUEST_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('POST', '/api/user-requests', new URLSearchParams('status=submitted')),
+  (error) => error instanceof RequestSecurityError && error.code === 'USER_REQUEST_QUERY_INVALID',
+);
+
+assert.doesNotThrow(() =>
+  validateRouteQuery(
+    'GET',
+    '/api/me/content-reports',
+    new URLSearchParams('status=investigating&targetType=companion&limit=10'),
+  ),
+);
+assert.doesNotThrow(() =>
+  validateRouteQuery(
+    'GET',
+    '/api/admin/content-reports',
+    new URLSearchParams('status=pending&targetType=post&category=safety&cursor=opaque_cursor'),
+  ),
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/me/content-reports', new URLSearchParams('category=safety')),
+  (error) => error instanceof RequestSecurityError && error.code === 'CONTENT_REPORT_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/admin/content-reports', new URLSearchParams('category=unknown')),
+  (error) => error instanceof RequestSecurityError && error.code === 'CONTENT_REPORT_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/me/content-reports', new URLSearchParams('limit=51')),
+  (error) => error instanceof RequestSecurityError && error.code === 'CONTENT_REPORT_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/me/content-reports', new URLSearchParams('cursor=')),
+  (error) => error instanceof RequestSecurityError && error.code === 'CONTENT_REPORT_CURSOR_INVALID',
+);
+
+assert.doesNotThrow(() =>
+  validateRouteQuery('GET', '/api/me/blocked-companions', new URLSearchParams('limit=20&cursor=opaque_cursor')),
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/me/blocked-companions', new URLSearchParams('status=blocked')),
+  (error) => error instanceof RequestSecurityError && error.code === 'COMPANION_BLOCK_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/me/blocked-companions', new URLSearchParams('limit=20&limit=30')),
+  (error) => error instanceof RequestSecurityError && error.code === 'COMPANION_BLOCK_QUERY_INVALID',
+);
+assert.throws(
+  () =>
+    validateRouteQuery(
+      'PUT',
+      `/api/me/blocked-companions/${complianceUuid}`,
+      new URLSearchParams('source=profile'),
+    ),
+  (error) => error instanceof RequestSecurityError && error.code === 'COMPANION_BLOCK_QUERY_INVALID',
+);
+assert.throws(
+  () => validateRouteQuery('GET', '/api/me/content-reports/not-a-uuid', new URLSearchParams()),
+  (error) => error instanceof RequestSecurityError && error.status === 404 && error.code === 'NOT_FOUND',
+);
 
 assert.deepEqual(
   rotatingSecretValues({ CURRENT: 'new-key', PREVIOUS: 'old-key' }, 'CURRENT', 'PREVIOUS'),
@@ -297,6 +541,9 @@ console.log(
         'unsafe-object-rejection',
         'route-validation',
         'order-query-validation',
+        'store-lite-compliance-access-policy',
+        'store-lite-compliance-body-and-query-validation',
+        'store-lite-compliance-sensitive-rate-limit',
         'rotating-keyring',
         'log-redaction',
         'request-completion-log',
@@ -316,9 +563,9 @@ function request(method, url, headers = {}) {
   };
 }
 
-function jsonRequest(body, contentType = 'application/json') {
+function jsonRequest(body, contentType = 'application/json', method = 'POST') {
   const stream = Readable.from([Buffer.from(body)]);
-  stream.method = 'POST';
+  stream.method = method;
   stream.headers = {
     'content-type': contentType,
     'content-length': String(Buffer.byteLength(body)),

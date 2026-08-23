@@ -40,6 +40,7 @@ try {
   assert(postgresStore.capabilities?.authWrites === true && typeof postgresStore.authWrites?.upsertIdentityUser === 'function', 'postgres store exposes auth write gateway');
   assert(postgresStore.capabilities?.adminAuth === true && typeof postgresStore.adminAuth?.authenticate === 'function', 'postgres store exposes admin password auth gateway');
   assert(postgresStore.capabilities?.bookingRequests === false && !postgresStore.bookingRequests, 'Store Lite booking gateway is disabled by default');
+  assert(postgresStore.capabilities?.storeLiteCompliance === false && !postgresStore.storeLiteCompliance, 'Store Lite compliance gateway is disabled by default');
   assert(postgresStore.capabilities?.auditWrites === true && typeof postgresStore.auditWrites?.recordAdminAction === 'function', 'postgres store exposes audit write gateway');
   assert(postgresStore.capabilities?.securityWrites === true && typeof postgresStore.securityWrites?.recordSecurityEvent === 'function', 'postgres store exposes security write gateway');
   assert(postgresStore.capabilities?.sessionWrites === true && typeof postgresStore.sessionWrites?.create === 'function', 'postgres store exposes session write gateway');
@@ -50,6 +51,7 @@ try {
     'postgres store exposes idempotency write gateway',
   );
   process.env.ENABLE_STORE_LITE_BOOKINGS = 'true';
+  process.env.ENABLE_STORE_LITE_COMPLIANCE = 'true';
   const storeLitePostgresStore = createDataStore({
     storePath: resolve(tempDir, 'store.json'),
     initialStore: () => ({ meta: { version: 1 } }),
@@ -65,6 +67,16 @@ try {
       typeof storeLitePostgresStore.bookingRequests?.declineForAdmin === 'function' &&
       typeof storeLitePostgresStore.bookingRequests?.cancelForAdmin === 'function',
     'Store Lite flag exposes the complete PostgreSQL booking gateway',
+  );
+  assert(
+    storeLitePostgresStore.capabilities?.storeLiteCompliance === true &&
+      typeof storeLitePostgresStore.storeLiteCompliance?.createUserRequestForConsumer === 'function' &&
+      typeof storeLitePostgresStore.storeLiteCompliance?.listUserRequestsForAdmin === 'function' &&
+      typeof storeLitePostgresStore.storeLiteCompliance?.createContentReportForConsumer === 'function' &&
+      typeof storeLitePostgresStore.storeLiteCompliance?.resolveContentReportForAdmin === 'function' &&
+      typeof storeLitePostgresStore.storeLiteCompliance?.blockCompanionForConsumer === 'function' &&
+      typeof storeLitePostgresStore.storeLiteCompliance?.unblockCompanionForConsumer === 'function',
+    'Store Lite compliance flag exposes the bounded PostgreSQL compliance gateway',
   );
   assert(
     postgresStore.capabilities?.orderReads === true &&
@@ -113,6 +125,8 @@ try {
           'postgres-admin-auth-gateway',
           'store-lite-booking-default-off',
           'store-lite-booking-flagged-gateway',
+          'store-lite-compliance-default-off',
+          'store-lite-compliance-flagged-gateway',
           'postgres-audit-gateway',
           'postgres-security-gateway',
           'postgres-session-gateway',
@@ -133,6 +147,7 @@ try {
   delete process.env.STORE_DRIVER;
   delete process.env.DATABASE_URL;
   delete process.env.ENABLE_STORE_LITE_BOOKINGS;
+  delete process.env.ENABLE_STORE_LITE_COMPLIANCE;
   await rm(tempDir, { recursive: true, force: true });
 }
 

@@ -24,11 +24,46 @@
 
 - Apple Developer Program 公司账号、正式 Team 与签名
 - 腾讯短信真实验证码或 Roadmap 批准的替代账号方案
-- Store Lite 消费者专用构建和路由白名单
-- 真实预约申请、受保护运营处理入口、举报、客服和账号删除 API
-- 正式生产数据库、稳定精选媒体、域名和 HTTPS 验收
+- 当前 Windows Store Lite 消费者/窄运营台/服务端检查点经用户批准后推送，并取得 GitHub CI 的 PostgreSQL 16 与双前端构建证据
+- 正式生产数据库、窄运营台部署、稳定精选媒体、域名和 HTTPS 验收
 - 隐私/协议/支持 URL、App Privacy、服务端受限审核账号，以及 territory/登录/备案结论
+- 账号删除实际执行器、会话撤销、法定保留范围和处理 SLA；当前 App 内发起/查询/取消已完成
 - Release Archive、真机 QA、TestFlight 和 App Store Connect 材料
+
+Windows 已有的局部实现包括：消费者专用入口、编译期路由和模块白名单、无支付预约/举报/屏蔽/客服与数据请求、独立窄运营台、生产配置失败关闭、构建产物 SHA256 清单和 iOS Release 校验脚本。这些是 Mac 验收输入，不代表 `IOS-STORE-LITE-1` 已完成。
+
+## Mac 最短接力步骤
+
+只有用户批准并将当前本地检查点推送到远端后，才在 Mac 拉取对应完整 SHA。不要复制 Windows 的 `dist-store-lite`，也不要使用历史 bundle 覆盖当前工程。
+
+```bash
+cd ~/Documents/PP平台
+git fetch origin
+git switch codex/vertical-db-api
+git pull --ff-only
+git status --short --branch
+cd pp-app
+npm ci
+
+export VITE_APP_ENV=production
+export VITE_RELEASE_PROFILE=store_lite
+export VITE_ENABLE_MOCK=false
+export VITE_ENABLE_TEST_ROLE_SWITCH=false
+export VITE_API_BASE_URL=https://api.weareinframe.com
+export VITE_PRIVACY_URL=https://www.weareinframe.com/privacy
+export VITE_TERMS_URL=https://www.weareinframe.com/terms
+export VITE_SUPPORT_URL=https://www.weareinframe.com/support
+
+npm run build:store-lite
+npm run check:store-lite-integrity
+npm run ios:sync:store-lite
+npm run check:store-lite-native
+npm run ios:open
+```
+
+执行前必须确认上述四个 HTTPS URL 已正式批准并可从公网访问；命令中的域名不是“部署已完成”的证明。生产服务端 `CORS_ALLOWED_ORIGINS` 必须精确包含 `capacitor://localhost`，并在真机验证 API 请求成功；其他来源只允许实际部署的 HTTPS Web/Admin origin。`dist-store-lite/store-lite-release.json` 必须记录当前完整 Git SHA 且 `sourceTreeClean` 为 `true`；脏工作树生成物只能用于本地预览，不能通过 iOS Release/Archive guard。
+
+在 Xcode 中只使用 Release 配置完成签名、真机和 Archive。Archive 阶段会再次核对 Store Lite route/API bundle、`ios/App/App/public`、最终构建内 public 目录、原生 runtime seal、Info.plist 权限和 Capacitor 版本；任何旧商业包覆盖、未提交源码或构建后篡改都会失败关闭。
 
 ## 新对话必读文件
 

@@ -125,6 +125,12 @@ npm run dev
 
 - `npm run dev` / `npm run dev:combined`：本地混合演示入口，同时包含 Client、Studio 和 Admin，方便联调。
 - `npm run dev:mobile`：只挂载 Client / Studio 移动端路由，不加载运营后台入口。
+- `npm run dev:store-lite`：当前 App Store 首审的消费者专用入口，只包含真实内容、无支付预约和合规页面。
+- `npm run dev:store-lite-admin`：只在 `127.0.0.1` 启动窄运营台，不加载旧完整后台。
 - `npm run dev:admin`：只挂载 Admin 后台入口。
-- `npm run build` / `npm run build:mobile`：App Store/TestFlight 移动端包使用这个构建，已通过 `vite.mobile.config.ts` 排除 Admin 路由和后台大模块。
-- `npm run build:admin`：运营后台独立 Web 构建，输出到 `dist-admin`，后续应单独部署。
+- `npm run build` / `npm run build:store-lite`：当前 App Store/TestFlight 候选构建；必须提供已批准的生产环境和四个 HTTPS URL，输出到 `dist-store-lite` 并生成 route/API/bundle/SHA256/来源状态证据。
+- `npm run build:store-lite-admin`：预约、用户请求和举报的窄运营台独立构建，输出到 `dist-store-lite-admin`，不得与消费者包一起分发。
+- `npm run build:mobile` / `npm run build:admin`：旧商业移动端和完整后台的回归构建，不是 Store Lite 首审包。
+- `npm run ios:sync:store-lite`：在 Mac 上从干净已提交源码重新构建并同步 iOS；随后运行 `npm run check:store-lite-native`，再进入 Xcode Release/Archive。
+
+生产构建、Mac 接力和上架范围分别以 `docs/APP_STORE_LAUNCH.md`、`docs/MAC_IOS_HANDOFF.md` 和唯一 Roadmap 为准。脏工作树仍可生成本地预览，但不能通过 iOS Release/Archive guard。

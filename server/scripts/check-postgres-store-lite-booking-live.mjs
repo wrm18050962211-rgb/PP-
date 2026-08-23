@@ -744,12 +744,20 @@ async function assertAdminContactBoundary(store, sessions, fixture) {
   const detail = await store.bookingRequests.getForAdmin({
     adminId: sessions.adminA.adminId,
     bookingRequestId: fixture.requests.replayA.id,
+    includeContact: true,
   });
   assert(detail.consumer.phone === fixture.users.consumerA.phone, 'protected admin detail must expose consumer phone');
   assert(
     detail.companionPhone === fixture.users.photographerOwnerA.phone,
     'protected admin detail must expose photographer phone',
   );
+  const readOnlyDetail = await store.bookingRequests.getForAdmin({
+    adminId: sessions.adminA.adminId,
+    bookingRequestId: fixture.requests.replayA.id,
+    includeContact: false,
+  });
+  assert(readOnlyDetail.consumer.phone === null, 'read-only admin detail must not expose consumer phone');
+  assert(readOnlyDetail.companionPhone === null, 'read-only admin detail must not expose photographer phone');
 }
 
 async function assertConfirmCancelFlow(control, store, sessions, fixture) {

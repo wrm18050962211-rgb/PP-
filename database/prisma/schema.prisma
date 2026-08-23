@@ -81,6 +81,11 @@ enum ReportStatus {
   rejected
 }
 
+enum ReportContext {
+  order
+  store_lite_content
+}
+
 enum SettlementStatus {
   pending
   frozen
@@ -169,6 +174,27 @@ enum BookingRequestActorType {
   admin
 }
 
+enum UserRequestType {
+  support
+  data_access
+  data_copy
+  account_deletion
+}
+
+enum UserRequestStatus {
+  submitted
+  processing
+  completed
+  declined
+  cancelled
+}
+
+enum UserRequestActorType {
+  user
+  admin
+  system
+}
+
 model User {
   id          String     @id @default(uuid()) @db.Uuid
   phone       String?    @unique @db.VarChar(32)
@@ -204,6 +230,9 @@ model User {
   ownedMerchants       Merchant[]
   bookingRequests      BookingRequest[]          @relation("BookingRequestUser")
   bookingStatusActions BookingRequestStatusLog[] @relation("BookingRequestStatusUserActor")
+  userRequests         UserRequest[]              @relation("UserRequestOwner")
+  userRequestActions   UserRequestStatusLog[]     @relation("UserRequestStatusUserActor")
+  companionBlocks      UserCompanionBlock[]       @relation("UserCompanionBlockUser")
 
   @@index([city])
   @@index([status])
@@ -309,6 +338,7 @@ model Companion {
   merchantLinks  PhotographerMerchantLink[]
   orderItems     OrderItem[]
   bookingRequests BookingRequest[] @relation("BookingRequestCompanion")
+  blockedByUsers UserCompanionBlock[] @relation("UserCompanionBlockCompanion")
 
   @@index([baseCity, status])
   @@index([serviceEnabled])
@@ -945,23 +975,28 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+/// Raw SQL additionally enforces Store Lite target shape and the partial
+/// reporter/client-request uniqueness used by content-report idempotency.
 model Report {
-  id             String       @id @default(uuid()) @db.Uuid
-  reporterId     String       @map("reporter_id") @db.Uuid
-  reportedUserId String?      @map("reported_user_id") @db.Uuid
-  orderId        String?      @map("order_id") @db.Uuid
-  conversationId String?      @map("conversation_id") @db.Uuid
-  targetType     String       @map("target_type") @db.VarChar(40)
-  targetId       String?      @map("target_id") @db.Uuid
-  category       String       @db.VarChar(80)
-  description    String?
-  evidenceFiles  Json         @default("[]") @map("evidence_files")
-  status         ReportStatus @default(pending)
-  handledBy      String?      @map("handled_by") @db.Uuid
-  handledAt      DateTime?    @map("handled_at") @db.Timestamptz(6)
-  result         String?
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String        @id @default(uuid()) @db.Uuid
+  reporterId         String        @map("reporter_id") @db.Uuid
+  reportedUserId     String?       @map("reported_user_id") @db.Uuid
+  reportContext      ReportContext @default(order) @map("report_context")
+  orderId            String?       @map("order_id") @db.Uuid
+  conversationId     String?       @map("conversation_id") @db.Uuid
+  targetType         String        @map("target_type") @db.VarChar(40)
+  targetId           String?       @map("target_id") @db.Uuid
+  category           String        @db.VarChar(80)
+  description        String?
+  evidenceFiles      Json          @default("[]") @map("evidence_files")
+  clientRequestId    String?       @map("client_request_id") @db.VarChar(160)
+  requestFingerprint String?       @map("request_fingerprint") @db.VarChar(128)
+  status             ReportStatus  @default(pending)
+  handledBy          String?       @map("handled_by") @db.Uuid
+  handledAt          DateTime?     @map("handled_at") @db.Timestamptz(6)
+  result             String?
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   reporter     User          @relation("ReportsMade", fields: [reporterId], references: [id])
   reportedUser User?         @relation("ReportsReceived", fields: [reportedUserId], references: [id])
@@ -971,7 +1006,23 @@ model Report {
   @@index([status, createdAt])
   @@index([orderId])
   @@index([reportedUserId, createdAt])
+  @@index([reporterId, reportContext, createdAt, id], map: "idx_reports_store_lite_reporter_created")
+  @@index([reportContext, status, createdAt, id], map: "idx_reports_store_lite_operator_queue")
   @@map("reports")
+}
+
+model UserCompanionBlock {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  companionId String   @map("companion_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User      @relation("UserCompanionBlockUser", fields: [userId], references: [id], onDelete: Cascade)
+  companion Companion @relation("UserCompanionBlockCompanion", fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companionId], map: "uq_user_companion_blocks_user_companion")
+  @@index([userId, createdAt, id], map: "idx_user_companion_blocks_user_created")
+  @@map("user_companion_blocks")
 }
 
 model Rating {
@@ -1107,6 +1158,7 @@ model AdminUser {
   systemConfigs SystemConfig[]
   sessions      UserSession[]
   bookingStatusActions BookingRequestStatusLog[] @relation("BookingRequestStatusAdminActor")
+  userRequestActions UserRequestStatusLog[] @relation("UserRequestStatusAdminActor")
 
   @@index([role])
   @@map("admin_users")
@@ -1143,6 +1195,7 @@ model BookingRequest {
   user       User                      @relation("BookingRequestUser", fields: [userId], references: [id], onDelete: NoAction)
   companion  Companion                 @relation("BookingRequestCompanion", fields: [companionId], references: [id], onDelete: NoAction)
   statusLogs BookingRequestStatusLog[]
+  userRequests UserRequest[]            @relation("UserRequestBookingRequest")
 
   @@unique([id, userId], map: "uq_booking_requests_id_user")
   @@unique([userId, clientRequestId], map: "uq_booking_requests_user_client")
@@ -1172,6 +1225,60 @@ model BookingRequestStatusLog {
   @@index([bookingRequestId, createdAt, id], map: "idx_booking_request_status_logs_request")
   @@index([actorAdminId, createdAt], map: "idx_booking_request_status_logs_admin")
   @@map("booking_request_status_logs")
+}
+
+/// Raw SQL additionally enforces the optional booking-request owner FK,
+/// active account-deletion uniqueness, and status/timestamp consistency.
+model UserRequest {
+  id                 String            @id @default(uuid()) @db.Uuid
+  userId             String            @map("user_id") @db.Uuid
+  requestType        UserRequestType   @map("request_type")
+  supportCategory    String?           @map("support_category") @db.VarChar(80)
+  bookingRequestId   String?           @map("booking_request_id") @db.Uuid
+  description        String?           @db.VarChar(2000)
+  clientRequestId    String            @map("client_request_id") @db.VarChar(160)
+  requestFingerprint String            @map("request_fingerprint") @db.VarChar(128)
+  status             UserRequestStatus @default(submitted)
+  processingAt       DateTime?         @map("processing_at") @db.Timestamptz(6)
+  completedAt        DateTime?         @map("completed_at") @db.Timestamptz(6)
+  declinedAt         DateTime?         @map("declined_at") @db.Timestamptz(6)
+  cancelledAt        DateTime?         @map("cancelled_at") @db.Timestamptz(6)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user           User                   @relation("UserRequestOwner", fields: [userId], references: [id], onDelete: NoAction)
+  bookingRequest BookingRequest?        @relation("UserRequestBookingRequest", fields: [bookingRequestId, userId], references: [id, userId], onDelete: NoAction)
+  statusLogs     UserRequestStatusLog[]
+
+  @@unique([id, userId], map: "uq_user_requests_id_user")
+  @@unique([userId, clientRequestId], map: "uq_user_requests_user_client")
+  @@index([userId, createdAt, id], map: "idx_user_requests_user_created")
+  @@index([userId, requestType, status, createdAt, id], map: "idx_user_requests_user_type_status_created")
+  @@index([status, createdAt, id], map: "idx_user_requests_operator_queue")
+  @@map("user_requests")
+}
+
+/// Raw SQL owns the actor XOR, transition whitelist, and user-owner composite FK.
+/// The gateway must additionally forbid admin completion of account deletion.
+model UserRequestStatusLog {
+  id            String               @id @default(uuid()) @db.Uuid
+  userRequestId String               @map("user_request_id") @db.Uuid
+  fromStatus    UserRequestStatus?   @map("from_status")
+  toStatus      UserRequestStatus    @map("to_status")
+  actorType     UserRequestActorType @map("actor_type")
+  actorUserId   String?              @map("actor_user_id") @db.Uuid
+  actorAdminId  String?              @map("actor_admin_id") @db.Uuid
+  reasonCode    String?              @map("reason_code") @db.VarChar(80)
+  publicMessage String?              @map("public_message") @db.VarChar(1000)
+  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  userRequest UserRequest @relation(fields: [userRequestId], references: [id], onDelete: Cascade)
+  actorUser   User?       @relation("UserRequestStatusUserActor", fields: [actorUserId], references: [id], onDelete: NoAction)
+  actorAdmin  AdminUser?  @relation("UserRequestStatusAdminActor", fields: [actorAdminId], references: [id], onDelete: NoAction)
+
+  @@index([userRequestId, createdAt, id], map: "idx_user_request_status_logs_request")
+  @@index([actorAdminId, createdAt], map: "idx_user_request_status_logs_admin")
+  @@map("user_request_status_logs")
 }
 
 model UserSession {

@@ -45,6 +45,10 @@ for (const body of [adminListBlock, adminDetailBlock]) {
   assert(/requireAdminScope\(store, 'booking_requests:read'/.test(body), 'admin reads require the booking read scope from the session');
   assert(/adminId:\s*gate\.session\.adminId\s*\|\|\s*gate\.session\.user\.id/.test(body), 'admin read actor comes only from the authenticated session');
 }
+assert(
+  /includeContact:\s*Array\.isArray\(gate\.session\.adminScope\)[\s\S]*booking_requests:write/.test(adminDetailBlock),
+  'full booking contacts require the write scope; read-only operators receive null contacts',
+);
 assert(/requireAdminScope\(store, 'booking_requests:write'/.test(adminTransitionBlock), 'admin transitions require the booking write scope from the session');
 assert(/adminId:\s*gate\.session\.adminId\s*\|\|\s*gate\.session\.user\.id/.test(adminTransitionBlock), 'admin transition actor comes only from the authenticated session');
 assert(

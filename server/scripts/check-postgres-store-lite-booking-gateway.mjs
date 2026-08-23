@@ -287,6 +287,7 @@ async function checkAdminReads() {
   const detail = await getBookingRequestDetailForAdmin(detailClient, {
     adminId: ids.admin,
     bookingRequestId: ids.booking,
+    includeContact: true,
   });
   assert.equal(detail.consumer.phone, '13812345678');
   assert.equal(detail.companionPhone, '13987654321');
@@ -294,6 +295,26 @@ async function checkAdminReads() {
   assert.equal(Object.hasOwn(detail.statusLogs[0], 'actorUserId'), false);
   assert.equal(Object.hasOwn(detail.statusLogs[0], 'actorAdminId'), false);
   detailClient.assertDone();
+
+  const viewerClient = scriptedClient([
+    step(/from booking_requests b[\s\S]+where b\.id = \$1::uuid/i, {
+      rows: [{ ...row, consumer_phone: undefined, companion_phone: undefined }],
+    }),
+    step(/from booking_request_status_logs/i, { rows: [statusLog(null, 'submitted', 'user')] }),
+  ]);
+  const viewerDetail = await getBookingRequestDetailForAdmin(viewerClient, {
+    adminId: ids.otherAdmin,
+    bookingRequestId: ids.booking,
+    includeContact: false,
+  });
+  assert.equal(viewerDetail.consumer.phone, null, 'read-only operators cannot reveal the consumer phone');
+  assert.equal(viewerDetail.companionPhone, null, 'read-only operators cannot reveal the photographer phone');
+  assert.equal(
+    viewerClient.calls.some((call) => /consumer_phone|companion_phone/i.test(call.sql)),
+    false,
+    'read-only detail SQL does not select either phone column',
+  );
+  viewerClient.assertDone();
 }
 
 async function checkAdminTransitions() {
@@ -443,6 +464,38 @@ async function checkStableFailuresAndValidation() {
     'BOOKING_CURSOR_INVALID',
     400,
   );
+  await expectGatewayError(
+    () => createBookingRequestForConsumer(noQueryClient(), {
+      ...createInput,
+      requirements: '请加微信 13800138000 后线下转账',
+    }),
+    'BOOKING_PUBLIC_TEXT_UNSAFE',
+    400,
+  );
+  await expectGatewayError(
+    () => confirmBookingRequestForAdmin(noQueryClient(), {
+      adminId: ids.admin,
+      bookingRequestId: ids.booking,
+      confirmedStartAt: '2026-09-01T06:00:00+08:00',
+      confirmedEndAt: '2026-09-01T08:00:00+08:00',
+      confirmedCity: '上海',
+      confirmedAddressText: '徐汇区示例集合点',
+      arrivalInstructions: '到店后扫描二维码付款',
+      supportChannelKey: 'support.store_lite',
+    }),
+    'BOOKING_PUBLIC_TEXT_UNSAFE',
+    400,
+  );
+  await expectGatewayError(
+    () => declineBookingRequestForAdmin(noQueryClient(), {
+      adminId: ids.admin,
+      bookingRequestId: ids.booking,
+      reasonCode: 'unavailable',
+      publicMessage: '请访问 https://example.com 联系我们',
+    }),
+    'BOOKING_PUBLIC_TEXT_UNSAFE',
+    400,
+  );
   await assert.rejects(
     () => createBookingRequestForConsumer(null, createInput),
     /PostgreSQL client/,
@@ -457,6 +510,7 @@ async function checkStaticSafetyContract() {
   assert.match(source, /status = \$2::booking_request_status/i);
   assert.match(source, /insert into admin_action_logs/i);
   assert.match(source, /to_char\(b\.created_at[\s\S]+SS\.US/i);
+  assert.match(source, /BOOKING_PUBLIC_TEXT_UNSAFE/);
   assert.doesNotMatch(source, /ForPhotographer|ForCompanion/);
   assert.doesNotMatch(source, /payments|refunds|wallets|merchant_offerings/i);
 }

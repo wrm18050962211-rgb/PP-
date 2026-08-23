@@ -7,18 +7,20 @@ const ids = {
   post: '00000000-0000-4000-8000-000000000903',
   image: '00000000-0000-4000-8000-000000000904',
   favorite: '00000000-0000-4000-8000-000000000905',
+  viewer: '00000000-0000-4000-8000-000000000906',
 };
 
 const pool = createMockPool();
 const store = createPostgresStore({
   databaseUrl: 'postgres://user:pass@127.0.0.1:5432/pp',
   poolFactory: () => pool,
+  featureFlags: { storeLiteComplianceEnabled: true },
 });
 
 assert(store.capabilities.contentReads === true, 'postgres store advertises content reads');
 assert(store.capabilities.contentWrites === true, 'postgres store advertises content writes');
 
-const page = await store.content.listPublicPosts({ limit: 20, cursor: '0', city: 'Shanghai' });
+const page = await store.content.listPublicPosts({ limit: 20, cursor: '0', city: 'Shanghai', userId: ids.viewer });
 assert(page.items.length === 1, 'content gateway maps a public feed page');
 assert(page.items[0]?.id === ids.post, 'content gateway preserves post id');
 assert(page.items[0]?.companion?.id === ids.companion, 'content gateway attaches companion profile');
@@ -38,6 +40,8 @@ const feedClient = pool.clients[0];
 const collectionClient = pool.clients[1];
 assert(feedClient.calls.some((call) => /limit \$2 offset \$3/i.test(call.sql)), 'feed query uses database pagination');
 assert(feedClient.calls.some((call) => /status = 'approved'/i.test(call.sql) && /is_feed_visible = true/i.test(call.sql)), 'feed query enforces public visibility');
+assert(feedClient.calls.some((call) => /not exists[\s\S]*from user_companion_blocks/i.test(call.sql)), 'feed query excludes photographers blocked by the current user');
+assert(feedClient.calls.some((call) => call.params?.[4] === ids.viewer), 'feed query binds the authenticated viewer id');
 assert(collectionClient.calls.some((call) => /insert into favorites/i.test(call.sql) && /on conflict/i.test(call.sql)), 'collection write is idempotent');
 assert(collectionClient.calls.some((call) => /update posts/i.test(call.sql) && /like_count/i.test(call.sql)), 'like write updates persisted count');
 assert(collectionClient.calls.some((call) => /^commit$/i.test(call.sql)), 'collection write commits transaction');
@@ -52,6 +56,8 @@ assert(/createCompanionPostTransaction/.test(source), 'content gateway exposes p
 assert(/submitCompanionPostReviewTransaction/.test(source), 'content gateway exposes post review transaction');
 assert(/where p\.id = \$1 and p\.companion_id = \$2 and c\.user_id = \$3/i.test(source), 'post review enforces resource ownership');
 assert(/insert into audit_cases/i.test(source), 'post review creates an audit case');
+assert(/getPublicPost[\s\S]*user_companion_blocks/i.test(source), 'post detail applies the user block relation');
+assert(/getPublicCompanion[\s\S]*queryCompanions[\s\S]*user_companion_blocks/i.test(source), 'companion detail applies the user block relation');
 assert(/idx_favorites_target[\s\S]*target_type,\s*target_id/i.test(sqlSchema), 'sql schema indexes collection target lookups');
 assert(/@@index\(\[targetType,\s*targetId\]\)/.test(prismaSchema), 'prisma schema indexes collection target lookups');
 assert(/create index if not exists idx_favorites_target/i.test(migration), 'content index migration is repeatable');
@@ -64,6 +70,7 @@ console.log(
         'content-capabilities',
         'database-feed-pagination',
         'public-visibility',
+        'authenticated-block-filter',
         'profile-and-post-transactions',
         'collection-idempotency',
         'resource-ownership',

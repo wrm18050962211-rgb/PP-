@@ -6,7 +6,7 @@
 
 ## 0. 当前基线与固定决策
 
-- Roadmap version: 9
+- Roadmap version: 10
 - Current integration baseline: `6588247c29b2082d310cc96fe110ab67866337f4`
 - Integration branch: `codex/integration`
 - Windows branch: `codex/vertical-db-api`
@@ -392,8 +392,8 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/migrations/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, Store Lite 运营路由/页面
 - Unblock result: 提供迁移、预约/举报/客服 API、权限矩阵、真实库验证和 commit SHA，解除 `IOS-STORE-LITE-1`、`INT-STORE-LITE-1` 的服务端依赖。
 - Result commit: pending
-- Verification: 预约 schema/parity、管理员鉴权、预约 PostgreSQL gateway、路由与生产 Store Lite fail-closed 检查已纳入并通过 `server: npm.cmd run check:mvp`；`pp-app: npm.cmd run build:mobile`, `npm.cmd run build:admin`, `npm.cmd run check:production-guards` 通过。已新增固定本机专库与显式授权保护的 PostgreSQL 16 live 验收脚本和 CI 步骤；本机无该隔离库，未执行真实 fixture，须等待推送后 CI 证据。
-- Notes: 已完成预约申请领域、消费者/运营权限、幂等创建、稳定分页、确认/拒绝/取消、运营审计、生产 PostgreSQL fail-closed 和 `store_lite` 服务端商业路由禁用边界。当前仍需完成客服申请、举报/屏蔽、窄范围运营页面、审核样例和真实 PostgreSQL 16 CI，故本节点保持 `in_progress`，不解除任何下游。联系人和手机号只按已批准政策最小化收集；“提交申请不等于服务已确认，当前版本不发生扣款”必须进入用户可见文案；首审不创建订单或支付单，不允许客户端提交资金状态；完整履约聊天、摄影师电话、报价版本、成片工作区、结构化地点和媒体仍由后续节点负责。本节点可直接实施，不等待 P1 `WIN-DATA-2A`。
+- Verification: 本地已通过 `server: npm.cmd run check:mvp`，覆盖预约与合规 schema/parity、PostgreSQL gateway、消费者/运营路由、权限与 scope、幂等、屏蔽过滤、公开 DTO 脱敏、生产发行配置和 JSON/商业路由 fail-closed；`pp-app: npm.cmd run build:store-lite`、`build:store-lite-admin`、Store Lite URL/HTML/route/API/bundle/integrity guards、专项 ESLint、TypeScript 和 `check:production-guards` 通过。CI 已配置 PostgreSQL 16 的预约/合规回滚式 live audit，并显式构建消费者 Store Lite 与窄运营台；当前分支尚未推送，CI 尚未实际运行，Mac iOS sync/Archive 和真机验证也未执行。
+- Notes: 已完成无支付预约、客服/数据权利请求、作品/摄影师举报、用户屏蔽、消费者四状态页面、受保护窄运营台、运营审计、生产 PostgreSQL fail-closed、官方 API origin 与消费者 method/path 白名单锁定、iOS `capacitor://localhost` CORS 启动闸门，以及 `store_lite` 商业路由禁用边界；消费者包编译排除旧 Admin、摄影师端、支付、聊天、上传、地图定位和 mock 能力。账号删除已可在 App 内真实发起、查询和取消，运营不能伪造“已完成”；实际匿名化/删除执行器、会话撤销、法定保留范围和完成 SLA 仍须 `EXT-COMPLIANCE-1` 批准后闭环。审核四状态样例、真实 PostgreSQL 16 CI、云环境、短信、正式 URL 与运营部署仍未验收，故节点保持 `in_progress`，不解除任何下游。首审不创建订单或支付单，不允许客户端提交资金状态；完整履约聊天、摄影师电话、报价版本、成片工作区、结构化地点和媒体仍由后续节点负责。本节点可直接实施，不等待 P1 `WIN-DATA-2A`。
 
 ### WIN-DATA-2 咨询、订单工作区、结构化地点和跨设备恢复
 
@@ -902,8 +902,8 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Shared files: Store Lite Vite/Capacitor 配置、`pp-app/src/MobileApp.tsx` 或专用入口、消费者路由/页面、`pp-app/src/types/api.ts`, iOS 配置
 - Unblock result: 提供构建产物路由扫描、真机预约/取消/失败/注销/举报结果和 commit SHA，解除 `INT-STORE-LITE-1`、`IOS-DELIVERY-1` 的客户端依赖。
 - Result commit: pending
-- Verification: pending
-- Notes: 不能只用运行时开关隐藏未完成能力；Store Lite 的 App Store 元数据不得出现支付、定金、退款、商家、社区或 AI 承诺。
+- Verification: Windows 本地已完成独立 `src/storeLiteMain.tsx`/`src/store-lite/**` 入口、编译期模块白名单、精确 UI/API 能力守卫、生产 HTTPS/官方 API origin 校验、资源图 SHA256 清单和来源工作树状态标记；`npm.cmd run build:store-lite`、bundle/integrity guards、专项 ESLint、TypeScript 与生产 guards 通过。窄运营台另以独立入口和产物构建，不进入消费者包。Mac 上尚未执行干净提交后的 Capacitor sync、原生 public seal、Release Archive、真机权限/深链/弱网/跨设备用例或 TestFlight。
+- Notes: 不能只用运行时开关隐藏未完成能力；Store Lite 的 App Store 元数据不得出现支付、定金、退款、商家、社区或 AI 承诺。当前 Windows 实现属于该节点的局部证据，不改变 `pending` 状态，也不绕过 `IOS-AUTH-1`、`IOS-DATA-1`、`WIN-STORE-LITE-1`、`IOS-COMPLIANCE-1` 或 Mac/iOS 验收。iOS Release 只接受重新构建的干净已提交 Store Lite 源码；脏工作树生成物会明确标记且无法通过 Archive guard。
 
 ### IOS-DATA-2 真实咨询和订单工作区
 

@@ -20,6 +20,7 @@ try {
     env: {
       ...process.env,
       APP_ENV: 'production',
+      RELEASE_PROFILE: 'commercial',
       CORS_ALLOWED_ORIGINS: 'http://localhost',
       PHONE_OTP_PEPPER: 'request-security-test-pepper',
       PORT: String(port),

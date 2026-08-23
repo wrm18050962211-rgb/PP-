@@ -4,6 +4,12 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const CURSOR_PATTERN = /^[A-Za-z0-9_-]+$/;
 const CURSOR_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
 const SUPPORT_CHANNEL_PATTERN = /^[a-z0-9][a-z0-9._-]{0,79}$/;
+const PUBLIC_CONTACT_OR_PAYMENT_PATTERNS = Object.freeze([
+  /1[3-9]\d{9}/,
+  /(?:https?:\/\/|www\.|二维码|扫码|收款码)/i,
+  /(?:微信|微\s*信|wechat|\bwx\b|\bvx\b|支付宝|alipay|paypal)/i,
+  /(?:支付|付款|转账|定金|押金|红包|收款|银行卡|线下交易|私下交易)/i,
+]);
 const BOOKING_STATUSES = new Set(['submitted', 'confirmed', 'declined', 'cancelled']);
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -188,7 +194,7 @@ export async function getBookingRequestDetailForAdmin(client, options = {}) {
   requireUuid(options.adminId, 'adminId');
   const bookingRequestId = requireUuid(options.bookingRequestId, 'bookingRequestId');
   try {
-    return await loadAdminDetail(client, bookingRequestId);
+    return await loadAdminDetail(client, bookingRequestId, options.includeContact === true);
   } catch (error) {
     throw normalizeFailure(error);
   }
@@ -202,7 +208,7 @@ export async function confirmBookingRequestForAdmin(client, input = {}) {
     bookingRequestId: requireUuid(input.bookingRequestId, 'bookingRequestId'),
     targetStatus: 'confirmed',
     reasonCode: 'confirmed_by_operations',
-    publicMessage: optionalText(input.publicMessage, BOOKING_REQUEST_SCHEMA.maxReason, 'publicMessage'),
+    publicMessage: optionalPublicBookingText(input.publicMessage, BOOKING_REQUEST_SCHEMA.maxReason, 'publicMessage'),
     internalNote: optionalText(input.internalNote, BOOKING_REQUEST_SCHEMA.maxReason, 'internalNote'),
     statusLogId: optionalUuid(input.statusLogId, 'statusLogId') || randomUUID(),
     adminActionLogId: optionalUuid(input.adminActionLogId, 'adminActionLogId') || randomUUID(),
@@ -217,7 +223,7 @@ export async function declineBookingRequestForAdmin(client, input = {}) {
     bookingRequestId: requireUuid(input.bookingRequestId, 'bookingRequestId'),
     targetStatus: 'declined',
     reasonCode: requireText(input.reasonCode, 1, BOOKING_REQUEST_SCHEMA.maxReasonCode, 'reasonCode'),
-    publicMessage: requireText(input.publicMessage, 1, BOOKING_REQUEST_SCHEMA.maxReason, 'publicMessage'),
+    publicMessage: requirePublicBookingText(input.publicMessage, 1, BOOKING_REQUEST_SCHEMA.maxReason, 'publicMessage'),
     internalNote: optionalText(input.internalNote, BOOKING_REQUEST_SCHEMA.maxReason, 'internalNote'),
     statusLogId: optionalUuid(input.statusLogId, 'statusLogId') || randomUUID(),
     adminActionLogId: optionalUuid(input.adminActionLogId, 'adminActionLogId') || randomUUID(),
@@ -231,7 +237,7 @@ export async function cancelBookingRequestForAdmin(client, input = {}) {
     bookingRequestId: requireUuid(input.bookingRequestId, 'bookingRequestId'),
     targetStatus: 'cancelled',
     reasonCode: requireText(input.reasonCode, 1, BOOKING_REQUEST_SCHEMA.maxReasonCode, 'reasonCode'),
-    publicMessage: requireText(input.publicMessage, 1, BOOKING_REQUEST_SCHEMA.maxReason, 'publicMessage'),
+    publicMessage: requirePublicBookingText(input.publicMessage, 1, BOOKING_REQUEST_SCHEMA.maxReason, 'publicMessage'),
     internalNote: optionalText(input.internalNote, BOOKING_REQUEST_SCHEMA.maxReason, 'internalNote'),
     statusLogId: optionalUuid(input.statusLogId, 'statusLogId') || randomUUID(),
     adminActionLogId: optionalUuid(input.adminActionLogId, 'adminActionLogId') || randomUUID(),
@@ -295,7 +301,7 @@ async function transitionBookingRequest(client, command) {
 
     if (String(before.status) === command.targetStatus) {
       return command.actor.type === 'admin'
-        ? loadAdminDetail(client, command.bookingRequestId)
+        ? loadAdminDetail(client, command.bookingRequestId, true)
         : loadConsumerDetail(client, command.bookingRequestId, command.actor.userId);
     }
     assertTransitionAllowed(before.status, command.targetStatus, command.actor.type);
@@ -322,7 +328,7 @@ async function transitionBookingRequest(client, command) {
     }
 
     return command.actor.type === 'admin'
-      ? loadAdminDetail(client, command.bookingRequestId)
+      ? loadAdminDetail(client, command.bookingRequestId, true)
       : loadConsumerDetail(client, command.bookingRequestId, command.actor.userId);
   });
 }
@@ -440,9 +446,9 @@ async function loadConsumerDetail(client, bookingRequestId, userId) {
   return mapConsumerDetail(row, statusLogs);
 }
 
-async function loadAdminDetail(client, bookingRequestId) {
+async function loadAdminDetail(client, bookingRequestId, includeContact = false) {
   const result = await client.query(
-    `${bookingSelect({ includePhone: true })}
+    `${bookingSelect({ includePhone: includeContact })}
      where b.id = $1::uuid
      limit 1`,
     [bookingRequestId],
@@ -613,7 +619,12 @@ function parseCreateInput(input) {
     timezone: optionalText(input.timezone, 80, 'timezone') || 'Asia/Shanghai',
     city: requireText(input.city, 1, BOOKING_REQUEST_SCHEMA.maxCity, 'city'),
     addressText: requireText(input.addressText, 1, BOOKING_REQUEST_SCHEMA.maxAddressText, 'addressText'),
-    requirements: requireText(input.requirements, 1, BOOKING_REQUEST_SCHEMA.maxRequirements, 'requirements'),
+    requirements: requirePublicBookingText(
+      input.requirements,
+      1,
+      BOOKING_REQUEST_SCHEMA.maxRequirements,
+      'requirements',
+    ),
   };
 }
 
@@ -632,7 +643,7 @@ function parseConfirmation(input) {
     confirmedEndAt,
     confirmedCity: requireText(input.confirmedCity, 1, 80, 'confirmedCity'),
     confirmedAddressText: requireText(input.confirmedAddressText, 1, 500, 'confirmedAddressText'),
-    arrivalInstructions: requireText(input.arrivalInstructions, 1, 1000, 'arrivalInstructions'),
+    arrivalInstructions: requirePublicBookingText(input.arrivalInstructions, 1, 1000, 'arrivalInstructions'),
     supportChannelKey,
   };
 }
@@ -644,6 +655,26 @@ function parseAdminActor(input) {
     ip: optionalText(input.ip, 64, 'ip') || null,
     userAgent: optionalText(input.userAgent, 2000, 'userAgent') || null,
   };
+}
+
+function requirePublicBookingText(value, minimum, maximum, field) {
+  return assertPublicBookingTextSafe(requireText(value, minimum, maximum, field), field);
+}
+
+function optionalPublicBookingText(value, maximum, field) {
+  const text = optionalText(value, maximum, field);
+  return text ? assertPublicBookingTextSafe(text, field) : null;
+}
+
+function assertPublicBookingTextSafe(value, field) {
+  if (PUBLIC_CONTACT_OR_PAYMENT_PATTERNS.some((pattern) => pattern.test(value))) {
+    throw gatewayError(
+      'BOOKING_PUBLIC_TEXT_UNSAFE',
+      `${field} must not contain contact details, links, or payment instructions`,
+      400,
+    );
+  }
+  return value;
 }
 
 function bookingFingerprint(draft) {

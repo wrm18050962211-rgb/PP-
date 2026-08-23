@@ -81,6 +81,7 @@
 3. 自动备份、健康检查、request ID 和脱敏日志。
 4. 平台预审的真实摄影师和稳定 HTTPS 作品。
 5. 记录作品版权、肖像授权和下架负责人。
+6. 生产 CORS 必须精确包含 iOS 容器来源 `capacitor://localhost`；其他来源只允许实际部署的 HTTPS Web/Admin origin，不使用通配符。
 
 首审不需要开放客户端媒体上传，但真实内容不能来自临时 URL、data URL、Mock 或开发机。
 
@@ -223,16 +224,22 @@ cancelled
 - 生产化 Feed、摄影师资料、作品和收藏服务端
 - 集中鉴权、请求校验、错误码、限流和日志脱敏基础
 - 订单 PostgreSQL 权威读取的主要实现
+- Store Lite 独立消费者入口、编译期路由/模块白名单、无支付 UI 和生产 bundle 完整性守卫
+- 真实预约申请、四状态、取消、客服/数据请求、举报与屏蔽的 PostgreSQL schema、API 和消费者页面
+- 只处理预约、用户请求和内容举报的独立窄运营台；旧完整 Admin 不进入消费者包
+- 生产发行配置、官方 API origin、测试角色、短信模式、功能开关和非 PostgreSQL 回退的失败关闭检查
+- PostgreSQL 16 预约/合规 live audit 与 Store Lite 双前端构建已接入 CI，但尚未通过推送实际运行
 
 当前最短链的主要缺口：
 
-- Store Lite 独立构建和路由收敛
-- 真实咨询/预约申请服务端与客户端
-- 受保护运营处理入口、到店确认说明和无 Push 的手动刷新
-- 真实短信和审核账号
-- 首发 territory、备案路径与登录方式的统一结论
-- 账号删除、举报、客服和政策 URL
-- 云 PostgreSQL/稳定媒体/域名的真实验收
-- Release Archive、TestFlight、App Store Connect 材料与备案/territory 结论
+- 将当前本地检查点推送后，取得 PostgreSQL 16 live audit 和 Store Lite 双构建 CI 证据
+- 部署云 PostgreSQL、正式 API 与窄运营台，启用 Store Lite 两个功能开关并完成备份/恢复和在线健康检查
+- 腾讯短信真实发送、首次手机号登录、会话恢复，以及普通消费者审核主备账号
+- 部署并批准隐私政策、用户协议和支持页；验证客服邮箱收件和值守
+- 根据正式保留政策完成账号删除执行器、会话撤销、处理 SLA 和运营演练；当前仅已实现 App 内真实发起/查询/取消
+- 预置真实授权作品、摄影师以及 submitted/confirmed/declined/cancelled 四类审核样例
+- 明确首发 territory、+86 登录适用性和中国大陆 APP/ICP 备案路径
+- 在 Mac 用干净提交重新构建并执行 Capacitor sync、原生 seal、Release Archive、真机 QA 和 TestFlight
+- 准备 App Store Connect 元数据、截图、App Privacy、审核说明及最终提交
 
 支付、完整地图、媒体上传、聊天、商家和 AI 不再进入首次上架关键路径。

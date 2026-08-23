@@ -13,10 +13,35 @@ const SCRYPT_MAX_MEMORY = 64 * 1024 * 1024;
 const SALT_LENGTH = 16;
 
 const ROLE_SCOPES = Object.freeze({
-  store_lite_viewer: Object.freeze(['booking_requests:read']),
-  store_lite_ops: Object.freeze(['booking_requests:read', 'booking_requests:write']),
-  admin: Object.freeze(['booking_requests:read', 'booking_requests:write']),
-  super_admin: Object.freeze(['booking_requests:read', 'booking_requests:write']),
+  store_lite_viewer: Object.freeze([
+    'booking_requests:read',
+    'user_requests:read',
+    'content_reports:read',
+  ]),
+  store_lite_ops: Object.freeze([
+    'booking_requests:read',
+    'booking_requests:write',
+    'user_requests:read',
+    'user_requests:write',
+    'content_reports:read',
+    'content_reports:moderate',
+  ]),
+  admin: Object.freeze([
+    'booking_requests:read',
+    'booking_requests:write',
+    'user_requests:read',
+    'user_requests:write',
+    'content_reports:read',
+    'content_reports:moderate',
+  ]),
+  super_admin: Object.freeze([
+    'booking_requests:read',
+    'booking_requests:write',
+    'user_requests:read',
+    'user_requests:write',
+    'content_reports:read',
+    'content_reports:moderate',
+  ]),
 });
 
 const DUMMY_PASSWORD_HASH = encodePasswordHash(Buffer.alloc(SALT_LENGTH), Buffer.alloc(SCRYPT_KEY_LENGTH));

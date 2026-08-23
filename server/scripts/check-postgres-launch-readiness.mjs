@@ -16,6 +16,7 @@ const files = {
   liveNodeCheck: 'server/scripts/check-postgres-live-node.mjs',
   orderReadLiveCheck: 'server/scripts/check-postgres-order-read-live.mjs',
   storeLiteBookingLiveCheck: 'server/scripts/check-postgres-store-lite-booking-live.mjs',
+  storeLiteComplianceLiveCheck: 'server/scripts/check-postgres-store-lite-compliance-live.mjs',
   migrationLiveCheck: 'server/scripts/check-composite-order-migration-live.mjs',
   ciWorkflow: '.github/workflows/ci.yml',
 };
@@ -37,6 +38,9 @@ const requiredTables = [
   'orders',
   'booking_requests',
   'booking_request_status_logs',
+  'user_requests',
+  'user_request_status_logs',
+  'user_companion_blocks',
   'payments',
   'provider_callback_events',
   'conversations',
@@ -59,6 +63,7 @@ const requiredEnvNames = [
   'ADMIN_SESSION_TTL_HOURS',
   'ADMIN_PASSWORD_PEPPER',
   'ENABLE_STORE_LITE_BOOKINGS',
+  'ENABLE_STORE_LITE_COMPLIANCE',
   'STORE_LITE_SUPPORT_CHANNEL_KEYS',
   'COS_BUCKET',
   'COS_REGION',
@@ -104,6 +109,10 @@ assert(
 assert(
   scripts['check:postgres-store-lite-booking-live'] === 'node scripts/check-postgres-store-lite-booking-live.mjs',
   'server package exposes isolated Store Lite booking PostgreSQL audit',
+);
+assert(
+  scripts['check:postgres-store-lite-compliance-live'] === 'node scripts/check-postgres-store-lite-compliance-live.mjs',
+  'server package exposes isolated Store Lite compliance PostgreSQL audit',
 );
 assert(
   scripts['check:composite-order-migration-live'] === 'node scripts/check-composite-order-migration-live.mjs',
@@ -209,6 +218,29 @@ assert(!/\b(?:create|alter|truncate|drop|grant|revoke|vacuum|reindex)\b\s+(?:tab
 assert(storeLiteBookingLiveCheck.includes('process.exitCode = 1'), 'Store Lite booking audit cannot report a safety refusal as a pass');
 checks.push('isolated-store-lite-booking-audit-safety');
 
+const storeLiteComplianceLiveCheck = read(files.storeLiteComplianceLiveCheck);
+assert(storeLiteComplianceLiveCheck.includes('process.env.STORE_LITE_COMPLIANCE_TEST_DATABASE_URL'), 'Store Lite compliance audit uses its dedicated database URL');
+assert(!storeLiteComplianceLiveCheck.includes('process.env.DATABASE_URL'), 'Store Lite compliance audit ignores the application database URL');
+assert(storeLiteComplianceLiveCheck.includes("ALLOW_STORE_LITE_COMPLIANCE_LIVE_TEST !== '1'"), 'Store Lite compliance audit requires explicit opt-in');
+assert(storeLiteComplianceLiveCheck.includes('if (parsed.search || parsed.hash)'), 'Store Lite compliance audit refuses URL query parameters and fragments');
+assert(storeLiteComplianceLiveCheck.includes("const REQUIRED_DATABASE_NAME = 'pp_platform_ci'"), 'Store Lite compliance audit pins the CI database name');
+for (const hostname of ['localhost', '127.0.0.1', '::1']) {
+  assert(storeLiteComplianceLiveCheck.includes(`'${hostname}'`), `Store Lite compliance audit permits the local host ${hostname}`);
+}
+assert(/server_version_num\s*>?=\s*160000[\s\S]+server_version_num\s*<\s*170000/.test(storeLiteComplianceLiveCheck), 'Store Lite compliance audit pins PostgreSQL 16');
+assert(storeLiteComplianceLiveCheck.includes('connectionTimeoutMillis: 5000'), 'Store Lite compliance audit bounds connection attempts');
+assert(storeLiteComplianceLiveCheck.includes("row.schema_name === 'public'"), 'Store Lite compliance audit pins the public schema after connecting');
+assert(storeLiteComplianceLiveCheck.includes("await control.query('begin')"), 'Store Lite compliance audit opens one outer fixture transaction');
+assert(storeLiteComplianceLiveCheck.includes("await control.query('rollback')"), 'Store Lite compliance audit rolls back its fixture transaction');
+assert(storeLiteComplianceLiveCheck.includes('createSavepointPool(control)'), 'Store Lite compliance audit maps nested gateway transactions to savepoints');
+assert(storeLiteComplianceLiveCheck.includes('await assertFixtureAbsent(control, fixture)'), 'Store Lite compliance audit verifies fixture absence after rollback');
+assert(storeLiteComplianceLiveCheck.includes('await assertUserRequestFlows'), 'Store Lite compliance audit covers user request workflows');
+assert(storeLiteComplianceLiveCheck.includes('await assertContentReportFlows'), 'Store Lite compliance audit covers content report workflows');
+assert(storeLiteComplianceLiveCheck.includes('await assertBlockAndContentFiltering'), 'Store Lite compliance audit covers block filtering');
+assert(!/\b(?:create|alter|truncate|drop|grant|revoke|vacuum|reindex)\b\s+(?:table|type|index|schema|database)\b/i.test(storeLiteComplianceLiveCheck), 'Store Lite compliance audit contains no DDL');
+assert(storeLiteComplianceLiveCheck.includes('process.exitCode = 1'), 'Store Lite compliance audit cannot report a safety refusal as a pass');
+checks.push('isolated-store-lite-compliance-audit-safety');
+
 const migrationLiveCheck = read(files.migrationLiveCheck);
 assert(migrationLiveCheck.includes('process.env.MIGRATION_TEST_DATABASE_URL'), 'migration audit uses its dedicated database URL');
 assert(!migrationLiveCheck.includes('process.env.DATABASE_URL'), 'migration audit ignores the application database URL');
@@ -240,6 +272,7 @@ assert(
 assert(ciWorkflow.includes('npm run check:postgres-live'), 'CI runs live PostgreSQL check');
 assert(ciWorkflow.includes('npm run check:postgres-order-read-live'), 'CI runs isolated order-read PostgreSQL audit');
 assert(ciWorkflow.includes('npm run check:postgres-store-lite-booking-live'), 'CI runs isolated Store Lite booking PostgreSQL audit');
+assert(ciWorkflow.includes('npm run check:postgres-store-lite-compliance-live'), 'CI runs isolated Store Lite compliance PostgreSQL audit');
 assert(ciWorkflow.includes('fetch-depth: 0'), 'CI fetches the fixed baseline commit');
 assert(ciWorkflow.includes('createdb --host=localhost --port=5432 --username=postgres pp_platform_migration_ci'), 'CI creates a dedicated migration database');
 assert(ciWorkflow.includes('createdb --host=localhost --port=5432 --username=postgres pp_platform_store_lite_ci'), 'CI creates a dedicated Store Lite booking database');
@@ -255,6 +288,8 @@ assert(!ciServerJobEnvironment.includes('ALLOW_ORDER_READ_LIVE_TEST'), 'CI does 
 assert(!ciServerJobEnvironment.includes('ORDER_READ_TEST_DATABASE_URL'), 'CI does not export the order-read test URL job-wide');
 assert(!ciServerJobEnvironment.includes('ALLOW_STORE_LITE_LIVE_TEST'), 'CI does not enable Store Lite booking fixture audit job-wide');
 assert(!ciServerJobEnvironment.includes('STORE_LITE_TEST_DATABASE_URL'), 'CI does not export the Store Lite booking test URL job-wide');
+assert(!ciServerJobEnvironment.includes('ALLOW_STORE_LITE_COMPLIANCE_LIVE_TEST'), 'CI does not enable Store Lite compliance fixture audit job-wide');
+assert(!ciServerJobEnvironment.includes('STORE_LITE_COMPLIANCE_TEST_DATABASE_URL'), 'CI does not export the Store Lite compliance test URL job-wide');
 assert(
   /name:\s*Run isolated order-read PostgreSQL audit[\s\S]*?env:\s*\n\s*ORDER_READ_TEST_DATABASE_URL:\s*postgres:\/\/postgres:postgres@localhost:5432\/pp_platform_ci\s*\n\s*ALLOW_ORDER_READ_LIVE_TEST:\s*"1"[\s\S]*?run:\s*npm run check:postgres-order-read-live/.test(ciWorkflow),
   'CI scopes the order-read database URL and opt-in to its audit step',
@@ -268,6 +303,15 @@ assert(
 );
 assert((ciWorkflow.match(/STORE_LITE_TEST_DATABASE_URL/g) || []).length === 1, 'CI exports the Store Lite booking test URL exactly once');
 assert((ciWorkflow.match(/ALLOW_STORE_LITE_LIVE_TEST/g) || []).length === 1, 'CI enables the Store Lite booking audit exactly once');
+const storeLiteComplianceAuditStep = workflowStep(ciWorkflow, 'Run isolated Store Lite compliance PostgreSQL audit');
+assert(storeLiteComplianceAuditStep, 'CI defines the isolated Store Lite compliance audit step');
+assert(
+  /env:\s*\n\s*STORE_LITE_COMPLIANCE_TEST_DATABASE_URL:\s*postgres:\/\/postgres:postgres@localhost:5432\/pp_platform_ci\s*\n\s*ALLOW_STORE_LITE_COMPLIANCE_LIVE_TEST:\s*"1"/.test(storeLiteComplianceAuditStep)
+    && /run:\s*npm run check:postgres-store-lite-compliance-live/.test(storeLiteComplianceAuditStep),
+  'CI contains the Store Lite compliance URL, opt-in, and command in one audit step',
+);
+assert((ciWorkflow.match(/STORE_LITE_COMPLIANCE_TEST_DATABASE_URL/g) || []).length === 1, 'CI exports the Store Lite compliance test URL exactly once');
+assert((ciWorkflow.match(/ALLOW_STORE_LITE_COMPLIANCE_LIVE_TEST/g) || []).length === 1, 'CI enables the Store Lite compliance audit exactly once');
 assert(
   /name:\s*Run isolated composite-order migration audit[\s\S]*?env:\s*\n\s*ALLOW_DESTRUCTIVE_MIGRATION_TEST:\s*"1"[\s\S]*?run:\s*npm run check:composite-order-migration-live/.test(ciWorkflow),
   'CI scopes destructive migration opt-in to the audit step',
@@ -304,7 +348,7 @@ console.log(
       ok: true,
       staticConfigurationReady: true,
       cloudDatabaseTrialReady: false,
-      liveVerificationRequired: ['postgresql-16-migration-audit', 'store-lite-booking-live-ci', 'cloud-connectivity', 'backup-restore'],
+      liveVerificationRequired: ['postgresql-16-migration-audit', 'store-lite-booking-live-ci', 'store-lite-compliance-live-ci', 'cloud-connectivity', 'backup-restore'],
       storeLiteStillRequires: ['cloud-postgresql', 'admin-deployment-isolation', 'monitoring-and-backups'],
       commercialLaterRequires: ['object-storage-write-path', 'live-payment-provider'],
       checks,

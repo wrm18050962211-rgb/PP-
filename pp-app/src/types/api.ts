@@ -209,6 +209,227 @@ export type AdminCancelBookingRequestInput = {
   internalNote?: string;
 };
 
+/** Store Lite 合规能力统一由 ENABLE_STORE_LITE_COMPLIANCE 控制。 */
+export type StoreLiteComplianceFeatureState = {
+  enabled: boolean;
+};
+
+export type StoreLiteComplianceAdminScope =
+  | 'user_requests:read'
+  | 'user_requests:write'
+  | 'content_reports:read'
+  | 'content_reports:moderate';
+
+export type UserRequestType = 'support' | 'data_access' | 'data_copy' | 'account_deletion';
+export type UserRequestStatus = 'submitted' | 'processing' | 'completed' | 'declined' | 'cancelled';
+export type UserRequestSupportCategory = 'booking' | 'safety' | 'account' | 'privacy' | 'other';
+export type UserRequestStatusActorType = 'user' | 'admin' | 'system';
+
+/** 用户和 Admin 都可见的公开状态轨迹；永不包含任何 actor ID。 */
+export type UserRequestPublicStatusLog = {
+  id: string;
+  fromStatus?: UserRequestStatus | null;
+  toStatus: UserRequestStatus;
+  actorType: UserRequestStatusActorType;
+  reasonCode?: string | null;
+  publicMessage?: string | null;
+  createdAt: string;
+};
+
+export type UserRequestConsumerSummary = {
+  id: string;
+  requestType: UserRequestType;
+  supportCategory?: UserRequestSupportCategory | null;
+  bookingRequestId?: string | null;
+  description?: string | null;
+  status: UserRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UserRequestConsumerDetail = UserRequestConsumerSummary & {
+  statusLogs: UserRequestPublicStatusLog[];
+};
+
+export type UserRequestConsumerListPage = {
+  items: UserRequestConsumerSummary[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type UserRequestAdminSummary = UserRequestConsumerSummary & {
+  user: {
+    id: string;
+    nickname: string;
+  };
+};
+
+export type UserRequestAdminDetail = UserRequestConsumerDetail & {
+  user: {
+    id: string;
+    nickname: string;
+  };
+};
+
+export type UserRequestAdminListPage = {
+  items: UserRequestAdminSummary[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type UserRequestListQuery = {
+  requestType?: UserRequestType;
+  status?: UserRequestStatus;
+  limit?: number;
+  cursor?: string;
+};
+
+export type CreateUserRequestInput = {
+  requestType: UserRequestType;
+  supportCategory?: UserRequestSupportCategory;
+  bookingRequestId?: string;
+  description?: string;
+  clientRequestId: string;
+};
+
+export type CancelUserRequestInput = {
+  reasonCode?: string;
+  reason?: string;
+};
+
+export type AdminStartUserRequestInput = {
+  publicMessage?: string;
+  internalNote?: string;
+};
+
+export type AdminCompleteUserRequestInput = {
+  publicMessage: string;
+  internalNote?: string;
+};
+
+export type AdminDeclineUserRequestInput = {
+  reasonCode: string;
+  publicMessage: string;
+  internalNote?: string;
+};
+
+export type ContentReportStatus = ReportStatus;
+export type ContentReportTargetType = 'post' | 'companion';
+export type ContentReportCategory = 'content_violation' | 'safety' | 'fraud' | 'privacy_or_rights' | 'other';
+export type ContentReportResolutionAction = 'no_action' | 'remove_post' | 'suspend_companion';
+
+export type ContentReportPublicResult = {
+  resolutionAction: ContentReportResolutionAction;
+  publicMessage: string;
+};
+
+/** 消费者白名单；不包含附件、reportedUserId、处理人或内部审核字段。 */
+export type ContentReportConsumerSummary = {
+  id: string;
+  targetType: ContentReportTargetType;
+  targetId: string;
+  category: ContentReportCategory;
+  description?: string | null;
+  status: ContentReportStatus;
+  result?: ContentReportPublicResult | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** 当前内容举报列表与详情共享同一消费者白名单。 */
+export type ContentReportConsumerDetail = ContentReportConsumerSummary;
+
+export type ContentReportConsumerListPage = {
+  items: ContentReportConsumerSummary[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type ContentReportTargetSummary = {
+  targetType: ContentReportTargetType;
+  id: string;
+  displayName: string;
+  imageUrl?: string | null;
+};
+
+export type ContentReportAdminSummary = ContentReportConsumerSummary & {
+  reporter: {
+    id: string;
+    nickname: string;
+  };
+  target: ContentReportTargetSummary;
+  handledAt?: string | null;
+  handledByAdminId?: string | null;
+};
+
+/** 当前内容举报 Admin 列表与详情共享同一受保护白名单。 */
+export type ContentReportAdminDetail = ContentReportAdminSummary;
+
+export type ContentReportAdminListPage = {
+  items: ContentReportAdminSummary[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type ContentReportListQuery = {
+  status?: ContentReportStatus;
+  targetType?: ContentReportTargetType;
+  limit?: number;
+  cursor?: string;
+};
+
+export type ContentReportAdminListQuery = ContentReportListQuery & {
+  category?: ContentReportCategory;
+};
+
+export type CreateContentReportInput = {
+  targetType: ContentReportTargetType;
+  targetId: string;
+  category: ContentReportCategory;
+  description?: string;
+  clientRequestId: string;
+};
+
+export type InvestigateContentReportInput = {
+  internalNote?: string;
+};
+
+export type ResolveContentReportInput = {
+  resolutionAction: ContentReportResolutionAction;
+  publicMessage: string;
+  internalNote?: string;
+};
+
+export type RejectContentReportInput = {
+  publicMessage: string;
+  internalNote?: string;
+};
+
+export type BlockedCompanion = {
+  companionId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  baseCity: string;
+  blockedAt: string;
+};
+
+export type BlockedCompanionListPage = {
+  items: BlockedCompanion[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export type BlockedCompanionListQuery = {
+  limit?: number;
+  cursor?: string;
+};
+
+export type BlockedCompanionMutationResult = {
+  companionId: string;
+  blocked: boolean;
+  blockedAt: string | null;
+};
+
 // Public/read-model merchant data intentionally excludes the phone number.
 // A confirmed-order contact response must use MerchantOrderContact instead.
 export type MerchantSummary = {
@@ -380,7 +601,7 @@ export type UserRole = 'consumer' | 'companion' | 'admin';
 
 export type AuthSession = {
   token: string;
-  provider: 'mock_wechat' | 'wechat' | 'phone' | 'local_admin';
+  provider: 'mock_wechat' | 'wechat' | 'phone' | 'local_admin' | 'admin_password';
   role: UserRole;
   roles: UserRole[];
   user: User;

@@ -412,6 +412,7 @@ companions.service_enabled = true
 - 创建幂等性固定在 `booking_requests` 表内：唯一键是 `(user_id, client_request_id)`。同一用户以相同 `clientRequestId` 重放完全相同的规范化请求时返回原详情；相同键配不同请求内容时返回 `409 BOOKING_IDEMPOTENCY_CONFLICT`。不得复用全局幂等网关。
 - 消费者响应永不包含消费者或摄影师电话、`internalNote`、`requestFingerprint`、`adminId`、操作人 ID、IP 或 User-Agent。Admin 列表只返回双方脱敏电话，Admin 详情才返回双方完整电话；完整电话不得进入公开接口或列表日志。
 - `confirmation.supportChannel` 是平台管理的支持渠道键，不是电话、微信号或任意外链。客户端只能把该键映射到平台批准的渠道展示；不得把它作为原始 URI 直接拉起。
+- `requirements`、`arrivalInstructions` 和 Admin `publicMessage` 都属于消费者可见公开文本。服务端必须拒绝其中的手机号、URL、微信/支付宝标识，以及付款、转账等联系方式或支付引导，返回 `400 BOOKING_PUBLIC_TEXT_UNSAFE`；不能只依靠客户端提示或运营规范过滤。
 
 状态只允许：
 
@@ -546,7 +547,7 @@ consumer-only。允许从 `submitted` 或 `confirmed` 取消，成功返回更�
 
 ### GET `/api/admin/booking-requests/:bookingRequestId`
 
-要求 `booking_requests:read`。返回 Admin 详情：完整 `requirements`、带 `actorType`/`reasonCode` 的状态日志，以及 `consumer.phone`、`companionPhone`。完整电话仅用于运营执行本次预约，不得透传消费者端或写入普通请求日志。响应仍不包含 `internalNote`、请求指纹或操作人 ID。
+要求 `booking_requests:read`。返回 Admin 详情：完整 `requirements` 和带 `actorType`/`reasonCode` 的状态日志。只有会话同时具备 `booking_requests:write` 时才返回 `consumer.phone`、`companionPhone`；只读运营账号对应字段固定为 `null`，且查询不得选择电话列。完整电话仅用于运营执行本次预约，不得透传消费者端或写入普通请求日志。响应仍不包含 `internalNote`、请求指纹或操作人 ID。
 
 ### POST `/api/admin/booking-requests/:bookingRequestId/confirm`
 
@@ -593,13 +594,286 @@ consumer-only。允许从 `submitted` 或 `confirmed` 取消，成功返回更�
 
 | HTTP | code | 说明 |
 |---|---|---|
-| 400 | `REQUEST_BODY_INVALID` / `VALIDATION_ERROR` / `BOOKING_REQUEST_INVALID` | 额外字段、必填/长度、UUID 或时间范围无效 |
+| 400 | `REQUEST_BODY_INVALID` / `VALIDATION_ERROR` / `BOOKING_REQUEST_INVALID` / `BOOKING_PUBLIC_TEXT_UNSAFE` | 额外字段、必填/长度、UUID、时间范围无效，或公开文本包含联系方式/支付引导 |
 | 400 | `BOOKING_QUERY_INVALID` / `BOOKING_CURSOR_INVALID` | 列表参数或 opaque cursor 无效 |
 | 401 / 403 | `AUTH_REQUIRED` / `FORBIDDEN` / `ADMIN_SCOPE_REQUIRED` | 缺少会话、角色不符或缺少 Admin scope |
 | 404 | `NOT_FOUND` / `BOOKING_TARGET_UNAVAILABLE` / `BOOKING_REQUEST_NOT_FOUND` | 功能关闭、摄影师不可预约，或目标不存在/无权访问 |
 | 409 | `BOOKING_IDEMPOTENCY_CONFLICT` / `BOOKING_STATUS_CONFLICT` | 幂等键复用冲突或状态迁移冲突 |
 | 503 | `BOOKING_POSTGRES_REQUIRED` / `BOOKING_STORE_UNAVAILABLE` | 缺少 PostgreSQL 权威能力或数据库读取/事务不可用 |
 | 503 | `STORE_LITE_SUPPORT_NOT_CONFIGURED` | 运营确认前尚未配置平台客服渠道，禁止写入无法展示的确认记录 |
+
+## 1.10. Store Lite 合规请求、内容举报与摄影师屏蔽
+
+本节是 Store Lite 首发所需的独立合规域，包括用户客服/数据权利请求、作品或摄影师举报，以及消费者屏蔽摄影师。它不复用商业订单的 `/api/reports`、聊天证据、订单售后或媒体上传，也不创建订单、支付、退款或结算记录。
+
+### 生产、权限与隐私边界
+
+- 总开关为 `ENABLE_STORE_LITE_COMPLIANCE=false`。只有显式设为 `true` 时才注册本节路由；关闭时统一返回 `404 NOT_FOUND`，不得暴露功能是否部署。
+- 开关打开后必须使用 PostgreSQL，并由数据层声明 Store Lite compliance capability。缺少 PostgreSQL 或 capability 时返回 `503 COMPLIANCE_POSTGRES_REQUIRED`；数据库读取或事务暂时失败返回 `503 COMPLIANCE_STORE_UNAVAILABLE`。生产环境禁止回退 JSON、localStorage、内存模拟或空数组成功。
+- 所有消费者端点只允许真实 `consumer` session。用户 ID、角色、举报人、被举报用户和操作人都从 session、目标资源及请求上下文解析，body/query 不得接受这些身份字段。
+- 用户请求 Admin 列表/详情需要 `user_requests:read`，开始、完成和拒绝需要 `user_requests:write`。内容举报 Admin 列表/详情需要 `content_reports:read`，调查、解决和驳回需要 `content_reports:moderate`。
+- 用户只能读取或取消自己的请求，只能读取自己的举报与屏蔽列表。不存在、非本人所有或不可见的详情/变更目标统一返回领域 `*_NOT_FOUND`，不得用 `403`/`404` 差异帮助枚举 UUID。
+- 消费者 DTO 永不返回手机号、`internalNote`、请求指纹、Admin ID、IP、User-Agent、`reportedUserId` 或证据附件。User Request Admin DTO 也不返回用户电话；`internalNote` 只进入受保护的 `admin_action_logs`。内容举报只有 Admin DTO 可以返回 `handledByAdminId`。
+
+### 共同分页和创建幂等性
+
+- 所有列表按 `createdAt DESC, id DESC` 做 keyset 分页，返回 `{ items, nextCursor, hasMore }`。`limit` 默认 20，范围 1—50；`cursor` 是不超过 512 字符的 opaque base64url token。
+- 游标必须绑定当前 actor、列表种类和全部筛选条件。格式非法、跨账号/跨 Admin 使用或改变筛选后复用时分别返回对应的 `USER_REQUEST_CURSOR_INVALID`、`CONTENT_REPORT_CURSOR_INVALID` 或 `COMPANION_BLOCK_CURSOR_INVALID`，不得静默退回第一页。
+- User Request 与 Content Report 各自在自己的表内以 `(user_id, client_request_id)` 唯一。`clientRequestId` 为 8—160 字符；同一用户以相同 ID 重放完全相同的规范化请求时返回原记录，不新增状态日志。相同 ID 携带不同规范化内容时返回 `409 USER_REQUEST_IDEMPOTENCY_CONFLICT` 或 `409 CONTENT_REPORT_IDEMPOTENCY_CONFLICT`。
+- 请求指纹只用于服务端幂等比较，不进入任何消费者或普通 Admin 响应。
+
+### A. User Requests
+
+`requestType` 只允许：
+
+```text
+support | data_access | data_copy | account_deletion
+```
+
+状态只允许：
+
+```text
+submitted -> processing | declined | cancelled
+processing -> completed | declined | cancelled
+```
+
+- 用户可将自己的 `submitted` 或 `processing` 请求取消；重复取消按幂等成功返回当前详情。终态之间或其他非法迁移返回 `409 USER_REQUEST_STATUS_CONFLICT`。
+- Admin `start` 只执行 `submitted -> processing`；`complete` 只执行 `processing -> completed`；`decline` 可执行 `submitted/processing -> declined`。每次 Admin 迁移与公开状态日志、`admin_action_logs` 在同一事务提交。
+- `account_deletion` 不能由 Admin `complete`。Admin 只能开始处理或拒绝；实际删除、关联数据处置与 session 撤销由后续受控 system executor 完成，只有该执行器可写 `processing -> completed` 和 `actorType=system` 日志。
+
+消费者摘要严格为：
+
+```json
+{
+  "id": "user_request_uuid",
+  "requestType": "support",
+  "supportCategory": "booking",
+  "bookingRequestId": "booking_request_uuid",
+  "description": "想确认预约状态",
+  "status": "submitted",
+  "createdAt": "2026-08-23T10:00:00.000Z",
+  "updatedAt": "2026-08-23T10:00:00.000Z"
+}
+```
+
+`supportCategory`、`bookingRequestId` 和 `description` 不存在时可以省略或为 `null`。消费者详情只在摘要之外增加：
+
+```json
+{
+  "statusLogs": [
+    {
+      "id": "status_log_uuid",
+      "fromStatus": null,
+      "toStatus": "submitted",
+      "actorType": "user",
+      "reasonCode": null,
+      "publicMessage": "请求已提交",
+      "createdAt": "2026-08-23T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+`actorType` 可为 `user|admin|system`，但状态日志永不返回任何 actor ID。Admin 摘要/详情只在对应消费者 DTO 上增加 `user: { id, nickname }`；不增加手机号、请求指纹或内部备注。
+
+#### POST `/api/user-requests`
+
+consumer-only。创建 `submitted` 请求，成功返回消费者详情，HTTP `201`。
+
+```json
+{
+  "requestType": "support",
+  "supportCategory": "booking",
+  "bookingRequestId": "booking_request_uuid",
+  "description": "想确认预约状态",
+  "clientRequestId": "device-generated-request-id"
+}
+```
+
+- `supportCategory` 只允许 `booking|safety|account|privacy|other`，仅可在 `requestType=support` 时提供；支持请求也可省略该字段，其他类型必须省略。
+- `bookingRequestId` 可选，但只允许用于 `support`；服务端必须验证预约属于当前用户，不存在或无归属统一返回 `404 USER_REQUEST_BOOKING_NOT_FOUND`。
+- `description` 可选，最长 2000 字符；请求不接受附件、电话、用户 ID、状态或处理字段。
+
+#### GET `/api/user-requests`
+
+consumer-only。只返回当前用户摘要。允许且只允许 `requestType`、`status`、`limit`、`cursor`；前两项按枚举精确筛选。
+
+#### GET `/api/user-requests/:userRequestId`
+
+consumer-only。返回当前用户详情；不存在或非本人所有统一返回 `404 USER_REQUEST_NOT_FOUND`。
+
+#### POST `/api/user-requests/:userRequestId/cancel`
+
+consumer-only。body 只允许可选 `reasonCode`（最长 80）和 `reason`（最长 1000）；成功返回更新后的消费者详情。
+
+#### GET `/api/admin/user-requests`
+
+要求 `user_requests:read`。筛选与消费者列表相同，返回 Admin 摘要分页。
+
+#### GET `/api/admin/user-requests/:userRequestId`
+
+要求 `user_requests:read`。返回 Admin 详情；不存在统一返回 `404 USER_REQUEST_NOT_FOUND`。
+
+#### POST `/api/admin/user-requests/:userRequestId/start`
+
+要求 `user_requests:write`。body 只允许可选 `publicMessage`、`internalNote`，最长均为 1000；成功返回 Admin 详情。
+
+#### POST `/api/admin/user-requests/:userRequestId/complete`
+
+要求 `user_requests:write`。body 必须包含 `publicMessage`，可选 `internalNote`，最长均为 1000。`account_deletion` 调用此端点返回 `409 USER_REQUEST_STATUS_CONFLICT`，不能由运营人员标记为已经删除。
+
+#### POST `/api/admin/user-requests/:userRequestId/decline`
+
+要求 `user_requests:write`。body 必须包含最长 80 的 `reasonCode` 和最长 1000 的 `publicMessage`，可选最长 1000 的 `internalNote`；成功返回 Admin 详情。
+
+### B. Content Reports
+
+内容举报使用现有数据库 `report_status` 枚举，状态精确为：
+
+```text
+pending -> investigating | resolved | rejected
+investigating -> resolved | rejected
+```
+
+- `targetType` 只允许 `post|companion`；`category` 只允许 `content_violation|safety|fraud|privacy_or_rights|other`。
+- 本域不接受 `orderId`、`conversationId`、`reportedUserId`、`evidenceFiles` 或任何上传字段。服务端根据目标解析被举报用户：作品目标解析其摄影师账号，摄影师目标解析其所有者账号；该内部 ID 永不进入消费者 DTO。
+- 调查、解决和驳回都必须与举报状态日志及 `admin_action_logs` 在同一事务提交。终态不可再次改变；重复执行已完成的相同目标动作可幂等返回当前记录，冲突返回 `409 CONTENT_REPORT_STATUS_CONFLICT`。
+
+消费者 DTO 严格为：
+
+```json
+{
+  "id": "content_report_uuid",
+  "targetType": "post",
+  "targetId": "post_uuid",
+  "category": "content_violation",
+  "description": "作品包含不适宜内容",
+  "status": "pending",
+  "result": null,
+  "createdAt": "2026-08-23T10:00:00.000Z",
+  "updatedAt": "2026-08-23T10:00:00.000Z"
+}
+```
+
+`result` 只在 `resolved/rejected` 后公开，严格为 `{ resolutionAction, publicMessage }`。驳回使用 `resolutionAction=no_action`。消费者永不看到证据、内部备注、举报人/被举报人内部 ID 或处理人。
+
+Admin DTO 只在消费者 DTO 上增加：
+
+```json
+{
+  "reporter": { "id": "user_uuid", "nickname": "用户昵称" },
+  "target": {
+    "targetType": "post",
+    "id": "post_uuid",
+    "displayName": "武康路街拍",
+    "imageUrl": "https://cdn.example.com/post-cover.jpg"
+  },
+  "handledAt": null,
+  "handledByAdminId": null
+}
+```
+
+`target` 只能使用目标当前公开摘要，不包含目标所有者电话、身份证明或非公开审核字段。
+
+#### POST `/api/content-reports`
+
+consumer-only。创建 `pending` 举报，成功返回消费者 DTO，HTTP `201`。
+
+```json
+{
+  "targetType": "post",
+  "targetId": "post_uuid",
+  "category": "content_violation",
+  "description": "作品包含不适宜内容",
+  "clientRequestId": "device-generated-report-id"
+}
+```
+
+`description` 可选，最长 2000；`targetId` 必须是对应类型的可举报公开目标。不存在、类型不匹配或不可见统一返回 `404 CONTENT_REPORT_TARGET_NOT_FOUND`。
+
+#### GET `/api/me/content-reports`
+
+consumer-only。返回当前用户自己的举报分页。允许且只允许 `status`、`targetType`、`limit`、`cursor`。
+
+#### GET `/api/me/content-reports/:contentReportId`
+
+consumer-only。返回当前用户自己的单条举报；不存在或无归属统一返回 `404 CONTENT_REPORT_NOT_FOUND`。
+
+#### GET `/api/admin/content-reports`
+
+要求 `content_reports:read`。允许 `status`、`targetType`、`category`、`limit`、`cursor`，返回 Admin DTO 分页。
+
+#### GET `/api/admin/content-reports/:contentReportId`
+
+要求 `content_reports:read`。返回 Admin DTO；不存在统一返回 `404 CONTENT_REPORT_NOT_FOUND`。
+
+#### POST `/api/admin/content-reports/:contentReportId/investigate`
+
+要求 `content_reports:moderate`。body 只允许可选 `internalNote`（最长 1000），执行 `pending -> investigating`；成功返回 Admin DTO。
+
+#### POST `/api/admin/content-reports/:contentReportId/resolve`
+
+要求 `content_reports:moderate`。body：
+
+```json
+{
+  "resolutionAction": "remove_post",
+  "publicMessage": "举报已处理，相关作品已下架",
+  "internalNote": "审核确认违反内容规范"
+}
+```
+
+`resolutionAction` 只允许 `no_action|remove_post|suspend_companion`。`remove_post` 只匹配 `targetType=post`，`suspend_companion` 只匹配 `targetType=companion`，不匹配返回 `400 CONTENT_REPORT_RESOLUTION_INVALID`；`no_action` 可用于任一目标。解决状态、目标处置副作用、公开结果和 Admin 审计必须原子提交。`publicMessage` 必填，最长 1000；`internalNote` 可选，最长 1000。
+
+#### POST `/api/admin/content-reports/:contentReportId/reject`
+
+要求 `content_reports:moderate`。body 必须包含最长 1000 的 `publicMessage`，可选最长 1000 的 `internalNote`。成功写入 `rejected` 与公开 `{ resolutionAction: "no_action", publicMessage }`，返回 Admin DTO。
+
+### C. Blocked Companions
+
+- 屏蔽是当前消费者与摄影师之间的私有关系，不通知摄影师，也不向摄影师或其他用户返回屏蔽者身份。
+- 对已登录消费者，服务端作品流、摄影师搜索/列表和公开详情读取必须应用其屏蔽集合：被屏蔽摄影师及其作品不再返回；直接访问被屏蔽目标统一按不可见处理。匿名浏览不携带个人屏蔽状态。
+- PUT/DELETE 都是资源级幂等操作，不使用 `clientRequestId`。并发 PUT 最多保留一条关系；重复 DELETE 返回未屏蔽结果，不报 404。
+
+Blocked DTO 严格为：
+
+```json
+{
+  "companionId": "companion_uuid",
+  "displayName": "摄影师昵称",
+  "avatarUrl": null,
+  "baseCity": "上海",
+  "blockedAt": "2026-08-23T10:00:00.000Z"
+}
+```
+
+#### GET `/api/me/blocked-companions`
+
+consumer-only。只接受 `limit`、`cursor`，返回当前用户的 Blocked DTO 分页。
+
+#### PUT `/api/me/blocked-companions/:companionId`
+
+consumer-only。幂等屏蔽已审批且存在的摄影师，成功返回 Blocked DTO。目标不存在或不可屏蔽返回 `404 COMPANION_BLOCK_TARGET_NOT_FOUND`；body 必须为空。
+
+#### DELETE `/api/me/blocked-companions/:companionId`
+
+consumer-only。幂等解除屏蔽，返回 `{ companionId, blocked: false, blockedAt: null }`；body 必须为空。
+
+### 稳定错误码
+
+| HTTP | code | 说明 |
+|---|---|---|
+| 400 | `USER_REQUEST_INVALID` / `USER_REQUEST_QUERY_INVALID` / `USER_REQUEST_CURSOR_INVALID` | 用户请求 body、筛选或 actor-bound cursor 无效 |
+| 400 | `CONTENT_REPORT_INVALID` / `CONTENT_REPORT_QUERY_INVALID` / `CONTENT_REPORT_CURSOR_INVALID` / `CONTENT_REPORT_RESOLUTION_INVALID` | 内容举报 body、筛选、游标或目标与处置动作不匹配 |
+| 400 | `COMPANION_BLOCK_QUERY_INVALID` / `COMPANION_BLOCK_CURSOR_INVALID` | 屏蔽列表参数或游标无效 |
+| 401 / 403 | `AUTH_REQUIRED` / `FORBIDDEN` / `ADMIN_SCOPE_REQUIRED` | 缺少消费者会话、角色不符或缺少对应 Admin scope |
+| 404 | `NOT_FOUND` | `ENABLE_STORE_LITE_COMPLIANCE` 关闭，不暴露能力存在 |
+| 404 | `USER_REQUEST_NOT_FOUND` / `USER_REQUEST_BOOKING_NOT_FOUND` | 用户请求或其关联预约不存在、不可见或不属于当前用户 |
+| 404 | `CONTENT_REPORT_NOT_FOUND` / `CONTENT_REPORT_TARGET_NOT_FOUND` | 举报或目标不存在、不可见或无归属 |
+| 404 | `COMPANION_BLOCK_TARGET_NOT_FOUND` | 摄影师不存在或不可屏蔽 |
+| 409 | `USER_REQUEST_IDEMPOTENCY_CONFLICT` / `USER_REQUEST_STATUS_CONFLICT` | 用户请求幂等键复用或状态迁移冲突 |
+| 409 | `CONTENT_REPORT_IDEMPOTENCY_CONFLICT` / `CONTENT_REPORT_STATUS_CONFLICT` | 内容举报幂等键复用或状态迁移冲突 |
+| 503 | `COMPLIANCE_POSTGRES_REQUIRED` / `COMPLIANCE_STORE_UNAVAILABLE` | 缺少 PostgreSQL 权威能力或数据库读取/事务暂不可用 |
 
 ## 2. 下单与支付
 

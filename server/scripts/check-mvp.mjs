@@ -6,6 +6,7 @@ const checks = [
   ['schema-parity', ['../database/scripts/check-schema-parity.mjs']],
   ['composite-order-domain', ['../database/scripts/check-composite-order-domain.mjs']],
   ['store-lite-booking-schema', ['../database/scripts/check-store-lite-booking-schema.mjs']],
+  ['store-lite-compliance-schema', ['../database/scripts/check-store-lite-compliance-schema.mjs']],
   ['ci-workflow', ['scripts/check-ci-workflow.mjs']],
   ['store-driver', ['scripts/check-store-driver.mjs']],
   ['admin-route-boundary', ['scripts/check-admin-route-boundary.mjs']],
@@ -27,7 +28,9 @@ const checks = [
   ['postgres-content-gateway', ['scripts/check-postgres-content-gateway.mjs']],
   ['postgres-order-read-gateway', ['scripts/check-postgres-order-read-gateway.mjs']],
   ['postgres-store-lite-booking-gateway', ['scripts/check-postgres-store-lite-booking-gateway.mjs']],
+  ['postgres-store-lite-compliance-gateway', ['scripts/check-postgres-store-lite-compliance-gateway.mjs']],
   ['store-lite-booking-route', ['scripts/check-store-lite-booking-route.mjs']],
+  ['store-lite-compliance-route', ['scripts/check-store-lite-compliance-route.mjs']],
   ['postgres-order-read-route', ['scripts/check-postgres-order-read-route.mjs']],
   ['postgres-store-read-model', ['scripts/check-postgres-store-read-model.mjs']],
   ['postgres-composite-order-read-model', ['scripts/check-postgres-composite-order-read-model.mjs']],
@@ -68,6 +71,7 @@ const checks = [
   ['runtime-audit-gateway', ['scripts/check-runtime-audit-gateway.mjs']],
   ['production-media-guard', ['scripts/check-production-media-guard.mjs']],
   ['production-store-lite-guard', ['scripts/check-production-store-lite-guard.mjs']],
+  ['store-lite-release-config', ['scripts/check-store-lite-release-config.mjs']],
   ['smoke', ['scripts/smoke.mjs']],
 ];
 

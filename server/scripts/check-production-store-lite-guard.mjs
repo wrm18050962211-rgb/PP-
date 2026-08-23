@@ -13,6 +13,9 @@ const storePath = resolve(tempDir, 'store.json');
 const consumerToken = 'production-store-lite-consumer-token';
 const adminToken = 'production-store-lite-admin-token';
 const bookingRequestId = '00000000-0000-4000-8000-000000000901';
+const userRequestId = '00000000-0000-4000-8000-000000000902';
+const contentReportId = '00000000-0000-4000-8000-000000000903';
+const companionId = '00000000-0000-4000-8000-000000000904';
 
 let server;
 const logs = [];
@@ -25,17 +28,22 @@ try {
       ...process.env,
       APP_ENV: 'production',
       RELEASE_PROFILE: 'store_lite',
-      CORS_ALLOWED_ORIGINS: 'http://localhost',
+      NODE_ENV: 'production',
+      CORS_ALLOWED_ORIGINS: 'capacitor://localhost,https://www.weareinframe.com,https://admin.weareinframe.com',
       DATABASE_URL: '',
       ENABLE_STORE_LITE_BOOKINGS: 'true',
+      ENABLE_STORE_LITE_COMPLIANCE: 'true',
+      ENABLE_TEST_ROLE_SWITCH: 'false',
       ADMIN_PASSWORD_PEPPER: 'production-store-lite-guard-admin-pepper',
       STORE_LITE_SUPPORT_CHANNEL_KEYS: 'still-support',
-      PUBLIC_API_ORIGIN: 'https://api.example.test',
+      PUBLIC_API_ORIGIN: 'https://api.weareinframe.com',
       PHONE_SMS_PROVIDER: 'tencent',
       PHONE_OTP_PEPPER: 'production-store-lite-guard-phone-pepper',
       TENCENT_SMS_SDK_APP_ID: '1400000000',
       TENCENT_SMS_SIGN_NAME: 'Store Lite Test',
       TENCENT_SMS_TEMPLATE_ID: '123456',
+      TENCENT_CLOUD_SECRET_ID: 'store-lite-guard-secret-id',
+      TENCENT_CLOUD_SECRET_KEY: 'store-lite-guard-secret-key',
       PORT: String(port),
       STORE_DRIVER: 'json',
       STORE_PATH: storePath,
@@ -47,10 +55,35 @@ try {
 
   await waitForHealth();
 
+  const nativeCorsHealth = await request('GET', '/api/health', undefined, {
+    omitAuth: true,
+    origin: 'capacitor://localhost',
+  });
+  assert.equal(
+    nativeCorsHealth.headers.get('access-control-allow-origin'),
+    'capacitor://localhost',
+    'Store Lite production allows the exact Capacitor iOS origin',
+  );
+  const webCorsHealth = await request('GET', '/api/health', undefined, {
+    omitAuth: true,
+    origin: 'https://www.weareinframe.com',
+  });
+  assert.equal(
+    webCorsHealth.headers.get('access-control-allow-origin'),
+    'https://www.weareinframe.com',
+    'Store Lite production preserves explicitly configured HTTPS web/admin origins',
+  );
+  const blockedCorsHealth = await request('GET', '/api/health', undefined, {
+    omitAuth: true,
+    origin: 'capacitor://app',
+  });
+  assertError(blockedCorsHealth, 403, 'CORS_FORBIDDEN', 'Store Lite rejects a non-canonical Capacitor origin');
+
   const launch = await request('GET', '/api/ops/launch-check', undefined, { omitAuth: true });
   assert.equal(launch.payload.data?.profile, 'store_lite', 'launch check reports the Store Lite release profile');
   assert.equal(launch.payload.data?.current?.wechatPay, 'disabled', 'launch check disables payment for Store Lite');
   assert.equal(launch.payload.data?.current?.media, 'read-only-content', 'launch check excludes upload requirements');
+  assert.equal(launch.payload.data?.current?.complianceRequests, 'enabled', 'launch check requires Store Lite compliance requests');
   assert.equal(
     launch.payload.data?.missing?.some((name) => /WECHAT_PAY|COS_|TENCENT_CLOUD/.test(name)),
     false,
@@ -61,6 +94,7 @@ try {
     ['POST', '/api/orders/quote', {}, null],
     ['POST', '/api/payments/wechat/notify', {}, null],
     ['GET', '/api/conversations', undefined, consumerToken],
+    ['GET', '/api/matching/companions', undefined, consumerToken],
     ['POST', '/api/media/upload-policy', { fileName: 'test.jpg' }, consumerToken],
     ['POST', '/api/reports', { orderId: 'legacy-order', reason: 'test' }, consumerToken],
     ['GET', '/api/admin/dashboard', undefined, adminToken],
@@ -71,6 +105,17 @@ try {
   ]) {
     const disabled = await request(method, path, body, { omitAuth: !authToken, authToken });
     assertError(disabled, 404, 'STORE_LITE_ROUTE_DISABLED', `${method} ${path} is excluded from Store Lite`);
+  }
+
+  for (const [method, path, body, authToken] of [
+    ['GET', '/api/feed/posts', undefined, null],
+    ['GET', `/api/companions/${companionId}`, undefined, null],
+    ['POST', '/api/auth/phone/request-code', { phone: '13800138000', role: 'consumer', intent: 'login' }, null],
+    ['GET', '/api/auth/session', undefined, consumerToken],
+    ['POST', '/api/admin/auth/login', { username: 'operator', password: 'test-password' }, null],
+  ]) {
+    const response = await request(method, path, body, { omitAuth: !authToken, authToken });
+    assertError(response, 503, 'STORE_LITE_POSTGRES_REQUIRED', `${method} ${path} fails closed without PostgreSQL`);
   }
 
   const consumerCases = [
@@ -94,7 +139,44 @@ try {
     await assertPostgresRequired(method, path, body, adminToken, 'admin');
   }
 
+  const consumerComplianceCases = [
+    ['GET', '/api/user-requests'],
+    ['GET', `/api/user-requests/${userRequestId}`],
+    ['POST', '/api/user-requests', validUserRequestBody()],
+    ['POST', `/api/user-requests/${userRequestId}/cancel`, { reasonCode: 'changed_mind', reason: '不再需要' }],
+    ['POST', '/api/content-reports', validContentReportBody()],
+    ['GET', '/api/me/content-reports'],
+    ['GET', `/api/me/content-reports/${contentReportId}`],
+    ['GET', '/api/me/blocked-companions'],
+    ['PUT', `/api/me/blocked-companions/${companionId}`],
+    ['DELETE', `/api/me/blocked-companions/${companionId}`],
+  ];
+  for (const [method, path, body] of consumerComplianceCases) {
+    await assertPostgresRequired(method, path, body, consumerToken, 'consumer', 'COMPLIANCE_POSTGRES_REQUIRED');
+  }
+
+  const adminComplianceCases = [
+    ['GET', '/api/admin/user-requests'],
+    ['GET', `/api/admin/user-requests/${userRequestId}`],
+    ['POST', `/api/admin/user-requests/${userRequestId}/start`, { publicMessage: '正在处理' }],
+    ['POST', `/api/admin/user-requests/${userRequestId}/complete`, { publicMessage: '已处理完成' }],
+    ['POST', `/api/admin/user-requests/${userRequestId}/decline`, { reasonCode: 'unsupported', publicMessage: '暂不支持' }],
+    ['GET', '/api/admin/content-reports'],
+    ['GET', `/api/admin/content-reports/${contentReportId}`],
+    ['POST', `/api/admin/content-reports/${contentReportId}/investigate`, { internalNote: '仅运营可见' }],
+    ['POST', `/api/admin/content-reports/${contentReportId}/resolve`, { resolutionAction: 'no_action', publicMessage: '已完成核查' }],
+    ['POST', `/api/admin/content-reports/${contentReportId}/reject`, { publicMessage: '未发现违规' }],
+  ];
+  for (const [method, path, body] of adminComplianceCases) {
+    await assertPostgresRequired(method, path, body, adminToken, 'admin', 'COMPLIANCE_POSTGRES_REQUIRED');
+  }
+
   for (const [method, path, body] of [consumerCases[0], consumerCases[2], adminCases[0], adminCases[2]]) {
+    const response = await request(method, path, body, { omitAuth: true });
+    assertError(response, 401, 'AUTH_REQUIRED', `${method} ${path} requires authentication`);
+  }
+
+  for (const [method, path, body] of [consumerComplianceCases[0], consumerComplianceCases[2], adminComplianceCases[0], adminComplianceCases[2]]) {
     const response = await request(method, path, body, { omitAuth: true });
     assertError(response, 401, 'AUTH_REQUIRED', `${method} ${path} requires authentication`);
   }
@@ -103,8 +185,16 @@ try {
     const response = await request(method, path, body, { authToken: consumerToken });
     assertError(response, 403, 'FORBIDDEN', `consumer cannot access ${method} ${path}`);
   }
+  for (const [method, path, body] of [adminComplianceCases[0], adminComplianceCases[2], adminComplianceCases[5], adminComplianceCases[7]]) {
+    const response = await request(method, path, body, { authToken: consumerToken });
+    assertError(response, 403, 'FORBIDDEN', `consumer cannot access ${method} ${path}`);
+  }
 
   for (const [method, path, body] of [consumerCases[0], consumerCases[2], consumerCases[3]]) {
+    const response = await request(method, path, body, { authToken: adminToken });
+    assertError(response, 403, 'FORBIDDEN', `admin cannot access ${method} ${path}`);
+  }
+  for (const [method, path, body] of [consumerComplianceCases[0], consumerComplianceCases[2], consumerComplianceCases[4], consumerComplianceCases[7]]) {
     const response = await request(method, path, body, { authToken: adminToken });
     assertError(response, 403, 'FORBIDDEN', `admin cannot access ${method} ${path}`);
   }
@@ -116,6 +206,8 @@ try {
         checks: [
           'production-json-consumer-bookings-fail-closed',
           'production-json-admin-bookings-fail-closed',
+          'production-json-consumer-compliance-fails-closed',
+          'production-json-admin-compliance-fails-closed',
           'booking-list-detail-create-cancel-confirm-decline-covered',
           'anonymous-booking-auth-required',
           'consumer-admin-booking-forbidden',
@@ -123,7 +215,11 @@ try {
           'no-empty-items-or-mock-success',
           'no-real-database-connection',
           'admin-booking-read-write-scopes-seeded',
+          'admin-compliance-scopes-seeded',
           'store-lite-launch-requirements-exclude-payment-and-upload',
+          'store-lite-capacitor-ios-cors-origin',
+          'store-lite-explicit-web-admin-cors-origins',
+          'store-lite-noncanonical-capacitor-origin-rejected',
           'store-lite-commercial-routes-disabled',
           'store-lite-legacy-admin-routes-disabled',
           'store-lite-legacy-report-route-disabled',
@@ -138,9 +234,9 @@ try {
   await rm(tempDir, { recursive: true, force: true });
 }
 
-async function assertPostgresRequired(method, path, body, authToken, actorLabel) {
+async function assertPostgresRequired(method, path, body, authToken, actorLabel, errorCode = 'BOOKING_POSTGRES_REQUIRED') {
   const response = await request(method, path, body, { authToken });
-  assertError(response, 503, 'BOOKING_POSTGRES_REQUIRED', `${actorLabel} ${method} ${path} fails closed without PostgreSQL`);
+  assertError(response, 503, errorCode, `${actorLabel} ${method} ${path} fails closed without PostgreSQL`);
   const serialized = JSON.stringify(response.payload);
   assert.equal(response.payload.success, false, `${actorLabel} ${method} ${path} cannot report success`);
   assert.equal(response.payload.data, null, `${actorLabel} ${method} ${path} can return only the standard null failure data`);
@@ -198,7 +294,14 @@ function createSeedStore() {
         roles: ['admin'],
         user: admin,
         adminId: admin.id,
-        adminScope: ['booking_requests:read', 'booking_requests:write'],
+        adminScope: [
+          'booking_requests:read',
+          'booking_requests:write',
+          'user_requests:read',
+          'user_requests:write',
+          'content_reports:read',
+          'content_reports:moderate',
+        ],
         loginAt: now,
         updatedAt: now,
         expiresAt,
@@ -241,6 +344,25 @@ function validAdminReasonBody(reasonCode) {
   };
 }
 
+function validUserRequestBody() {
+  return {
+    requestType: 'support',
+    supportCategory: 'booking',
+    description: '请协助确认预约状态',
+    clientRequestId: 'store-lite-guard-user-request-1',
+  };
+}
+
+function validContentReportBody() {
+  return {
+    targetType: 'companion',
+    targetId: companionId,
+    category: 'safety',
+    description: '请平台核查该摄影师资料',
+    clientRequestId: 'store-lite-guard-content-report-1',
+  };
+}
+
 async function waitForHealth() {
   const deadline = Date.now() + 8_000;
   while (Date.now() < deadline) {
@@ -258,12 +380,13 @@ async function waitForHealth() {
 async function request(method, path, body, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (!options.omitAuth) headers.Authorization = `Bearer ${options.authToken || consumerToken}`;
+  if (options.origin) headers.Origin = options.origin;
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return { status: response.status, payload: await response.json() };
+  return { status: response.status, headers: response.headers, payload: await response.json() };
 }
 
 function assertError(response, status, code, message) {

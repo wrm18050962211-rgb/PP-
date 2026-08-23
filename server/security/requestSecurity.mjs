@@ -22,6 +22,29 @@ const ORDER_STATUSES = [
 ];
 const BOOKING_REQUEST_STATUSES = ['submitted', 'confirmed', 'declined', 'cancelled'];
 const BOOKING_CURSOR_PATTERN = /^[A-Za-z0-9_-]+$/;
+const COMPLIANCE_CURSOR_PATTERN = /^[A-Za-z0-9_-]+$/;
+const UUID_ROUTE_PART = '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const USER_REQUEST_TYPES = ['support', 'data_access', 'data_copy', 'account_deletion'];
+const USER_REQUEST_STATUSES = ['submitted', 'processing', 'completed', 'declined', 'cancelled'];
+const USER_REQUEST_SUPPORT_CATEGORIES = ['booking', 'safety', 'account', 'privacy', 'other'];
+const CONTENT_REPORT_STATUSES = ['pending', 'investigating', 'resolved', 'rejected'];
+const CONTENT_REPORT_TARGET_TYPES = ['post', 'companion'];
+const CONTENT_REPORT_CATEGORIES = ['content_violation', 'safety', 'fraud', 'privacy_or_rights', 'other'];
+const CONTENT_REPORT_RESOLUTION_ACTIONS = ['no_action', 'remove_post', 'suspend_companion'];
+const USER_REQUEST_DETAIL_PATH = new RegExp(`^/api/user-requests/${UUID_ROUTE_PART}$`, 'i');
+const USER_REQUEST_CANCEL_PATH = new RegExp(`^/api/user-requests/${UUID_ROUTE_PART}/cancel$`, 'i');
+const ADMIN_USER_REQUEST_DETAIL_PATH = new RegExp(`^/api/admin/user-requests/${UUID_ROUTE_PART}$`, 'i');
+const ADMIN_USER_REQUEST_ACTION_PATH = new RegExp(
+  `^/api/admin/user-requests/${UUID_ROUTE_PART}/(start|complete|decline)$`,
+  'i',
+);
+const CONTENT_REPORT_DETAIL_PATH = new RegExp(`^/api/me/content-reports/${UUID_ROUTE_PART}$`, 'i');
+const ADMIN_CONTENT_REPORT_DETAIL_PATH = new RegExp(`^/api/admin/content-reports/${UUID_ROUTE_PART}$`, 'i');
+const ADMIN_CONTENT_REPORT_ACTION_PATH = new RegExp(
+  `^/api/admin/content-reports/${UUID_ROUTE_PART}/(investigate|resolve|reject)$`,
+  'i',
+);
+const BLOCKED_COMPANION_DETAIL_PATH = new RegExp(`^/api/me/blocked-companions/${UUID_ROUTE_PART}$`, 'i');
 const SENSITIVE_KEY_PATTERN =
   /^(authorization|cookie|set-cookie|password|passcode|otp|verificationcode|token|accesstoken|refreshtoken|secret|secretid|secretkey|apikey|privatekey|pepper|signature)$/i;
 const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -128,7 +151,7 @@ export function createRequestSecurity(options = {}) {
 }
 
 export async function readJsonRequest(req, options = {}) {
-  if (!['POST', 'PUT', 'PATCH'].includes(String(req.method || '').toUpperCase())) return {};
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(req.method || '').toUpperCase())) return {};
 
   const maxBodyBytes = positiveInteger(options.maxBodyBytes, DEFAULT_MAX_BODY_BYTES);
   const declaredLength = Number(req.headers?.['content-length']);
@@ -163,6 +186,7 @@ export async function readJsonRequest(req, options = {}) {
   } catch {
     throw new RequestSecurityError(400, 'INVALID_JSON', 'Request body must contain valid JSON');
   }
+  assertNoDuplicateJsonObjectKeys(raw);
   if (!isPlainObject(parsed)) {
     throw new RequestSecurityError(400, 'REQUEST_BODY_INVALID', 'Request body must be a JSON object');
   }
@@ -173,6 +197,11 @@ export async function readJsonRequest(req, options = {}) {
 }
 
 export function validateRouteInput(method, path, body) {
+  const complianceRoute = resolveComplianceRoute(method, path);
+  if (complianceRoute) {
+    validateComplianceInput(complianceRoute, body);
+    return;
+  }
   const route = `${String(method || 'GET').toUpperCase()} ${path}`;
   if (route === 'POST /api/auth/phone/request-code') {
     requireString(body.phone, 'phone', 6, 32);
@@ -261,8 +290,13 @@ export function validateRouteInput(method, path, body) {
 }
 
 export function validateRouteQuery(method, path, searchParams) {
-  if (String(method || 'GET').toUpperCase() !== 'GET') return;
   const params = searchParams instanceof URLSearchParams ? searchParams : new URLSearchParams(searchParams || '');
+  const complianceRoute = resolveComplianceRoute(method, path);
+  if (complianceRoute) {
+    validateComplianceQuery(params, complianceRoute);
+    return;
+  }
+  if (String(method || 'GET').toUpperCase() !== 'GET') return;
   const isBookingList = path === '/api/booking-requests' || path === '/api/admin/booking-requests';
   const isBookingDetail = /^\/api\/(?:admin\/)?booking-requests\/[^/]+$/.test(path);
   if (isBookingList || isBookingDetail) {
@@ -303,14 +337,244 @@ export function validateRouteQuery(method, path, searchParams) {
   }
 }
 
+function resolveComplianceRoute(method, path) {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  const normalizedPath = String(path || '');
+  const domain = complianceDomainForPath(normalizedPath);
+  if (!domain) return null;
+
+  if (normalizedPath === '/api/user-requests') {
+    if (normalizedMethod === 'GET') return { name: 'user-request-list', domain };
+    if (normalizedMethod === 'POST') return { name: 'user-request-create', domain };
+  }
+  if (USER_REQUEST_DETAIL_PATH.test(normalizedPath) && normalizedMethod === 'GET') {
+    return { name: 'user-request-detail', domain };
+  }
+  if (USER_REQUEST_CANCEL_PATH.test(normalizedPath) && normalizedMethod === 'POST') {
+    return { name: 'user-request-cancel', domain };
+  }
+  if (normalizedPath === '/api/admin/user-requests' && normalizedMethod === 'GET') {
+    return { name: 'admin-user-request-list', domain };
+  }
+  if (ADMIN_USER_REQUEST_DETAIL_PATH.test(normalizedPath) && normalizedMethod === 'GET') {
+    return { name: 'admin-user-request-detail', domain };
+  }
+  const userRequestAction = normalizedPath.match(ADMIN_USER_REQUEST_ACTION_PATH)?.[1]?.toLowerCase();
+  if (userRequestAction && normalizedMethod === 'POST') {
+    return { name: `admin-user-request-${userRequestAction}`, domain };
+  }
+
+  if (normalizedPath === '/api/content-reports' && normalizedMethod === 'POST') {
+    return { name: 'content-report-create', domain };
+  }
+  if (normalizedPath === '/api/me/content-reports' && normalizedMethod === 'GET') {
+    return { name: 'content-report-list', domain };
+  }
+  if (CONTENT_REPORT_DETAIL_PATH.test(normalizedPath) && normalizedMethod === 'GET') {
+    return { name: 'content-report-detail', domain };
+  }
+  if (normalizedPath === '/api/admin/content-reports' && normalizedMethod === 'GET') {
+    return { name: 'admin-content-report-list', domain };
+  }
+  if (ADMIN_CONTENT_REPORT_DETAIL_PATH.test(normalizedPath) && normalizedMethod === 'GET') {
+    return { name: 'admin-content-report-detail', domain };
+  }
+  const contentReportAction = normalizedPath.match(ADMIN_CONTENT_REPORT_ACTION_PATH)?.[1]?.toLowerCase();
+  if (contentReportAction && normalizedMethod === 'POST') {
+    return { name: `admin-content-report-${contentReportAction}`, domain };
+  }
+
+  if (normalizedPath === '/api/me/blocked-companions' && normalizedMethod === 'GET') {
+    return { name: 'blocked-companion-list', domain };
+  }
+  if (BLOCKED_COMPANION_DETAIL_PATH.test(normalizedPath) && ['PUT', 'DELETE'].includes(normalizedMethod)) {
+    return { name: normalizedMethod === 'PUT' ? 'blocked-companion-put' : 'blocked-companion-delete', domain };
+  }
+
+  throw new RequestSecurityError(404, 'NOT_FOUND', 'Route not found');
+}
+
+function complianceDomainForPath(path) {
+  if (isExactOrNestedPath(path, '/api/admin/user-requests') || isExactOrNestedPath(path, '/api/user-requests')) {
+    return 'user_request';
+  }
+  if (
+    isExactOrNestedPath(path, '/api/admin/content-reports')
+    || isExactOrNestedPath(path, '/api/me/content-reports')
+    || isExactOrNestedPath(path, '/api/content-reports')
+  ) {
+    return 'content_report';
+  }
+  if (isExactOrNestedPath(path, '/api/me/blocked-companions')) return 'companion_block';
+  return null;
+}
+
+function validateComplianceInput(route, body = {}) {
+  const inputCode = route.domain === 'user_request'
+    ? 'USER_REQUEST_INVALID'
+    : route.domain === 'content_report'
+      ? 'CONTENT_REPORT_INVALID'
+      : 'REQUEST_BODY_INVALID';
+
+  if (route.name === 'user-request-create') {
+    requireAllowedFields(
+      body,
+      ['requestType', 'supportCategory', 'bookingRequestId', 'description', 'clientRequestId'],
+      inputCode,
+    );
+    const requestType = requireDomainEnum(body.requestType, 'requestType', USER_REQUEST_TYPES, inputCode);
+    optionalDomainEnum(
+      body.supportCategory,
+      'supportCategory',
+      USER_REQUEST_SUPPORT_CATEGORIES,
+      inputCode,
+    );
+    optionalDomainUuid(body.bookingRequestId, 'bookingRequestId', inputCode);
+    const hasSupportOnlyField = Object.prototype.hasOwnProperty.call(body, 'supportCategory')
+      || Object.prototype.hasOwnProperty.call(body, 'bookingRequestId');
+    if (requestType !== 'support' && hasSupportOnlyField) {
+      throw new RequestSecurityError(
+        400,
+        inputCode,
+        'Only support requests may include supportCategory or bookingRequestId',
+      );
+    }
+    optionalDomainString(body.description, 'description', 1, 2000, inputCode);
+    requireDomainString(body.clientRequestId, 'clientRequestId', 8, 160, inputCode);
+    return;
+  }
+  if (route.name === 'user-request-cancel') {
+    requireAllowedFields(body, ['reasonCode', 'reason'], inputCode);
+    optionalDomainString(body.reasonCode, 'reasonCode', 1, 80, inputCode);
+    optionalDomainString(body.reason, 'reason', 1, 1000, inputCode);
+    return;
+  }
+  if (route.name === 'admin-user-request-start') {
+    requireAllowedFields(body, ['publicMessage', 'internalNote'], inputCode);
+    optionalDomainString(body.publicMessage, 'publicMessage', 1, 1000, inputCode);
+    optionalDomainString(body.internalNote, 'internalNote', 1, 1000, inputCode);
+    return;
+  }
+  if (route.name === 'admin-user-request-complete') {
+    requireAllowedFields(body, ['publicMessage', 'internalNote'], inputCode);
+    requireDomainString(body.publicMessage, 'publicMessage', 1, 1000, inputCode);
+    optionalDomainString(body.internalNote, 'internalNote', 1, 1000, inputCode);
+    return;
+  }
+  if (route.name === 'admin-user-request-decline') {
+    requireAllowedFields(body, ['reasonCode', 'publicMessage', 'internalNote'], inputCode);
+    requireDomainString(body.reasonCode, 'reasonCode', 1, 80, inputCode);
+    requireDomainString(body.publicMessage, 'publicMessage', 1, 1000, inputCode);
+    optionalDomainString(body.internalNote, 'internalNote', 1, 1000, inputCode);
+    return;
+  }
+  if (route.name === 'content-report-create') {
+    requireAllowedFields(body, ['targetType', 'targetId', 'category', 'description', 'clientRequestId'], inputCode);
+    requireDomainEnum(body.targetType, 'targetType', CONTENT_REPORT_TARGET_TYPES, inputCode);
+    requireDomainUuid(body.targetId, 'targetId', inputCode);
+    requireDomainEnum(body.category, 'category', CONTENT_REPORT_CATEGORIES, inputCode);
+    optionalDomainString(body.description, 'description', 1, 2000, inputCode);
+    requireDomainString(body.clientRequestId, 'clientRequestId', 8, 160, inputCode);
+    return;
+  }
+  if (route.name === 'admin-content-report-investigate') {
+    requireAllowedFields(body, ['internalNote'], inputCode);
+    optionalDomainString(body.internalNote, 'internalNote', 1, 1000, inputCode);
+    return;
+  }
+  if (route.name === 'admin-content-report-resolve') {
+    requireAllowedFields(body, ['resolutionAction', 'publicMessage', 'internalNote'], inputCode);
+    requireDomainEnum(body.resolutionAction, 'resolutionAction', CONTENT_REPORT_RESOLUTION_ACTIONS, inputCode);
+    requireDomainString(body.publicMessage, 'publicMessage', 1, 1000, inputCode);
+    optionalDomainString(body.internalNote, 'internalNote', 1, 1000, inputCode);
+    return;
+  }
+  if (route.name === 'admin-content-report-reject') {
+    requireAllowedFields(body, ['publicMessage', 'internalNote'], inputCode);
+    requireDomainString(body.publicMessage, 'publicMessage', 1, 1000, inputCode);
+    optionalDomainString(body.internalNote, 'internalNote', 1, 1000, inputCode);
+    return;
+  }
+
+  requireAllowedFields(body, [], inputCode);
+}
+
+function validateComplianceQuery(params, route) {
+  const queryCode = route.domain === 'user_request'
+    ? 'USER_REQUEST_QUERY_INVALID'
+    : route.domain === 'content_report'
+      ? 'CONTENT_REPORT_QUERY_INVALID'
+      : 'COMPANION_BLOCK_QUERY_INVALID';
+  const cursorCode = route.domain === 'user_request'
+    ? 'USER_REQUEST_CURSOR_INVALID'
+    : route.domain === 'content_report'
+      ? 'CONTENT_REPORT_CURSOR_INVALID'
+      : 'COMPANION_BLOCK_CURSOR_INVALID';
+  let allowed = [];
+  const enums = {};
+
+  if (['user-request-list', 'admin-user-request-list'].includes(route.name)) {
+    allowed = ['requestType', 'status', 'limit', 'cursor'];
+    enums.requestType = USER_REQUEST_TYPES;
+    enums.status = USER_REQUEST_STATUSES;
+  } else if (route.name === 'content-report-list') {
+    allowed = ['status', 'targetType', 'limit', 'cursor'];
+    enums.status = CONTENT_REPORT_STATUSES;
+    enums.targetType = CONTENT_REPORT_TARGET_TYPES;
+  } else if (route.name === 'admin-content-report-list') {
+    allowed = ['status', 'targetType', 'category', 'limit', 'cursor'];
+    enums.status = CONTENT_REPORT_STATUSES;
+    enums.targetType = CONTENT_REPORT_TARGET_TYPES;
+    enums.category = CONTENT_REPORT_CATEGORIES;
+  } else if (route.name === 'blocked-companion-list') {
+    allowed = ['limit', 'cursor'];
+  }
+
+  validateComplianceQueryFields(params, { allowed, enums, queryCode, cursorCode });
+}
+
+function validateComplianceQueryFields(params, options) {
+  const allowed = new Set(options.allowed);
+  for (const key of params.keys()) {
+    if (!allowed.has(key)) {
+      throw new RequestSecurityError(400, options.queryCode, `Unsupported compliance query parameter: ${key}`);
+    }
+    if (params.getAll(key).length !== 1) {
+      throw new RequestSecurityError(400, options.queryCode, `Compliance query parameter must not be repeated: ${key}`);
+    }
+  }
+
+  for (const [key, values] of Object.entries(options.enums)) {
+    if (params.has(key) && !values.includes(params.get(key))) {
+      throw new RequestSecurityError(400, options.queryCode, `${key} must be one of: ${values.join(', ')}`);
+    }
+  }
+  const limit = params.get('limit');
+  if (params.has('limit') && (!/^[1-9]\d*$/.test(limit) || Number(limit) > 50)) {
+    throw new RequestSecurityError(400, options.queryCode, 'limit must be an integer between 1 and 50');
+  }
+  const cursor = params.get('cursor');
+  if (params.has('cursor') && (!cursor || cursor.length > 512 || !COMPLIANCE_CURSOR_PATTERN.test(cursor))) {
+    throw new RequestSecurityError(400, options.cursorCode, 'cursor must be an opaque base64url token');
+  }
+}
+
 export function resolveAccessPolicy(method, path) {
   const normalizedMethod = String(method || 'GET').toUpperCase();
   if (normalizedMethod === 'POST' && path === '/api/admin/auth/login') return policy('anonymous', 'admin_auth');
+  if (isExactOrNestedPath(path, '/api/admin/user-requests') || isExactOrNestedPath(path, '/api/admin/content-reports')) {
+    return policy('admin', 'store_lite_compliance_admin');
+  }
   if (path.startsWith('/api/admin/')) return policy('admin', 'admin_api');
 
   if (path.startsWith('/api/companion/')) return policy('companion', 'companion_api');
   if (normalizedMethod === 'POST' && path === '/api/auth/logout') return policy('member', 'auth_session');
   if (path === '/api/media/upload-policy') return policy('member', 'media_upload');
+  if (isExactOrNestedPath(path, '/api/user-requests')) return policy('member', 'user_request');
+  if (isExactOrNestedPath(path, '/api/content-reports') || isExactOrNestedPath(path, '/api/me/content-reports')) {
+    return policy('member', 'content_report');
+  }
+  if (isExactOrNestedPath(path, '/api/me/blocked-companions')) return policy('member', 'companion_block');
   if (path.startsWith('/api/me/')) return policy('member', 'user_data');
   if (path === '/api/booking-requests' || path.startsWith('/api/booking-requests/')) {
     return policy('member', 'booking_request');
@@ -384,16 +648,26 @@ function pruneBuckets(buckets, timestamp) {
 }
 
 function sensitiveRouteGroup(method, path) {
-  if (method !== 'POST') return '';
-  if (path === '/api/auth/phone/request-code') return 'phone_request';
-  if (path === '/api/auth/phone/verify') return 'phone_verify';
-  if (path === '/api/auth/wechat/login') return 'wechat_login';
-  if (path === '/api/auth/wechat/mock-login') return 'mock_login';
-  if (path === '/api/admin/auth/login') return 'admin_login';
-  if (path === '/api/booking-requests' || /\/api\/(?:admin\/)?booking-requests\/[^/]+\/(?:confirm|decline|cancel)$/.test(path)) {
-    return 'booking_mutation';
+  if (method === 'POST') {
+    if (path === '/api/auth/phone/request-code') return 'phone_request';
+    if (path === '/api/auth/phone/verify') return 'phone_verify';
+    if (path === '/api/auth/wechat/login') return 'wechat_login';
+    if (path === '/api/auth/wechat/mock-login') return 'mock_login';
+    if (path === '/api/admin/auth/login') return 'admin_login';
+    if (path === '/api/booking-requests' || /\/api\/(?:admin\/)?booking-requests\/[^/]+\/(?:confirm|decline|cancel)$/.test(path)) {
+      return 'booking_mutation';
+    }
+    if (isExactOrNestedPath(path, '/api/user-requests') || isExactOrNestedPath(path, '/api/admin/user-requests')) {
+      return 'user_request_mutation';
+    }
+    if (isExactOrNestedPath(path, '/api/content-reports') || isExactOrNestedPath(path, '/api/admin/content-reports')) {
+      return 'content_report_mutation';
+    }
+    if (path === '/api/media/upload-policy') return 'media_policy';
   }
-  if (path === '/api/media/upload-policy') return 'media_policy';
+  if (['PUT', 'DELETE'].includes(method) && isExactOrNestedPath(path, '/api/me/blocked-companions')) {
+    return 'companion_block_mutation';
+  }
   return '';
 }
 
@@ -420,6 +694,97 @@ function requestPath(req) {
   } catch {
     return '/';
   }
+}
+
+function isExactOrNestedPath(path, root) {
+  const normalizedPath = String(path || '');
+  return normalizedPath === root || normalizedPath.startsWith(`${root}/`);
+}
+
+function assertNoDuplicateJsonObjectKeys(raw) {
+  let index = 0;
+
+  function skipWhitespace() {
+    while (/\s/.test(raw[index] || '')) index += 1;
+  }
+
+  function parseStringToken() {
+    const start = index;
+    index += 1;
+    while (index < raw.length) {
+      if (raw[index] === '\\') {
+        index += 2;
+        continue;
+      }
+      if (raw[index] === '"') {
+        index += 1;
+        return JSON.parse(raw.slice(start, index));
+      }
+      index += 1;
+    }
+    return '';
+  }
+
+  function parseArray() {
+    index += 1;
+    skipWhitespace();
+    if (raw[index] === ']') {
+      index += 1;
+      return;
+    }
+    while (index < raw.length) {
+      parseValue();
+      skipWhitespace();
+      if (raw[index] === ']') {
+        index += 1;
+        return;
+      }
+      index += 1;
+      skipWhitespace();
+    }
+  }
+
+  function parseObject() {
+    index += 1;
+    const keys = new Set();
+    skipWhitespace();
+    if (raw[index] === '}') {
+      index += 1;
+      return;
+    }
+    while (index < raw.length) {
+      const key = parseStringToken();
+      if (keys.has(key)) {
+        throw new RequestSecurityError(400, 'REQUEST_BODY_INVALID', `Request body repeats field: ${key}`);
+      }
+      keys.add(key);
+      skipWhitespace();
+      index += 1;
+      skipWhitespace();
+      parseValue();
+      skipWhitespace();
+      if (raw[index] === '}') {
+        index += 1;
+        return;
+      }
+      index += 1;
+      skipWhitespace();
+    }
+  }
+
+  function parseValue() {
+    skipWhitespace();
+    if (raw[index] === '{') return parseObject();
+    if (raw[index] === '[') return parseArray();
+    if (raw[index] === '"') {
+      parseStringToken();
+      return;
+    }
+    while (index < raw.length && !/[\s,\]}]/.test(raw[index])) index += 1;
+  }
+
+  skipWhitespace();
+  parseValue();
 }
 
 function validateObjectSafety(value, depth = 0) {
@@ -451,11 +816,11 @@ function requireString(value, field, min, max) {
   }
 }
 
-function requireAllowedFields(body, allowedFields) {
+function requireAllowedFields(body, allowedFields, errorCode = 'REQUEST_BODY_INVALID') {
   const allowed = new Set(allowedFields);
   for (const key of Object.keys(body || {})) {
     if (!allowed.has(key)) {
-      throw new RequestSecurityError(400, 'REQUEST_BODY_INVALID', `Unsupported request field: ${key}`);
+      throw new RequestSecurityError(400, errorCode, `Unsupported request field: ${key}`);
     }
   }
 }
@@ -464,6 +829,47 @@ function requireUuid(value, field) {
   if (!UUID_PATTERN.test(String(value || '').trim())) {
     throw new RequestSecurityError(400, 'BOOKING_REQUEST_INVALID', `${field} must be a UUID`);
   }
+}
+
+function requireDomainUuid(value, field, code) {
+  const normalized = String(value || '').trim();
+  if (!UUID_PATTERN.test(normalized)) {
+    throw new RequestSecurityError(400, code, `${field} must be a UUID`);
+  }
+  return normalized;
+}
+
+function optionalDomainUuid(value, field, code) {
+  if (value === undefined || value === null || value === '') return null;
+  return requireDomainUuid(value, field, code);
+}
+
+function requireDomainString(value, field, min, max, code) {
+  if (typeof value !== 'string') {
+    throw new RequestSecurityError(400, code, `${field} must be a string`);
+  }
+  const normalized = value.trim();
+  if (normalized.length < min || normalized.length > max) {
+    throw new RequestSecurityError(400, code, `${field} must contain between ${min} and ${max} characters`);
+  }
+  return normalized;
+}
+
+function optionalDomainString(value, field, min, max, code) {
+  if (value === undefined || value === null || value === '') return null;
+  return requireDomainString(value, field, min, max, code);
+}
+
+function requireDomainEnum(value, field, allowed, code) {
+  if (typeof value !== 'string' || !allowed.includes(value)) {
+    throw new RequestSecurityError(400, code, `${field} must be one of: ${allowed.join(', ')}`);
+  }
+  return value;
+}
+
+function optionalDomainEnum(value, field, allowed, code) {
+  if (value === undefined || value === null || value === '') return null;
+  return requireDomainEnum(value, field, allowed, code);
 }
 
 function requireIsoDateTime(value, field) {

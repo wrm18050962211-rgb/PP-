@@ -25,6 +25,29 @@ import {
   listBookingRequestsForAdmin,
   listBookingRequestsForConsumer,
 } from './postgresBookingRequests.mjs';
+import {
+  blockCompanionForConsumer,
+  cancelUserRequestForConsumer,
+  completeUserRequestForAdmin,
+  createContentReportForConsumer,
+  createUserRequestForConsumer,
+  declineUserRequestForAdmin,
+  getContentReportDetailForAdmin,
+  getContentReportDetailForConsumer,
+  getUserRequestDetailForAdmin,
+  getUserRequestDetailForConsumer,
+  investigateContentReportForAdmin,
+  listBlockedCompanionIdsForConsumer,
+  listBlockedCompanionsForConsumer,
+  listContentReportsForAdmin,
+  listContentReportsForConsumer,
+  listUserRequestsForAdmin,
+  listUserRequestsForConsumer,
+  rejectContentReportForAdmin,
+  resolveContentReportForAdmin,
+  startUserRequestForAdmin,
+  unblockCompanionForConsumer,
+} from './postgresStoreLiteCompliance.mjs';
 import { beginIdempotencyRequestTransaction, completeIdempotencyRequestTransaction, findIdempotencyRequest } from './postgresIdempotencyWrites.mjs';
 import { buildStoreFromPostgresRows } from './postgresMappers.mjs';
 import { sendMessageTransaction } from './postgresMessageWrites.mjs';
@@ -44,6 +67,7 @@ export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {
 
   const compositeOrderDomainEnabled = featureFlags.domainEnabled === true;
   const storeLiteBookingsEnabled = featureFlags.storeLiteBookingsEnabled === true;
+  const storeLiteComplianceEnabled = featureFlags.storeLiteComplianceEnabled === true;
   const compositeOrderDomainOptions = Object.freeze({ compositeOrderDomainEnabled });
   let poolPromise;
 
@@ -70,11 +94,30 @@ export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {
       compositeOrderDomain: compositeOrderDomainEnabled,
       compositeOrderPayments: false,
       bookingRequests: storeLiteBookingsEnabled,
+      storeLiteCompliance: storeLiteComplianceEnabled,
     },
     content: {
-      listPublicPosts: (options) => withClient((client) => listPublicPosts(client, options)),
-      getPublicPost: (postId) => withClient((client) => getPublicPost(client, postId)),
-      getPublicCompanion: (companionId) => withClient((client) => getPublicCompanion(client, companionId)),
+      listPublicPosts: (options = {}) =>
+        withClient((client) =>
+          listPublicPosts(client, {
+            ...options,
+            userId: storeLiteComplianceEnabled ? options.userId : null,
+          }),
+        ),
+      getPublicPost: (postId, options = {}) =>
+        withClient((client) =>
+          getPublicPost(client, postId, {
+            ...options,
+            userId: storeLiteComplianceEnabled ? options.userId : null,
+          }),
+        ),
+      getPublicCompanion: (companionId, options = {}) =>
+        withClient((client) =>
+          getPublicCompanion(client, companionId, {
+            ...options,
+            userId: storeLiteComplianceEnabled ? options.userId : null,
+          }),
+        ),
       getOwnCompanionProfile: (draft) => withClient((client) => getOwnCompanionProfile(client, draft)),
       getUserCollections: (userId) => withClient((client) => getUserCollections(client, userId)),
       listUserCollection: (options) => withClient((client) => listUserCollection(client, options)),
@@ -101,6 +144,33 @@ export function createPostgresStore({ databaseUrl, poolFactory, featureFlags = {
             confirmForAdmin: (draft) => withClient((client) => confirmBookingRequestForAdmin(client, draft)),
             declineForAdmin: (draft) => withClient((client) => declineBookingRequestForAdmin(client, draft)),
             cancelForAdmin: (draft) => withClient((client) => cancelBookingRequestForAdmin(client, draft)),
+          },
+        }
+      : {}),
+    ...(storeLiteComplianceEnabled
+      ? {
+          storeLiteCompliance: {
+            createUserRequestForConsumer: (draft) => withClient((client) => createUserRequestForConsumer(client, draft)),
+            listUserRequestsForConsumer: (options) => withClient((client) => listUserRequestsForConsumer(client, options)),
+            getUserRequestForConsumer: (options) => withClient((client) => getUserRequestDetailForConsumer(client, options)),
+            cancelUserRequestForConsumer: (draft) => withClient((client) => cancelUserRequestForConsumer(client, draft)),
+            listUserRequestsForAdmin: (options) => withClient((client) => listUserRequestsForAdmin(client, options)),
+            getUserRequestForAdmin: (options) => withClient((client) => getUserRequestDetailForAdmin(client, options)),
+            startUserRequestForAdmin: (draft) => withClient((client) => startUserRequestForAdmin(client, draft)),
+            completeUserRequestForAdmin: (draft) => withClient((client) => completeUserRequestForAdmin(client, draft)),
+            declineUserRequestForAdmin: (draft) => withClient((client) => declineUserRequestForAdmin(client, draft)),
+            createContentReportForConsumer: (draft) => withClient((client) => createContentReportForConsumer(client, draft)),
+            listContentReportsForConsumer: (options) => withClient((client) => listContentReportsForConsumer(client, options)),
+            getContentReportForConsumer: (options) => withClient((client) => getContentReportDetailForConsumer(client, options)),
+            listContentReportsForAdmin: (options) => withClient((client) => listContentReportsForAdmin(client, options)),
+            getContentReportForAdmin: (options) => withClient((client) => getContentReportDetailForAdmin(client, options)),
+            investigateContentReportForAdmin: (draft) => withClient((client) => investigateContentReportForAdmin(client, draft)),
+            resolveContentReportForAdmin: (draft) => withClient((client) => resolveContentReportForAdmin(client, draft)),
+            rejectContentReportForAdmin: (draft) => withClient((client) => rejectContentReportForAdmin(client, draft)),
+            listBlockedCompanionsForConsumer: (options) => withClient((client) => listBlockedCompanionsForConsumer(client, options)),
+            listBlockedCompanionIdsForConsumer: (options) => withClient((client) => listBlockedCompanionIdsForConsumer(client, options)),
+            blockCompanionForConsumer: (draft) => withClient((client) => blockCompanionForConsumer(client, draft)),
+            unblockCompanionForConsumer: (draft) => withClient((client) => unblockCompanionForConsumer(client, draft)),
           },
         }
       : {}),

@@ -9,7 +9,12 @@ const storeLiteBookingLiveCheck = readFileSync(
   new URL('./check-postgres-store-lite-booking-live.mjs', import.meta.url),
   'utf8',
 );
+const storeLiteComplianceLiveCheck = readFileSync(
+  new URL('./check-postgres-store-lite-compliance-live.mjs', import.meta.url),
+  'utf8',
+);
 const serverPackage = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const frontendPackage = JSON.parse(readFileSync(new URL('../../pp-app/package.json', import.meta.url), 'utf8'));
 const baselineCommit = 'cac663d0fa9772b1d1420ac2c899f95c2a4d4ba6';
 
 assert(/name:\s*Still CI/.test(workflow), 'workflow has Still CI name');
@@ -28,6 +33,8 @@ const serverJobEnvironment = serverJob.slice(0, serverStepsIndex);
 assert(!serverJobEnvironment.includes('ALLOW_DESTRUCTIVE_MIGRATION_TEST'), 'destructive migration opt-in is not job-wide');
 assert(!serverJobEnvironment.includes('ALLOW_STORE_LITE_LIVE_TEST'), 'Store Lite booking live opt-in is not job-wide');
 assert(!serverJobEnvironment.includes('STORE_LITE_TEST_DATABASE_URL'), 'Store Lite booking test URL is not job-wide');
+assert(!serverJobEnvironment.includes('ALLOW_STORE_LITE_COMPLIANCE_LIVE_TEST'), 'Store Lite compliance live opt-in is not job-wide');
+assert(!serverJobEnvironment.includes('STORE_LITE_COMPLIANCE_TEST_DATABASE_URL'), 'Store Lite compliance test URL is not job-wide');
 assert(
   /name:\s*Run isolated composite-order migration audit[\s\S]*?env:\s*\n\s*ALLOW_DESTRUCTIVE_MIGRATION_TEST:\s*["']?1["']?[\s\S]*?run:\s*npm run check:composite-order-migration-live/.test(workflow),
   'destructive migration opt-in is scoped to the audit step',
@@ -55,12 +62,35 @@ assert(
 assert(/npm run check:mvp/.test(workflow), 'workflow runs server MVP checks');
 assert(/npm run check:postgres-live/.test(workflow), 'workflow runs live PostgreSQL checks');
 assert(/npm run check:postgres-store-lite-booking-live/.test(workflow), 'workflow runs the isolated Store Lite booking audit');
+assert(/npm run check:postgres-store-lite-compliance-live/.test(workflow), 'workflow runs the isolated Store Lite compliance audit');
 assert(/npm run check:composite-order-migration-live/.test(workflow), 'workflow runs isolated composite-order migration audit');
 assert(/cache-dependency-path:\s*pp-app\/package-lock\.json/.test(workflow), 'workflow caches frontend dependencies by lockfile');
 assert(/npm ci/.test(workflow), 'workflow installs frontend dependencies reproducibly');
 assert(/npm run check:production-guards/.test(workflow), 'workflow runs frontend production guard');
+assert(/npm run build:store-lite/.test(workflow), 'workflow builds the Store Lite consumer bundle');
+assert(/npm run build:store-lite-admin/.test(workflow), 'workflow builds the isolated Store Lite Admin bundle');
 assert(/npm run build:mobile/.test(workflow), 'workflow builds mobile bundle');
 assert(/npm run build:admin/.test(workflow), 'workflow builds admin bundle');
+const storeLiteConsumerBuildStep = workflowStep(workflow, 'Build Store Lite consumer bundle');
+assert(
+  storeLiteConsumerBuildStep.includes('VITE_APP_ENV: production')
+    && storeLiteConsumerBuildStep.includes('VITE_RELEASE_PROFILE: store_lite')
+    && storeLiteConsumerBuildStep.includes('VITE_ENABLE_MOCK: "false"')
+    && storeLiteConsumerBuildStep.includes('VITE_ENABLE_TEST_ROLE_SWITCH: "false"')
+    && storeLiteConsumerBuildStep.includes('VITE_API_BASE_URL: https://api.weareinframe.com')
+    && storeLiteConsumerBuildStep.includes('VITE_PRIVACY_URL: https://www.weareinframe.com/privacy')
+    && storeLiteConsumerBuildStep.includes('VITE_TERMS_URL: https://www.weareinframe.com/terms')
+    && storeLiteConsumerBuildStep.includes('VITE_SUPPORT_URL: https://www.weareinframe.com/support')
+    && storeLiteConsumerBuildStep.includes('run: npm run build:store-lite'),
+  'Store Lite consumer production configuration is scoped to its build step',
+);
+const storeLiteAdminBuildStep = workflowStep(workflow, 'Build Store Lite Admin bundle');
+assert(
+  storeLiteAdminBuildStep.includes('VITE_API_BASE_URL: https://api.weareinframe.com')
+    && storeLiteAdminBuildStep.includes('run: npm run build:store-lite-admin')
+    && !storeLiteAdminBuildStep.includes('VITE_ENABLE_MOCK'),
+  'Store Lite Admin public API origin is scoped to its isolated build step',
+);
 
 const checkoutCount = workflow.match(/uses:\s*actions\/checkout@v4/g)?.length || 0;
 const fullHistoryCheckoutCount = workflow.match(/fetch-depth:\s*0/g)?.length || 0;
@@ -75,6 +105,16 @@ assert(
   serverPackage.scripts?.['check:postgres-store-lite-booking-live']
     === 'node scripts/check-postgres-store-lite-booking-live.mjs',
   'server package exposes isolated Store Lite booking audit',
+);
+assert(
+  serverPackage.scripts?.['check:postgres-store-lite-compliance-live']
+    === 'node scripts/check-postgres-store-lite-compliance-live.mjs',
+  'server package exposes isolated Store Lite compliance audit',
+);
+assert(
+  frontendPackage.scripts?.['build:store-lite-admin']
+    === 'node scripts/check-store-lite-admin-url-policy.mjs && node scripts/check-store-lite-admin-html-policy.mjs && tsc -b && vite build --config vite.store-lite-admin.config.ts && node scripts/check-store-lite-admin-bundle.mjs',
+  'frontend package exposes the guarded Store Lite Admin build',
 );
 assert(storeLiteBookingLiveCheck.includes('process.env.STORE_LITE_TEST_DATABASE_URL'), 'Store Lite booking audit reads only its dedicated URL');
 assert(!storeLiteBookingLiveCheck.includes('process.env.DATABASE_URL'), 'Store Lite booking audit never reads the application database URL');
@@ -101,6 +141,28 @@ assert(
 );
 assert((workflow.match(/STORE_LITE_TEST_DATABASE_URL/g) || []).length === 1, 'Store Lite booking test URL appears only in its audit step');
 assert((workflow.match(/ALLOW_STORE_LITE_LIVE_TEST/g) || []).length === 1, 'Store Lite booking opt-in appears only in its audit step');
+assert(storeLiteComplianceLiveCheck.includes('process.env.STORE_LITE_COMPLIANCE_TEST_DATABASE_URL'), 'Store Lite compliance audit reads only its dedicated URL');
+assert(!storeLiteComplianceLiveCheck.includes('process.env.DATABASE_URL'), 'Store Lite compliance audit never reads the application database URL');
+assert(storeLiteComplianceLiveCheck.includes("ALLOW_STORE_LITE_COMPLIANCE_LIVE_TEST !== '1'"), 'Store Lite compliance audit requires an explicit opt-in');
+assert(storeLiteComplianceLiveCheck.includes("const REQUIRED_DATABASE_NAME = 'pp_platform_ci'"), 'Store Lite compliance audit pins the CI database name');
+for (const hostname of ['localhost', '127.0.0.1', '::1']) {
+  assert(storeLiteComplianceLiveCheck.includes(`'${hostname}'`), `Store Lite compliance audit allows ${hostname}`);
+}
+assert(/server_version_num\s*>?=\s*160000[\s\S]+server_version_num\s*<\s*170000/.test(storeLiteComplianceLiveCheck), 'Store Lite compliance audit requires PostgreSQL 16');
+assert(storeLiteComplianceLiveCheck.includes("row.schema_name === 'public'"), 'Store Lite compliance audit pins the public schema');
+assert(storeLiteComplianceLiveCheck.includes("await control.query('rollback')"), 'Store Lite compliance audit rolls back its outer fixture transaction');
+assert(storeLiteComplianceLiveCheck.includes('await assertFixtureAbsent(control, fixture)'), 'Store Lite compliance audit verifies fixture cleanup');
+assert(storeLiteComplianceLiveCheck.includes('process.exitCode = 1'), 'a skipped Store Lite compliance audit exits unsuccessfully');
+assert(!/\b(?:create|alter|truncate|drop|grant|revoke|vacuum|reindex)\b\s+(?:table|type|index|schema|database)\b/i.test(storeLiteComplianceLiveCheck), 'Store Lite compliance audit contains no DDL');
+const storeLiteComplianceAuditStep = workflowStep(workflow, 'Run isolated Store Lite compliance PostgreSQL audit');
+assert(storeLiteComplianceAuditStep, 'workflow defines the isolated Store Lite compliance audit step');
+assert(
+  /env:\s*\n\s*STORE_LITE_COMPLIANCE_TEST_DATABASE_URL:\s*postgres:\/\/postgres:postgres@localhost:5432\/pp_platform_ci\s*\n\s*ALLOW_STORE_LITE_COMPLIANCE_LIVE_TEST:\s*"1"/.test(storeLiteComplianceAuditStep)
+    && /run:\s*npm run check:postgres-store-lite-compliance-live/.test(storeLiteComplianceAuditStep),
+  'Store Lite compliance URL, opt-in, and command are contained in one audit step',
+);
+assert((workflow.match(/STORE_LITE_COMPLIANCE_TEST_DATABASE_URL/g) || []).length === 1, 'Store Lite compliance test URL appears only in its audit step');
+assert((workflow.match(/ALLOW_STORE_LITE_COMPLIANCE_LIVE_TEST/g) || []).length === 1, 'Store Lite compliance opt-in appears only in its audit step');
 assert(migrationCheck.includes('process.env.MIGRATION_TEST_DATABASE_URL'), 'migration audit reads only its dedicated URL');
 assert(!migrationCheck.includes('process.env.DATABASE_URL'), 'migration audit never reads the application database URL');
 assert(migrationCheck.includes("ALLOW_DESTRUCTIVE_MIGRATION_TEST !== '1'"), 'migration audit requires an explicit destructive-test flag');
@@ -142,9 +204,12 @@ console.log(
         'fixed-baseline-load',
         'migration-audit-safety-guards',
         'store-lite-booking-live',
+        'store-lite-compliance-live',
         'composite-order-migration-live',
         'full-git-history',
         'frontend-guards',
+        'store-lite-consumer-build',
+        'store-lite-admin-build',
         'mobile-build',
         'admin-build',
       ],

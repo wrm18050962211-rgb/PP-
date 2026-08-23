@@ -51,7 +51,14 @@ assert.deepEqual(
     id: adminId,
     name: 'Store Lite Ops',
     role: 'store_lite_ops',
-    scopes: ['booking_requests:read', 'booking_requests:write'],
+    scopes: [
+      'booking_requests:read',
+      'booking_requests:write',
+      'user_requests:read',
+      'user_requests:write',
+      'content_reports:read',
+      'content_reports:moderate',
+    ],
   },
   'successful authentication returns only the admin identity and mapped Store Lite scopes',
 );
@@ -70,10 +77,10 @@ assert.equal(
 );
 
 const roleExpectations = new Map([
-  ['store_lite_viewer', ['booking_requests:read']],
-  ['store_lite_ops', ['booking_requests:read', 'booking_requests:write']],
-  ['admin', ['booking_requests:read', 'booking_requests:write']],
-  ['super_admin', ['booking_requests:read', 'booking_requests:write']],
+  ['store_lite_viewer', ['booking_requests:read', 'user_requests:read', 'content_reports:read']],
+  ['store_lite_ops', ['booking_requests:read', 'booking_requests:write', 'user_requests:read', 'user_requests:write', 'content_reports:read', 'content_reports:moderate']],
+  ['admin', ['booking_requests:read', 'booking_requests:write', 'user_requests:read', 'user_requests:write', 'content_reports:read', 'content_reports:moderate']],
+  ['super_admin', ['booking_requests:read', 'booking_requests:write', 'user_requests:read', 'user_requests:write', 'content_reports:read', 'content_reports:moderate']],
   ['unknown_role', []],
 ]);
 for (const [role, expectedScopes] of roleExpectations) {
@@ -162,7 +169,7 @@ console.log(
         'uniform-invalid-credential-response',
         'inactive-admin-rejected',
         'conditional-last-login-update',
-        'explicit-booking-scope-map',
+      'explicit-store-lite-scope-map',
         'public-admin-field-whitelist',
         'missing-pepper-fail-closed',
         'no-dsn-or-secret-logging',

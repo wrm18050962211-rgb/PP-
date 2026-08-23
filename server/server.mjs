@@ -20,6 +20,7 @@ import { createPhoneVerificationService, PhoneVerificationError, readPhoneVerifi
 import { createTencentCosPostUploadPolicy, hasTencentCosMediaConfig } from './services/tencentCosMedia.mjs';
 import { createMockSmsSender, createTencentSmsSender, hasTencentSmsConfig } from './services/tencentSms.mjs';
 import { readStoreLiteFeatureFlags } from './services/storeLiteFeature.mjs';
+import { assertStoreLiteReleaseConfiguration } from './services/storeLiteReleaseConfig.mjs';
 import { createDataStore } from './store/index.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -38,13 +39,25 @@ const requestSecurity = createRequestSecurity({ env: process.env });
 const phoneSmsProvider = String(process.env.PHONE_SMS_PROVIDER || (isProductionServerEnv ? 'tencent' : 'mock')).trim().toLowerCase();
 const corsAllowedOrigins = parseEnvList(process.env.CORS_ALLOWED_ORIGINS);
 const enableTestRoleSwitch = String(process.env.ENABLE_TEST_ROLE_SWITCH ?? 'true').trim().toLowerCase();
-const storeLiteBookingsEnabled = readStoreLiteFeatureFlags(process.env).storeLiteBookingsEnabled;
+const { storeLiteBookingsEnabled, storeLiteComplianceEnabled } = readStoreLiteFeatureFlags(process.env);
 const storeLiteSupportChannelKeys = parseEnvList(process.env.STORE_LITE_SUPPORT_CHANNEL_KEYS);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const platformFeeRate = 0.08;
 const pendingPaymentHoldMinutes = Number(process.env.PENDING_PAYMENT_HOLD_MINUTES || 15);
 const pendingPaymentHoldMs = Math.max(1, pendingPaymentHoldMinutes) * 60 * 1000;
 const activeSlotLocks = new Set();
+assertStoreLiteReleaseConfiguration({
+  env: process.env,
+  appEnv,
+  releaseProfile,
+  storeLiteBookingsEnabled,
+  storeLiteComplianceEnabled,
+  phoneSmsProvider,
+  tencentSmsConfigured: hasTencentSmsConfig(),
+  supportChannelKeys: storeLiteSupportChannelKeys,
+  enableTestRoleSwitch,
+  corsAllowedOrigins,
+});
 const phoneVerificationService = createPhoneVerificationService({
   repository: dataStore.phoneVerificationWrites,
   sender: phoneSmsProvider === 'tencent' ? createTencentSmsSender() : createMockSmsSender(),
@@ -157,6 +170,12 @@ http
           fail('STORE_LITE_ROUTE_DISABLED', 'Route is not available in Store Lite'),
         );
       }
+      if (
+        (isStoreLiteBookingRequestPath(url.pathname) && !storeLiteBookingsEnabled) ||
+        (isStoreLiteComplianceRequestPath(url.pathname) && !storeLiteComplianceEnabled)
+      ) {
+        return sendJson(req, res, 404, fail('NOT_FOUND', 'Route not found'));
+      }
       const requestScopedStore = shouldUseRequestScopedStore(req.method || 'GET', url.pathname);
       const { store, changed: storeChanged } = requestScopedStore
         ? { store: createRequestScopedStore(), changed: false }
@@ -168,6 +187,10 @@ http
       if (access) {
         if (storeChanged || cleanupChanged || access.changed) await dataStore.save(store);
         return sendJson(req, res, access.status, access.payload);
+      }
+      const storeLitePersistenceFailure = storeLitePersistenceReadiness(url.pathname);
+      if (storeLitePersistenceFailure) {
+        return sendJson(req, res, storeLitePersistenceFailure.status, storeLitePersistenceFailure.payload);
       }
       validateRouteQuery(req.method || 'GET', url.pathname, url.searchParams);
       const body = await readJsonRequest(req, { maxBodyBytes: requestSecurity.config.maxBodyBytes });
@@ -198,7 +221,9 @@ http
       sendJson(req, res, 500, fail('SERVER_ERROR', message));
     }
   })
-  .listen(port, () => console.log(`Still backend listening on http://127.0.0.1:${port}`));
+  .listen(port, isProductionServerEnv ? String(process.env.HOST || '0.0.0.0') : '127.0.0.1', () => {
+    console.log(`Still backend listening on port ${port}`);
+  });
 
 async function route(method, url, body, store, req) {
   const path = url.pathname;
@@ -236,6 +261,19 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && /^\/api\/booking-requests\/[^/]+\/cancel$/.test(path)) {
     return cancelBookingRequestRoute(store, path, body);
   }
+
+  if (method === 'POST' && path === '/api/user-requests') return createUserRequestRoute(store, body);
+  if (method === 'GET' && path === '/api/user-requests') return listUserRequestsRoute(store, url);
+  if (method === 'GET' && /^\/api\/user-requests\/[^/]+$/.test(path)) return getUserRequestRoute(store, path);
+  if (method === 'POST' && /^\/api\/user-requests\/[^/]+\/cancel$/.test(path)) {
+    return cancelUserRequestRoute(store, path, body);
+  }
+  if (method === 'POST' && path === '/api/content-reports') return createContentReportRoute(store, body);
+  if (method === 'GET' && path === '/api/me/content-reports') return listContentReportsRoute(store, url);
+  if (method === 'GET' && /^\/api\/me\/content-reports\/[^/]+$/.test(path)) return getContentReportRoute(store, path);
+  if (method === 'GET' && path === '/api/me/blocked-companions') return listBlockedCompanionsRoute(store, url);
+  if (method === 'PUT' && /^\/api\/me\/blocked-companions\/[^/]+$/.test(path)) return blockCompanionRoute(store, path);
+  if (method === 'DELETE' && /^\/api\/me\/blocked-companions\/[^/]+$/.test(path)) return unblockCompanionRoute(store, path);
 
   if (method === 'POST' && path === '/api/orders/quote') return quoteOrder(store, body);
   if (method === 'POST' && path === '/api/orders') return createOrder(store, body);
@@ -279,6 +317,16 @@ async function route(method, url, body, store, req) {
   if (method === 'POST' && /^\/api\/admin\/booking-requests\/[^/]+\/cancel$/.test(path)) {
     return transitionAdminBookingRequestRoute(store, path, body, req, 'cancel');
   }
+  if (method === 'GET' && path === '/api/admin/user-requests') return listAdminUserRequestsRoute(store, url, req);
+  if (method === 'GET' && /^\/api\/admin\/user-requests\/[^/]+$/.test(path)) return getAdminUserRequestRoute(store, path, req);
+  if (method === 'POST' && /^\/api\/admin\/user-requests\/[^/]+\/(?:start|complete|decline)$/.test(path)) {
+    return transitionAdminUserRequestRoute(store, path, body, req);
+  }
+  if (method === 'GET' && path === '/api/admin/content-reports') return listAdminContentReportsRoute(store, url, req);
+  if (method === 'GET' && /^\/api\/admin\/content-reports\/[^/]+$/.test(path)) return getAdminContentReportRoute(store, path, req);
+  if (method === 'POST' && /^\/api\/admin\/content-reports\/[^/]+\/(?:investigate|resolve|reject)$/.test(path)) {
+    return transitionAdminContentReportRoute(store, path, body, req);
+  }
   if (method === 'GET' && path === '/api/admin/orders') return adminOrders(store, url);
   if (method === 'POST' && isNestedRoute(path, '/api/admin/orders/', '/status')) return setAdminOrderStatus(store, path, body.status);
   if (method === 'GET' && path === '/api/admin/action-logs') return adminActionLogs(store, url);
@@ -302,6 +350,32 @@ function shouldUseRequestScopedStore(method, path) {
       path.startsWith('/api/booking-requests/') ||
       path === '/api/admin/booking-requests' ||
       path.startsWith('/api/admin/booking-requests/'))
+  ) {
+    return true;
+  }
+  if (
+    storeLiteComplianceEnabled &&
+    dataStore.capabilities?.storeLiteCompliance &&
+    (path === '/api/user-requests' ||
+      path.startsWith('/api/user-requests/') ||
+      path === '/api/content-reports' ||
+      path === '/api/me/content-reports' ||
+      path.startsWith('/api/me/content-reports/') ||
+      path === '/api/me/blocked-companions' ||
+      path.startsWith('/api/me/blocked-companions/') ||
+      path === '/api/admin/user-requests' ||
+      path.startsWith('/api/admin/user-requests/') ||
+      path === '/api/admin/content-reports' ||
+      path.startsWith('/api/admin/content-reports/'))
+  ) {
+    return true;
+  }
+  if (
+    method === 'GET' &&
+    dataStore.capabilities?.contentReads &&
+    (path === '/api/feed/posts' ||
+      /^\/api\/posts\/[^/]+$/.test(path) ||
+      /^\/api\/companions\/[^/]+(?:\/posts)?$/.test(path))
   ) {
     return true;
   }
@@ -364,6 +438,7 @@ async function listFeedPostsRoute(store, url) {
           city: url.searchParams.get('city'),
           limit: url.searchParams.get('limit'),
           cursor: url.searchParams.get('cursor'),
+          userId: storeLiteContentViewerUserId(store),
         }),
       );
     } catch (cause) {
@@ -376,7 +451,7 @@ async function listFeedPostsRoute(store, url) {
 async function getPostRoute(store, postId) {
   if (dataStore.kind !== 'json' && dataStore.content?.getPublicPost) {
     try {
-      const post = await dataStore.content.getPublicPost(postId);
+      const post = await dataStore.content.getPublicPost(postId, { userId: storeLiteContentViewerUserId(store) });
       return post ? json(withPostTitle(post)) : error(404, 'NOT_FOUND', 'Post not found');
     } catch (cause) {
       return contentGatewayError(cause);
@@ -399,6 +474,7 @@ async function listCompanionPostsRoute(store, path, url) {
           companionId,
           limit: url.searchParams.get('limit'),
           cursor: url.searchParams.get('cursor'),
+          userId: storeLiteContentViewerUserId(store),
         }),
       );
     } catch (cause) {
@@ -412,7 +488,7 @@ async function listCompanionPostsRoute(store, path, url) {
 async function getPublicCompanionRoute(store, companionId) {
   if (dataStore.kind !== 'json' && dataStore.content?.getPublicCompanion) {
     try {
-      const companion = await dataStore.content.getPublicCompanion(companionId);
+      const companion = await dataStore.content.getPublicCompanion(companionId, { userId: storeLiteContentViewerUserId(store) });
       return companion ? json(companion) : error(404, 'NOT_FOUND', 'Companion not found');
     } catch (cause) {
       return contentGatewayError(cause);
@@ -422,6 +498,11 @@ async function getPublicCompanionRoute(store, companionId) {
     (item) => item.id === companionId && item.status === 'approved' && item.serviceEnabled !== false,
   );
   return companion ? json(companion) : error(404, 'NOT_FOUND', 'Companion not found');
+}
+
+function storeLiteContentViewerUserId(store) {
+  if (!storeLiteComplianceEnabled || store?.activeSession?.role !== 'consumer') return null;
+  return store.activeSession?.user?.id || null;
 }
 
 async function getOwnCompanionProfileRoute(store) {
@@ -1865,6 +1946,7 @@ async function getAdminBookingRequestRoute(store, path, req) {
       await dataStore.bookingRequests.getForAdmin({
         adminId: gate.session.adminId || gate.session.user.id,
         bookingRequestId,
+        includeContact: Array.isArray(gate.session.adminScope) && gate.session.adminScope.includes('booking_requests:write'),
       }),
     );
   } catch (cause) {
@@ -1943,6 +2025,330 @@ function bookingAuditDetails(req) {
     userAgent: String(req?.headers?.['user-agent'] || '').slice(0, 500) || null,
     metadata: { requestId: req?.securityContext?.requestId || null },
   };
+}
+
+async function createUserRequestRoute(store, body = {}) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  try {
+    const detail = await dataStore.storeLiteCompliance.createUserRequestForConsumer({
+      ...body,
+      userId: gate.session.user.id,
+    });
+    return json(detail, 201, false);
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function listUserRequestsRoute(store, url) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  try {
+    return json(await dataStore.storeLiteCompliance.listUserRequestsForConsumer({
+      userId: gate.session.user.id,
+      requestType: url.searchParams.get('requestType') || undefined,
+      status: url.searchParams.get('status') || undefined,
+      limit: url.searchParams.get('limit') || undefined,
+      cursor: url.searchParams.get('cursor') || undefined,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function getUserRequestRoute(store, path) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  const userRequestId = last(path);
+  if (!uuidPattern.test(userRequestId)) return storeLiteUserRequestNotFound();
+  try {
+    return json(await dataStore.storeLiteCompliance.getUserRequestForConsumer({
+      userId: gate.session.user.id,
+      userRequestId,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function cancelUserRequestRoute(store, path, body = {}) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  const userRequestId = path.split('/')[3] || '';
+  if (!uuidPattern.test(userRequestId)) return storeLiteUserRequestNotFound();
+  try {
+    return json(await dataStore.storeLiteCompliance.cancelUserRequestForConsumer({
+      ...body,
+      userRequestId,
+      userId: gate.session.user.id,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function listAdminUserRequestsRoute(store, url, req) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireAdminScope(store, 'user_requests:read', bookingAuditDetails(req));
+  if (gate.response) return gate.response;
+  try {
+    return json(await dataStore.storeLiteCompliance.listUserRequestsForAdmin({
+      adminId: gate.session.adminId || gate.session.user.id,
+      requestType: url.searchParams.get('requestType') || undefined,
+      status: url.searchParams.get('status') || undefined,
+      limit: url.searchParams.get('limit') || undefined,
+      cursor: url.searchParams.get('cursor') || undefined,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function getAdminUserRequestRoute(store, path, req) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireAdminScope(store, 'user_requests:read', bookingAuditDetails(req));
+  if (gate.response) return gate.response;
+  const userRequestId = last(path);
+  if (!uuidPattern.test(userRequestId)) return storeLiteUserRequestNotFound();
+  try {
+    return json(await dataStore.storeLiteCompliance.getUserRequestForAdmin({
+      adminId: gate.session.adminId || gate.session.user.id,
+      userRequestId,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function transitionAdminUserRequestRoute(store, path, body = {}, req) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireAdminScope(store, 'user_requests:write', bookingAuditDetails(req));
+  if (gate.response) return gate.response;
+  const segments = path.split('/');
+  const userRequestId = segments[4] || '';
+  const action = segments[5] || '';
+  if (!uuidPattern.test(userRequestId)) return storeLiteUserRequestNotFound();
+  const handler = {
+    start: dataStore.storeLiteCompliance.startUserRequestForAdmin,
+    complete: dataStore.storeLiteCompliance.completeUserRequestForAdmin,
+    decline: dataStore.storeLiteCompliance.declineUserRequestForAdmin,
+  }[action];
+  if (!handler) return error(404, 'NOT_FOUND', 'Route not found');
+  try {
+    return json(await handler({
+      ...body,
+      userRequestId,
+      adminId: gate.session.adminId || gate.session.user.id,
+      ...bookingAuditDetails(req),
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function createContentReportRoute(store, body = {}) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  try {
+    return json(await dataStore.storeLiteCompliance.createContentReportForConsumer({
+      ...body,
+      userId: gate.session.user.id,
+    }), 201, false);
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function listContentReportsRoute(store, url) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  try {
+    return json(await dataStore.storeLiteCompliance.listContentReportsForConsumer({
+      userId: gate.session.user.id,
+      status: url.searchParams.get('status') || undefined,
+      targetType: url.searchParams.get('targetType') || undefined,
+      limit: url.searchParams.get('limit') || undefined,
+      cursor: url.searchParams.get('cursor') || undefined,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function getContentReportRoute(store, path) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  const reportId = last(path);
+  if (!uuidPattern.test(reportId)) return storeLiteContentReportNotFound();
+  try {
+    return json(await dataStore.storeLiteCompliance.getContentReportForConsumer({
+      userId: gate.session.user.id,
+      reportId,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function listAdminContentReportsRoute(store, url, req) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireAdminScope(store, 'content_reports:read', bookingAuditDetails(req));
+  if (gate.response) return gate.response;
+  try {
+    return json(await dataStore.storeLiteCompliance.listContentReportsForAdmin({
+      adminId: gate.session.adminId || gate.session.user.id,
+      status: url.searchParams.get('status') || undefined,
+      targetType: url.searchParams.get('targetType') || undefined,
+      category: url.searchParams.get('category') || undefined,
+      limit: url.searchParams.get('limit') || undefined,
+      cursor: url.searchParams.get('cursor') || undefined,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function getAdminContentReportRoute(store, path, req) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireAdminScope(store, 'content_reports:read', bookingAuditDetails(req));
+  if (gate.response) return gate.response;
+  const reportId = last(path);
+  if (!uuidPattern.test(reportId)) return storeLiteContentReportNotFound();
+  try {
+    return json(await dataStore.storeLiteCompliance.getContentReportForAdmin({
+      adminId: gate.session.adminId || gate.session.user.id,
+      reportId,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function transitionAdminContentReportRoute(store, path, body = {}, req) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireAdminScope(store, 'content_reports:moderate', bookingAuditDetails(req));
+  if (gate.response) return gate.response;
+  const segments = path.split('/');
+  const reportId = segments[4] || '';
+  const action = segments[5] || '';
+  if (!uuidPattern.test(reportId)) return storeLiteContentReportNotFound();
+  const handler = {
+    investigate: dataStore.storeLiteCompliance.investigateContentReportForAdmin,
+    resolve: dataStore.storeLiteCompliance.resolveContentReportForAdmin,
+    reject: dataStore.storeLiteCompliance.rejectContentReportForAdmin,
+  }[action];
+  if (!handler) return error(404, 'NOT_FOUND', 'Route not found');
+  try {
+    return json(await handler({
+      ...body,
+      reportId,
+      adminId: gate.session.adminId || gate.session.user.id,
+      ...bookingAuditDetails(req),
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function listBlockedCompanionsRoute(store, url) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  try {
+    return json(await dataStore.storeLiteCompliance.listBlockedCompanionsForConsumer({
+      userId: gate.session.user.id,
+      limit: url.searchParams.get('limit') || undefined,
+      cursor: url.searchParams.get('cursor') || undefined,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function blockCompanionRoute(store, path) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  const companionId = last(path);
+  if (!uuidPattern.test(companionId)) return error(404, 'COMPANION_BLOCK_TARGET_NOT_FOUND', 'Photographer not found');
+  try {
+    return json(await dataStore.storeLiteCompliance.blockCompanionForConsumer({
+      userId: gate.session.user.id,
+      companionId,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+async function unblockCompanionRoute(store, path) {
+  const readiness = storeLiteComplianceReadiness();
+  if (readiness) return readiness;
+  const gate = requireConsumerSession(store);
+  if (gate.response) return gate.response;
+  const companionId = last(path);
+  if (!uuidPattern.test(companionId)) return error(404, 'COMPANION_BLOCK_TARGET_NOT_FOUND', 'Photographer not found');
+  try {
+    return json(await dataStore.storeLiteCompliance.unblockCompanionForConsumer({
+      userId: gate.session.user.id,
+      companionId,
+    }));
+  } catch (cause) {
+    return storeLiteComplianceGatewayResponse(cause);
+  }
+}
+
+function storeLiteComplianceReadiness() {
+  if (!storeLiteComplianceEnabled) return error(404, 'NOT_FOUND', 'Route not found');
+  if (
+    dataStore.kind !== 'postgres' ||
+    !dataStore.capabilities?.storeLiteCompliance ||
+    !dataStore.storeLiteCompliance
+  ) {
+    return error(503, 'COMPLIANCE_POSTGRES_REQUIRED', 'Store Lite compliance requests require PostgreSQL');
+  }
+  return null;
+}
+
+function storeLiteComplianceGatewayResponse(cause) {
+  if (
+    cause?.code &&
+    /^(?:USER_REQUEST_|CONTENT_REPORT_|COMPANION_BLOCK_|COMPLIANCE_)/.test(String(cause.code))
+  ) {
+    return error(Number(cause.status) || 500, String(cause.code), String(cause.message || 'Store Lite compliance request failed'));
+  }
+  throw cause;
+}
+
+function storeLiteUserRequestNotFound() {
+  return error(404, 'USER_REQUEST_NOT_FOUND', 'User request not found');
+}
+
+function storeLiteContentReportNotFound() {
+  return error(404, 'CONTENT_REPORT_NOT_FOUND', 'Content report not found');
 }
 
 async function listOrders(store, url) {
@@ -4631,6 +5037,7 @@ function launchCheck() {
   const misconfigured = [];
   if (dataStore.kind !== 'postgres') misconfigured.push('STORE_DRIVER must be postgres');
   if (isStoreLiteRelease && !storeLiteBookingsEnabled) misconfigured.push('ENABLE_STORE_LITE_BOOKINGS must be true');
+  if (isStoreLiteRelease && !storeLiteComplianceEnabled) misconfigured.push('ENABLE_STORE_LITE_COMPLIANCE must be true');
   if (phoneSmsProvider !== 'tencent') misconfigured.push('PHONE_SMS_PROVIDER must be tencent');
   if (!hasTencentSmsConfig()) misconfigured.push('Tencent SMS configuration is incomplete');
   if (isStoreLiteRelease && storeLiteSupportChannelKeys.length === 0) misconfigured.push('Store Lite support channel is missing');
@@ -4645,6 +5052,7 @@ function launchCheck() {
       wechatPay: isStoreLiteRelease ? 'disabled' : useLiveWechatPay() ? 'live' : 'mock',
       media: isStoreLiteRelease ? 'read-only-content' : hasTencentCosMediaConfig() ? 'cos-configured' : 'mock',
       bookingRequests: storeLiteBookingsEnabled ? 'enabled' : 'disabled',
+      complianceRequests: storeLiteComplianceEnabled ? 'enabled' : 'disabled',
       phoneSms: phoneSmsProvider === 'tencent' && hasTencentSmsConfig() ? 'tencent-configured' : phoneSmsProvider,
     },
   });
@@ -4684,10 +5092,16 @@ function isStoreLiteAllowedRequest(method, path) {
     'POST /api/admin/auth/login',
     'POST /api/admin/auth/logout',
     'GET /api/feed/posts',
-    'GET /api/matching/companions',
     'POST /api/booking-requests',
     'GET /api/booking-requests',
     'GET /api/admin/booking-requests',
+    'POST /api/user-requests',
+    'GET /api/user-requests',
+    'POST /api/content-reports',
+    'GET /api/me/content-reports',
+    'GET /api/me/blocked-companions',
+    'GET /api/admin/user-requests',
+    'GET /api/admin/content-reports',
   ]);
   if (exactRoutes.has(routeKey)) return true;
   return (
@@ -4696,8 +5110,49 @@ function isStoreLiteAllowedRequest(method, path) {
     /^GET \/api\/booking-requests\/[^/]+$/.test(routeKey) ||
     /^POST \/api\/booking-requests\/[^/]+\/cancel$/.test(routeKey) ||
     /^GET \/api\/admin\/booking-requests\/[^/]+$/.test(routeKey) ||
-    /^POST \/api\/admin\/booking-requests\/[^/]+\/(?:confirm|decline|cancel)$/.test(routeKey)
+    /^POST \/api\/admin\/booking-requests\/[^/]+\/(?:confirm|decline|cancel)$/.test(routeKey) ||
+    /^GET \/api\/user-requests\/[^/]+$/.test(routeKey) ||
+    /^POST \/api\/user-requests\/[^/]+\/cancel$/.test(routeKey) ||
+    /^GET \/api\/me\/content-reports\/[^/]+$/.test(routeKey) ||
+    /^(?:PUT|DELETE) \/api\/me\/blocked-companions\/[^/]+$/.test(routeKey) ||
+    /^GET \/api\/admin\/user-requests\/[^/]+$/.test(routeKey) ||
+    /^POST \/api\/admin\/user-requests\/[^/]+\/(?:start|complete|decline)$/.test(routeKey) ||
+    /^GET \/api\/admin\/content-reports\/[^/]+$/.test(routeKey) ||
+    /^POST \/api\/admin\/content-reports\/[^/]+\/(?:investigate|resolve|reject)$/.test(routeKey)
   );
+}
+
+function isStoreLiteBookingRequestPath(path) {
+  return path === '/api/booking-requests' ||
+    path.startsWith('/api/booking-requests/') ||
+    path === '/api/admin/booking-requests' ||
+    path.startsWith('/api/admin/booking-requests/');
+}
+
+function isStoreLiteComplianceRequestPath(path) {
+  return path === '/api/user-requests' ||
+    path.startsWith('/api/user-requests/') ||
+    path === '/api/content-reports' ||
+    path === '/api/me/content-reports' ||
+    path.startsWith('/api/me/content-reports/') ||
+    path === '/api/me/blocked-companions' ||
+    path.startsWith('/api/me/blocked-companions/') ||
+    path === '/api/admin/user-requests' ||
+    path.startsWith('/api/admin/user-requests/') ||
+    path === '/api/admin/content-reports' ||
+    path.startsWith('/api/admin/content-reports/');
+}
+
+function storeLitePersistenceReadiness(path) {
+  if (!isStoreLiteRelease || dataStore.kind === 'postgres') return null;
+  if (path === '/api/health' || path === '/api/ops/launch-check') return null;
+  if (isStoreLiteBookingRequestPath(path)) {
+    return { status: 503, payload: fail('BOOKING_POSTGRES_REQUIRED', 'Booking requests require PostgreSQL') };
+  }
+  if (isStoreLiteComplianceRequestPath(path)) {
+    return { status: 503, payload: fail('COMPLIANCE_POSTGRES_REQUIRED', 'Compliance requests require PostgreSQL') };
+  }
+  return { status: 503, payload: fail('STORE_LITE_POSTGRES_REQUIRED', 'Store Lite requires PostgreSQL') };
 }
 
 function actionLabel(actionType) {

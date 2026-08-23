@@ -12,6 +12,7 @@ export async function listPublicPosts(client, options = {}) {
   const offset = parseCursor(options.cursor);
   const city = normalize(options.city);
   const companionId = normalize(options.companionId);
+  const viewerUserId = normalizeUuid(options.userId);
   const result = await client.query(
     `${publicPostSelect()}
      where p.status = 'approved'
@@ -20,9 +21,10 @@ export async function listPublicPosts(client, options = {}) {
        and c.service_enabled = true
        and ($1::text = '' or lower(p.city) like lower($1) or lower(p.location_name) like lower($1))
        and ($4::text = '' or p.companion_id::text = $4)
+       ${blockedCompanionPredicate(viewerUserId, 'p.companion_id', 5)}
      order by p.is_featured desc, p.published_at desc nulls last, p.created_at desc, p.id desc
      limit $2 offset $3`,
-    [city ? `%${city}%` : '', limit + 1, offset, companionId],
+    [city ? `%${city}%` : '', limit + 1, offset, companionId, viewerUserId],
   );
 
   const rows = result.rows || [];
@@ -35,8 +37,9 @@ export async function listPublicPosts(client, options = {}) {
   };
 }
 
-export async function getPublicPost(client, postId) {
+export async function getPublicPost(client, postId, options = {}) {
   assertClient(client);
+  const viewerUserId = normalizeUuid(options.userId);
   const result = await client.query(
     `${publicPostSelect()}
      where p.id = $1
@@ -44,16 +47,17 @@ export async function getPublicPost(client, postId) {
        and p.is_feed_visible = true
        and c.status = 'approved'
        and c.service_enabled = true
+       ${blockedCompanionPredicate(viewerUserId, 'p.companion_id', 2)}
      limit 1`,
-    [postId],
+    [postId, viewerUserId],
   );
   const [post] = await hydratePosts(client, result.rows || []);
   return post || null;
 }
 
-export async function getPublicCompanion(client, companionId) {
+export async function getPublicCompanion(client, companionId, options = {}) {
   assertClient(client);
-  const rows = await queryCompanions(client, [companionId], true);
+  const rows = await queryCompanions(client, [companionId], true, normalizeUuid(options.userId));
   const [companion] = await hydrateCompanions(client, rows);
   if (!companion) return null;
   const postCountResult = await client.query(
@@ -470,7 +474,7 @@ async function hydrateCompanions(client, companionRows) {
   }).companions;
 }
 
-async function queryCompanions(client, companionIds, publicOnly) {
+async function queryCompanions(client, companionIds, publicOnly, viewerUserId = null) {
   if (!companionIds.length) return [];
   return queryRows(
     client,
@@ -483,8 +487,9 @@ async function queryCompanions(client, companionIds, publicOnly) {
             ) as follower_count
      from companions c
      where c.id = any($1::uuid[])
-       and ($2::boolean = false or (c.status = 'approved' and c.service_enabled = true))`,
-    [companionIds, Boolean(publicOnly)],
+       and ($2::boolean = false or (c.status = 'approved' and c.service_enabled = true))
+       ${blockedCompanionPredicate(viewerUserId, 'c.id', 3)}`,
+    [companionIds, Boolean(publicOnly), normalizeUuid(viewerUserId)],
   );
 }
 
@@ -575,6 +580,22 @@ function normalizePostTags(tags) {
 
 function normalize(value) {
   return String(value ?? '').trim();
+}
+
+function normalizeUuid(value) {
+  const normalized = normalize(value);
+  return normalized || null;
+}
+
+function blockedCompanionPredicate(viewerUserId, companionExpression, parameterIndex) {
+  const parameter = `$${parameterIndex}`;
+  if (!viewerUserId) return `and ${parameter}::uuid is null`;
+  return `and not exists (
+            select 1
+            from user_companion_blocks ucb
+            where ucb.user_id = ${parameter}
+              and ucb.companion_id = ${companionExpression}
+          )`;
 }
 
 function number(value) {
