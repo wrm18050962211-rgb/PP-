@@ -6,28 +6,29 @@
 
 ## 0. 当前基线与固定决策
 
-- Roadmap version: 8
+- Roadmap version: 9
 - Current integration baseline: `6588247c29b2082d310cc96fe110ab67866337f4`
 - Integration branch: `codex/integration`
 - Windows branch: `codex/vertical-db-api`
 - Mac/iOS branch: `codex/mac-ios`
 - Roadmap work branch: `codex/release-roadmap`
 - Map provider: 通过 `MAP_PROVIDER` 运行时选择，服务端必须使用统一 Provider 适配层
-- Current P0 map provider: 待 `EXT-MAP-1` 完成高德、腾讯、百度的功能、商用授权、配额和总成本比较后确定
+- Current post-Store map provider: 待 `EXT-MAP-1` 完成高德、腾讯、百度的功能、商用授权、配额和总成本比较后确定；不阻塞 Store Lite
 - Map display fallback: 可评估 MapLibre 加合法授权地图源；不得直接把 OpenStreetMap 公共瓦片服务作为生产 CDN
 - AI、增长实验和微信小程序：在 iOS TestFlight 主流程稳定前暂停
+- 当前首发目标：先交付不含支付的 `Store Lite 1.0`，取得公开 App Store 页面后再申请支付渠道并开发商业交易 `v1.1`；支付、退款、结算不得反向阻塞首次上架
 - 用户拍摄偏好档案属于 TestFlight 稳定后的 P2 增长基础：先上线非 AI 结构化档案、订单快照和拍后反馈，再进入 P3 AI 偏好助手；首版不批量读取系统相册
 - 双边忠诚度属于偏好与真实交易闭环之后的 P2/P3 路线：先上线不依赖补贴的复约、认证/作品来源、摄影师成长和服务恢复，再以 90/180 天指标及单位经济决定是否试点会员、降佣或奖励
 
 ### 0.1 地图技术路线
 
-- Windows 建立 Provider 无关的地图服务适配层，通过服务端统一代理 POI 搜索、输入提示、周边搜索、地理编码和逆地理编码；首版不自建地图数据、搜索索引或路线引擎。
+- Windows 在地图 P1 建立 Provider 无关的服务适配层，通过服务端统一代理 POI 搜索、输入提示、周边搜索、地理编码和逆地理编码；不自建地图数据、搜索索引或路线引擎。
 - `MAP_PROVIDER` 在高德、腾讯或百度中选择生产实现；选择前必须比较大陆 POI 质量、Capacitor 兼容性、商用授权、调用配额、年度固定许可和按量费用，不能因开发 Key 可调用就推定可免费商用。
 - Provider 的 WebService Key 只能存放在服务端密钥管理或环境变量中，禁止进入前端构建、iOS 工程、日志或 Git；服务端为不同 Provider 输出统一地点结构和稳定错误码。
-- Mac/Capacitor 第一版地图显示可以使用选定 Provider 的 JS/原生 SDK，或 MapLibre 加合法授权的地图瓦片/矢量源；不得直接依赖 OpenStreetMap 公共瓦片服务承载生产流量。
+- Mac/Capacitor 的地图 P1 可以使用选定 Provider 的 JS/原生 SDK，或 MapLibre 加合法授权的地图瓦片/矢量源；不得直接依赖 OpenStreetMap 公共瓦片服务承载生产流量。
 - 客户端只接收业务需要的标准化地点结果，不直接调用 WebService；客户端公开 Key 或安全参数必须按域名、Bundle ID、调用来源和平台能力限制。
-- 第一版只实现定位、手动搜索、选点、地点快照和距离等业务必要能力；路线导航调起用户已安装的高德、腾讯或 Apple 地图，未安装时提供系统地图或网页降级，不在 Still 内实现语音导航。
-- 只有 Web/Capacitor 地图在真机性能、合规或能力上不能满足需求时，才新建节点接入原生地图 SDK；不得在 P0 内扩张为自建离线地图或导航系统。
+- 地图 P1 首版只实现定位、手动搜索、选点、地点快照和距离等业务必要能力；Store Lite 仅使用手填城市/地址且不申请定位。路线导航调起用户已安装的高德、腾讯或 Apple 地图，未安装时提供系统地图或网页降级，不在 Still 内实现语音导航。
+- 只有 Web/Capacitor 地图在真机性能、合规或能力上不能满足需求时，才新建节点接入原生地图 SDK；不得扩张为自建离线地图或导航系统。
 - User/External 必须完成候选服务商账号、应用、服务端 Key、客户端安全配置、商用许可和预算核实；生产 Provider 未获书面可上线结论时，地图节点只能用于内部 staging 验证。
 
 ### 0.2 状态定义
@@ -110,37 +111,25 @@ API、数据或环境变化：
 重点回归：
 ```
 
-### 0.7 基础运维 P0 固定决策
+### 0.7 分阶段运维固定决策
 
-Still 的对外 API、官网、Admin、TestFlight 或 App Store 版本一旦可访问，以下九项即为 P0 发布门槛：
+`Store Lite 1.0` 只用于真实浏览、预约申请和取得公开 App Store 页面，但它仍会处理账号和预约数据。首次提交前必须满足以下最小生产底线：
 
-1. 使用生产系统之外的外部监控持续检查可用性，并接入 iOS 崩溃上报。
-2. 生产账号遵循最小权限；AI 不持有长期 root/SSH 权限、生产密钥或数据库管理员凭据。
-3. PostgreSQL 和对象存储具备自动备份、故障域分离副本和实际恢复演练。
-4. 域名、DNS、HTTPS 证书和政策 URL 有负责人、自动续费/续期及 30/14/7 天提醒。
-5. 云资源、短信、地图、存储、监控等 Provider 有预算、配额和 50%/80%/100% 账单告警。
-6. 禁止在线编辑生产源码；发布使用不可变版本，变更前知道回滚版本和验证方法。
-7. Git 是代码、迁移、部署脚本和非敏感 Runbook 的唯一来源；每个发布版本记录完整 commit SHA。
-8. AI 可以生成运维清单，但清单必须经人审阅，真实云状态必须用监控、控制台或恢复结果验证。
-9. 明确主要/备用负责人、告警时限、事故分级、发布观察窗口，并完成测试告警、应用回滚和数据库恢复演练。
+1. 正式域名、HTTPS API、政策 URL 和生产 PostgreSQL 可从审核设备访问，审核期间保持在线。
+2. 生产账号遵循最小权限；客户端、日志和 Git 不包含数据库管理员凭据、短信 Secret 或长期云密钥。
+3. 发布物绑定完整 commit SHA，禁止在线编辑生产源码；能够回滚上一应用版本并通过健康检查。
+4. PostgreSQL 启用云厂商或等价的自动备份；首发使用的精选媒体有稳定来源、版权/肖像授权和误删恢复方式。
+5. 服务端具备健康检查、request ID、脱敏错误日志和容量底线；明确一名首发负责人、客服入口和审核观察窗口。
 
-责任映射：
+Store Lite 获批只证明首审版本可公开，不代表收费运营准备完成。开放 `v1.1` 真实支付前，必须继续完成完整运维门槛：外部可用性监控、iOS 崩溃上报、故障域分离备份和恢复演练、预算/配额告警、证书提醒、主要/备用负责人、事故分级、测试告警和数据库恢复。对应节点仍为 `WIN-OBS-1`、`WIN-BACKUP-1`、`IOS-CRASH-1`、`EXT-COST-1`、`EXT-OBS-1`、`EXT-RUNBOOK-1` 与 `INT-OPS-1`，并作为 `INT-COMMERCIAL-V1_1-1` 的前置，而不再反向阻塞 `INT-RC-1`。
 
-- Windows：`WIN-DELIVERY-1`、`WIN-OBS-1`、`WIN-BACKUP-1`。
-- Mac/iOS：`IOS-CRASH-1`。
-- User/External：`EXT-CLOUD-1`、`EXT-COST-1`、`EXT-DOMAIN-1`、`EXT-OBS-1`、`EXT-RUNBOOK-1`。
-- Integration：`INT-OPS-1`。
+Store Lite 推荐顺序：
 
-推荐推进顺序：
-
-1. User/External 先完成 `EXT-CLOUD-1`、`EXT-DOMAIN-1`，并并行推进 `EXT-COMPLIANCE-1`。
-2. 云资源和合规条件满足后完成 `EXT-COST-1`、`EXT-OBS-1`。
-3. Windows 完成 `WIN-DELIVERY-1`，再并行推进 `WIN-OBS-1`、`WIN-BACKUP-1`。
-4. Mac/iOS 在 `WIN-DELIVERY-1` 与 `EXT-OBS-1` 完成后推进 `IOS-CRASH-1`。
-5. User/External 汇总负责人、权限和清单，完成 `EXT-RUNBOOK-1`。
-6. Integration 最后执行 `INT-OPS-1` 联合演练，通过后才能形成 `INT-RC-1`。
-
-`INT-OPS-1` 未完成时，`INT-RC-1` 不得开始；不能用“仍在内测”“用户还少”或“systemd 会自动重启”跳过本节。
+1. User/External 完成 `EXT-CLOUD-1`、`EXT-DOMAIN-1`、`EXT-COMPLIANCE-1` 和 `EXT-APPLE-1`。
+2. Windows 完成 `WIN-DELIVERY-1`、Store Lite 预约和合规服务端能力。
+3. Mac/iOS 完成消费者专用构建、真机 QA、签名和 TestFlight。
+4. Integration 验证最小生产底线和真实预约申请闭环，形成 `INT-RC-1`。
+5. `INT-STORE-1` 记录公开 App Store URL 后，才启动支付渠道、支付合规和商业版联合验收。
 
 ### 0.8 用户拍摄偏好档案与 AI 固定路线
 
@@ -211,7 +200,7 @@ Still 的长期产品定位从单一“摄影陪伴撮合”扩展为“内容�
 
 固定顺序：
 
-1. 先按本 Roadmap 完成真实账号、Feed、摄影师资料、咨询、订单、支付、退款、结算、媒体、审核、合规、监控、备份、TestFlight 和 App Store 主流程。
+1. 先按本 Roadmap 完成 Store Lite 的真实账号、Feed、摄影师资料、预约、合规、TestFlight 和 App Store 上架；进入本节长期产品扩张前，再完成商业 v1.1 的支付、退款、结算、履约、媒体和完整运维闭环。
 2. 当前版本内容上线后，先验证“内容 → 咨询/支付 → 安全履约 → 成片/反馈”的最小闭环，不新增泛内容社区。
 3. 真实交易和内容来源可追踪后，再验证“内容 → 收藏/想去 → 个性化计划”的需求激发链路；外部抖音、小红书、微博等负责早期拉新，Still 站内内容负责承接、计划和转化。
 4. 上述链路成立后，才从旅行陪拍扩展到咖啡厅、艺术社区、展览、街区、Citywalk、约会和城市周边等日常视觉体验，并依次试点自助计划、陪伴拍摄和专业摄影服务。
@@ -258,6 +247,50 @@ Still 的长期产品定位从单一“摄影陪伴撮合”扩展为“内容�
 - `INT-COMBO-1`、`INT-PAY-1` 和 `INT-COMPLIANCE-1` 全部完成后才允许真实组合支付；
 - 每家商家必须先通过资料审核和模拟订单，`EXT-MERCHANT-PILOT-1` 完成后才进入受控真实试点。
 
+### 0.12 Store Lite 首审与商业 v1.1 固定路线
+
+当前发布决策是先完成无支付的 `Store Lite 1.0`，取得可公开访问的 App Store 页面后，再将该页面用于支付渠道审核并开发收费运营 `v1.1`。本节优先于本文其他位置仍可能出现的“支付必须首发”旧口径。
+
+Store Lite 面向消费者，只保留一条真实、可审核的闭环：
+
+```text
+游客浏览精选作品与摄影师
+-> 登录后提交摄影预约申请
+-> 平台受保护运营入口联系摄影师后确认/拒绝
+-> 用户查看或取消申请
+-> 客服、举报和账号删除
+```
+
+首审包必须具备：
+
+- 平台人工审核并运营上传的真实 HTTPS 作品、真实摄影师资料、作品/摄影师搜索和详情；
+- 消费者自有账号登录、审核账号、跨设备恢复，以及 App 内真实账号删除；
+- 结构化预约申请，至少记录摄影师、日期、时间、城市/地址文字和需求；状态只描述预约，不描述资金；
+- 用户可查看、刷新和取消自己的申请；Store Lite 由平台受保护运营入口线下联系摄影师后确认、拒绝和处理异常，摄影师移动端留给后续版本；
+- 正式隐私政策、用户协议、客服、内容/摄影师举报和最小下架/封禁能力；
+- 独立的 Store Lite 构建入口和路由白名单，生产包不依赖 mock、localStorage 或运行时开关隐藏未完成页面。
+
+首审包必须从构建、导航、深链和审核文案中移除：
+
+- 支付、定金、退款、钱包、提现、佣金、结算和任何 `paid/refunding/escrowed` 资金状态；
+- 摄影师移动端入驻/投稿/收益工作台、普通用户公开主页、关注流、评论、公开发帖和泛私信；
+- 妆造商家、组合订单、双档期、商家电话与商家工作台；
+- 完整地图 SDK、主动定位、附近频道、POI/距离/路线时间；首版仅保存用户填写的城市和地址文字，可在必要时调起系统 URI；
+- 用户媒体上传、参考图、Live Photo/视频上传；首版只展示运营审核后的稳定媒体；
+- Agent、Vibe、推荐算法、Push、小程序和 B 端 SaaS。
+
+这些能力不是“做了一半后隐藏”，而是 Store Lite 产品范围之外的 `v1.1+` 节点。App Store 元数据和审核说明必须准确写明“当前版本不提供 App 内付款，提供线下摄影服务的浏览与预约申请”，不得暗示不可用的交易闭环。
+
+上架后的固定顺序：
+
+1. `INT-STORE-1` 记录公开 App Store URL、Apple ID、首发地区和 release SHA。
+2. `EXT-PAY-1` 使用公开页面申请并验证支付渠道；未获批前不得恢复支付入口。
+3. `EXT-COMPLIANCE-PAY-1` 确认支付/退款文本、资金表述、商户能力及备案/资质增量。
+4. `WIN-PAY-*`、`IOS-PAY-1`、`IOS-REFUND-1` 和 `INT-PAY-1` 完成真实支付、退款、回调、恢复和对账。
+5. `INT-COMMERCIAL-V1_1-1` 使用新的 TestFlight/App Store build 重新验收商业版本；不能拿 Store Lite 的通过记录冒充收费运营验收。
+
+发行地区边界：`EXT-FILING-1` 必须记录首发 territory。若首发包含中国大陆，必须完成适用备案/资质或取得正式“不适用”结论；若备案流程必须先取得公开链接，Store Lite 首发地区必须先排除中国大陆，备案完成后再开放，不能把境外公开页面当作大陆合规替代品。
+
 ---
 
 ## A. Windows Roadmap
@@ -278,23 +311,23 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过。
 - Notes: 因 Windows 分支与 Integration 已分叉，经用户授权为本节点使用一次普通 merge commit；已合入 `origin/codex/integration@2342d4cefa5375930a58f48e5ccd121ca2627be4`，未执行 reset、rebase 或 force push。保留未提交的 `server/data/store.json`、bundle、tmp 和 zip，未手工修改 `pp-app/ios/**`。
 
-### WIN-AUTH-1 真实短信与生产会话
+### WIN-AUTH-1 Store Lite 真实短信与消费者生产会话
 
 - Priority: P0
 - Status: blocked
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-BASE-0`, `EXT-SMS-1`
-- Scope: 投产手机号验证码、腾讯短信发送、验证码过期与限流、会话持久化、角色边界和生产部署。
-- Acceptance criteria: 真实手机号可发送和消费验证码；错误、过期、重复消费和频率限制有稳定错误码；consumer/companion session 可跨设备恢复；生产强制配置 `PHONE_OTP_PEPPER`。
+- Scope: 投产 Store Lite 消费者手机号验证码、腾讯短信发送、验证码过期与限流、会话持久化和生产部署；保留既有角色安全边界，但首审不要求摄影师角色切换或摄影师移动端。
+- Acceptance criteria: 真实手机号可发送和消费验证码；错误、过期、重复消费和频率限制有稳定错误码；consumer session 可跨设备恢复；生产强制配置 `PHONE_OTP_PEPPER`；审核主备账号无管理权限和真实隐私数据，由服务端限制且可撤销/轮换，凭据只填写在 App Store Connect 的 App Review Information/Notes，不进入二进制、公开文档或通用日志。
 - Shared files: `pp-app/src/services/authService.ts`, `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
 - Unblock result: 暂未解除 `IOS-AUTH-1`；生产 API、离线测试、非敏感配置和稳定成功/失败契约已就绪，仍需 `EXT-SMS-1` 完成运营商报备并验证真实发送。
 - Result commit: `6376a8fc4d599219746b11afb2e0581f82ffae2c`（离线可完成部分）
 - Verification: `server: npm.cmd run check:mvp`、`pp-app: npm.cmd run build`、`pp-app: npm.cmd run build:admin`、`pp-app: npm.cmd run check:production-guards`、`git diff --check` 全部通过；未执行真实短信发送。
-- Notes: 已完成腾讯短信 Provider 与 +86/模板参数环境校验、验证码生成/过期/冷却/手机号与 IP 小时限流/最大尝试次数、失败投递计数、稳定错误码与日志脱敏、持久会话/固定过期/重新登录/撤销、consumer/companion/admin 角色边界及 Mock/失败/生产 guard 测试。节点仅因 `EXT-SMS-1` 运营商报备阻塞，报备完成并验证真实发送前不得标记 completed；未提交任何敏感凭据，未修改 `pp-app/ios/**`。
+- Notes: 已完成腾讯短信 Provider 与 +86/模板参数环境校验、验证码生成/过期/冷却/手机号与 IP 小时限流/最大尝试次数、失败投递计数、稳定错误码与日志脱敏、持久会话/固定过期/重新登录/撤销、consumer/companion/admin 角色边界及 Mock/失败/生产 guard 测试。节点仅因 `EXT-SMS-1` 运营商报备阻塞，报备完成并验证真实发送前不得标记 completed；首发 territory 若排除中国大陆，还须由 `EXT-FILING-1` 确认 +86 登录与审核账号适用于所选地区，否则另建国际登录节点；未提交任何敏感凭据，未修改 `pp-app/ios/**`。
 
 ### WIN-MAP-1 地图 WebService Provider 适配层
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-BASE-0`, `EXT-MAP-1`
@@ -304,11 +337,11 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Unblock result: 提供代理端点、请求/响应契约、错误码、测试用例和 commit SHA，解除 `IOS-MAP-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: P0 只实现 `EXT-MAP-1` 最终选定的一家 Provider，但接口和错误模型不得绑定其专有返回结构；其他候选只保留适配扩展点，不要求同时接入。
+- Notes: 地图 P1 只实现 `EXT-MAP-1` 最终选定的一家 Provider，但接口和错误模型不得绑定其专有返回结构；其他候选只保留适配扩展点，不要求同时接入。
 
 ### WIN-MAP-2 地点域模型与附近匹配
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-MAP-1`
@@ -336,7 +369,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 
 ### WIN-DATA-2A 订单 PostgreSQL 权威读取与恢复
 
-- Priority: P0
+- Priority: P1
 - Status: in_progress
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-DATA-1`
@@ -346,14 +379,28 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Unblock result: 仅满足 `WIN-DATA-2` 的订单权威读取内部前置；不解除 `IOS-DATA-2`、`WIN-MSG-1`、`WIN-PAY-1`、`WIN-MERCHANT-1`、`INT-DATA-1` 或任何组合交易节点。
 - Result commit: pending
 - Verification: 本地已通过 `server: npm.cmd run check:postgres-order-read-gateway`、`check:postgres-order-read-route`、`check:postgres-admin-order-route`、`check:mvp`，以及 `pp-app: npm.cmd run build`、`build:admin`、`check:production-guards` 和 `git diff --check`。已新增只接受本机专用 `pp_platform_ci`、显式授权且全程回滚的 PostgreSQL 16 live 验收脚本与 CI 步骤；无授权、仅提供应用 `DATABASE_URL`、远程主机和错误库名均会拒绝执行。当前机器无可用 PostgreSQL 16 服务，新增 CI 步骤尚未通过 push 实际运行，因此超过 100 条交错订单、双独立 session 和微秒游标的真实数据库证据仍待取得。
-- Notes: 已实现请求级 PostgreSQL 订单列表/详情、用户与摄影师 SQL 归属过滤、严格 role/status/limit/cursor、保留微秒精度的 keyset 游标、统一防枚举 404、公开白名单 DTO、上海时区展示、legacy 坐标写读闭环，以及用户/摄影师/管理员状态操作脱离全局最新 100 条快照；会话只采纳确属当前用户的摄影师身份，单边、非数字或越界坐标会在写入前拒绝，历史异常坐标不会进入公开 DTO；生产 JSON 读取保持 fail-closed。当前本地证据包含 mock SQL、静态路由、development smoke 和 production guard，不能替代真实 PostgreSQL 16/跨 session 验收，故状态保持 `in_progress` 且不解除任何下游。本节点不实现咨询、报价转订单、成片工作区、客户端页面接入、消息、支付或媒体；只透传既有 legacy 地点名称、地址和坐标，不创建或推断 `placeId`、Provider POI、区域、别名、服务范围或附近匹配。对 feature-gated `serviceItems` 只保持现有行为无回归，不把它作为本节点验收或解锁条件，完整服务项仍由 `WIN-MERCHANT-0`、`WIN-MERCHANT-1` 负责。子切片完成后父 `WIN-DATA-2` 仍保持 pending，所有原下游继续依赖父节点。
+- Notes: 已实现请求级 PostgreSQL 订单列表/详情、用户与摄影师 SQL 归属过滤、严格 role/status/limit/cursor、保留微秒精度的 keyset 游标、统一防枚举 404、公开白名单 DTO、上海时区展示、legacy 坐标写读闭环，以及用户/摄影师/管理员状态操作脱离全局最新 100 条快照；会话只采纳确属当前用户的摄影师身份，单边、非数字或越界坐标会在写入前拒绝，历史异常坐标不会进入公开 DTO；生产 JSON 读取保持 fail-closed。当前本地证据包含 mock SQL、静态路由、development smoke 和 production guard，不能替代真实 PostgreSQL 16/跨 session 验收，故状态保持 `in_progress` 且不解除任何下游。本节点不实现咨询、报价转订单、成片工作区、客户端页面接入、消息、支付或媒体；只透传既有 legacy 地点名称、地址和坐标，不创建或推断 `placeId`、Provider POI、区域、别名、服务范围或附近匹配。对 feature-gated `serviceItems` 只保持现有行为无回归，不把它作为本节点验收或解锁条件，完整服务项仍由 `WIN-MERCHANT-0`、`WIN-MERCHANT-1` 负责。Store Lite 使用独立的无支付预约申请，不依赖本订单工作区；本节点继续作为商业 v1.1/P1 能力收尾。
 
-### WIN-DATA-2 咨询、订单工作区、结构化地点和跨设备恢复
+### WIN-STORE-LITE-1 无支付预约申请与最小运营服务端
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
-- Depends on: `WIN-DATA-2A`, `WIN-MAP-2`
+- Depends on: `WIN-DATA-1`, `WIN-SEC-1`
+- Scope: 建立 Store Lite 的消费者预约申请、申请状态、用户取消、受保护运营确认或拒绝、客服申请，以及内容/摄影师举报与用户侧屏蔽的 PostgreSQL 事实源；提供窄范围运营页面/API 维护精选内容和处理申请，不要求完整 Admin；复用真实作品和摄影师资料，只保存城市、地址文字和用户明确填写的需求，不接支付、完整地图、聊天或媒体上传。
+- Acceptance criteria: 消费者只能创建和读取自己的申请，受保护运营只能按权限处理申请且有审计，禁止直接改生产数据库；创建、重复提交、确认、拒绝和取消具备幂等与稳定错误码；状态只使用预约语义，不出现已支付、托管、退款或结算状态；确认时保存经过审核的用户可见到店说明和平台客服渠道，由平台线下联系摄影师，不在首审暴露摄影师私人电话；列表/详情返回 `updatedAt` 并支持前台刷新；生产失败不得回退 JSON/localStorage 或伪装空数组；作品/摄影师举报可追踪，用户举报后可隐藏对应摄影师及内容，运营可下架或封禁；审核账号预置 submitted/confirmed/declined/cancelled 样例；跨会话、跨设备恢复和真实 PostgreSQL 16 验证通过。
+- Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/migrations/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, Store Lite 运营路由/页面
+- Unblock result: 提供迁移、预约/举报/客服 API、权限矩阵、真实库验证和 commit SHA，解除 `IOS-STORE-LITE-1`、`INT-STORE-LITE-1` 的服务端依赖。
+- Result commit: pending
+- Verification: pending
+- Notes: 联系人和手机号只按已批准政策最小化收集；“提交申请不等于服务已确认，当前版本不发生扣款”必须进入用户可见文案；首审不创建订单或支付单，不允许客户端提交资金状态；完整履约聊天、摄影师电话、报价版本、成片工作区、结构化地点和媒体仍由后续节点负责。本节点可直接实施，不等待 P1 `WIN-DATA-2A`。
+
+### WIN-DATA-2 咨询、订单工作区、结构化地点和跨设备恢复
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-DATA-2A`, `WIN-STORE-LITE-1`, `WIN-MAP-2`
 - Scope: 在 `WIN-DATA-2A` 基础上，将咨询、版本化报价、报价接受/关闭/转订单关联、成片订单工作区以及 `WIN-MAP-2` 提供的结构化地点标识和不可变地点快照接入 PostgreSQL，并对完整数据链路做聚合验收。
 - Acceptance criteria: 用户和摄影师只访问自己的咨询、订单和工作区资源；咨询创建、报价、接受、关闭和转订单关联由服务端校验并具备事务与幂等语义；工作区不能由客户端修改支付、退款、结算或资金状态；订单与咨询保存当时的 Provider、Provider POI ID、地点名称、地址、经纬度、区域和快照版本，地点资料或别名后续变化不改写历史；订单分页、详情和状态刷新继续真实可用；卸载重装或换设备后可恢复；读取失败不伪装成功；`WIN-DATA-2A` 的权限、分页、公开 DTO 和跨会话恢复全部回归通过。
 - Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/migrations/**`, `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`, `server/**`
@@ -395,7 +442,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
-- Depends on: `WIN-MERCHANT-1`, `WIN-PAY-2`, `WIN-SETTLE-1`, `WIN-NOTIFY-1`, `EXT-MERCHANT-1`
+- Depends on: `WIN-MERCHANT-1`, `WIN-PAY-2`, `WIN-SETTLE-1`, `WIN-NOTIFY-1`, `EXT-MERCHANT-1`, `EXT-PAY-COMBO-1`
 - Scope: 实现摄影模块叠加价、商家固定套餐价、服务端锁价、一次预付款、平台优惠服务项分摊、摄影师/商家并行接单、有效营业小时截止任务、拒绝分支、受影响服务项改期/退款、每服务项 8%佣金、非计佣档期补偿、分项结算、争议冻结和平台先行退款扣回。
 - Acceptance criteria: 订单父支付金额等于各服务项用户应付金额之和；每项满足“用户应付＋平台优惠＝计价金额”，整单金额守恒；正常 100 元应结 92 元、10 元平台券后仍应结 92 元、用户责任取消退 80 元时 20 元补偿全额归服务方且佣金为 0；优惠券退款按服务项分摊比例退回或等值补发；接单和截止任务幂等；摄影师拒绝整单全退；商家拒绝后用户可保留摄影或取消整单，选择超时按规则全退；电话只在双方接受后返回；默认不因迟到自动取消；20%/80%只作用于归责后的受影响服务项；同日只延后拍摄且商家不受影响时不要求其重接；服务方标记完成且用户确认后可立即进入可结算，用户未操作时结束 72 小时无异常才自动进入；每服务项结算、退款冲正、冻结和先赔后扣可审计且不重复；现有纯摄影流程无回归。
 - Shared files: `database/**`, `server/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`, Admin 财务/争议页面
@@ -406,7 +453,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 
 ### WIN-MSG-1 真实聊天同步、分页和发送可靠性
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-DATA-2`
@@ -420,7 +467,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 
 ### WIN-MEDIA-1 COS、media_assets 和上传安全
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-BASE-0`, `EXT-CLOUD-1`
@@ -434,7 +481,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 
 ### WIN-PAY-1 iOS 支付服务端契约
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-DATA-2`, `EXT-PAY-1`
@@ -448,7 +495,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 
 ### WIN-PAY-2 支付回调、退款、重试和对账
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-PAY-1`
@@ -462,7 +509,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 
 ### WIN-SETTLE-1 佣金、摄影师结算和异常冻结
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-PAY-2`
@@ -480,20 +527,34 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-AUTH-1`, `EXT-COMPLIANCE-1`
-- Scope: 服务端实现隐私/协议版本记录、定位授权记录、账号删除、数据导出、举报和客服申请。
-- Acceptance criteria: 用户可提交并查询删除申请；删除流程覆盖业务数据和法定保留例外；可导出用户数据；授权版本和时间可审计；客服/举报不依赖 localStorage。
+- Scope: 服务端实现 Store Lite 隐私/协议版本记录、账号删除、数据权利请求、举报、屏蔽和客服申请；首审不记录未使用的定位授权。
+- Acceptance criteria: 用户可在 App 内提交并查询真实删除申请；删除流程覆盖业务数据和法定保留例外；数据查阅/复制请求至少可由客服真实受理，是否首审自动导出由外部合规结论决定；协议版本和时间可审计；客服/举报/屏蔽不依赖 localStorage。
 - Shared files: `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
 - Unblock result: 提供合规 API、数据范围、审计结果、政策 URL 和 commit SHA，解除 `IOS-COMPLIANCE-1`。
 - Result commit: pending
 - Verification: pending
 - Notes: 法定保留范围由 `EXT-FILING-1` 和正式合规意见确认。
 
-### WIN-ADMIN-1 Admin 独立部署和权限边界
+### WIN-COMPLIANCE-PAY-1 支付商业版政策、同意与售后合规服务端
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
-- Depends on: `WIN-BASE-0`, `EXT-DOMAIN-1`
+- Depends on: `WIN-PAY-1`, `EXT-COMPLIANCE-PAY-1`
+- Scope: 为商业 v1.1 建立支付/退款政策版本、下单前同意记录、资金状态安全文案、退款/争议客服申请和法定保留边界；支付 Provider 事实与用户展示分离。
+- Acceptance criteria: 用户下单前可查看并确认当时有效政策；同意记录绑定用户、订单、政策版本和时间；支付/退款状态文案与 Provider 状态一致且不使用未获许可的“托管”表述；退款/争议申请真实落库并受权限和审计保护；Store Lite 路径无回归。
+- Shared files: `database/schema.sql`, `database/prisma/schema.prisma`, `database/migrations/**`, `database/API_CONTRACT.md`, `pp-app/src/types/api.ts`
+- Unblock result: 提供迁移、API、政策版本/同意/售后权限验证和 commit SHA，解除 `IOS-COMPLIANCE-PAY-1`、`INT-COMMERCIAL-V1_1-1` 的服务端合规依赖。
+- Result commit: pending
+- Verification: pending
+- Notes: 本节点不处理商家多服务方责任与分账条款，组合交易另行验收。
+
+### WIN-ADMIN-1 Admin 独立部署和权限边界
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/vertical-db-api`
+- Depends on: `WIN-BASE-0`, `EXT-DOMAIN-ADMIN-1`
 - Scope: 将 Admin 独立构建部署到受保护域名，使用独立登录、token、权限和审计。
 - Acceptance criteria: 移动端包不包含 Admin 入口；Admin 独立域名和 HTTPS 可用；普通 token 不能访问 Admin API；Admin token 不能冒充普通用户；敏感操作有审计。
 - Shared files: `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`, `pp-app/vite.admin.config.ts`
@@ -532,7 +593,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 
 ### WIN-OBS-1 后端可观测性和告警信号
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-DELIVERY-1`, `EXT-OBS-1`
@@ -546,7 +607,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 
 ### WIN-BACKUP-1 备份、迁移保护和恢复
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
 - Depends on: `WIN-DELIVERY-1`, `EXT-CLOUD-1`
@@ -577,7 +638,7 @@ Windows 负责服务端、数据库、地图 WebService 代理、对象存储、
 - Priority: P1
 - Status: pending
 - Owner branch: `codex/vertical-db-api`
-- Depends on: `WIN-ADMIN-1`, `WIN-COMPLIANCE-1`, `WIN-SETTLE-1`
+- Depends on: `WIN-ADMIN-1`, `WIN-COMPLIANCE-1`, `WIN-SETTLE-1`, `EXT-OPS-1`
 - Scope: 完成举报、审核、内容下架、封禁、客服、退款、争议、财务、热门地点、风险地点和安全提示运营。
 - Acceptance criteria: 每种 case 有状态机、负责人和审计；内容/用户/订单副作用可追踪；地点运营可维护热门与风险提示；财务人工处理必须双重确认或明确权限。
 - Shared files: `pp-app/src/types/api.ts`, `database/API_CONTRACT.md`
@@ -765,23 +826,23 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/mac-ios`
-- Depends on: `IOS-BASE-0`
-- Scope: 发现页频道、底部导航、详情返回、小屏、安全区、键盘、弱网、断网、空状态、接口失败、首页和 Live Photo 回归。
-- Acceptance criteria: 核心页面无阻断、遮挡和闪烁；失败状态可理解且可重试；生产 API 不可用时不显示 mock 成功。
+- Depends on: `IOS-BASE-0`, `IOS-STORE-LITE-1`
+- Scope: 优先验收 Store Lite 的发现、找摄影师、作品/摄影师详情、预约申请、预约状态、我的、设置、登录与删除账号；覆盖小屏、安全区、键盘、弱网、断网、空状态、接口失败、冷启动和前后台恢复。
+- Acceptance criteria: Store Lite 核心页面无阻断、遮挡和闪烁；失败状态可理解且可重试；预约、举报、客服、账号删除、数据访问/副本请求的真机流程通过；生产 API 不可用时不显示 mock 成功；被排除路由不能通过底栏、返回栈或深链进入。
 - Shared files: `pp-app/src/**`, `docs/IOS_REAL_DEVICE_TEST_LOG.md`
 - Unblock result: 提供设备/系统、用例结果、失败截图或日志和 commit SHA；解除 `INT-RC-1` 的基础 QA 条件。
 - Result commit: pending
 - Verification: pending
 - Notes: 真实短信不可用时输出依赖通知，但继续其他独立用例。
 
-### IOS-AUTH-1 真实短信登录和会话恢复
+### IOS-AUTH-1 Store Lite 消费者真实短信登录和会话恢复
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-AUTH-1`, `EXT-SMS-1`
-- Scope: 真机发送验证码、登录、角色切换、重新登录、会话恢复和 `companionId` 刷新。
-- Acceptance criteria: 成功、错误、过期、重复点击和频率限制均有正确 UI；consumer/companion 边界正确；换设备或重启后可恢复；生产不使用本地验证码。
+- Scope: 真机完成消费者验证码发送、登录、重新登录、退出和会话恢复；Store Lite 注册固定为消费者，不展示摄影师角色或 `companionId`。
+- Acceptance criteria: 成功、错误、过期、重复点击和频率限制均有正确 UI；换设备或重启后可恢复；生产不使用本地验证码；受限审核账号可按 App Review 说明登录；摄影师角色切换留给 P1 客户端节点。
 - Shared files: `pp-app/src/features/auth/AuthPages.tsx`, `pp-app/src/services/authService.ts`, `pp-app/src/types/api.ts`
 - Unblock result: 提供真机用例、API 错误映射、设备信息和 commit SHA，解除 `INT-AUTH-1`。
 - Result commit: pending
@@ -790,7 +851,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 
 ### IOS-MAP-1 Provider 可替换的地图展示和选点
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-MAP-1`, `EXT-MAP-2`
@@ -804,7 +865,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 
 ### IOS-MAP-2 场景匹配和外部地图导航
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-MAP-2`, `IOS-MAP-1`
@@ -814,7 +875,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Unblock result: 提供场景矩阵、订单地点结果、导航验证和 commit SHA，解除 `INT-MAP-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: Still 首版不自建路线规划、实时导航或语音播报；外部地图 URL Scheme 和用户选择需有安全、隐私和失败处理。
+- Notes: 地图 P1 不自建路线规划、实时导航或语音播报；外部地图 URL Scheme 和用户选择需有安全、隐私和失败处理。
 
 ### IOS-DATA-1 真实 Feed、资料、作品和收藏
 
@@ -830,9 +891,23 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Verification: pending
 - Notes: development mock 可保留，但生产 guard 必须覆盖。
 
-### IOS-DATA-2 真实咨询和订单工作区
+### IOS-STORE-LITE-1 消费者首审专用构建与预约体验
 
 - Priority: P0
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `IOS-AUTH-1`, `IOS-DATA-1`, `WIN-STORE-LITE-1`, `IOS-COMPLIANCE-1`
+- Scope: 新建 Store Lite 专用移动构建入口和路由白名单，只保留精选作品、找摄影师、作品/摄影师详情、预约申请、预约状态、我的和设置；注册固定为消费者，预约接入真实服务端，内容/摄影师举报、客服和账号删除均调用真实 API。
+- Acceptance criteria: iOS 构建不包含摄影师移动端、Admin、Checkout、支付/退款/钱包、社区主页、关注流、评论、发帖、泛私信、定位/附近和媒体上传路由；深链不能进入被移除功能；底栏固定为“发现、找摄影师、预约、我的”；游客可浏览，仅提交/管理预约时登录；真实预约可创建、刷新、取消并跨设备恢复；生产 API 失败显示错误与重试，不回退 mock/localStorage；权限清单不申请未使用的定位、相机、相册或麦克风。
+- Shared files: Store Lite Vite/Capacitor 配置、`pp-app/src/MobileApp.tsx` 或专用入口、消费者路由/页面、`pp-app/src/types/api.ts`, iOS 配置
+- Unblock result: 提供构建产物路由扫描、真机预约/取消/失败/注销/举报结果和 commit SHA，解除 `INT-STORE-LITE-1`、`IOS-DELIVERY-1` 的客户端依赖。
+- Result commit: pending
+- Verification: pending
+- Notes: 不能只用运行时开关隐藏未完成能力；Store Lite 的 App Store 元数据不得出现支付、定金、退款、商家、社区或 AI 承诺。
+
+### IOS-DATA-2 真实咨询和订单工作区
+
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-DATA-2`, `IOS-DATA-1`
@@ -874,7 +949,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 
 ### IOS-MSG-1 真实聊天分页、同步和重试
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-MSG-1`, `IOS-DATA-2`
@@ -888,7 +963,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 
 ### IOS-MEDIA-1 真实媒体上传和展示
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-MEDIA-1`, `EXT-CLOUD-1`
@@ -902,7 +977,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 
 ### IOS-PAY-1 iOS 真机支付和订单恢复
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-PAY-1`, `IOS-DATA-2`, `EXT-PAY-1`
@@ -916,7 +991,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 
 ### IOS-REFUND-1 退款和异常支付状态
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-PAY-2`, `IOS-PAY-1`
@@ -934,17 +1009,31 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-COMPLIANCE-1`, `EXT-COMPLIANCE-1`, `EXT-DOMAIN-1`
-- Scope: 隐私政策、用户协议、支付说明、退款规则、客服、举报、删除账号、数据导出、定位授权和权限文案。
-- Acceptance criteria: 所有 URL 可访问；删除和导出调用真实 API；定位拒绝有替代路径；权限用途与实际功能一致；App Privacy、审核账号和审核说明可提交。
+- Scope: Store Lite 的隐私政策、用户协议、客服、内容/摄影师举报、屏蔽、删除账号、数据权利申请和实际启用权限文案；支付说明与退款规则留给 `EXT-COMPLIANCE-PAY-1` 和商业 v1.1。
+- Acceptance criteria: 所有 URL 可访问；删除、举报、屏蔽、客服和数据权利申请调用真实 API；是否首审提供自动导出由正式合规结论决定；首审不申请定位、相机、相册或麦克风等未使用权限；权限用途与实际功能一致；App Privacy、审核账号和“当前版本不提供 App 内付款”的审核说明可提交。
 - Shared files: 设置/合规页面、权限文案、Info.plist、`docs/APP_STORE_LAUNCH.md`
 - Unblock result: 提供页面路径、政策版本、审核材料清单、真机结果和 commit SHA，解除 `INT-COMPLIANCE-1`。
 - Result commit: pending
 - Verification: pending
 - Notes: 法律文本由 User/External 定稿，代码不得自行编造。
 
+### IOS-COMPLIANCE-PAY-1 支付商业版政策、退款与 App Privacy 更新
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `WIN-COMPLIANCE-PAY-1`, `EXT-COMPLIANCE-PAY-1`, `EXT-DOMAIN-ADMIN-1`
+- Scope: 在商业 v1.1 下单前展示支付/退款政策并记录同意，呈现真实支付/退款/争议状态，更新支持 URL、审核说明、权限与 App Privacy。
+- Acceptance criteria: 用户可在付款前查看当时政策；客户端不自行推断资金或退款终态；客服/退款入口调用真实 API；支付/退款 URL 可访问；App Privacy、审核文案和实际 SDK/数据收集一致；Store Lite 构建仍不包含这些入口。
+- Shared files: 支付/订单/设置页面、API 类型、App Store Release 文档、必要 iOS 配置
+- Unblock result: 提供真机政策/退款/失败状态、App Privacy 检查和 commit SHA，解除 `IOS-COMMERCIAL-DELIVERY-1`、`INT-COMMERCIAL-V1_1-1` 的客户端合规依赖。
+- Result commit: pending
+- Verification: pending
+- Notes: 正式文本由 User/External 提供，客户端不得内置与服务端版本不同的长期副本。
+
 ### IOS-CRASH-1 崩溃上报和生产诊断
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/mac-ios`
 - Depends on: `WIN-DELIVERY-1`, `EXT-OBS-1`
@@ -961,14 +1050,14 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/mac-ios`
-- Depends on: `IOS-QA-1`, `IOS-COMPLIANCE-1`, `IOS-CRASH-1`, `EXT-APPLE-1`
-- Scope: 正式 Bundle ID、Team、签名、Archive、图标、截图、App Privacy、审核账号和 TestFlight 构建。
-- Acceptance criteria: Release Archive 成功；TestFlight 可安装；权限、图标和截图完整；审核账号可用；无测试角色和 mock 配置。
+- Depends on: `IOS-QA-1`, `IOS-COMPLIANCE-1`, `IOS-STORE-LITE-1`, `WIN-DELIVERY-1`, `EXT-APPLE-1`
+- Scope: 使用 Store Lite 专用入口完成正式 Bundle ID、Team、签名、Archive、图标、截图、App Privacy、审核账号和 TestFlight 构建。
+- Acceptance criteria: Release Archive 成功；TestFlight 可安装；权限、图标和截图完整；审核账号可用；无测试角色、mock 配置、支付 SDK/商户配置或被排除路由；构建可追溯到完整 commit SHA。
 - Shared files: `pp-app/ios/**`, `docs/APP_STORE_LAUNCH.md`
 - Unblock result: 提供 build number、TestFlight 状态、安装结果和 commit SHA，解除 `INT-TESTFLIGHT-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: 证书和描述文件禁止提交。
+- Notes: 证书和描述文件禁止提交；完整崩溃 SDK 由 `IOS-CRASH-1` 在商业 v1.1 前完成，Store Lite 首审至少保留 TestFlight/Xcode 崩溃日志和版本映射。
 
 ### IOS-STORE-1 App Store 提交
 
@@ -977,12 +1066,40 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Owner branch: `codex/mac-ios`
 - Depends on: `INT-TESTFLIGHT-1`, `EXT-FILING-1`
 - Scope: 完成最终回归、审核提交和反馈处理。
-- Acceptance criteria: 所有 P0 节点完成；真实交易主流程通过；审核材料和资质核验完成；提交版本与 Integration RC 一致。
+- Acceptance criteria: 所有 Store Lite P0 节点完成；真实浏览、预约申请、确认/拒绝、查看/取消、客服/举报、账号删除和数据访问/副本请求主流程通过；支付和其他排除能力不在提交包或元数据中；审核材料、发行地区与资质核验完成；提交版本与 Integration RC 一致。
 - Shared files: `docs/APP_STORE_LAUNCH.md`
 - Unblock result: 提供提交版本、审核状态和最终 release SHA，解除 `INT-STORE-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: 审核反馈形成新节点，不在本节点隐式扩张。
+- Notes: 审核反馈形成新节点，不在本节点隐式扩张；`EXT-FILING-1` 可通过“大陆资质完成”或“首发明确排除中国大陆并记录限制”满足，后者不得被描述为大陆可上线。
+
+### IOS-COMMERCIAL-DELIVERY-1 支付商业版 Archive 与 TestFlight
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `IOS-PAY-1`, `IOS-REFUND-1`, `IOS-COMPLIANCE-PAY-1`, `IOS-CRASH-1`, `EXT-APPLE-1`
+- Scope: 为支付商业 v1.1 生成新的 Release Archive 和 TestFlight build，接入获批支付能力、退款/客服 UI、合规材料、崩溃诊断和版本映射。
+- Acceptance criteria: 新 Archive 可追溯到完整 commit SHA；TestFlight 可完成真实小额支付、取消/失败、恢复和退款；支付 SDK、URL scheme、商户配置和 App Privacy 与获批方案一致；Store Lite build 证据不复用。
+- Shared files: `pp-app/ios/**`, 支付/退款/合规页面、Release 文档
+- Unblock result: 提供新 build number、TestFlight 安装、真机支付/退款和 commit SHA，解除 `INT-COMMERCIAL-V1_1-1` 的 iOS 交付依赖。
+- Result commit: pending
+- Verification: pending
+- Notes: 证书、描述文件和支付私钥禁止提交。
+
+### IOS-COMMERCIAL-STORE-1 支付商业版 App Store 更新
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/mac-ios`
+- Depends on: `INT-COMMERCIAL-V1_1-1`
+- Scope: 使用已验收商业 build 更新 App Store 元数据、App Privacy、支付/退款说明和审核材料并提交更新。
+- Acceptance criteria: 提交 build 与商业 Integration SHA 一致；审核说明准确描述线下摄影实体服务支付；审核反馈形成独立节点；更新获批前 Store Lite 生产版本保持可用。
+- Shared files: Release 文档、App Store Connect 材料
+- Unblock result: 提供提交版本、审核状态和商业 release SHA。
+- Result commit: pending
+- Verification: pending
+- Notes: 本节点不自动开放商家组合订单。
 
 ### IOS-NOTIFY-1 通知中心和前后台切换
 
@@ -1165,21 +1282,21 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Owner branch: `codex/release-roadmap` -> `codex/integration`
 - Depends on: `INT-BASE-0`
 - Scope: 创建本文档，写入四条路线、状态、依赖、验收、分支、共享文件和解除阻塞结果。
-- Acceptance criteria: 文档进入 Integration；节点 ID 唯一；状态枚举有效；高德是 P0 主 Provider；Win/Mac 均能读取。
+- Acceptance criteria: 文档进入 Integration；节点 ID 唯一；状态枚举有效；Win/Mac 均能读取。该节点记录 Roadmap v1 的历史首建结果，地图 Provider 和节点数量不代表当前优先级。
 - Shared files: `docs/DUAL_PLATFORM_RELEASE_ROADMAP.md`
 - Unblock result: 提供 Roadmap commit 和 Integration SHA，解除两端按 Roadmap 自动选择节点的条件。
 - Result commit: `7ee432b`
-- Verification: `git diff --check` 通过；74 个节点 ID 唯一；所有节点字段完整；状态枚举和依赖引用有效；P0 地图 Provider 为高德。
-- Notes: Roadmap 内容及完成状态已通过普通 fast-forward 同步到 `codex/integration`；首次同步 SHA 为 `ed332ce`。
+- Verification: Roadmap v1 历史结果：`git diff --check` 通过；当时 74 个节点 ID 唯一；当时状态枚举和依赖引用有效；当时记录的地图 P0 结论已被 Roadmap v9 的 Store Lite/P1 地图决策取代。
+- Notes: Roadmap v1 内容及完成状态已通过普通 fast-forward 同步到 `codex/integration`；首次同步 SHA 为 `ed332ce`。本历史节点不用于判断当前节点数量、地图 Provider 或发布范围。
 
-### INT-AUTH-1 集成真实登录
+### INT-AUTH-1 集成 Store Lite 消费者真实登录
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `WIN-AUTH-1`, `IOS-AUTH-1`
-- Scope: 合并服务端和 iOS 登录节点。
-- Acceptance criteria: server MVP、前端构建、production guards、Capacitor sync 和真实短信真机用例通过。
+- Scope: 合并 Store Lite 消费者服务端和 iOS 登录节点，不把摄影师移动端角色切换纳入首审。
+- Acceptance criteria: server MVP、Store Lite 前端构建、production guards、Capacitor sync、真实短信消费者真机用例和审核账号通过。
 - Shared files: Auth 页面、auth service、API 类型
 - Unblock result: 提供 Integration SHA 和真实登录回归结果。
 - Result commit: pending
@@ -1188,7 +1305,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### INT-MAP-1 集成地图主流程
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `WIN-MAP-2`, `IOS-MAP-2`
@@ -1202,7 +1319,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### INT-DATA-1 集成生产数据闭环
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `WIN-DATA-2`, `IOS-DATA-2`
@@ -1213,6 +1330,20 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Result commit: pending
 - Verification: pending
 - Notes: pending
+
+### INT-STORE-LITE-1 集成无支付预约申请闭环
+
+- Priority: P0
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `INT-AUTH-1`, `WIN-STORE-LITE-1`, `IOS-STORE-LITE-1`, `INT-COMPLIANCE-1`, `IOS-QA-1`
+- Scope: 合并 Store Lite 的消费者账号、真实精选内容、摄影师搜索/详情、预约申请、确认/拒绝、查看/取消、客服、举报、账号删除和专用 iOS 构建。
+- Acceptance criteria: 两个独立消费者会话可浏览并恢复自己的预约；受保护运营只能处理授权资源并由平台线下联系摄影师；断网、500、空状态、重复提交、取消冲突和越权均有正确结果；用户可完成真实删除申请；内容举报可下架；生产包和 API 响应不含支付、退款、钱包、结算、商家、社区、完整地图、泛聊天或上传入口；服务端支付创建在 Store Lite production 明确拒绝，不能返回 mock success。
+- Shared files: Store Lite 移动构建、预约/合规 API、Release 文档
+- Unblock result: 提供 Integration SHA、跨设备/跨角色矩阵、构建路由扫描和生产配置结果，解除 `INT-RC-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 真实内容由运营预审并上传；完整地图、媒体上传、聊天、支付和商家组合保持独立 P1，不得用空页面占位进入首审包。
 
 ### INT-MERCHANT-1 集成商家供给、合作搜索和妆造加购
 
@@ -1240,11 +1371,11 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Unblock result: 提供 Integration SHA 和消息通知矩阵。
 - Result commit: pending
 - Verification: pending
-- Notes: 聊天 P0 可先随 `INT-RC-1` 验收，Push 完整能力为 P1。
+- Notes: 聊天与 Push 均不进入 Store Lite；预约状态和客服入口由 `INT-STORE-LITE-1` 提供。
 
 ### INT-MEDIA-1 集成媒体和审核
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `WIN-MEDIA-1`, `IOS-MEDIA-1`
@@ -1258,7 +1389,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### INT-PAY-1 集成支付、退款和结算
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `WIN-SETTLE-1`, `IOS-PAY-1`, `IOS-REFUND-1`
@@ -1275,7 +1406,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Priority: P1
 - Status: pending
 - Owner branch: `codex/integration`
-- Depends on: `INT-MERCHANT-1`, `WIN-COMBO-1`, `IOS-COMBO-1`, `INT-PAY-1`, `INT-COMPLIANCE-1`
+- Depends on: `INT-MERCHANT-1`, `WIN-COMBO-1`, `IOS-COMBO-1`, `INT-PAY-1`, `INT-COMPLIANCE-1`, `EXT-COMPLIANCE-PAY-1`, `EXT-PAY-COMBO-1`, `EXT-COMPLIANCE-COMBO-1`
 - Scope: 在功能开关和受控账号下，联合验收组合报价、一次预付、并行接单、拒绝/超时分支、电话隐私、受影响服务项改期、主动异常、部分退款、分项结算和先赔后扣。
 - Acceptance criteria: 覆盖仅摄影、摄影＋妆造、双方接受、各方拒绝/超时、保留摄影、确认前取消、24 小时两档取消、服务方取消、同日延后、商家不受影响改期、分项争议和整单支付异常；真实 PostgreSQL、支付幂等、金额守恒、四角色权限、跨设备、电话脱敏和纯摄影回归通过；每服务项 8%佣金与客户端无权威金额计算通过检查；外部合规/财务已确认资金、开票和先赔后扣表述。
 - Shared files: 组合订单/支付/退款/结算集成代码、迁移、真机矩阵、财务对账和 Release 文档
@@ -1289,10 +1420,10 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/integration`
-- Depends on: `WIN-COMPLIANCE-1`, `WIN-ADMIN-1`, `IOS-COMPLIANCE-1`
-- Scope: 合并合规 API、用户入口、Admin 独立部署和审核材料。
-- Acceptance criteria: 删除、导出、举报、客服、权限拒绝、政策 URL、Admin 隔离和审计通过。
-- Shared files: 设置/合规页面、Admin 构建、文档、API 类型
+- Depends on: `WIN-COMPLIANCE-1`, `IOS-COMPLIANCE-1`
+- Scope: 合并 Store Lite 的隐私/协议版本、删除、数据权利申请、举报、屏蔽、客服、用户入口、最小受保护运营处理和审核材料；完整 Admin 独立部署由 `WIN-ADMIN-1` 后置完成。
+- Acceptance criteria: 删除、数据查阅/复制申请、举报、屏蔽、客服、权限拒绝、政策 URL、最小运营审计和审核材料通过；是否首审自动导出以正式合规结论为准；支付/退款政策不作为首审文本，App Privacy 与实际 Store Lite 数据处理一致。
+- Shared files: 设置/合规页面、最小运营入口、文档、API 类型
 - Unblock result: 提供 Integration SHA 和审核材料检查结果。
 - Result commit: pending
 - Verification: pending
@@ -1300,26 +1431,26 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### INT-OPS-1 基础运维联合验收
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `WIN-DELIVERY-1`, `WIN-OBS-1`, `WIN-BACKUP-1`, `IOS-CRASH-1`, `EXT-CLOUD-1`, `EXT-COST-1`, `EXT-DOMAIN-1`, `EXT-OBS-1`, `EXT-RUNBOOK-1`
 - Scope: 对外部监控、崩溃诊断、版本追溯、生产权限、账单/配额、域名/证书、应用回滚、数据库恢复和事故响应执行联合验收。
 - Acceptance criteria: 从生产系统之外触发一次 API/HTTPS 告警并由主要或备用负责人确认；iOS 测试崩溃可追溯到 build 和 commit；生产版本可追溯到 Integration SHA 且未在线改源码；上一应用版本回滚后健康检查通过；备份在隔离环境恢复并完成关键数据校验；域名/证书 30/14/7 天提醒和 Provider 50%/80%/100% 账单告警有脱敏配置证据；AI 无长期生产凭据；日/周/月清单、事故分级、联系人和发布观察窗口已由人审阅。
 - Shared files: Release/运维文档、全仓库候选版本、非敏感验证记录
-- Unblock result: 提供 Integration SHA、测试告警、应用回滚、数据库恢复、版本映射和负责人确认，解除 `INT-RC-1`。
+- Unblock result: 提供 Integration SHA、测试告警、应用回滚、数据库恢复、版本映射和负责人确认，满足 `INT-COMMERCIAL-V1_1-1` 的完整运维前置。
 - Result commit: pending
 - Verification: pending
 - Notes: 不在仓库保存监控联系人、云账号、备份文件、密钥或真实内部地址；演练不得破坏生产数据。
 
-### INT-RC-1 P0 Release Candidate
+### INT-RC-1 Store Lite P0 Release Candidate
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/integration`
-- Depends on: `INT-AUTH-1`, `INT-MAP-1`, `INT-DATA-1`, `INT-MEDIA-1`, `INT-PAY-1`, `INT-COMPLIANCE-1`, `INT-OPS-1`, `IOS-QA-1`
-- Scope: 形成首个完整 P0 Release Candidate。
-- Acceptance criteria: server MVP、真实 PostgreSQL、mobile/admin build、production guards、Capacitor sync、Xcode Release、核心真机流程和上线检查全部通过；运维联合验收结果仍有效。
+- Depends on: `INT-STORE-LITE-1`, `WIN-DELIVERY-1`, `EXT-CLOUD-1`, `EXT-DOMAIN-1`, `IOS-QA-1`
+- Scope: 形成不含支付、地图 SDK、媒体上传、聊天、社区和摄影师工作台的 Store Lite 首审候选版本。
+- Acceptance criteria: server MVP、真实 PostgreSQL、Store Lite mobile build、production guards、Capacitor sync、Xcode Release、真实预约真机流程和最小生产上线检查全部通过；正式 HTTPS、自动备份、健康检查、版本映射和应用回滚可用；构建/路由扫描证明排除能力未进入首审包。
 - Shared files: 全仓库候选版本
 - Unblock result: 提供 RC SHA、验证清单、已知非阻断问题，解除 `INT-TESTFLIGHT-1`。
 - Result commit: pending
@@ -1332,27 +1463,41 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `INT-RC-1`, `IOS-DELIVERY-1`
-- Scope: 对 TestFlight 构建执行完整真机和真实交易回归。
-- Acceptance criteria: 安装、升级、登录、地图、数据、媒体、聊天、订单、支付、退款、客服和删除账号通过；测试期间崩溃、5xx、支付、短信、数据库和延迟信号可观察，异常能关联 build、commit 和 request ID。
+- Scope: 对 Store Lite TestFlight 构建执行完整真机和真实预约申请回归。
+- Acceptance criteria: 安装、升级、游客浏览、登录、真实内容、摄影师搜索/详情、预约申请、确认/拒绝、查看/取消、客服、举报、删除账号和数据访问/副本请求通过；支付/退款/钱包/结算/地图 SDK/媒体上传/泛聊天/社区/摄影师端路由不可达；审核期间后端在线，异常可关联 build、commit 和 request ID。
 - Shared files: Release 文档
 - Unblock result: 提供 TestFlight build、回归结果和 release SHA，解除 `IOS-STORE-1`、P2/P3 评审条件。
 - Result commit: pending
 - Verification: pending
 - Notes: AI、增长实验和小程序在本节点前保持暂停。
 
-### INT-STORE-1 App Store 发布基线
+### INT-STORE-1 Store Lite App Store 公布基线
 
 - Priority: P0
 - Status: pending
 - Owner branch: `codex/integration`
 - Depends on: `IOS-STORE-1`
-- Scope: 锁定 App Store 提交版本和审核修复。
-- Acceptance criteria: 提交版本可追溯；审核反馈有独立节点；生产部署和回滚准备完成。
+- Scope: 锁定 Store Lite 提交版本、审核修复、公开 App Store 页面和首发地区。
+- Acceptance criteria: 提交版本可追溯；审核反馈有独立节点；生产部署和回滚准备完成；记录公开 App Store URL、Apple ID、territory、版本、build 和 release SHA；中国大陆未完成适用备案时不得列入 territory。
 - Shared files: Release 文档
-- Unblock result: 提供最终 release SHA 和审核状态。
+- Unblock result: 提供公开 App Store URL、Apple ID、territory、最终 release SHA 和审核状态，解除 `EXT-PAY-1` 与商业 v1.1 的上架前置。
 - Result commit: pending
 - Verification: pending
-- Notes: pending
+- Notes: 本节点只证明 Store Lite 已公开，不证明支付渠道、支付合规或收费运营已经获批。
+
+### INT-COMMERCIAL-V1_1-1 支付商业版联合验收与商店更新
+
+- Priority: P1
+- Status: pending
+- Owner branch: `codex/integration`
+- Depends on: `INT-STORE-1`, `INT-PAY-1`, `WIN-COMPLIANCE-PAY-1`, `IOS-COMPLIANCE-PAY-1`, `IOS-COMMERCIAL-DELIVERY-1`, `WIN-ADMIN-2`, `EXT-COMPLIANCE-PAY-1`, `EXT-OPS-1`, `INT-OPS-1`
+- Scope: 在 Store Lite 获批并取得支付渠道能力后，以新构建联合验收真实下单、支付、回调、恢复、退款、对账、结算、支付合规、客服/财务运营和完整技术运维，再解除商业 App Store 更新节点。
+- Acceptance criteria: 新 TestFlight build 完成一笔小额真实支付、取消/失败、退款和跨设备恢复；回调幂等、对账、结算、支付政策同意、App Privacy、告警、备份、回滚、客服/财务负责人和最小受保护后台处理通过；不得复用 Store Lite 的 Archive/TestFlight 结果冒充商业版本验收。
+- Shared files: 支付/订单客户端与服务端、合规文本、Release 文档、必要 iOS 配置
+- Unblock result: 提供商业版 Integration SHA、脱敏支付/退款证据和 TestFlight build，解除 `IOS-COMMERCIAL-STORE-1`。
+- Result commit: pending
+- Verification: pending
+- Notes: 商家组合仍需 `INT-COMBO-1` 单独完成，不因单摄影师支付 v1.1 上线而自动开放。
 
 ### INT-PREF-1 集成非 AI 拍摄偏好闭环
 
@@ -1460,11 +1605,11 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### EXT-MAP-1 地图服务商比较、账号和服务端接入
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: User/External
 - Depends on: none
-- Scope: 比较高德、腾讯和百度的大陆 POI、地址解析、配额、Capacitor 适配、商用授权、年度固定许可、按量费用和创业扶持；选择一家 P0 Provider，创建企业账号和应用并申请服务端 Key。
+- Scope: 比较高德、腾讯和百度的大陆 POI、地址解析、配额、Capacitor 适配、商用授权、年度固定许可、按量费用和创业扶持；选择一家地图 P1 Provider，创建企业账号和应用并申请服务端 Key。
 - Acceptance criteria: 有三家候选的官方功能/授权/费用对比和选择结论；选定 Provider 的 Key 可由 staging 后端调用所需 WebService；配额、地区、坐标系、数据展示限制和测试条款满足当前业务。
 - Shared files: 无
 - Unblock result: 通过密钥管理配置 `MAP_PROVIDER` 及选定 Provider 对应的服务端 Secret 环境变量，只向 Windows 提供变量名、已配置确认、配额和非敏感限制摘要，解除 `WIN-MAP-1`。
@@ -1474,11 +1619,11 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### EXT-MAP-2 客户端地图显示方案和安全配置
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: User/External
 - Depends on: `EXT-MAP-1`
-- Scope: 在选定 Provider 的客户端 SDK 与 MapLibre 加合法授权地图源之间确定 P0 显示方案；申请必要的客户端公开 Key，配置安全密钥、允许域名、Bundle ID 和 Capacitor 使用方式。
+- Scope: 在选定 Provider 的客户端 SDK 与 MapLibre 加合法授权地图源之间确定地图 P1 显示方案；申请必要的客户端公开 Key，配置安全密钥、允许域名、Bundle ID 和 Capacitor 使用方式。
 - Acceptance criteria: staging 和 iOS Capacitor 真机可加载获批地图源并完成选点；安全配置不暴露 WebService Key；正式域名和应用标识已加入允许范围；地图数据来源、署名和商用条件明确。
 - Shared files: 只提供可公开客户端配置和安全接入说明
 - Unblock result: 提供客户端公开 Key 或地图源的安全配置方式、允许域名/应用标识及已配置确认，解除 `IOS-MAP-1`。
@@ -1488,14 +1633,14 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### EXT-MAP-3 地图商业许可、调用量和预算核实
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: User/External
 - Depends on: `EXT-MAP-1`, `EXT-MAP-2`
 - Scope: 根据正式业务、地图显示方式、调用量和商业模式，核实选定 Provider 及地图数据源的授权、配额、固定许可、按量费用、超额处置和续费要求。
 - Acceptance criteria: 保存官方、工单或合同的可上线确认；地图显示、POI、地址解析和外部导航边界均已覆盖；上线调用量和费用有预算、50%/80%/100% 告警及超额限流方案。
 - Shared files: 合规记录，不提交敏感合同
-- Unblock result: 提供可上线结论、配额和限制摘要，解除 `INT-RC-1` 地图外部门槛。
+- Unblock result: 提供可上线结论、配额和限制摘要，满足上架后地图 P1 的商用前置；不阻塞 Store Lite 首审。
 - Result commit: not applicable
 - Verification: pending
 - Notes: 高德基础许可价格超出当前早期项目预算时，优先申请创业计划并完成腾讯/百度比价；没有书面商用结论不得将 staging 测试能力视为生产许可。
@@ -1516,7 +1661,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### EXT-COST-1 预算、配额和账单预警
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: User/External
 - Depends on: `EXT-CLOUD-1`
@@ -1530,17 +1675,31 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### EXT-PAY-1 支付商户、证书和 iOS 方案
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: User/External
-- Depends on: none
-- Scope: 根据产品交易类型确认 iOS 支付渠道，准备商户、证书、API 权限、回调域名和测试能力；同时核实未来一次总价预付、多个服务项、部分退款、分别结算和平台先行退款扣回的合法可用方案。
-- Acceptance criteria: 支付方案经过审核要求核实；商户和证书可用；可完成一笔小额测试和退款；明确支付机构是否支持组合订单的部分退款、多服务方结算、开票和资金停留方式，并确认对外能否使用“预付款”“待结算”或“托管”等表述。
+- Depends on: `INT-STORE-1`
+- Scope: 为单摄影师线下摄影服务确认 iOS 支付渠道，准备商户、证书、API 权限、回调域名和测试能力；组合订单、多服务方结算与平台先行退款扣回另由 `EXT-PAY-COMBO-1` 核实。
+- Acceptance criteria: 单摄影师支付方案经过审核要求核实；商户和证书可用；可完成一笔小额测试和退款；明确单服务提供方的收款、平台佣金、开票、资金停留和可用对外表述，不被未来组合模式阻塞。
 - Shared files: 无
 - Unblock result: 提供支付渠道决定、非敏感商户标识、证书配置方式和测试窗口，解除 `WIN-PAY-1`、`IOS-PAY-1`。
 - Result commit: not applicable
 - Verification: pending
-- Notes: 证书和私钥禁止进入 Git 或聊天明文。
+- Notes: 证书和私钥禁止进入 Git 或聊天明文；本节点必须使用 `INT-STORE-1` 记录的公开 App Store 页面申请，Store Lite 获批前不提前恢复支付入口。
+
+### EXT-PAY-COMBO-1 组合订单部分退款与多服务方结算方案
+
+- Priority: P1
+- Status: pending
+- Owner branch: User/External
+- Depends on: `EXT-PAY-1`, `INT-COMMERCIAL-V1_1-1`, `EXT-MERCHANT-1`
+- Scope: 在单摄影师支付商业版稳定后，核实一次总价预付、多个服务项、部分退款、分别结算、平台先行退款扣回、开票和资金停留的合法可用方案。
+- Acceptance criteria: 支付机构明确支持或拒绝组合所需能力；资金、分账、二清/资金池、开票和先赔后扣风险有可执行结论；不支持时必须调整产品资金流与对外文案，不能用内部账本伪装 Provider 能力。
+- Shared files: 非敏感支付能力/限制摘要
+- Unblock result: 提供组合支付、部分退款和多服务方结算结论，解除 `WIN-COMBO-1`、`INT-COMBO-1`、`EXT-MERCHANT-PILOT-1` 的支付机构前置。
+- Result commit: not applicable
+- Verification: pending
+- Notes: 证书、合同和真实商户资料禁止进入 Git 或聊天明文。
 
 ### EXT-DOMAIN-1 正式域名、HTTPS 和政策 URL
 
@@ -1548,27 +1707,69 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Status: in_progress
 - Owner branch: User/External
 - Depends on: none
-- Scope: 准备并持续管理 API、Admin、官网、隐私政策、用户协议、支付说明和退款规则的正式域名、DNS 与 HTTPS 生命周期。
-- Acceptance criteria: URL 可从公网和真机访问；证书有效且自动续期任务已验证；域名使用公司主体管理并开启自动续费；域名和证书配置 30/14/7 天到期提醒并通知主要/备用负责人；Admin 与 API 域名隔离；政策 URL 长期稳定；DNS/证书变更先在 staging 或安全窗口验证。
+- Scope: 为 Store Lite 准备并持续管理 API、官网、隐私政策、用户协议和客服/支持页面的正式域名、DNS 与 HTTPS 生命周期；Admin 独立域名、支付说明和退款 URL 在对应 P1 节点完成。
+- Acceptance criteria: Store Lite 所需 URL 可从公网和真机访问；证书有效且自动续期任务已验证；域名使用公司主体管理并开启自动续费；政策 URL 长期稳定；DNS/证书变更先在 staging 或安全窗口验证。Admin/API 隔离与 30/14/7 天完整告警由商业运维节点继续验收，不阻塞首审。
 - Shared files: 只向代码侧提供正式 URL
-- Unblock result: 提供 URL、证书检查、续期任务和到期告警结果，解除 `WIN-ADMIN-1`、`WIN-DELIVERY-1`、`IOS-COMPLIANCE-1`、`EXT-RUNBOOK-1`。
+- Unblock result: 提供 Store Lite URL、证书和续期结果，解除 `WIN-DELIVERY-1`、`IOS-COMPLIANCE-1`。
 - Result commit: not applicable
-- Verification: API `https://api.weareinframe.com` 已存在；Admin 和政策 URL 仍待确认。
+- Verification: API `https://api.weareinframe.com` 已存在；官网、政策和客服 URL 仍待确认。Admin 域名不属于本节点 Store Lite 完成条件。
 - Notes: pending
 
-### EXT-COMPLIANCE-1 隐私、协议、支付和退款文本
+### EXT-DOMAIN-ADMIN-1 商业版 Admin 与支付政策域名
+
+- Priority: P1
+- Status: pending
+- Owner branch: User/External
+- Depends on: `EXT-DOMAIN-1`, `INT-STORE-1`
+- Scope: 为商业 v1.1 准备与 API 隔离的 Admin 域名，以及支付说明、退款规则等长期稳定 URL；补齐证书 30/14/7 天提醒和商业发布所需域名负责人。
+- Acceptance criteria: Admin 域名与 API 隔离且 HTTPS 可用；普通用户不可访问 Admin；支付/退款 URL 与批准文本一致；证书提醒到达负责人；不泄露内部地址或凭据。
+- Shared files: 只向代码侧提供非敏感正式 URL
+- Unblock result: 提供 URL、证书和提醒结果，解除 `WIN-ADMIN-1`、`EXT-RUNBOOK-1`、`EXT-COMPLIANCE-PAY-1` 的商业域名前置。
+- Result commit: not applicable
+- Verification: pending
+- Notes: 本节点不反向阻塞 Store Lite 首审。
+
+### EXT-COMPLIANCE-1 Store Lite 隐私、协议与数据权利文本
 
 - Priority: P0
 - Status: pending
 - Owner branch: User/External
 - Depends on: none
-- Scope: 定稿隐私政策、用户协议、支付说明、退款规则、客服和数据权利说明；补充组合订单、商家营业电话、多服务方责任、部分退款、分别结算、平台先赔后扣和服装押金边界。
-- Acceptance criteria: 文本覆盖定位、媒体、账号、订单、支付、分析和第三方 Provider；组合订单各服务方身份、服务责任、取消/改期、20%档期补偿、申诉和开票边界可理解；版本和生效日期明确。
+- Scope: 定稿 Store Lite 实际启用功能所需的隐私政策、用户协议、客服、举报/屏蔽、账号删除、数据权利申请、预约申请和第三方 Provider 说明；首审不包含支付、退款、商家组合、主动定位或用户媒体上传条款。
+- Acceptance criteria: 文本覆盖账号、精选内容、预约申请、客服/举报、删除/查阅复制、日志和实际启用的第三方 Provider；明确自动导出是否为首审义务，以及客服受理方式；明确处理目的、最小数据、保留与删除边界、版本和生效日期；与 App Privacy 和首审权限完全一致。
 - Shared files: 正式文本或 URL
 - Unblock result: 提供最终版本和 URL，解除 `WIN-COMPLIANCE-1`、`IOS-COMPLIANCE-1`。
 - Result commit: not applicable
 - Verification: pending
-- Notes: 代码对话不得自行生成最终法律结论。
+- Notes: 代码对话不得自行生成最终法律结论；支付、退款、资金、开票和组合订单文本由 `EXT-COMPLIANCE-PAY-1` 在上架后另行确认。
+
+### EXT-COMPLIANCE-PAY-1 支付商业版合规、退款与资质增量
+
+- Priority: P1
+- Status: pending
+- Owner branch: User/External
+- Depends on: `INT-STORE-1`, `EXT-PAY-1`, `EXT-FILING-1`, `EXT-DOMAIN-ADMIN-1`
+- Scope: 在支付渠道审核结果和公开 App Store 页面确定后，定稿支付说明、退款规则、资金状态表述、客服/争议、商户与开票边界，并核实支付引入对 APP 备案、ICP、经营资质和 App Privacy 的增量影响。
+- Acceptance criteria: 文本与支付 Provider 能力、真实资金流和退款状态一致；不得使用未经许可的“托管”或平台存管表述；商户、证书、回调、退款、开票和法定保留边界有可执行结论；App Store 更新材料和适用备案/资质已准备。
+- Shared files: 正式支付/退款文本或 URL、合规状态摘要
+- Unblock result: 提供批准文本、限制和资质结论，解除 `INT-COMMERCIAL-V1_1-1` 的支付合规依赖。
+- Result commit: not applicable
+- Verification: pending
+- Notes: 商家多服务方资金与分账仍需组合交易节点单独确认，不能由单摄影师支付结论自动覆盖。
+
+### EXT-COMPLIANCE-COMBO-1 组合订单多服务方合规与对外规则
+
+- Priority: P1
+- Status: pending
+- Owner branch: User/External
+- Depends on: `EXT-COMPLIANCE-PAY-1`, `EXT-PAY-COMBO-1`, `EXT-MERCHANT-1`
+- Scope: 在单摄影师支付商业版规则和组合支付机构能力确定后，核实多服务方责任、一次付款、部分退款、分别结算、平台先行退款扣回、取消改期、发票、信息披露、备案与经营资质边界，并定稿用户、摄影师和商家对外文本。
+- Acceptance criteria: 摄影与商家服务提供方、责任和售后入口表述清楚；取消退款、20%非计佣补偿、平台优惠、部分退款、开票和结算规则与 Provider 能力及实际资金流一致；不得使用未经许可的托管、存管或平台代收代付表述；适用备案、经营资质、App Privacy 和政策 URL 已更新；无法合法落地时必须调整组合资金方案，不能只改内部账本。
+- Shared files: 正式组合服务/取消退款/开票文本或 URL、合规状态摘要
+- Unblock result: 提供批准文本、限制和资质结论，解除 `INT-COMBO-1`、`EXT-MERCHANT-PILOT-1` 的组合合规前置。
+- Result commit: not applicable
+- Verification: pending
+- Notes: 本节点不反向阻塞 Store Lite 或单摄影师商业 v1.1；商家合作材料不能替代支付机构与正式合规意见。
 
 ### EXT-FILING-1 ICP、APP 备案和业务资质
 
@@ -1576,13 +1777,13 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Status: pending
 - Owner branch: User/External
 - Depends on: `EXT-DOMAIN-1`
-- Scope: 根据项目文档、运营主体、服务器和业务模式核实 ICP、APP 备案及其他所需资质。
-- Acceptance criteria: 从官方渠道或专业顾问获得可执行结论；所需申请已完成或有明确时间表。
+- Scope: 根据项目文档、运营主体、服务器、业务模式、登录方式和计划首发地区，核实 ICP、APP 备案及其他所需资质，并固定 Store Lite territory 与登录可用性结论。
+- Acceptance criteria: 从官方渠道或专业顾问获得可执行结论；若首发包含中国大陆，完成适用申请或取得正式“不适用”依据；若暂不能完成，则书面记录 Store Lite 首发 territory 排除中国大陆、后续开放条件和支付渠道是否接受该公开页面；所选 territory、目标用户与登录方式必须一致：若仍只支持 +86，须确认该限制适用于首发用户并在元数据/审核说明中如实披露，否则上架前补 E.164 或经批准的替代登录。
 - Shared files: 合规状态摘要
 - Unblock result: 提供可提交/可上线结论和限制，解除 `IOS-STORE-1`。
 - Result commit: not applicable
 - Verification: pending
-- Notes: 该节点不是代码任务。
+- Notes: 该节点不是代码任务；境外 Store Lite 页面不等于中国大陆合规完成；服务端受限审核账号只解决 App Review 可进入性，不能替代真实用户在首发 territory 的可用登录方式。
 
 ### EXT-OPS-1 客服、退款、审核和财务负责人
 
@@ -1593,7 +1794,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Scope: 确定客服渠道、服务时间、退款/争议/审核/财务负责人和操作权限；覆盖商家审核、组合订单归责、部分退款、分项冻结、先赔后扣和多方结算。
 - Acceptance criteria: 每类 case 有负责人、SLA 和升级路径；审核账号和客服入口可用；商家、摄影师和用户争议能按服务项留证、通知、申诉和执行，不能用电话口头结果直接改账。
 - Shared files: 运营说明
-- Unblock result: 提供角色和流程摘要，解除 `WIN-ADMIN-2`、`IOS-OPS-1`。
+- Unblock result: 提供角色和流程摘要，解除 `WIN-ADMIN-2` 的外部运营前置；`IOS-OPS-1` 仍须完成其自身服务端和客户端依赖。
 - Result commit: not applicable
 - Verification: pending
 - Notes: 不在仓库保存个人敏感信息。
@@ -1610,14 +1811,14 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - Unblock result: 提供最终材料、规则版本、渲染验证和审批结论，解除 `WIN-MERCHANT-1`、`WIN-COMBO-1` 的商务规则依赖。
 - Result commit: pending
 - Verification: 事实源、FAQ、模拟订单检查表、100 元/平台券/80%—20%案例已统一；最终 DOCX（14 页）和 PPTX（10 页、10 组讲者备注）完成结构、敏感信息、溢出和逐页视觉验收。DOCX SHA256 `1FA1E7EE027F40B4D09FA95618B5610B7D88AD45C08E91D2835DBC1AFC04624D`；PPTX SHA256 `4D754F19F5489EA5D62F37E06F3C2712AB2AED0E8818D58A3AB3532675A7CBB2`。
-- Notes: 本节点的本地材料已经完成，当前仅等待 User/External 对规则、Word 和 PPT 作最终批准；批准前只能用于内部审阅和模拟流程，不作为真实组合交易放行依据。本节点固定合作方案，不代表支付机构或法律顾问已经批准资金/开票结构；相关结论仍由 `EXT-PAY-1`、`EXT-COMPLIANCE-1` 提供。
+- Notes: 本节点的本地材料已经完成，当前仅等待 User/External 对规则、Word 和 PPT 作最终批准；批准前只能用于内部审阅和模拟流程，不作为真实组合交易放行依据。本节点固定合作方案，不代表支付机构或法律顾问已经批准资金/开票结构；单摄影师支付由 `EXT-PAY-1` 核实，组合支付/分账由 `EXT-PAY-COMBO-1` 核实，单摄影师支付文本由 `EXT-COMPLIANCE-PAY-1` 定稿，组合多服务方文本由 `EXT-COMPLIANCE-COMBO-1` 定稿。
 
 ### EXT-MERCHANT-PILOT-1 首批商家入驻与受控真实试点
 
 - Priority: P1
 - Status: pending
 - Owner branch: User/External
-- Depends on: `INT-COMBO-1`, `INT-STORE-1`, `EXT-OPS-1`, `EXT-COMPLIANCE-1`, `EXT-PAY-1`
+- Depends on: `INT-COMBO-1`, `INT-STORE-1`, `EXT-OPS-1`, `EXT-COMPLIANCE-PAY-1`, `EXT-PAY-COMBO-1`, `EXT-COMPLIANCE-COMBO-1`
 - Scope: 按准入标准招募首批 1—3 家商家，每家上架 1—3 个套餐，完成资料/电话/主体/收款与开票核验、负责人培训、模拟订单和首笔受控真实订单。
 - Acceptance criteria: 每家合作关系真实且双方确认；不要求独家、预留库存或安装本地 SaaS；每家完成一笔模拟订单并通过接单、电话、履约、异常、退款和结算检查；至少一笔真实组合订单完成且复盘无重大资金/权限/电话泄露问题后才扩大；指标和停止条件按实施方案记录。
 - Shared files: 脱敏试点清单、套餐模板、培训/模拟订单记录、周复盘
@@ -1628,7 +1829,7 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### EXT-OBS-1 崩溃和监控服务
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: User/External
 - Depends on: `EXT-COMPLIANCE-1`
@@ -1642,10 +1843,10 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 
 ### EXT-RUNBOOK-1 生产权限、AI 边界和事故响应
 
-- Priority: P0
+- Priority: P1
 - Status: pending
 - Owner branch: User/External
-- Depends on: `EXT-CLOUD-1`, `EXT-COST-1`, `EXT-DOMAIN-1`, `EXT-OBS-1`
+- Depends on: `EXT-CLOUD-1`, `EXT-COST-1`, `EXT-DOMAIN-1`, `EXT-DOMAIN-ADMIN-1`, `EXT-OBS-1`
 - Scope: 明确生产主要/备用负责人、最小权限、AI 操作边界、日/周/月巡检、告警确认、事故分级、发布观察窗口和复盘流程。
 - Acceptance criteria: 主要和备用负责人、告警确认时限及升级路径明确；生产运行账号、发布账号和 root/admin 分离；AI 不持有长期 root/SSH 权限、生产密钥、数据库管理员密码或支付私钥；AI 生成命令必须由人审阅目标、影响、回滚和验证后执行；禁止在线编辑生产源码；日/周/月清单覆盖可用性、崩溃、备份、证书、账单、容量、支付和安全事件；事故 Runbook 覆盖止损、回滚、恢复、用户通知、证据保留和复盘；完成一次桌面演练。
 - Shared files: 只保存非敏感 Runbook 模板和角色名称，不保存个人电话、账号、密钥或真实内部地址
@@ -1783,4 +1984,5 @@ Integration 只合并已经在负责分支验证过的节点。Mac 负责最终 
 - 节点 ID 唯一检查
 - 状态枚举检查
 - 依赖节点存在性检查
-- 地图 P0 Provider、商用许可和可替换适配层决策检查
+- Store Lite 构建排除支付、地图 SDK、上传、聊天、社区、摄影师端和商家入口的检查
+- 支付、完整地图和媒体上传节点仍为 P1 且未被误写为首审已完成
