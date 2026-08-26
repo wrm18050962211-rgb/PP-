@@ -8,6 +8,9 @@ pp-app/ios/App/Pods/
 pp-app/ios/App/build/
 pp-app/ios/DerivedData/
 
+# Local-only migration material. Encrypt before moving it to another device.
+/PRIVATE_SYNC_TO_MAC/
+
 *.log
 *.err.log
 

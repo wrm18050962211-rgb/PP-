@@ -23,6 +23,7 @@
 - `QUERY_AND_TRANSACTION_GUIDE.md`：核心 SQL 查询、下单/支付/结算/审核等事务手册。
 - `MIGRATION_PLAN.md`：MVP 到生产版的数据库演进计划，包括 PostGIS、隐私加密、索引、审计、风控和归档。
 - `POSTGRES_CLOUD_RUNBOOK.md`：腾讯云/阿里云 PostgreSQL 接入、建表、seed、检查和上线前注意事项。
+- `CLOUD_CONFIGURATION_RECORD.md`：可公开提交的云资源变量结构、技术决定和安全恢复边界。
 - `migrations/`：从既有生产基线向后演进的增量迁移；不能用当前 `schema.sql` 代替真实升级路径验收。
 
 如果后端选择 Prisma，建议以 `prisma/schema.prisma` 作为开发入口；如果需要更精细的数据库约束、初始化数据或原生 SQL 能力，以 `schema.sql` 为准。

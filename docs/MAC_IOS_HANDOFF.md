@@ -1,6 +1,8 @@
 # Mac iOS 接力说明
 
-更新时间：2026-08-23
+更新时间：2026-08-26
+
+> 当前迁移入口：先读 `docs/MACBOOK_PROJECT_TRANSFER.md` 和根目录 `PROJECT_CONSOLE.md`。当前唯一开发分支是 `codex/store-lite-main`，本文件其余内容只解释 iOS/Store Lite 验收细节。
 
 > 历史交接声明：本文记录 2026-07-23 的首次 Mac 迁移过程，工程状态和推进阶段已经过期。iOS 基础工程与早期真机基线已完成；当前不得再从“生成 iOS 壳”或“支付必须首发”开始。最新唯一节点状态读取 `docs/DUAL_PLATFORM_RELEASE_ROADMAP.md`，首审范围读取 `docs/APP_STORE_LAUNCH.md`。旧 bundle 命令仅用于历史恢复，不是当前发布流程。
 
@@ -39,7 +41,7 @@ Windows 已有的局部实现包括：消费者专用入口、编译期路由和
 ```bash
 cd ~/Documents/PP平台
 git fetch origin
-git switch codex/vertical-db-api
+git switch codex/store-lite-main
 git pull --ff-only
 git status --short --branch
 cd pp-app
@@ -70,21 +72,25 @@ npm run ios:open
 按顺序读取：
 
 1. `AGENTS.md`
-2. `docs/MAC_IOS_HANDOFF.md`
-3. `docs/APP_STORE_LAUNCH.md`
-4. `docs/STILL_CODE_MODULE_ROADMAP.md`
-5. `pp-app/README.md`
+2. `PROJECT_CONSOLE.md`
+3. `docs/MACBOOK_PROJECT_TRANSFER.md`
+4. `docs/DUAL_PLATFORM_RELEASE_ROADMAP.md`
+5. `docs/APP_STORE_LAUNCH.md`
+6. `docs/MAC_IOS_HANDOFF.md`
+7. `pp-app/README.md`
 
 ## 新对话首条提示词（已更新）
 
 ```text
-请先读取 AGENTS.md、docs/MAC_IOS_HANDOFF.md、docs/APP_STORE_LAUNCH.md、
-docs/STILL_CODE_MODULE_ROADMAP.md 和 pp-app/README.md。
+请先读取 AGENTS.md、PROJECT_CONSOLE.md、docs/MACBOOK_PROJECT_TRANSFER.md、
+docs/DUAL_PLATFORM_RELEASE_ROADMAP.md、docs/APP_STORE_LAUNCH.md、
+docs/MAC_IOS_HANDOFF.md 和 pp-app/README.md。
 
-以 DUAL_PLATFORM_RELEASE_ROADMAP 为唯一状态源，严格按照 APP_STORE_LAUNCH
-推进不含支付的 Store Lite 首审版本。先检查当前 Mac 分支、iOS 工程、Xcode、
-签名和 Roadmap 中最靠前且依赖完成的 iOS 节点；不要按本文的历史状态重做 iOS 壳。
-首审构建必须编译排除支付、摄影师端、社区、完整地图、上传和泛私信。
+只在 codex/store-lite-main 和当前这个主任务中继续。以
+DUAL_PLATFORM_RELEASE_ROADMAP 为唯一状态源，严格按照 APP_STORE_LAUNCH
+推进不含支付的 Store Lite 首审版本。先确认分支与 origin 完全对齐、工作树干净，
+再检查 iOS 工程、Xcode、签名和最靠前且依赖完成的节点；不要重做 iOS 壳，也不要
+创建新分支/工作树。首审构建必须编译排除支付、摄影师端、社区、完整地图、上传和泛私信。
 ```
 
 ## 历史恢复附录：2026-07-23 bundle

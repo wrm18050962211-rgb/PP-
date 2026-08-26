@@ -5,7 +5,7 @@
 推荐直接用 VS Code 打开根目录：
 
 ```text
-C:\Users\86152\Documents\PP平台
+<repo-root>
 ```
 
 也可以双击打开：

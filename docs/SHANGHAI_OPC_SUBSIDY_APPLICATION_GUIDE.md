@@ -28,7 +28,7 @@
 | 项目 | Still / PP 是摄影服务撮合、预约/订单/支付与内容运营方向的平台；现阶段优先完成 iOS/TestFlight 的核心闭环 | 与科技、软件服务相关，但当前不是以 AI 为核心的产品；不能据此宣称符合 AI OPC 条件。 |
 | 当前证据 | 已有前后端和订单等模块；尚需形成正式上线、真实交易、知识产权和权属材料 | 先建设证据包，再申报。 |
 
-项目、产品和财税基线见：[产品定位](C:/Users/86152/Documents/PP平台/01_产品总提示词.md)、[发布路线图](C:/Users/86152/Documents/PP平台/docs/DUAL_PLATFORM_RELEASE_ROADMAP.md)、[财税合规手册](C:/Users/86152/Documents/PP平台/docs/COMPANY_FINANCE_COMPLIANCE.md)。
+项目、产品和财税基线见：[产品定位](../01_产品总提示词.md)、[发布路线图](./DUAL_PLATFORM_RELEASE_ROADMAP.md)、[财税合规手册](./COMPANY_FINANCE_COMPLIANCE.md)。
 
 ## 3. 当前可申与不可申：逐项对齐
 
@@ -106,7 +106,7 @@
 - 如公司聘用真实在沪员工，应从实际用工起依法办理其劳动、个税和社保事项；
 - 不让不参与实际业务的股东挂名为员工、核心团队成员或补贴对象。
 
-公司财税执行细节以 [财税合规手册](C:/Users/86152/Documents/PP平台/docs/COMPANY_FINANCE_COMPLIANCE.md) 为准。海外留学期间的学生医疗保险、签证保险与国内公司职工社保是不同事项，应按留学国家/学校要求另行办理。
+公司财税执行细节以 [财税合规手册](./COMPANY_FINANCE_COMPLIANCE.md) 为准。海外留学期间的学生医疗保险、签证保险与国内公司职工社保是不同事项，应按留学国家/学校要求另行办理。
 
 ## 5. 申报前必须建立的“证据包”
 
@@ -134,7 +134,7 @@
 - 保存 Git 提交记录、需求文档、技术架构说明、核心模块说明和第三方开源许可清单；
 - 软件著作权申请材料中的著作权人、版本、完成日期、代码与实际产品必须一致。
 
-代码权属处理应先对照：[代码模块与权属路线图](C:/Users/86152/Documents/PP平台/docs/STILL_CODE_MODULE_ROADMAP.md)。
+代码权属处理应先对照：[代码模块与权属路线图](./STILL_CODE_MODULE_ROADMAP.md)。
 
 ### D. 人员与社保包（仅在真实用工时建立）
 

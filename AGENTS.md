@@ -2,6 +2,15 @@
 
 Use the `github-version-checkpoint` workflow for this repository.
 
+## Current Single-Line Development Mode
+
+- Canonical development branch: `codex/store-lite-main`.
+- Canonical project task: `Still Store Lite 主线开发与 Mac 接力`.
+- Work in the saved project folder and continue the same Codex task. Do not create another branch, worktree, or implementation task unless the user explicitly re-enables parallel development.
+- Treat other `codex/*` branches and existing worktrees as historical checkpoints. Do not merge them into the canonical branch without reviewing the exact commits and Roadmap impact.
+- Treat `docs/DUAL_PLATFORM_RELEASE_ROADMAP.md` as the only node-status source and `docs/APP_STORE_LAUNCH.md` as the Store Lite release-scope source.
+- Keep passwords, tokens, certificates, provisioning profiles, `.env` files, private endpoints, private account identifiers, and production data outside Git and outside Codex messages.
+
 After Codex changes project code, documentation, configuration, or bundled data, default to creating a local VS Code/Git checkpoint before finishing:
 
 - Inspect `git status --short --branch`.
