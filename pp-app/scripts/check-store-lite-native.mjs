@@ -225,10 +225,10 @@ function verifyXcodeProject(path) {
 function verifyCapacitorConfig(path) {
   const source = readRequiredText(path, 'capacitor.config.ts');
   for (const value of [
-    "process.env.CAPACITOR_RELEASE_PROFILE !== 'store_lite'",
+    "const storeLiteRelease = releaseProfile === 'store_lite'",
     "process.env.STORE_LITE_CAPACITOR_WRAPPER !== 'store-lite-wrapper-v1'",
-    "webDir: 'dist-store-lite'",
-    'includePlugins: []',
+    "webDir: storeLiteRelease ? 'dist-store-lite' : 'dist'",
+    'storeLiteRelease ? { includePlugins: [] } : {}',
   ]) {
     if (!source.includes(value)) throw new Error(`Capacitor config is missing Store Lite lock: ${value}.`);
   }

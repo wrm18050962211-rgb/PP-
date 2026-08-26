@@ -10,6 +10,7 @@ Updated: 2026-08-26
 - Canonical branch: `codex/store-lite-main`
 - Canonical Roadmap: `docs/DUAL_PLATFORM_RELEASE_ROADMAP.md`
 - Current release target: no-payment `Store Lite 1.0`, followed by TestFlight and App Store review
+- Visual baseline: `docs/MAIN_APP_UI_BASELINE.md`; keep the black discovery feed, immersive work detail, light account page, and floating bottom navigation from the established main App.
 
 ## Routing Rules
 
@@ -19,6 +20,7 @@ Updated: 2026-08-26
 4. Do not create a new worktree or feature branch unless the user explicitly restores parallel development.
 5. Existing branches and worktrees are historical checkpoints. They are not current instructions and must not be merged wholesale.
 6. Keep `server/data/store.json`, old bundles, render output, deliverables, temporary files, deployment ZIP files, and all secret material out of release commits.
+7. Treat Store Lite as a compile-time release capability profile on the established main-App visual language, not as permission to replace the product with a separate visual shell.
 
 ## Source Decisions
 
@@ -29,4 +31,4 @@ Updated: 2026-08-26
 
 ## Mac Entry
 
-Read `docs/MACBOOK_PROJECT_TRANSFER.md`, then continue the earliest eligible P0 Store Lite node. The first Mac pass should verify the clean Git SHA, Store Lite build, Capacitor sync, native release guards, Xcode Team/signing, a real device, and TestFlight readiness.
+Read `docs/MACBOOK_PROJECT_TRANSFER.md` and `docs/MAIN_APP_UI_BASELINE.md`, then continue the earliest eligible P0 Store Lite node. The first Mac pass should verify the restored main-App visual baseline in browser/iOS Debug, then verify the explicit Store Lite build, Capacitor sync, native release guards, Xcode Team/signing, a real device, and TestFlight readiness.

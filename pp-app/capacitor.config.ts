@@ -1,18 +1,21 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-if (
-  process.env.CAPACITOR_RELEASE_PROFILE !== 'store_lite'
-  || process.env.STORE_LITE_CAPACITOR_WRAPPER !== 'store-lite-wrapper-v1'
-) {
-  throw new Error('Capacitor is locked to the Store Lite wrapper. Run an ios:* npm script instead of invoking cap directly.');
+const releaseProfile = String(process.env.CAPACITOR_RELEASE_PROFILE || 'main').trim();
+const storeLiteRelease = releaseProfile === 'store_lite';
+
+if (releaseProfile !== 'main' && !storeLiteRelease) {
+  throw new Error(`Unsupported Capacitor release profile: ${releaseProfile}`);
+}
+if (storeLiteRelease && process.env.STORE_LITE_CAPACITOR_WRAPPER !== 'store-lite-wrapper-v1') {
+  throw new Error('Store Lite Capacitor sync must use the guarded Store Lite wrapper.');
 }
 
 const config: CapacitorConfig = {
   appId: 'com.frameyu.still',
   appName: 'Still',
-  webDir: 'dist-store-lite',
+  webDir: storeLiteRelease ? 'dist-store-lite' : 'dist',
   bundledWebRuntime: false,
-  includePlugins: [],
+  ...(storeLiteRelease ? { includePlugins: [] } : {}),
   ios: {
     contentInset: 'automatic',
   },
