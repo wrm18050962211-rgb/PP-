@@ -6,7 +6,7 @@
 
 ## 0. 当前基线与固定决策
 
-- Roadmap version: 11
+- Roadmap version: 12
 - Current public baseline before consolidation: `origin/codex/vertical-db-api@9cfcba95b2c3ed02653ba696ca3ff1ef2483f23a`
 - Canonical development branch: `codex/store-lite-main`
 - Canonical Codex task: `Still Store Lite 主线开发与 Mac 接力`
@@ -841,7 +841,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 ### IOS-QA-1 基础真机回归和失败状态
 
 - Priority: P0
-- Status: pending
+- Status: in_progress
 - Working branch: `codex/store-lite-main`
 - Depends on: `IOS-BASE-0`, `IOS-STORE-LITE-1`
 - Scope: 优先验收 Store Lite 的发现、找摄影师、作品/摄影师详情、预约申请、预约状态、我的、设置、登录与删除账号；覆盖小屏、安全区、键盘、弱网、断网、空状态、接口失败、冷启动和前后台恢复。
@@ -849,8 +849,8 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Shared files: `pp-app/src/**`, `docs/IOS_REAL_DEVICE_TEST_LOG.md`
 - Unblock result: 提供设备/系统、用例结果、失败截图或日志和 commit SHA；解除 `INT-RC-1` 的基础 QA 条件。
 - Result commit: pending
-- Verification: pending
-- Notes: 真实短信不可用时输出依赖通知，但继续其他独立用例。
+- Verification: 2026-09-03 已在 Xcode 26.6、iOS 26.5 的 `Still Store Lite 430x932`（iPhone 15 Pro Max，430×932）模拟器完成 Store Lite Mock Debug 构建、Capacitor sync、Swift Package 官方依赖解析、`xcodebuild`、安装、冷启动和首页原生截图；430×932 Web 回归覆盖精选作品流、作品详情、摄影师列表/详情、登录、提交预约、四种预约状态、我的、设置、客服、举报、屏蔽、账号删除和数据权利。模拟器发现的一条 404 Mock 图片已修正并重新构建复核。真实 API、弱网/断网、键盘、前后台恢复、真机流程和 TestFlight 尚未验收。
+- Notes: 模拟器 Mock 只用于视觉和交互回归，不能替代真实数据或真机证据；真实短信不可用时输出依赖通知，但继续其他独立用例。上线前仍必须完成真机和 TestFlight 回归，本节点不解除 `INT-RC-1`。
 
 ### IOS-AUTH-1 Store Lite 消费者真实短信登录和会话恢复
 
@@ -911,7 +911,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 ### IOS-STORE-LITE-1 消费者首审专用构建与预约体验
 
 - Priority: P0
-- Status: pending
+- Status: in_progress
 - Working branch: `codex/store-lite-main`
 - Depends on: `IOS-AUTH-1`, `IOS-DATA-1`, `WIN-STORE-LITE-1`, `IOS-COMPLIANCE-1`
 - Scope: 新建 Store Lite 专用移动构建入口和路由白名单，只保留精选作品、找摄影师、作品/摄影师详情、预约申请、预约状态、我的和设置；注册固定为消费者，预约接入真实服务端，内容/摄影师举报、客服和账号删除均调用真实 API。
@@ -919,8 +919,8 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Shared files: Store Lite Vite/Capacitor 配置、`pp-app/src/MobileApp.tsx` 或专用入口、消费者路由/页面、`pp-app/src/types/api.ts`, iOS 配置
 - Unblock result: 提供构建产物路由扫描、真机预约/取消/失败/注销/举报结果和 commit SHA，解除 `INT-STORE-LITE-1`、`IOS-DELIVERY-1` 的客户端依赖。
 - Result commit: pending
-- Verification: Windows 本地已完成独立 `src/storeLiteMain.tsx`/`src/store-lite/**` 入口、编译期模块白名单、精确 UI/API 能力守卫、生产 HTTPS/官方 API origin 校验、资源图 SHA256 清单和来源工作树状态标记；`npm.cmd run build:store-lite`、bundle/integrity guards、专项 ESLint、TypeScript 与生产 guards 通过。窄运营台另以独立入口和产物构建，不进入消费者包。Mac 上尚未执行干净提交后的 Capacitor sync、原生 public seal、Release Archive、真机权限/深链/弱网/跨设备用例或 TestFlight。
-- Notes: 不能只用运行时开关隐藏未完成能力；Store Lite 的 App Store 元数据不得出现支付、定金、退款、商家、社区或 AI 承诺。当前 Windows 实现属于该节点的局部证据，不改变 `pending` 状态，也不绕过 `IOS-AUTH-1`、`IOS-DATA-1`、`WIN-STORE-LITE-1`、`IOS-COMPLIANCE-1` 或 Mac/iOS 验收。iOS Release 只接受重新构建的干净已提交 Store Lite 源码；脏工作树生成物会明确标记且无法通过 Archive guard。
+- Verification: Windows 本地已完成独立 `src/storeLiteMain.tsx`/`src/store-lite/**` 入口、编译期模块白名单、精确 UI/API 能力守卫、生产 HTTPS/官方 API origin 校验、资源图 SHA256 清单和来源工作树状态标记；`npm.cmd run build:store-lite`、bundle/integrity guards、专项 ESLint、TypeScript 与生产 guards 通过。窄运营台另以独立入口和产物构建，不进入消费者包。2026-09-03 Mac 已将 Store Lite 白名单页面对齐 `MAIN_APP_UI_BASELINE`，新增与 Release 入口隔离的 Simulator Mock 构建；`npm run build`、生产配置 `npm run build:store-lite`、`npm run check:store-lite-integrity`、Store Lite 专项 ESLint、生产依赖审计和 430×932 路由回归通过，React Router 升级到 7.18.3 后生产依赖审计为 0。Xcode Debug Simulator 原生编译、安装和启动通过；生产 Bundle 已证明使用真实 API 且排除 Checkout、支付/退款/钱包、聊天/社区、上传、附近/地图、摄影师端和商家入口。干净本地检查点上 `ios:sync:store-lite`、原生 public seal、`check:store-lite-native`、原生完整性自测、生产守卫及 Xcode Release Simulator 构建通过，Xcode 构建内再次验证 Bundle、源 public 和 built app 一致。正式设备签名 Archive、真机权限/真实预约/深链/弱网/跨设备用例及 TestFlight 仍待上线前执行。
+- Notes: Simulator Mock 入口只进入显式 `build:store-lite:simulator`/`ios:sync:store-lite:simulator`，正式 `build:store-lite` 仍强制生产 HTTPS API、禁用 mock/测试角色并执行原有 URL、HTML、API、Bundle、Native 和 Xcode Release 守卫。不能只用运行时开关隐藏未完成能力；Store Lite 的 App Store 元数据不得出现支付、定金、退款、商家、社区或 AI 承诺。本节点仍受 `IOS-AUTH-1`、`IOS-DATA-1`、`WIN-STORE-LITE-1`、`IOS-COMPLIANCE-1` 和 Mac/iOS 真机验收约束，当前保持 `in_progress`。iOS Release 只接受重新构建的干净已提交 Store Lite 源码。
 
 ### IOS-DATA-2 真实咨询和订单工作区
 

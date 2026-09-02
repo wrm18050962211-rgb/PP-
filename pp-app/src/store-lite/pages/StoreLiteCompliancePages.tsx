@@ -132,9 +132,15 @@ export function StoreLiteComplianceCenterPage() {
 
   return (
     <>
-      <StoreLitePageHeader title="客服与数据权利" eyebrow="Support & privacy" />
+      <StoreLitePageHeader title="设置与安全" eyebrow="Account & safety" />
       <div className="space-y-5 px-4 py-5">
-        <StoreLiteNotice>请选择需要平台处理的事项。每次提交都会生成可查询的状态记录。</StoreLiteNotice>
+        <StoreLiteNotice>客服、个人数据和账号事项都会生成可查询的处理记录。</StoreLiteNotice>
+
+        <section className="overflow-hidden rounded-[10px] bg-white ring-1 ring-zinc-200">
+          <CenterLink to="/compliance/requests" icon={ClipboardList} title="我的请求" description="查看处理进度或取消请求" />
+          <CenterLink to="/compliance/reports" icon={ShieldAlert} title="我的举报" description="查看作品与摄影师举报结果" />
+          <CenterLink to="/compliance/blocked" icon={Ban} title="已屏蔽摄影师" description="管理不再展示的摄影师" />
+        </section>
 
         <section className="grid grid-cols-2 gap-3">
           {(Object.keys(requestTypeMeta) as UserRequestType[]).map((type) => {
@@ -150,7 +156,7 @@ export function StoreLiteComplianceCenterPage() {
                   setCreated(null);
                   setError('');
                 }}
-                className={`rounded-2xl p-4 text-left ring-1 transition ${active ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-white text-zinc-950 ring-zinc-200'}`}
+                className={`rounded-[10px] p-4 text-left ring-1 transition ${active ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-white text-zinc-950 ring-zinc-200'}`}
               >
                 <Icon size={21} />
                 <span className="mt-4 block text-sm font-black">{item.label}</span>
@@ -160,7 +166,7 @@ export function StoreLiteComplianceCenterPage() {
           })}
         </section>
 
-        <section className="space-y-4 rounded-3xl bg-white p-5 ring-1 ring-zinc-200">
+        <section className="space-y-4 rounded-[14px] bg-white p-5 ring-1 ring-zinc-200">
           <div>
             <p className="text-xs font-black text-zinc-400">当前事项</p>
             <h2 className="mt-1 text-xl font-black">{requestTypeMeta[requestType].label}</h2>
@@ -205,11 +211,6 @@ export function StoreLiteComplianceCenterPage() {
           <button type="button" disabled={submitting || Boolean(created)} onClick={() => void submit()} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white disabled:bg-zinc-300"><Send size={17} />{submitting ? '提交中' : created ? '已提交' : '提交请求'}</button>
         </section>
 
-        <section className="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-200">
-          <CenterLink to="/compliance/requests" icon={ClipboardList} title="我的请求" description="查看处理进度或取消请求" />
-          <CenterLink to="/compliance/reports" icon={ShieldAlert} title="我的举报" description="查看作品与摄影师举报结果" />
-          <CenterLink to="/compliance/blocked" icon={Ban} title="已屏蔽摄影师" description="管理不再展示的摄影师" />
-        </section>
       </div>
     </>
   );

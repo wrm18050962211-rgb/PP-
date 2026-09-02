@@ -7,10 +7,10 @@ import { assertPublicHttpsUrl, assertStoreLiteApiOrigin } from './scripts/store-
 
 const projectRootPath = normalizeModulePath(fileURLToPath(new URL('.', import.meta.url)));
 const storeLiteEntryPath = fileURLToPath(new URL('./src/storeLiteMain.tsx', import.meta.url));
-const storeLiteHtmlPath = fileURLToPath(new URL('./store-lite-entry/index.html', import.meta.url));
 const allowedLocalFiles = new Set([
   normalizeModulePath(storeLiteEntryPath),
-  normalizeModulePath(storeLiteHtmlPath),
+  normalizeModulePath(fileURLToPath(new URL('./store-lite-entry/index.html', import.meta.url))),
+  normalizeModulePath(fileURLToPath(new URL('./store-lite-simulator-entry/index.html', import.meta.url))),
   normalizeModulePath(fileURLToPath(new URL('./src/styles/index.css', import.meta.url))),
   normalizeModulePath(fileURLToPath(new URL('./src/types/api.ts', import.meta.url))),
 ]);
@@ -18,14 +18,20 @@ const allowedLocalDirectories = [
   `${normalizeModulePath(fileURLToPath(new URL('./src/store-lite', import.meta.url))).replace(/\/$/, '')}/`,
 ];
 
-function storeLiteEntrypoint(): Plugin {
+function storeLiteEntrypoint(simulatorBuild: boolean): Plugin {
   return {
     name: 'store-lite-entrypoint',
     transformIndexHtml: {
       order: 'pre',
       handler(html) {
-        const entry = '../src/storeLiteMain.tsx';
-        assertStoreLiteHtmlPolicy(html, entry);
+        const entry = simulatorBuild ? '/src/storeLiteMain.tsx' : '../src/storeLiteMain.tsx';
+        if (simulatorBuild) {
+          if (!html.includes(`src="${entry}"`) || !html.includes('src="/store-lite-mock.js"')) {
+            throw new Error('Store Lite simulator entry must load its mock adapter before the app entry.');
+          }
+        } else {
+          assertStoreLiteHtmlPolicy(html, entry);
+        }
         if (html.includes('/src/main.tsx')) throw new Error('Store Lite entry must not reference src/main.tsx.');
         return html;
       },
@@ -33,7 +39,7 @@ function storeLiteEntrypoint(): Plugin {
   };
 }
 
-function storeLiteModuleBoundary(): Plugin {
+function storeLiteModuleBoundary(htmlPath: string): Plugin {
   return {
     name: 'store-lite-module-boundary',
     generateBundle(_options, bundle) {
@@ -43,8 +49,8 @@ function storeLiteModuleBoundary(): Plugin {
         throw new Error(`Store Lite expected exactly one Rollup entry chunk, found ${entryChunks.length}.`);
       }
       const entryFacade = normalizeModulePath(entryChunks[0].facadeModuleId || '');
-      if (entryFacade !== normalizeModulePath(storeLiteHtmlPath)) {
-        throw new Error(`Store Lite entry facade must be ${normalizeModulePath(storeLiteHtmlPath)}, found ${entryFacade || '(none)'}.`);
+      if (entryFacade !== normalizeModulePath(htmlPath)) {
+        throw new Error(`Store Lite entry facade must be ${normalizeModulePath(htmlPath)}, found ${entryFacade || '(none)'}.`);
       }
 
       let storeLiteMainFound = false;
@@ -66,11 +72,14 @@ function storeLiteModuleBoundary(): Plugin {
 
 export default defineConfig(({ command, mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
-  if (command === 'build') validateReleaseEnvironment(env);
+  const simulatorBuild = command === 'build' && mode === 'store-lite-simulator';
+  const rootPath = fileURLToPath(new URL(simulatorBuild ? './store-lite-simulator-entry' : './store-lite-entry', import.meta.url));
+  const htmlPath = fileURLToPath(new URL(simulatorBuild ? './store-lite-simulator-entry/index.html' : './store-lite-entry/index.html', import.meta.url));
+  if (command === 'build' && !simulatorBuild) validateReleaseEnvironment(env);
 
   return {
-    root: fileURLToPath(new URL('./store-lite-entry', import.meta.url)),
-    plugins: [storeLiteEntrypoint(), storeLiteModuleBoundary(), react(), tailwindcss()],
+    root: rootPath,
+    plugins: [storeLiteEntrypoint(simulatorBuild), storeLiteModuleBoundary(htmlPath), react(), tailwindcss()],
     resolve: {
       alias: [
         { find: '/src/storeLiteMain.tsx', replacement: storeLiteEntryPath },
@@ -78,17 +87,17 @@ export default defineConfig(({ command, mode }) => {
       ],
     },
     define: {
-      'import.meta.env.VITE_APP_ENV': JSON.stringify(command === 'build' ? 'production' : env.VITE_APP_ENV || 'development'),
+      'import.meta.env.VITE_APP_ENV': JSON.stringify(command === 'build' && !simulatorBuild ? 'production' : env.VITE_APP_ENV || 'development'),
       'import.meta.env.VITE_RELEASE_PROFILE': JSON.stringify('store_lite'),
-      'import.meta.env.VITE_API_BASE_URL': JSON.stringify(env.VITE_API_BASE_URL || ''),
-      'import.meta.env.VITE_ENABLE_MOCK': JSON.stringify('false'),
+      'import.meta.env.VITE_API_BASE_URL': JSON.stringify(simulatorBuild ? 'http://127.0.0.1:8787' : env.VITE_API_BASE_URL || ''),
+      'import.meta.env.VITE_ENABLE_MOCK': JSON.stringify(simulatorBuild ? 'true' : 'false'),
       'import.meta.env.VITE_ENABLE_TEST_ROLE_SWITCH': JSON.stringify('false'),
-      'import.meta.env.VITE_PRIVACY_URL': JSON.stringify(env.VITE_PRIVACY_URL || ''),
-      'import.meta.env.VITE_TERMS_URL': JSON.stringify(env.VITE_TERMS_URL || ''),
-      'import.meta.env.VITE_SUPPORT_URL': JSON.stringify(env.VITE_SUPPORT_URL || ''),
+      'import.meta.env.VITE_PRIVACY_URL': JSON.stringify(simulatorBuild ? 'https://www.weareinframe.com/privacy' : env.VITE_PRIVACY_URL || ''),
+      'import.meta.env.VITE_TERMS_URL': JSON.stringify(simulatorBuild ? 'https://www.weareinframe.com/terms' : env.VITE_TERMS_URL || ''),
+      'import.meta.env.VITE_SUPPORT_URL': JSON.stringify(simulatorBuild ? 'https://www.weareinframe.com/support' : env.VITE_SUPPORT_URL || ''),
     },
     build: {
-      outDir: '../dist-store-lite',
+      outDir: simulatorBuild ? '../dist' : '../dist-store-lite',
       emptyOutDir: true,
       manifest: 'store-lite-vite-manifest.json',
       sourcemap: false,

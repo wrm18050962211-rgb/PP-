@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Aperture, CalendarDays, Images, UserRound } from 'lucide-react';
+import { Aperture, CalendarDays, Home, UserRound } from 'lucide-react';
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useStoreLiteAuth } from './StoreLiteAuth';
 import { StoreLiteLoading } from './StoreLiteUi';
@@ -79,35 +79,45 @@ function RequireStoreLiteSession({ children }: { children: React.ReactNode }) {
 }
 
 function StoreLiteShell() {
+  const { pathname } = useLocation();
+  const showBottomNav = ['/', '/photographers', '/bookings', '/me'].includes(pathname);
+  const darkPage = pathname === '/'
+    || pathname === '/photographers'
+    || pathname.startsWith('/works/')
+    || /^\/photographers\/[^/]+$/.test(pathname);
+
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-md bg-[#f6f5f1] pb-24 text-zinc-950 shadow-2xl shadow-black/5">
-      <Outlet />
-      <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto grid h-[calc(4.25rem+env(safe-area-inset-bottom))] max-w-md grid-cols-4 border-t border-zinc-200/80 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <StoreLiteTab to="/" end icon={Images} label="作品" />
-        <StoreLiteTab to="/photographers" icon={Aperture} label="摄影师" />
-        <StoreLiteTab to="/bookings" icon={CalendarDays} label="预约" />
-        <StoreLiteTab to="/me" icon={UserRound} label="我的" />
-      </nav>
-    </main>
+    <div className={darkPage ? 'min-h-dvh bg-[#050505]' : 'min-h-dvh bg-[#f7f7f5]'}>
+      <main className={`mx-auto min-h-dvh w-full max-w-md shadow-[0_0_46px_rgba(0,0,0,0.28)] ${darkPage ? 'bg-[#050505] text-white' : 'bg-[#f7f7f5] text-zinc-950'} ${showBottomNav ? 'pb-24' : ''}`}>
+        <Outlet />
+      </main>
+      {showBottomNav ? (
+        <nav className="pointer-events-none fixed inset-x-0 bottom-3 z-40 mx-auto flex max-w-md justify-center px-4 pb-[env(safe-area-inset-bottom)]" aria-label="主要导航">
+          <div className="pointer-events-auto grid h-14 w-[304px] max-w-full grid-cols-4 items-center rounded-full border border-white/10 bg-black/[0.84] px-3 shadow-[0_18px_50px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
+            <StoreLiteTab to="/" end icon={Home} label="发现" />
+            <StoreLiteTab to="/photographers" icon={Aperture} label="找摄影师" />
+            <StoreLiteTab to="/bookings" icon={CalendarDays} label="预约" />
+            <StoreLiteTab to="/me" icon={UserRound} label="我的" />
+          </div>
+        </nav>
+      ) : null}
+    </div>
   );
 }
 
-function StoreLiteTab({ to, end, icon: Icon, label }: { to: string; end?: boolean; icon: typeof Images; label: string }) {
+function StoreLiteTab({ to, end, icon: Icon, label }: { to: string; end?: boolean; icon: typeof Home; label: string }) {
   return (
     <NavLink
       to={to}
       end={end}
       className={({ isActive }) =>
-        `flex flex-col items-center justify-center gap-1 text-[11px] font-black transition ${isActive ? 'text-zinc-950' : 'text-zinc-400'}`
+        `mx-auto flex h-11 w-12 items-center justify-center rounded-full transition ${isActive ? 'bg-white/[0.15] text-white' : 'text-white/[0.52]'}`
       }
+      aria-label={label}
+      title={label}
     >
       {({ isActive }) => (
-        <>
-          <span className={`grid h-8 w-10 place-items-center rounded-full ${isActive ? 'bg-zinc-950 text-white' : ''}`}>
-            <Icon size={18} />
-          </span>
-          {label}
-        </>
+        <Icon size={22} strokeWidth={isActive ? 2.6 : 2.2} />
       )}
     </NavLink>
   );

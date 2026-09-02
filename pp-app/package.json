@@ -14,6 +14,7 @@
     "build:mobile": "tsc -b && vite build --config vite.mobile.config.ts",
     "build:commercial": "npm run build:mobile",
     "build:store-lite": "node scripts/check-store-lite-url-policy.mjs && node scripts/check-store-lite-html-policy.mjs && node scripts/check-store-lite-api-allowlist.mjs && tsc -b && vite build --config vite.store-lite.config.ts && node scripts/generate-store-lite-release.mjs && node scripts/check-store-lite-bundle.mjs",
+    "build:store-lite:simulator": "tsc -b && vite build --mode store-lite-simulator --config vite.store-lite.config.ts",
     "build:store-lite-admin": "node scripts/check-store-lite-admin-url-policy.mjs && node scripts/check-store-lite-admin-html-policy.mjs && tsc -b && vite build --config vite.store-lite-admin.config.ts && node scripts/check-store-lite-admin-bundle.mjs",
     "build:admin": "tsc -b && vite build --config vite.admin.config.ts",
     "build:dev": "tsc -b && vite build",
@@ -37,6 +38,7 @@
     "ios:sync": "npm run ios:sync:mobile",
     "ios:sync:mobile": "npm run build:mobile && npx cap sync ios",
     "ios:sync:store-lite": "npm run build:store-lite && node scripts/run-capacitor-store-lite.mjs sync ios && node scripts/check-store-lite-native.mjs --require-ios --seal-native",
+    "ios:sync:store-lite:simulator": "npm run build:store-lite:simulator && npx cap sync ios",
     "ios:open": "npx cap open ios",
     "ios:open:store-lite": "node scripts/run-capacitor-store-lite.mjs open ios"
   },
@@ -45,7 +47,7 @@
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "react-router-dom": "latest"
+    "react-router-dom": "^7.18.3"
   },
   "devDependencies": {
     "@capacitor/cli": "8.4.1",

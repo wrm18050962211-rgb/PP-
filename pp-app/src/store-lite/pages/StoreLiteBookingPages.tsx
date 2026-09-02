@@ -101,13 +101,16 @@ export function StoreLiteBookingFormPage() {
 
   return (
     <>
-      <StoreLitePageHeader title="提交预约申请" eyebrow="Booking request" />
+      <StoreLitePageHeader title="预约申请" eyebrow="Booking request" />
       <div className="space-y-5 px-4 py-5">
-        <StoreLiteNotice>提交申请不代表摄影师已确认，也不会产生扣款。平台运营核对后，你会在“我的预约”看到结果。</StoreLiteNotice>
+        <StoreLiteNotice>提交后，平台会核对摄影师档期。请在“我的预约”查看最新状态，以“已确认”为准。</StoreLiteNotice>
 
-        <section className="flex items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-zinc-200">
-          {photographer?.avatar ? <img src={photographer.avatar} alt={photographer.name} className="h-12 w-12 rounded-full object-cover" /> : <span className="grid h-12 w-12 place-items-center rounded-full bg-zinc-100"><UserRound size={20} /></span>}
-          <div className="min-w-0 flex-1"><p className="text-xs font-black text-zinc-400">申请摄影师</p><p className="mt-1 truncate text-base font-black">{photographer?.name || (photographerLoading ? '加载中' : '暂未加载')}</p></div>
+        <section className="overflow-hidden rounded-[18px] bg-white shadow-[0_18px_48px_rgba(0,0,0,0.08)] ring-1 ring-zinc-200/80">
+          {photographer?.photo ? <img src={photographer.photo} alt={photographer.name} className="h-40 w-full bg-zinc-100 object-cover" /> : null}
+          <div className="flex items-center gap-3 p-4">
+            {photographer?.avatar ? <img src={photographer.avatar} alt={photographer.name} className="h-12 w-12 rounded-full object-cover ring-1 ring-zinc-200" /> : <span className="grid h-12 w-12 place-items-center rounded-full bg-zinc-100"><UserRound size={20} /></span>}
+            <div className="min-w-0 flex-1"><p className="text-xs font-black text-zinc-400">申请摄影师</p><p className="mt-1 truncate text-base font-black">{photographer?.name || (photographerLoading ? '加载中' : '暂未加载')}</p></div>
+          </div>
         </section>
 
         {photographerError ? <StoreLiteError message={photographerError} onRetry={retryPhotographer} /> : null}
@@ -139,7 +142,7 @@ export function StoreLiteBookingFormPage() {
         {error ? <StoreLiteError message={error} /> : null}
         <button type="button" disabled={submitting || photographerLoading || !photographer || Boolean(photographerError)} onClick={() => void submit()} className="flex h-13 w-full items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white disabled:bg-zinc-300">
           <Send size={17} />
-          {submitting ? '提交中' : '确认提交申请'}
+          {submitting ? '提交中' : '提交预约申请'}
         </button>
       </div>
     </>
@@ -148,6 +151,7 @@ export function StoreLiteBookingFormPage() {
 
 export function StoreLiteBookingsPage() {
   const [items, setItems] = useState<BookingRequestConsumerSummary[]>([]);
+  const [activeStatus, setActiveStatus] = useState<BookingRequestStatus | 'all'>('all');
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -158,7 +162,11 @@ export function StoreLiteBookingsPage() {
     if (reset) setLoading(true);
     else setLoadingMore(true);
     try {
-      const page = await listStoreLiteBookings({ limit: 20, cursor: reset ? undefined : nextCursor ?? undefined });
+      const page = await listStoreLiteBookings({
+        status: activeStatus === 'all' ? undefined : activeStatus,
+        limit: 20,
+        cursor: reset ? undefined : nextCursor ?? undefined,
+      });
       setItems((current) => (reset ? page.items : mergeBookings(current, page.items)));
       setNextCursor(page.nextCursor);
       setHasMore(page.hasMore);
@@ -173,7 +181,7 @@ export function StoreLiteBookingsPage() {
 
   useEffect(() => {
     let active = true;
-    listStoreLiteBookings({ limit: 20 })
+    listStoreLiteBookings({ status: activeStatus === 'all' ? undefined : activeStatus, limit: 20 })
       .then((page) => {
         if (!active) return;
         setItems(page.items);
@@ -190,16 +198,23 @@ export function StoreLiteBookingsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [activeStatus]);
 
   return (
     <>
       <StoreLitePageHeader title="我的预约" eyebrow="Requests" back={false} />
-      <div className="flex justify-end px-4 pt-4"><button type="button" onClick={() => void load(true)} disabled={loading} className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-4 text-xs font-black ring-1 ring-zinc-200"><RefreshCw size={14} />刷新状态</button></div>
+      <div className="scrollbar-none flex gap-2 overflow-x-auto px-4 pt-4">
+        {(['all', 'submitted', 'confirmed', 'declined', 'cancelled'] as const).map((status) => (
+          <button key={status} type="button" onClick={() => setActiveStatus(status)} className={`h-9 shrink-0 rounded-full px-4 text-xs font-black ring-1 ${activeStatus === status ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-white text-zinc-500 ring-zinc-200'}`}>
+            {status === 'all' ? '全部' : statusMeta[status].label}
+          </button>
+        ))}
+      </div>
+      <div className="flex justify-end px-4 pt-3"><button type="button" onClick={() => void load(true)} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-full bg-white px-4 text-xs font-black ring-1 ring-zinc-200"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} />刷新状态</button></div>
       {loading ? <StoreLiteLoading label="正在加载预约" /> : null}
       {!loading && error ? <StoreLiteError message={error} onRetry={() => void load(true)} /> : null}
       {!loading && !error && items.length === 0 ? (
-        <div className="px-6 py-20 text-center"><CalendarClock className="mx-auto text-zinc-300" size={34} /><p className="mt-4 text-base font-black">还没有预约申请</p><p className="mt-2 text-sm font-semibold text-zinc-400">先从作品或摄影师页面选择想要的服务方。</p><Link to="/photographers" className="mt-5 inline-flex h-11 items-center rounded-full bg-zinc-950 px-6 text-sm font-black text-white">去找摄影师</Link></div>
+        <div className="px-6 py-20 text-center"><CalendarClock className="mx-auto text-zinc-300" size={34} /><p className="mt-4 text-base font-black">{activeStatus === 'all' ? '还没有预约申请' : `暂无${statusMeta[activeStatus].label}预约`}</p><p className="mt-2 text-sm font-semibold text-zinc-400">{activeStatus === 'all' ? '先从作品或摄影师页面选择想要的服务方。' : '切换状态可查看其他预约记录。'}</p>{activeStatus === 'all' ? <Link to="/photographers" className="mt-5 inline-flex h-11 items-center rounded-full bg-zinc-950 px-6 text-sm font-black text-white">去找摄影师</Link> : null}</div>
       ) : null}
       <section className="space-y-3 px-4 py-4">
         {items.map((booking) => <BookingCard key={booking.id} booking={booking} />)}
@@ -250,8 +265,8 @@ export function StoreLiteBookingDetailPage() {
   async function cancel() {
     if (!booking || cancelling) return;
     const confirmationMessage = booking.status === 'confirmed'
-      ? '该预约已确认，确定取消吗？本版本未发生扣款，因此不涉及退款。'
-      : '确定撤回这次预约申请吗？本版本未发生扣款，因此不涉及退款。';
+      ? '该预约已确认，确定取消吗？取消后需要重新提交申请。'
+      : '确定撤回这次预约申请吗？';
     if (!window.confirm(confirmationMessage)) return;
     setCancelling(true);
     try {
@@ -304,7 +319,7 @@ export function StoreLiteBookingDetailPage() {
         </section>
 
         {error ? <StoreLiteError message={error} /> : null}
-        {booking.status === 'confirmed' ? <StoreLiteNotice>取消已确认预约会将状态更新为“已取消”。本版本未发生扣款，不涉及退款。</StoreLiteNotice> : null}
+        {booking.status === 'confirmed' ? <StoreLiteNotice>取消后状态会更新为“已取消”；如需新的时间，请重新提交预约申请。</StoreLiteNotice> : null}
         {booking.status === 'submitted' || booking.status === 'confirmed' ? <button type="button" onClick={() => void cancel()} disabled={cancelling} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-black text-rose-600 ring-1 ring-rose-200"><RotateCcw size={16} />{cancelling ? '取消中' : booking.status === 'confirmed' ? '取消已确认预约' : '撤回预约申请'}</button> : null}
       </div>
     </>

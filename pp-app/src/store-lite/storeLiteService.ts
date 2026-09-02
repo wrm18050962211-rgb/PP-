@@ -146,7 +146,7 @@ function unwrap<T>(response: ApiResponse<T>, fallback: string): T {
 function publicErrorMessage(code: string, fallback: string) {
   const normalized = code.trim().toUpperCase();
   if (/AUTH|SESSION|UNAUTHORIZED/.test(normalized)) return '登录已过期，请重新登录';
-  if (/PUBLIC_TEXT_UNSAFE/.test(normalized)) return '请勿填写手机号、外部联系方式、链接或付款信息';
+  if (/PUBLIC_TEXT_UNSAFE/.test(normalized)) return '请勿填写手机号、外部联系方式或链接';
   if (/RATE|TOO_MANY|COOLDOWN/.test(normalized)) return '操作过于频繁，请稍后再试';
   if (/CONFLICT|STALE|IDEMPOTENCY/.test(normalized)) return '当前状态已经变化，请刷新后重试';
   if (/NOT_FOUND/.test(normalized)) return '记录不存在或已无法访问';

@@ -1,8 +1,8 @@
-import { CalendarDays, Check, ChevronRight, FileText, Headphones, LogIn, LogOut, ShieldCheck, Smartphone, UserRound } from 'lucide-react';
+import { Ban, CalendarDays, Check, ChevronRight, FileText, Flag, Headphones, LogIn, LogOut, Settings, ShieldCheck, Smartphone, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useStoreLiteAuth } from '../StoreLiteAuth';
-import { StoreLiteError, StoreLiteLoading, StoreLiteNotice, StoreLitePageHeader } from '../StoreLiteUi';
+import { StoreLiteError, StoreLiteLoading } from '../StoreLiteUi';
 
 const privacyUrl = String(import.meta.env.VITE_PRIVACY_URL ?? '').trim();
 const termsUrl = String(import.meta.env.VITE_TERMS_URL ?? '').trim();
@@ -69,11 +69,11 @@ export function StoreLiteLoginPage() {
   if (loading) return <StoreLiteLoading label="正在确认登录状态" />;
 
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-md bg-[#f6f5f1] px-5 pb-10 pt-[calc(env(safe-area-inset-top)+2rem)] text-zinc-950">
-      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-zinc-400"><ShieldCheck size={15} />Still Store Lite</div>
-      <h1 className="mt-5 text-3xl font-black tracking-[-0.04em]">手机号登录 / 注册</h1>
-      <p className="mt-3 text-sm font-semibold leading-6 text-zinc-500">首次完成手机号验证即注册消费者账号；已有账号将直接登录。登录后可提交、查看和取消预约申请。</p>
-      <div className="mt-7 space-y-4 rounded-3xl bg-white p-5 ring-1 ring-zinc-200">
+    <main className="mx-auto min-h-dvh w-full max-w-md bg-[#050505] px-5 pb-10 pt-[calc(env(safe-area-inset-top)+2.5rem)] text-white">
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-white/42"><ShieldCheck size={15} />Still</div>
+      <h1 className="mt-5 text-[2rem] font-black tracking-[-0.045em]">登录 Still</h1>
+      <p className="mt-3 text-sm font-semibold leading-6 text-white/55">手机号验证后即可浏览、提交预约申请，并在不同设备查看处理状态。</p>
+      <div className="mt-7 space-y-4 rounded-[18px] bg-white p-5 text-zinc-950 shadow-[0_24px_70px_rgba(0,0,0,0.36)]">
         <label className="block"><span className="mb-2 block text-xs font-black text-zinc-500">手机号</span><input inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="11 位手机号" className="store-lite-input" /></label>
         <label className="block"><span className="mb-2 block text-xs font-black text-zinc-500">短信验证码</span><span className="flex gap-2"><input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 位验证码" className="store-lite-input min-w-0 flex-1" /><button type="button" disabled={!agreed || sending || cooldown > 0} onClick={() => void sendCode()} className="w-28 shrink-0 rounded-xl bg-zinc-100 text-xs font-black text-zinc-700 disabled:text-zinc-400">{cooldown > 0 ? `${cooldown}s` : sending ? '发送中' : '获取验证码'}</button></span></label>
         <button type="button" onClick={() => setAgreed((value) => !value)} className="flex items-start gap-3 text-left">
@@ -83,7 +83,7 @@ export function StoreLiteLoginPage() {
         {error ? <StoreLiteError message={error} /> : null}
         <button type="button" disabled={submitting} onClick={() => void submit()} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black text-white disabled:bg-zinc-300"><LogIn size={17} />{submitting ? '验证中' : '验证并继续'}</button>
       </div>
-      <StoreLiteNotice>本版本不含支付、定金、退款或结算功能。提交预约申请不会产生扣款。</StoreLiteNotice>
+      <button type="button" onClick={() => navigate(-1)} className="mx-auto mt-6 block text-sm font-bold text-white/55">暂不登录，返回浏览</button>
     </main>
   );
 }
@@ -96,13 +96,10 @@ export function StoreLiteAccountPage() {
   if (loading) return <StoreLiteLoading label="正在加载账号" />;
   if (!session) {
     return (
-      <>
-        <StoreLitePageHeader title="我的" eyebrow="Account" back={false} />
-        <div className="px-4 py-8">
-          <section className="rounded-3xl bg-zinc-950 p-6 text-white"><UserRound size={32} /><h2 className="mt-5 text-2xl font-black">登录后管理预约</h2><p className="mt-2 text-sm font-semibold leading-6 text-white/60">手机号验证后可在多台设备查看同一份预约状态。</p><Link to="/login" className="mt-5 flex h-12 items-center justify-center rounded-full bg-white text-sm font-black text-zinc-950">登录 / 注册</Link></section>
+      <div className="px-4 pb-5 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+        <section className="rounded-[10px] bg-zinc-950 p-5 text-white"><UserRound size={30} /><h1 className="mt-5 text-2xl font-black">登录后管理预约</h1><p className="mt-2 text-sm font-semibold leading-6 text-white/58">手机号验证后可在不同设备查看同一份预约状态。</p><Link to="/login" className="mt-5 flex h-11 items-center justify-center rounded-full bg-white text-sm font-black text-zinc-950">登录 / 注册</Link></section>
           <LegalRows />
-        </div>
-      </>
+      </div>
     );
   }
 
@@ -118,21 +115,29 @@ export function StoreLiteAccountPage() {
   }
 
   return (
-    <>
-      <StoreLitePageHeader title="我的" eyebrow="Account" back={false} />
-      <div className="space-y-5 px-4 py-5">
-        <section className="rounded-3xl bg-zinc-950 p-5 text-white"><div className="flex items-center gap-4"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/12"><UserRound size={24} /></span><div className="min-w-0"><p className="truncate text-lg font-black">{session.user.nickname || 'Still 用户'}</p><p className="mt-1 text-sm font-semibold text-white/55">{maskPhone(session.user.phone)}</p></div></div><p className="mt-5 text-xs font-semibold leading-5 text-white/48">当前为无支付预约版本，账号中不会产生资金交易记录。</p></section>
+    <div className="space-y-5 px-4 pb-5 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+        <section className="rounded-[10px] bg-zinc-950 p-4 text-white">
+          <div className="flex items-center gap-4"><span className="grid h-14 w-14 place-items-center rounded-full bg-white/12"><UserRound size={24} /></span><div className="min-w-0 flex-1"><p className="text-xs font-black text-white/44">Still 账号</p><p className="mt-0.5 truncate text-xl font-black">{session.user.nickname || 'Still 用户'}</p><p className="mt-1 text-xs font-semibold text-white/54">{maskPhone(session.user.phone)}</p></div><ChevronRight size={21} className="text-white/36" /></div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <AccountQuickLink to="/bookings" icon={CalendarDays} label="我的预约" />
+            <AccountQuickLink to="/compliance/reports" icon={Flag} label="我的举报" />
+            <AccountQuickLink to="/compliance/blocked" icon={Ban} label="屏蔽管理" />
+          </div>
+        </section>
         {error ? <StoreLiteError message={error} /> : null}
-        <section className="overflow-hidden rounded-2xl bg-white ring-1 ring-zinc-200">
+        <section className="overflow-hidden rounded-[10px] bg-white ring-1 ring-zinc-200">
           <AccountRow to="/bookings" icon={CalendarDays} title="我的预约" description="查看确认、拒绝和取消状态" />
-          <AccountRow to="/compliance" icon={ShieldCheck} title="客服与数据权利" description="举报记录、个人数据与账号删除" />
+          <AccountRow to="/compliance" icon={Settings} title="设置与安全" description="客服、举报、个人数据与账号删除" />
           <ExternalRow href={supportUrl} icon={Headphones} title="帮助与客服" description="预约、内容安全与账号问题" />
         </section>
         <LegalRows />
         <button type="button" onClick={() => void doLogout()} disabled={loggingOut} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-black text-rose-600 ring-1 ring-rose-200"><LogOut size={17} />{loggingOut ? '退出中' : '退出登录'}</button>
-      </div>
-    </>
+    </div>
   );
+}
+
+function AccountQuickLink({ to, icon: Icon, label }: { to: string; icon: typeof CalendarDays; label: string }) {
+  return <Link to={to} className="rounded-[8px] bg-white/[0.07] px-2 py-3 text-center active:bg-white/[0.11]"><Icon size={16} className="mx-auto text-white/58" /><span className="mt-1 block text-xs font-black leading-5">{label}</span></Link>;
 }
 
 function LegalRows() {
