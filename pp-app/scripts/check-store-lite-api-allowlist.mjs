@@ -25,6 +25,8 @@ if (transpileFailures.length) {
 
 const originalStorage = globalThis.localStorage;
 const originalFetch = globalThis.fetch;
+const originalSetTimeout = globalThis.setTimeout;
+const originalClearTimeout = globalThis.clearTimeout;
 const token = 'store-lite-policy-secret-token';
 const storage = new Map([['pp-auth-token-v1', token]]);
 globalThis[fixtureEnvName] = {
@@ -150,6 +152,67 @@ try {
   if (capturedUrl !== 'http://127.0.0.1:8787/api/feed/posts?limit=20') failures.push('approved wrapper request changed its target');
   if (capturedAuthorization !== `Bearer ${token}`) failures.push('approved wrapper request did not preserve consumer authorization');
 
+  globalThis.fetch = async () => {
+    throw new TypeError('network failed');
+  };
+  try {
+    await policyModule.storeLiteGet('/api/feed/posts?limit=20');
+    failures.push('network failure wrapper request unexpectedly resolved');
+  } catch (error) {
+    if (error?.code !== 'NETWORK_ERROR' || error?.message !== '网络连接失败，请检查网络后重试') {
+      failures.push('network failure wrapper request did not return the stable public network error');
+    }
+  }
+
+  globalThis.fetch = async () => ({
+    status: 200,
+    json: async () => {
+      throw new SyntaxError('invalid json');
+    },
+  });
+  try {
+    await policyModule.storeLiteGet('/api/feed/posts?limit=20');
+    failures.push('invalid response wrapper request unexpectedly resolved');
+  } catch (error) {
+    if (error?.code !== 'RESPONSE_INVALID' || error?.message !== '服务端返回了无法识别的响应') {
+      failures.push('invalid response wrapper request did not return the stable public response error');
+    }
+  }
+
+  globalThis.fetch = async () => ({
+    status: 200,
+    json: async () => ({ unexpected: true }),
+  });
+  try {
+    await policyModule.storeLiteGet('/api/feed/posts?limit=20');
+    failures.push('invalid response shape wrapper request unexpectedly resolved');
+  } catch (error) {
+    if (error?.code !== 'RESPONSE_INVALID' || error?.message !== '服务端响应结构无效') {
+      failures.push('invalid response shape wrapper request did not return the stable public response error');
+    }
+  }
+
+  globalThis.fetch = (_url, init = {}) => new Promise((_resolve, reject) => {
+    init.signal?.addEventListener('abort', () => {
+      const error = new Error('aborted');
+      error.name = 'AbortError';
+      reject(error);
+    }, { once: true });
+  });
+  globalThis.setTimeout = (callback) => {
+    queueMicrotask(callback);
+    return 1;
+  };
+  globalThis.clearTimeout = () => {};
+  try {
+    await policyModule.storeLiteGet('/api/feed/posts?limit=20');
+    failures.push('timed out wrapper request unexpectedly resolved');
+  } catch (error) {
+    if (error?.code !== 'REQUEST_TIMEOUT' || error?.message !== '请求超时，请检查网络后重试') {
+      failures.push('timed out wrapper request did not return the stable public timeout error');
+    }
+  }
+
   if (failures.length) {
     console.error('Store Lite API allowlist guard failed.');
     for (const failure of failures) console.error(`- ${failure}`);
@@ -162,6 +225,8 @@ try {
   else globalThis.localStorage = originalStorage;
   if (originalFetch === undefined) delete globalThis.fetch;
   else globalThis.fetch = originalFetch;
+  globalThis.setTimeout = originalSetTimeout;
+  globalThis.clearTimeout = originalClearTimeout;
   delete globalThis[fixtureEnvName];
 }
 

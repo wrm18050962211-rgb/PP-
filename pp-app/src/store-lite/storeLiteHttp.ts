@@ -7,10 +7,23 @@ const isProduction = appEnvironment === 'production' || (!appEnvironment && impo
 const localBaseUrl = import.meta.env.PROD ? '' : 'http://127.0.0.1:8787';
 const baseUrl = configuredBaseUrl || (isProduction ? '' : localBaseUrl);
 const publicTokenStorageKey = 'pp-auth-token-v1';
+export const storeLiteRequestTimeoutMs = 15_000;
 export const storeLiteAuthExpiredEvent = 'store-lite-auth-expired';
 let publicToken = readStoredToken();
 
 type StoreLiteHttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+
+export type StoreLiteTransportErrorCode = 'NETWORK_ERROR' | 'REQUEST_TIMEOUT' | 'RESPONSE_INVALID';
+
+export class StoreLiteTransportError extends Error {
+  constructor(
+    public readonly code: StoreLiteTransportErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'StoreLiteTransportError';
+  }
+}
 
 type StoreLiteApiRoute = {
   method: StoreLiteHttpMethod;
@@ -90,7 +103,14 @@ async function storeLiteRequest<T>(path: string, method: StoreLiteHttpMethod, bo
   if (!baseUrl) throw new Error('Store Lite API is not configured.');
   const approvedPath = assertStoreLiteApiRequestAllowed(path, method);
   const token = getStoreLiteToken();
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, storeLiteRequestTimeoutMs);
   let response: Response;
+  let payload: unknown;
   try {
     response = await fetch(`${baseUrl}${approvedPath}`, {
       method,
@@ -99,22 +119,37 @@ async function storeLiteRequest<T>(path: string, method: StoreLiteHttpMethod, bo
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
     });
-  } catch {
-    throw new Error('网络连接失败，请检查网络后重试');
+    try {
+      payload = await response.json();
+    } catch (cause) {
+      if (timedOut || isAbortError(cause)) {
+        throw new StoreLiteTransportError('REQUEST_TIMEOUT', '请求超时，请检查网络后重试');
+      }
+      throw new StoreLiteTransportError('RESPONSE_INVALID', '服务端返回了无法识别的响应');
+    }
+  } catch (cause) {
+    if (cause instanceof StoreLiteTransportError) throw cause;
+    if (timedOut || isAbortError(cause)) {
+      throw new StoreLiteTransportError('REQUEST_TIMEOUT', '请求超时，请检查网络后重试');
+    }
+    throw new StoreLiteTransportError('NETWORK_ERROR', '网络连接失败，请检查网络后重试');
+  } finally {
+    clearTimeout(timeoutId);
   }
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch {
-    throw new Error('服务端返回了无法识别的响应');
+  if (!isApiResponse<T>(payload)) {
+    throw new StoreLiteTransportError('RESPONSE_INVALID', '服务端响应结构无效');
   }
-  if (!isApiResponse<T>(payload)) throw new Error('服务端响应结构无效');
   if (response.status === 401) {
     clearStoreLiteToken();
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(storeLiteAuthExpiredEvent));
   }
   return payload;
+}
+
+function isAbortError(cause: unknown) {
+  return cause instanceof Error && cause.name === 'AbortError';
 }
 
 /**
