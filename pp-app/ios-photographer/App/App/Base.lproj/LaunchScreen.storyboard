@@ -16,16 +16,16 @@
                         <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                         <autoresizingMask key="autoresizingMask"/>
                         <subviews>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="AppIcon" translatesAutoresizingMaskIntoConstraints="NO" id="bdI-c0-n01">
-                                <rect key="frame" x="135.5" y="281.5" width="104" height="104"/>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="BrandLaunch" translatesAutoresizingMaskIntoConstraints="NO" id="bdI-c0-n01">
+                                <rect key="frame" x="151.5" y="297.5" width="72" height="72"/>
                             </imageView>
                         </subviews>
                         <color key="backgroundColor" red="0.019607843137254902" green="0.019607843137254902" blue="0.019607843137254902" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
                             <constraint firstItem="bdI-c0-n01" firstAttribute="centerX" secondItem="snD-IY-ifK" secondAttribute="centerX" id="O82-GY-XcD"/>
                             <constraint firstItem="bdI-c0-n01" firstAttribute="centerY" secondItem="snD-IY-ifK" secondAttribute="centerY" id="Qmz-Ju-IzA"/>
-                            <constraint firstItem="bdI-c0-n01" firstAttribute="width" constant="104" id="dT1-M7-r0Y"/>
-                            <constraint firstItem="bdI-c0-n01" firstAttribute="height" constant="104" id="zrr-y5-3XH"/>
+                            <constraint firstItem="bdI-c0-n01" firstAttribute="width" constant="72" id="dT1-M7-r0Y"/>
+                            <constraint firstItem="bdI-c0-n01" firstAttribute="height" constant="72" id="zrr-y5-3XH"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -35,6 +35,6 @@
         </scene>
     </scenes>
     <resources>
-        <image name="AppIcon" width="1024" height="1024"/>
+        <image name="BrandLaunch" width="1024" height="1024"/>
     </resources>
 </document>

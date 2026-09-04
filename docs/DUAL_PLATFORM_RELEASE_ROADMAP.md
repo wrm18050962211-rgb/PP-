@@ -850,7 +850,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Shared files: `pp-app/src/**`, `docs/IOS_REAL_DEVICE_TEST_LOG.md`
 - Unblock result: 提供设备/系统、用例结果、失败截图或日志和 commit SHA；解除 `INT-RC-1` 的基础 QA 条件。
 - Result commit: pending
-- Verification: 2026-09-03 已在 Xcode 26.6、iOS 26.5 的 `Still Store Lite 430x932`（iPhone 15 Pro Max，430×932）模拟器完成 Store Lite Mock Debug 构建、Capacitor sync、Swift Package 官方依赖解析、`xcodebuild`、安装、冷启动和首页原生截图；430×932 Web 回归覆盖精选作品流、作品详情、摄影师列表/详情、登录、提交预约、四种预约状态、我的、设置、客服、举报、屏蔽、账号删除和数据权利。模拟器发现的一条 404 Mock 图片已修正并重新构建复核。真实 API、弱网/断网、键盘、前后台恢复、真机流程和 TestFlight 尚未验收。
+- Verification: 2026-09-03 已在 Xcode 26.6、iOS 26.5 的 `Still Store Lite 430x932`（iPhone 15 Pro Max，430×932）模拟器完成 Store Lite Mock Debug 构建、Capacitor sync、Swift Package 官方依赖解析、`xcodebuild`、安装、冷启动和首页原生截图；430×932 Web 回归覆盖精选作品流、作品详情、摄影师列表/详情、登录、提交预约、四种预约状态、我的、设置、客服、举报、屏蔽、账号删除和数据权利。模拟器发现的一条 404 Mock 图片已修正并重新构建复核。2026-09-04 将用户端与摄影师端原生启动图统一为 72pt 居中品牌图标，并在完整 Mock Debug 模拟器逐帧确认黑底停留、中心橙色圆连续扩张、全屏覆盖后进入登录页；完整 Mock 构建、真实数据 Store Lite 构建、Store Lite 产物完整性和生产守卫通过。真实 API、弱网/断网、键盘、前后台恢复、真机流程和 TestFlight 尚未验收。
 - Notes: 模拟器 Mock 只用于视觉和交互回归，不能替代真实数据或真机证据；真实短信不可用时输出依赖通知，但继续其他独立用例。上线前仍必须完成真机和 TestFlight 回归，本节点不解除 `INT-RC-1`。
 
 ### IOS-AUTH-1 Store Lite 消费者真实短信登录和会话恢复
