@@ -1074,7 +1074,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Unblock result: 提供 build number、TestFlight 状态、安装结果和 commit SHA，解除 `INT-TESTFLIGHT-1`。
 - Result commit: pending
 - Verification: pending
-- Notes: 证书和描述文件禁止提交；完整崩溃 SDK 由 `IOS-CRASH-1` 在商业 v1.1 前完成，Store Lite 首审至少保留 TestFlight/Xcode 崩溃日志和版本映射。
+- Notes: 证书和描述文件禁止提交；完整崩溃 SDK 由 `IOS-CRASH-1` 在商业 v1.1 前完成，Store Lite 首审至少保留 TestFlight/Xcode 崩溃日志和版本映射。`brand/still-app-icon-1024.png` 已作为唯一 1024×1024 母版迁入主线并写入 iOS AppIcon 集；Mac 仍需在真机检查系统蒙版、小尺寸辨识度、深色桌面和聚焦框可见性，本节点状态不因此提前完成。
 
 ### IOS-STORE-1 App Store 提交
 

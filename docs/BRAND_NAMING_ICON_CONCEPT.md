@@ -106,6 +106,14 @@ Vibe：光正在形成，代表状态被找到。
 Still：光被放进画面，代表此刻被留下。
 ```
 
+## 已落地发布资产
+
+- 品牌源文件：`brand/still-app-icon-1024.png`
+- 发布规格和哈希：`brand/README.md`
+- iOS Asset Catalog：`pp-app/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png`
+
+品牌源文件是唯一母版；各平台图标从母版生成或复制，不在平台目录内单独重画。iOS 系统圆角由系统蒙版处理，源文件保持方形且不预制圆角。
+
 ## App Store 本地化策略
 
 中国区建议使用英文主名加中文副标题：
@@ -123,4 +131,3 @@ Keep your presence in frame
 ```
 
 主品牌不使用“约拍、陪拍、写真”等功能词，避免降低生活方式品牌感。这些词可以放入关键词、描述或搜索优化中，而不是放进主品牌。
-
