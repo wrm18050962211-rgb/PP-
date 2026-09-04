@@ -7,8 +7,12 @@ import { assertPublicHttpsUrl, assertStoreLiteApiOrigin } from './scripts/store-
 
 const projectRootPath = normalizeModulePath(fileURLToPath(new URL('.', import.meta.url)));
 const storeLiteEntryPath = fileURLToPath(new URL('./src/storeLiteMain.tsx', import.meta.url));
+const brandLaunchScreenPath = fileURLToPath(new URL('./src/components/BrandLaunchScreen.tsx', import.meta.url));
+const brandIconPath = fileURLToPath(new URL('../brand/still-app-icon-1024.png', import.meta.url));
 const allowedLocalFiles = new Set([
   normalizeModulePath(storeLiteEntryPath),
+  normalizeModulePath(brandLaunchScreenPath),
+  normalizeModulePath(brandIconPath),
   normalizeModulePath(fileURLToPath(new URL('./store-lite-entry/index.html', import.meta.url))),
   normalizeModulePath(fileURLToPath(new URL('./store-lite-simulator-entry/index.html', import.meta.url))),
   normalizeModulePath(fileURLToPath(new URL('./src/styles/index.css', import.meta.url))),

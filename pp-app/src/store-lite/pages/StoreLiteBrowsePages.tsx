@@ -118,11 +118,11 @@ export function StoreLiteDiscoverPage() {
       {!loading && error ? <StoreLiteError message={error} onRetry={() => void load(true)} /> : null}
       {!loading && !error && visiblePosts.length === 0 ? <EmptyBrowse title={posts.length ? '没有匹配的作品' : '暂无可展示作品'} dark /> : null}
       {!loading && !error && visiblePosts.length > 0 ? (
-        <section className="grid grid-cols-2 items-start gap-px bg-[#050505] pb-4">
+        <section className="grid grid-cols-2 items-start gap-2 bg-[#050505] px-2 pb-4 pt-2">
           {columns.map((column, columnIndex) => (
-            <div key={columnIndex} className="flex flex-col gap-px">
+            <div key={columnIndex} className="flex min-w-0 flex-col gap-2">
               {column.map((post, index) => (
-                <StoreLiteFeedCard key={post.id} post={post} eager={index < 2} variant={(index + columnIndex) % 4} />
+                <StoreLiteFeedCard key={post.id} post={post} eager={index < 2} />
               ))}
             </div>
           ))}
@@ -419,23 +419,39 @@ function StoreLiteImage({ post, className = '', eager = false }: { post: FeedPos
   );
 }
 
-function StoreLiteFeedCard({ post, eager, variant }: { post: FeedPost; eager: boolean; variant: number }) {
+function StoreLiteFeedCard({ post, eager }: { post: FeedPost; eager: boolean }) {
   const image = post.images[0];
-  const aspectClass = ['aspect-[0.74]', 'aspect-[0.92]', 'aspect-[0.8]', 'aspect-[1.12]'][variant] || 'aspect-[0.82]';
+  const aspectRatio = image?.width && image.height && image.width > 0 && image.height > 0
+    ? `${image.width} / ${image.height}`
+    : '3 / 4';
+
   return (
-    <Link to={`/works/${encodeURIComponent(post.id)}`} className="group block bg-[#0b0b0b]" aria-label={`查看作品 ${getPostTitle(post)}`}>
-      <div className={`relative overflow-hidden ${aspectClass}`}>
-        {image?.url ? (
-          <img src={image.posterUrl || image.url} alt={getPostTitle(post)} loading={eager ? 'eager' : 'lazy'} className="h-full w-full bg-zinc-950 object-cover brightness-[0.94] contrast-[1.08] transition duration-500 group-active:scale-[1.02]" />
-        ) : (
-          <div className="grid h-full w-full place-items-center bg-zinc-900 text-white/30"><Aperture size={24} /></div>
-        )}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-1 bg-gradient-to-t from-black/76 via-black/16 to-transparent px-1.5 pb-1.5 pt-8 text-[9px] font-semibold text-white/75">
-          <span className="inline-flex min-w-0 items-center gap-0.5"><MapPin size={9} className="shrink-0" /><span className="truncate">{post.locationName || post.location || post.companion.baseCity}</span></span>
-          <span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums"><Heart size={9} fill="currentColor" />{post.likeCount ?? 0}</span>
+    <article className="overflow-hidden bg-[#050505]">
+      <Link to={`/works/${encodeURIComponent(post.id)}`} className="group block" aria-label={`查看作品 ${getPostTitle(post)}`}>
+        <div className="relative overflow-hidden rounded-[16px] bg-zinc-950" style={{ aspectRatio }}>
+          {image?.url ? (
+            <img
+              src={image.posterUrl || image.url}
+              alt={getPostTitle(post)}
+              loading={eager ? 'eager' : 'lazy'}
+              className="h-full w-full object-cover brightness-[0.94] contrast-[1.14] saturate-[0.98] transition duration-500 group-active:scale-[1.03]"
+            />
+          ) : (
+            <div className="grid h-full w-full place-items-center bg-zinc-900 text-white/30"><Aperture size={24} /></div>
+          )}
         </div>
-      </div>
-    </Link>
+        <div className="flex h-7 items-center justify-between gap-2 px-1 text-[10px] font-semibold text-white/68">
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <MapPin size={10} className="shrink-0 text-white/52" />
+            <span className="truncate">{post.locationName || post.location || post.companion.baseCity}</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-1 tabular-nums text-white/62">
+            <Heart size={10} fill="currentColor" />
+            {post.likeCount ?? 0}
+          </span>
+        </div>
+      </Link>
+    </article>
   );
 }
 

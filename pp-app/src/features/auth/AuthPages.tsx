@@ -24,8 +24,14 @@ import { submitSupportRequest, supportRequestCategoryOptions, type SupportReques
 
 type PublicRole = RegisterInput['role'];
 
+const configuredPublicAppRole = String(import.meta.env.VITE_PUBLIC_APP_ROLE ?? '').trim();
+const enforcedPublicAppRole: PublicRole | null = configuredPublicAppRole === 'consumer' || configuredPublicAppRole === 'companion'
+  ? configuredPublicAppRole
+  : null;
+
 function toPublicRole(value: unknown): PublicRole | null {
-  return value === 'consumer' || value === 'companion' ? value : null;
+  const role = value === 'consumer' || value === 'companion' ? value : null;
+  return role && (!enforcedPublicAppRole || role === enforcedPublicAppRole) ? role : null;
 }
 
 function getRegisterPath(role: PublicRole, phone?: string) {
@@ -34,10 +40,13 @@ function getRegisterPath(role: PublicRole, phone?: string) {
   return `/auth/register?${params.toString()}`;
 }
 
-const roleOptions: Array<{ role: PublicRole; title: string; desc: string; icon: typeof UserRound }> = [
-  { role: 'consumer', title: 'Client', desc: '预约拍摄，管理成片', icon: UserRound },
-  { role: 'companion', title: 'Studio', desc: '接单报价，管理交付', icon: Camera },
+const allRoleOptions: Array<{ role: PublicRole; title: string; desc: string; icon: typeof UserRound }> = [
+  { role: 'consumer', title: '用户端', desc: '预约拍摄，管理成片', icon: UserRound },
+  { role: 'companion', title: '摄影师端', desc: '接单报价，管理交付', icon: Camera },
 ];
+const roleOptions = enforcedPublicAppRole
+  ? allRoleOptions.filter((item) => item.role === enforcedPublicAppRole)
+  : allRoleOptions;
 const localSmsCodeLabel = import.meta.env.PROD ? '' : '本地测试验证码：';
 
 function preloadConsumerHome() {
@@ -59,9 +68,10 @@ function preloadConsumerHome() {
 }
 
 export function EntryRedirect() {
-  if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace />;
+  if (!hasRegisteredAccount()) return <Navigate to="/auth/login" replace />;
   if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace />;
-  return <Navigate to={getPostAuthHome(getActiveAuthRole())} replace />;
+  if (enforcedPublicAppRole && !accountHasRole(enforcedPublicAppRole)) return <Navigate to={getRegisterPath(enforcedPublicAppRole)} replace />;
+  return <Navigate to={getPostAuthHome(enforcedPublicAppRole ?? getActiveAuthRole())} replace />;
 }
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -73,7 +83,6 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export function RequireRole({ role, fallback, children }: { role: PublicRole; fallback: string; children: React.ReactNode }) {
   const location = useLocation();
-  const account = getRegisteredAccount();
   const activeRole = getActiveAuthRole();
   if (!hasRegisteredAccount()) return <Navigate to="/auth/register" replace state={{ from: location.pathname }} />;
   if (!isAccountLoggedIn()) return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
@@ -100,7 +109,9 @@ export function RequireRegistrationDraft({ role, children }: { role: PublicRole;
 }
 
 export function GuestOnly({ children }: { children: React.ReactNode }) {
-  if (isAccountLoggedIn()) return <Navigate to={getPostAuthHome(getActiveAuthRole())} replace />;
+  if (isAccountLoggedIn() && (!enforcedPublicAppRole || accountHasRole(enforcedPublicAppRole))) {
+    return <Navigate to={getPostAuthHome(enforcedPublicAppRole ?? getActiveAuthRole())} replace />;
+  }
   return children;
 }
 
@@ -108,7 +119,7 @@ export function RegisterPage() {
   const location = useLocation();
   const registerState = location.state as { role?: PublicRole; phone?: string } | null;
   const registerParams = new URLSearchParams(location.search);
-  const initialRole = toPublicRole(registerState?.role) ?? toPublicRole(registerParams.get('role')) ?? 'consumer';
+  const initialRole = enforcedPublicAppRole ?? toPublicRole(registerState?.role) ?? toPublicRole(registerParams.get('role')) ?? 'consumer';
   const initialPhone = registerState?.phone ?? registerParams.get('phone') ?? '';
 
   return <RegisterForm key={`${initialRole}:${initialPhone}`} initialRole={initialRole} initialPhone={initialPhone} />;
@@ -165,8 +176,8 @@ function RegisterForm({ initialRole, initialPhone }: { initialRole: PublicRole; 
   }
 
   return (
-    <AuthFrame eyebrow="首次使用 Still" title="选择入口并注册">
-      <div className="grid grid-cols-2 gap-2">
+    <AuthFrame eyebrow="首次使用帧遇" title={enforcedPublicAppRole === 'companion' ? '摄影师账号注册' : enforcedPublicAppRole === 'consumer' ? '用户账号注册' : '选择入口并注册'}>
+      <div className={`grid gap-2 ${roleOptions.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {roleOptions.map((item) => {
           const Icon = item.icon;
           const active = role === item.role;
@@ -177,7 +188,9 @@ function RegisterForm({ initialRole, initialPhone }: { initialRole: PublicRole; 
               className={`min-h-28 rounded-[8px] px-3 py-3 text-left ring-1 transition ${
                 active ? 'bg-black text-white ring-black' : 'bg-zinc-50 text-zinc-800 ring-zinc-200 hover:bg-zinc-100'
               }`}
-              onClick={() => setRole(item.role)}
+              onClick={() => {
+                if (!enforcedPublicAppRole) setRole(item.role);
+              }}
             >
               <Icon size={20} />
               <span className="mt-3 block text-base font-black">{item.title}</span>
@@ -216,7 +229,7 @@ export function LoginPage() {
   const loginState = location.state as { role?: PublicRole; phone?: string } | null;
   const account = getRegisteredAccount();
   const [phone, setPhone] = useState(loginState?.phone ?? account?.phone ?? '');
-  const [role, setRole] = useState<PublicRole>(loginState?.role ?? account?.role ?? 'consumer');
+  const [role, setRole] = useState<PublicRole>(enforcedPublicAppRole ?? loginState?.role ?? account?.role ?? 'consumer');
   const [code, setCode] = useState('');
   const [demoCode, setDemoCode] = useState('');
   const [error, setError] = useState('');
@@ -224,7 +237,8 @@ export function LoginPage() {
   const [sendingCode, setSendingCode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
-  const registeredRoles = getAvailableLoginRoles(phone || account?.phone);
+  const registeredRoles = getAvailableLoginRoles(phone || account?.phone)
+    .filter((registeredRole) => !enforcedPublicAppRole || registeredRole === enforcedPublicAppRole);
   const showTestCode = isTestRoleSwitchAllowed();
 
   useEffect(() => {
@@ -257,7 +271,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       const session = await loginWithPhoneCode(phone, code, role);
-      navigate(getPostAuthHome(session.role), { replace: true });
+      navigate(getPostAuthHome(enforcedPublicAppRole ?? session.role), { replace: true });
     } catch (nextError) {
       if (nextError instanceof PendingRoleReviewError) {
         setMissingRolePrompt(null);
@@ -286,7 +300,7 @@ export function LoginPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid gap-2 ${roleOptions.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
         {roleOptions.map((item) => {
           const Icon = item.icon;
           const active = role === item.role;
@@ -298,7 +312,7 @@ export function LoginPage() {
                 active ? 'bg-black text-white ring-black' : 'bg-zinc-50 text-zinc-800 ring-zinc-200 hover:bg-zinc-100'
               }`}
               onClick={() => {
-                setRole(item.role);
+                if (!enforcedPublicAppRole) setRole(item.role);
                 setMissingRolePrompt(null);
               }}
             >

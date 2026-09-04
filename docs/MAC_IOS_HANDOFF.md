@@ -10,6 +10,8 @@
 
 按照 `docs/APP_STORE_LAUNCH.md` 推进不含支付的 Store Lite 首审版本：消费者专用构建、真实内容、真实预约申请、合规入口、Release Archive 和 TestFlight。支付、完整地图、聊天、媒体上传和摄影师移动端均在首次上架后推进。
 
+自 2026-09-04 起，`ios/App` 只代表用户端 `帧遇`（`com.frameyu.still`）；`ios-photographer/App` 是摄影师端 `帧遇摄影师`（`com.frameyu.still.photographer`）。当前 TestFlight/Archive 只操作 `ios/App`，不得用摄影师工程替代用户端首审包。
+
 ## 当前已确认状态
 
 - 产品名称：Still

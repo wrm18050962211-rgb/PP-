@@ -189,7 +189,19 @@ const checks = [
   },
   {
     file: 'vite.mobile.config.ts',
-    includes: ["replacement: fileURLToPath(new URL('./src/app/MobileApp.tsx', import.meta.url))"],
+    includes: [
+      "replacement: fileURLToPath(new URL('./src/app/ConsumerMobileApp.tsx', import.meta.url))",
+      "'import.meta.env.VITE_PUBLIC_APP_ROLE': JSON.stringify('consumer')",
+      "name: 'consumer-module-boundary'",
+    ],
+  },
+  {
+    file: 'vite.photographer.config.ts',
+    includes: [
+      "replacement: fileURLToPath(new URL('./src/app/PhotographerMobileApp.tsx', import.meta.url))",
+      "'import.meta.env.VITE_PUBLIC_APP_ROLE': JSON.stringify('companion')",
+      "outDir: 'dist-photographer'",
+    ],
   },
   {
     file: 'vite.admin.config.ts',
@@ -210,13 +222,27 @@ for (const check of checks) {
   }
 }
 
-const mobileAppSource = readFileSync(resolve(root, 'src/app/MobileApp.tsx'), 'utf8');
-if (mobileAppSource.includes('AdminDashboard') || mobileAppSource.includes('/admin/login')) {
-  failures.push('src/app/MobileApp.tsx must not include admin dashboard or admin login routes');
+const consumerAppSource = readFileSync(resolve(root, 'src/app/ConsumerMobileApp.tsx'), 'utf8');
+if (consumerAppSource.includes('AdminDashboard') || consumerAppSource.includes('/admin/login')) {
+  failures.push('src/app/ConsumerMobileApp.tsx must not include admin dashboard or admin login routes');
 }
 
-if (mobileAppSource.includes('CompanionComingSoonPage')) {
-  failures.push('src/app/MobileApp.tsx must not include companion coming-soon routes');
+if (
+  consumerAppSource.includes("features/companion/")
+  || consumerAppSource.includes("layouts/RoleShell")
+  || consumerAppSource.includes('path="/companion')
+) {
+  failures.push('src/app/ConsumerMobileApp.tsx must not include photographer routes or modules');
+}
+
+const photographerAppSource = readFileSync(resolve(root, 'src/app/PhotographerMobileApp.tsx'), 'utf8');
+if (
+  photographerAppSource.includes("layouts/ConsumerShell")
+  || photographerAppSource.includes('path="/consumer')
+  || photographerAppSource.includes('CheckoutPage')
+  || photographerAppSource.includes('OrdersPage') && !photographerAppSource.includes('CompanionOrdersPage')
+) {
+  failures.push('src/app/PhotographerMobileApp.tsx must not include consumer-only routes or modules');
 }
 
 const roleShellSource = readFileSync(resolve(root, 'src/layouts/RoleShell.tsx'), 'utf8');

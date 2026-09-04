@@ -29,6 +29,7 @@ export function PhotoCard({
   postHref,
   playLive = false,
   likeCount,
+  masonry = false,
 }: {
   post: FeedPost;
   priority?: boolean;
@@ -37,16 +38,21 @@ export function PhotoCard({
   postHref?: string;
   playLive?: boolean;
   likeCount?: number;
+  masonry?: boolean;
 }) {
   const visibleLikeCount = likeCount ?? post.likeCount ?? 0;
   const href = postHref ?? `/consumer/post/${post.id}`;
   const cover = getFeedCover(post.images[0], variant);
   const liveCover = isLiveMedia(cover);
+  const masonryAspectRatio = getMasonryAspectRatio(cover);
 
   return (
     <article className={`overflow-hidden bg-[#050505] ${className}`} data-feed-live-card={liveCover ? '1' : undefined} data-feed-post-id={post.id}>
       <Link to={href} className="block" aria-label={`查看${post.location}作品详情`}>
-        <div className={`relative overflow-hidden bg-zinc-950 ${aspectByVariant[variant]}`}>
+        <div
+          className={`relative overflow-hidden bg-zinc-950 ${masonry ? 'rounded-[16px]' : aspectByVariant[variant]}`}
+          style={masonry ? { aspectRatio: masonryAspectRatio } : undefined}
+        >
           <LivePhotoMedia
             media={cover}
             alt={post.location}
@@ -56,20 +62,39 @@ export function PhotoCard({
             playLive={playLive && liveCover}
             mediaClassName="brightness-[0.94] contrast-[1.14] saturate-[0.98] transition duration-500 active:scale-[1.03]"
           />
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-1 bg-gradient-to-t from-black/72 via-black/18 to-transparent px-1.5 pb-1.5 pt-7">
-            <span className="inline-flex min-w-0 items-center gap-0.5 text-[9px] font-semibold tracking-wide text-white/72 drop-shadow">
-              <MapPin size={9} className="shrink-0" />
+          {!masonry ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-1 bg-gradient-to-t from-black/72 via-black/18 to-transparent px-1.5 pb-1.5 pt-7">
+              <span className="inline-flex min-w-0 items-center gap-0.5 text-[9px] font-semibold tracking-wide text-white/72 drop-shadow">
+                <MapPin size={9} className="shrink-0" />
+                <span className="truncate">{post.locationName || post.location}</span>
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-semibold tabular-nums text-white/72 drop-shadow">
+                <Heart size={9} fill="currentColor" />
+                {formatSocialCount(visibleLikeCount)}
+              </span>
+            </div>
+          ) : null}
+        </div>
+        {masonry ? (
+          <div className="flex h-7 items-center justify-between gap-2 px-1 text-[10px] font-semibold text-white/68">
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <MapPin size={10} className="shrink-0 text-white/52" />
               <span className="truncate">{post.locationName || post.location}</span>
             </span>
-            <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-semibold tabular-nums text-white/72 drop-shadow">
-              <Heart size={9} fill="currentColor" />
+            <span className="inline-flex shrink-0 items-center gap-1 tabular-nums text-white/62">
+              <Heart size={10} fill="currentColor" />
               {formatSocialCount(visibleLikeCount)}
             </span>
           </div>
-        </div>
+        ) : null}
       </Link>
     </article>
   );
+}
+
+function getMasonryAspectRatio(cover: FeedPost['images'][number] | undefined) {
+  if (!cover?.width || !cover.height || cover.width <= 0 || cover.height <= 0) return '3 / 4';
+  return `${cover.width} / ${cover.height}`;
 }
 
 function getFeedCover(cover: FeedPost['images'][number] | undefined, variant: PhotoCardVariant) {

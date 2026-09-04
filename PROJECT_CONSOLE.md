@@ -1,6 +1,6 @@
 # Still Project Console
 
-Updated: 2026-08-26
+Updated: 2026-09-04
 
 ## Active Route
 
@@ -10,6 +10,7 @@ Updated: 2026-08-26
 - Canonical branch: `codex/store-lite-main`
 - Canonical Roadmap: `docs/DUAL_PLATFORM_RELEASE_ROADMAP.md`
 - Current release target: no-payment `Store Lite 1.0`, followed by TestFlight and App Store review
+- App boundary: `帧遇` 用户端与 `帧遇摄影师` 是两个独立构建和 iOS App；当前只推进用户端测试与上线。
 - Visual baseline: `docs/MAIN_APP_UI_BASELINE.md`; keep the black discovery feed, immersive work detail, light account page, and floating bottom navigation from the established main App.
 
 ## Routing Rules
@@ -21,6 +22,7 @@ Updated: 2026-08-26
 5. Existing branches and worktrees are historical checkpoints. They are not current instructions and must not be merged wholesale.
 6. Keep `server/data/store.json`, old bundles, render output, deliverables, temporary files, deployment ZIP files, and all secret material out of release commits.
 7. Treat Store Lite as a compile-time release capability profile on the established main-App visual language, not as permission to replace the product with a separate visual shell.
+8. `npm run build` / iOS Debug 现在代表用户端完整 Mock 测试版；`build:store-lite` 代表同一用户端的无 Mock 首审版。摄影师端只使用 `build:photographer` 和 `ios-photographer` 独立工程，不得进入用户端包。
 
 ## Source Decisions
 

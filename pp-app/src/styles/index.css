@@ -35,6 +35,67 @@ button {
   border: 0;
 }
 
+.brand-launch-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  background: #050505;
+  animation: brand-launch-screen-reveal 1ms 1140ms steps(1, end) forwards;
+}
+
+.brand-launch-screen__orange,
+.brand-launch-screen__icon {
+  grid-area: 1 / 1;
+  height: 104px;
+  width: 104px;
+  border-radius: 23px;
+}
+
+.brand-launch-screen__orange {
+  z-index: 0;
+  background: #ff8654;
+  transform: scale(0.98);
+  animation: brand-launch-screen-expand 620ms 440ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.brand-launch-screen__icon {
+  z-index: 1;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+@keyframes brand-launch-screen-expand {
+  0% {
+    border-radius: 23px;
+    transform: scale(0.98);
+  }
+
+  100% {
+    border-radius: 0;
+    transform: scale(22);
+  }
+}
+
+@keyframes brand-launch-screen-reveal {
+  to {
+    visibility: hidden;
+  }
+}
+
+.brand-launch-screen[data-reduced-motion='true'] {
+  animation-delay: 500ms;
+}
+
+.brand-launch-screen[data-reduced-motion='true'] .brand-launch-screen__orange {
+  animation: none;
+  opacity: 0;
+}
+
 .scrollbar-none {
   scrollbar-width: none;
 }

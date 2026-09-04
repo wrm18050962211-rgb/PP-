@@ -3,6 +3,7 @@ dist/
 dist-admin/
 dist-store-lite/
 dist-store-lite-admin/
+dist-photographer/
 database/generated/
 pp-app/ios/App/Pods/
 pp-app/ios/App/build/
