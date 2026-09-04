@@ -42,8 +42,11 @@ export function UserCollectionPage({ mode, basePath = '/consumer' }: { mode: Use
 
   useEffect(() => {
     let mounted = true;
-    setLoading(true);
-    setErrorMessage('');
+    queueMicrotask(() => {
+      if (!mounted) return;
+      setLoading(true);
+      setErrorMessage('');
+    });
     fetchUserCollectionPage(kind, { limit: 20, posts })
       .then((page) => {
         if (!mounted) return;

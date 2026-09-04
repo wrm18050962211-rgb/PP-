@@ -32,7 +32,9 @@ export function PhotographerProfilePage() {
   useEffect(() => {
     if (!photographerId) return;
     let mounted = true;
-    setLoadError('');
+    queueMicrotask(() => {
+      if (mounted) setLoadError('');
+    });
     Promise.all([
       fetchPublicCompanion(photographerId),
       fetchCompanionPostPage(photographerId, { limit: 50 }),

@@ -504,10 +504,6 @@ function persistRemotePhoneAccount(session: AuthSession, requestedRole: PublicRo
   return account;
 }
 
-function isUserRole(role: unknown): role is UserRole {
-  return role === 'consumer' || role === 'companion' || role === 'admin';
-}
-
 function isPublicRole(role: unknown): role is PublicRole {
   return role === 'consumer' || role === 'companion';
 }

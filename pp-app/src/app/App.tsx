@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { EntryRedirect } from '../features/auth/AuthPages';
 import { AdminLoginPage, RequireAdmin } from '../features/auth/AdminAuthPages';
 import { mobileRouteElements } from './MobileApp';

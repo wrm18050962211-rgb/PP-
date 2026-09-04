@@ -20,7 +20,9 @@ import {
 } from '../../services/authService';
 import { submitAccountDeletionRequest } from '../../services/accountDeletionService';
 import { isTestRoleSwitchAllowed } from '../../services/apiClient';
+import { listFeedPosts } from '../../services/feedService';
 import { submitSupportRequest, supportRequestCategoryOptions, type SupportRequestCategory } from '../../services/supportRequestService';
+import { getFeedImageUrl } from '../../utils/imageUrl';
 
 type PublicRole = RegisterInput['role'];
 
@@ -50,11 +52,7 @@ const roleOptions = enforcedPublicAppRole
 const localSmsCodeLabel = import.meta.env.PROD ? '' : '本地测试验证码：';
 
 function preloadConsumerHome() {
-  void Promise.all([
-    import('../user/HomeFeed'),
-    import('../../services/feedService'),
-    import('../../utils/imageUrl'),
-  ]).then(([, { listFeedPosts }, { getFeedImageUrl }]) => {
+  void import('../user/HomeFeed').then(() => {
     listFeedPosts()
       .slice(0, 4)
       .forEach((post) => {

@@ -38,8 +38,9 @@ const PhotographerProfilePage = lazy(() => import('../features/user/Photographer
 const PostDetail = lazy(() => import('../features/user/PostDetail').then((module) => ({ default: module.PostDetail })));
 const UserCollectionPage = lazy(() => import('../features/user/UserCollectionPage').then((module) => ({ default: module.UserCollectionPage })));
 
-export function mobileRouteElements(includeCatchAll = true) {
-  return (
+// The legacy combined Admin preview consumes this route table directly.
+// eslint-disable-next-line react-refresh/only-export-components
+export const mobileRouteElements = (includeCatchAll = true) => (
     <>
       <Route path="/" element={<EntryRedirect />} />
 
@@ -236,8 +237,7 @@ export function mobileRouteElements(includeCatchAll = true) {
       <Route path="/mine" element={<LegacyRoleRedirect target="mine" />} />
       {includeCatchAll ? <Route path="*" element={<EntryRedirect />} /> : null}
     </>
-  );
-}
+);
 
 export default function MobileApp() {
   return (

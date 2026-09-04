@@ -38,7 +38,9 @@ export function CompanionProfileEdit() {
 
   useEffect(() => {
     let mounted = true;
-    setLoadError('');
+    queueMicrotask(() => {
+      if (mounted) setLoadError('');
+    });
     fetchOwnCompanionProfile(fallbackCompanion, session?.role)
       .then((result) => {
         if (mounted) setLoaded(result);

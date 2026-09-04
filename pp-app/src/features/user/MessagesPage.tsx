@@ -95,8 +95,13 @@ export function MessagesPage() {
   useEffect(() => {
     if (orderId) return () => undefined;
     if (!orders.length) {
-      setThreadConversations({});
-      return () => undefined;
+      let mounted = true;
+      queueMicrotask(() => {
+        if (mounted) setThreadConversations({});
+      });
+      return () => {
+        mounted = false;
+      };
     }
 
     let mounted = true;

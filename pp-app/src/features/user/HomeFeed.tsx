@@ -192,7 +192,11 @@ export function HomeFeed() {
 
   useEffect(() => {
     let mounted = true;
-    setFeedError('');
+    queueMicrotask(() => {
+      if (!mounted) return;
+      setFeedError('');
+      setFeedLoading(true);
+    });
     fetchFeedPostPage({ limit: feedPageSize })
       .then((page) => {
         if (!mounted) return;
