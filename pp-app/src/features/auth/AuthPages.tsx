@@ -1,6 +1,7 @@
 import { ArrowLeft, Camera, CheckCircle2, FileText, Headphones, LogOut, MessageSquareText, ShieldAlert, ShieldCheck, Smartphone, Trash2, UserRound, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { ConsumerAuthBrand } from '../../components/ConsumerAuthBrand';
 import {
   accountHasRole,
   getActiveAuthRole,
@@ -288,7 +289,11 @@ export function LoginPage() {
   }
 
   return (
-    <AuthFrame eyebrow="欢迎回来" title="手机号验证码登录">
+    <AuthFrame
+      eyebrow="欢迎回来"
+      title="手机号验证码登录"
+      consumerBrand={enforcedPublicAppRole === 'consumer'}
+    >
       {registeredRoles.length ? (
         <div className="mb-4 flex items-center gap-3 rounded-[10px] bg-zinc-950 p-3 text-white">
           <CheckCircle2 size={18} className="text-emerald-300" />
@@ -298,29 +303,31 @@ export function LoginPage() {
         </div>
       ) : null}
 
-      <div className={`grid gap-2 ${roleOptions.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-        {roleOptions.map((item) => {
-          const Icon = item.icon;
-          const active = role === item.role;
-          return (
-            <button
-              key={item.role}
-              type="button"
-              className={`min-h-24 rounded-[8px] px-3 py-3 text-left ring-1 transition ${
-                active ? 'bg-black text-white ring-black' : 'bg-zinc-50 text-zinc-800 ring-zinc-200 hover:bg-zinc-100'
-              }`}
-              onClick={() => {
-                if (!enforcedPublicAppRole) setRole(item.role);
-                setMissingRolePrompt(null);
-              }}
-            >
-              <Icon size={19} />
-              <span className="mt-2 block text-base font-black">{item.title}</span>
-              <span className={`mt-1 block text-xs leading-5 ${active ? 'text-white/62' : 'text-zinc-400'}`}>{item.desc}</span>
-            </button>
-          );
-        })}
-      </div>
+      {enforcedPublicAppRole === 'consumer' ? null : (
+        <div className={`grid gap-2 ${roleOptions.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          {roleOptions.map((item) => {
+            const Icon = item.icon;
+            const active = role === item.role;
+            return (
+              <button
+                key={item.role}
+                type="button"
+                className={`min-h-24 rounded-[8px] px-3 py-3 text-left ring-1 transition ${
+                  active ? 'bg-black text-white ring-black' : 'bg-zinc-50 text-zinc-800 ring-zinc-200 hover:bg-zinc-100'
+                }`}
+                onClick={() => {
+                  if (!enforcedPublicAppRole) setRole(item.role);
+                  setMissingRolePrompt(null);
+                }}
+              >
+                <Icon size={19} />
+                <span className="mt-2 block text-base font-black">{item.title}</span>
+                <span className={`mt-1 block text-xs leading-5 ${active ? 'text-white/62' : 'text-zinc-400'}`}>{item.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <PhoneCodeForm
         phone={phone}
@@ -530,16 +537,42 @@ export function AccountSettingsPage() {
   );
 }
 
-function AuthFrame({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
+function AuthFrame({
+  eyebrow,
+  title,
+  children,
+  consumerBrand = false,
+}: {
+  eyebrow: string;
+  title: string;
+  children: React.ReactNode;
+  consumerBrand?: boolean;
+}) {
   return (
-    <div className="min-h-dvh bg-[#050505] px-5 py-8 text-white">
+    <div className={consumerBrand
+      ? 'min-h-dvh bg-[#050505] px-5 pb-10 pt-[calc(env(safe-area-inset-top)+2.5rem)] text-white'
+      : 'min-h-dvh bg-[#050505] px-5 py-8 text-white'}>
       <section className="mx-auto max-w-md">
-        <div className="pt-8">
-          <p className="text-sm font-black text-white/70">{eyebrow}</p>
-          <h1 className="mt-2 text-3xl font-black tracking-normal">{title}</h1>
-          <p className="mt-3 text-sm font-semibold leading-6 text-white/64">用手机号验证码进入 Still，后续可平滑替换为微信手机号授权。</p>
+        {consumerBrand ? (
+          <ConsumerAuthBrand />
+        ) : (
+          <div className="pt-8">
+            <p className="text-sm font-black text-white/70">{eyebrow}</p>
+            <h1 className="mt-2 text-3xl font-black tracking-normal">{title}</h1>
+            <p className="mt-3 text-sm font-semibold leading-6 text-white/64">用手机号验证码进入 Still，后续可平滑替换为微信手机号授权。</p>
+          </div>
+        )}
+        <div className={consumerBrand
+          ? 'mt-7 rounded-[18px] bg-white p-5 text-zinc-950 shadow-[0_24px_70px_rgba(0,0,0,0.36)] ring-1 ring-white/10'
+          : 'mt-7 rounded-[8px] bg-white p-4 text-zinc-950 shadow-2xl ring-1 ring-white/10'}>
+          {consumerBrand ? (
+            <div className="mb-5">
+              <h2 className="text-2xl font-black tracking-[-0.035em]">手机号登录</h2>
+              <p className="mt-2 text-sm font-semibold text-zinc-400">使用验证码安全登录</p>
+            </div>
+          ) : null}
+          {children}
         </div>
-        <div className="mt-7 rounded-[8px] bg-white p-4 text-zinc-950 shadow-2xl ring-1 ring-white/10">{children}</div>
       </section>
     </div>
   );

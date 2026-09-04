@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useStoreLiteAuth } from '../StoreLiteAuth';
 import { StoreLiteError, StoreLiteLoading } from '../StoreLiteUi';
+import { ConsumerAuthBrand } from '../../components/ConsumerAuthBrand';
 
 const privacyUrl = String(import.meta.env.VITE_PRIVACY_URL ?? '').trim();
 const termsUrl = String(import.meta.env.VITE_TERMS_URL ?? '').trim();
@@ -70,10 +71,12 @@ export function StoreLiteLoginPage() {
 
   return (
     <main className="mx-auto min-h-dvh w-full max-w-md bg-[#050505] px-5 pb-10 pt-[calc(env(safe-area-inset-top)+2.5rem)] text-white">
-      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-white/42"><ShieldCheck size={15} />Still</div>
-      <h1 className="mt-5 text-[2rem] font-black tracking-[-0.045em]">登录 Still</h1>
-      <p className="mt-3 text-sm font-semibold leading-6 text-white/55">手机号验证后即可浏览、提交预约申请，并在不同设备查看处理状态。</p>
+      <ConsumerAuthBrand />
       <div className="mt-7 space-y-4 rounded-[18px] bg-white p-5 text-zinc-950 shadow-[0_24px_70px_rgba(0,0,0,0.36)]">
+        <div className="pb-1">
+          <h2 className="text-2xl font-black tracking-[-0.035em]">手机号登录</h2>
+          <p className="mt-2 text-sm font-semibold text-zinc-400">使用验证码安全登录</p>
+        </div>
         <label className="block"><span className="mb-2 block text-xs font-black text-zinc-500">手机号</span><input inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="11 位手机号" className="store-lite-input" /></label>
         <label className="block"><span className="mb-2 block text-xs font-black text-zinc-500">短信验证码</span><span className="flex gap-2"><input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 位验证码" className="store-lite-input min-w-0 flex-1" /><button type="button" disabled={!agreed || sending || cooldown > 0} onClick={() => void sendCode()} className="w-28 shrink-0 rounded-xl bg-zinc-100 text-xs font-black text-zinc-700 disabled:text-zinc-400">{cooldown > 0 ? `${cooldown}s` : sending ? '发送中' : '获取验证码'}</button></span></label>
         <button type="button" onClick={() => setAgreed((value) => !value)} className="flex items-start gap-3 text-left">
