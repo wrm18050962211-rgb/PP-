@@ -116,8 +116,8 @@ export function StoreLiteDiscoverPage() {
   const hideTopChrome = topChromeHidden && !searchOpen && !cityOpen;
 
   return (
-    <div className="min-h-dvh bg-[#050505] pt-[calc(env(safe-area-inset-top)+3.75rem)] text-white">
-      <header className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md border-b border-white/12 bg-[#050505]/94 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-all duration-300 ${hideTopChrome ? 'pointer-events-none -translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+    <div className="min-h-dvh bg-[#050505] pt-[calc(env(safe-area-inset-top)+3.25rem)] text-white">
+      <header className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md border-b border-white/12 bg-[#050505]/94 px-4 pb-1 pt-[max(0.5rem,env(safe-area-inset-top))] text-white backdrop-blur-xl transition-all duration-300 ${hideTopChrome ? 'pointer-events-none -translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex h-10 items-center justify-between gap-2">
           <button type="button" onClick={() => setCityOpen(true)} className="pointer-events-auto flex h-9 max-w-[116px] items-center gap-1.5 rounded-full bg-black/30 px-2 text-sm font-black shadow-[0_10px_26px_rgba(0,0,0,0.32)] ring-1 ring-white/10 backdrop-blur-lg" aria-label={`筛选城市：${city}`}>
             <MapPin size={16} className="shrink-0" />

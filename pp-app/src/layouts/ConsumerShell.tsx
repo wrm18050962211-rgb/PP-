@@ -58,23 +58,27 @@ function ConsumerShellFrame({ showBottomNav }: { showBottomNav: boolean }) {
         <Outlet context={{ homeChromeCompact: compactChrome }} />
       </main>
       {showBottomNav ? (
-        <nav className="pointer-events-none fixed inset-x-0 bottom-1 z-30 mx-auto flex max-w-md justify-center px-4 pb-[env(safe-area-inset-bottom)]">
-          <div className="pointer-events-auto grid h-14 w-[304px] max-w-full grid-cols-4 items-center rounded-full border border-white/10 bg-black/[0.82] px-3 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+        <nav className="pointer-events-none fixed inset-x-0 bottom-3 z-30 mx-auto flex max-w-md justify-center px-4 pb-[env(safe-area-inset-bottom)]">
+          <div
+            className={`pointer-events-auto grid grid-cols-4 items-center border border-white/10 bg-black/[0.82] shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-all duration-300 ${
+              compactChrome ? 'h-12 w-[272px] rounded-full px-2' : 'h-14 w-[304px] max-w-full rounded-full px-3'
+            }`}
+          >
             {tabs.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={to === '/consumer'}
                 className={({ isActive }) =>
-                  `flex h-11 w-12 min-w-0 items-center justify-center rounded-full font-black transition-colors duration-200 ${
-                    isActive ? 'bg-white/[0.14] text-white' : 'text-white/[0.54]'
-                  }`
+                  `flex min-w-0 items-center justify-center rounded-full font-black transition-all duration-300 ${
+                    compactChrome ? 'h-10 w-11' : 'h-11 w-12'
+                  } ${isActive ? 'bg-white/[0.14] text-white' : 'text-white/[0.54]'}`
                 }
                 aria-label={label}
                 title={label}
               >
                 {({ isActive }) => (
-                  <Icon size={22} strokeWidth={isActive ? 2.6 : 2.2} />
+                  <Icon size={compactChrome ? 21 : 22} strokeWidth={isActive ? 2.6 : 2.2} />
                 )}
               </NavLink>
             ))}

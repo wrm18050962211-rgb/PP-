@@ -331,7 +331,7 @@ export function HomeFeed() {
   const activeFilterCount = getActiveFilterCount(filters);
   const locationActive = hasActiveLocationFilter(filters);
   const topChromeHidden = homeChromeCompact && !searchOpen && !cityOpen && !filterOpen;
-  const topPaddingClass = 'pt-[calc(env(safe-area-inset-top)+3.75rem)]';
+  const topPaddingClass = 'pt-[calc(env(safe-area-inset-top)+3.25rem)]';
 
   const selectFeedChannel = useCallback(
     (channel: FeedChannel) => {
@@ -476,7 +476,7 @@ export function HomeFeed() {
   return (
     <div className={`min-h-dvh bg-[#050505] text-white transition-[padding] duration-300 ${topPaddingClass}`}>
       <header
-        className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md border-b border-white/12 bg-[#050505]/94 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-all duration-300 ${
+        className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md border-b border-white/12 bg-[#050505]/94 px-4 pb-1 pt-[max(0.5rem,env(safe-area-inset-top))] text-white backdrop-blur-xl transition-all duration-300 ${
           topChromeHidden ? 'pointer-events-none -translate-y-full opacity-0' : 'translate-y-0 opacity-100'
         }`}
       >
