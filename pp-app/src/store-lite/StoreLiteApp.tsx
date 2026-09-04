@@ -92,7 +92,7 @@ function StoreLiteShell() {
         <Outlet />
       </main>
       {showBottomNav ? (
-        <nav className="pointer-events-none fixed inset-x-0 bottom-3 z-40 mx-auto flex max-w-md justify-center px-4 pb-[env(safe-area-inset-bottom)]" aria-label="主要导航">
+        <nav className="pointer-events-none fixed inset-x-0 bottom-1 z-40 mx-auto flex max-w-md justify-center px-4 pb-[env(safe-area-inset-bottom)]" aria-label="主要导航">
           <div className="pointer-events-auto grid h-14 w-[304px] max-w-full grid-cols-4 items-center rounded-full border border-white/10 bg-black/[0.84] px-3 shadow-[0_18px_50px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
             <StoreLiteTab to="/" end icon={Home} label="发现" />
             <StoreLiteTab to="/photographers" icon={Aperture} label="找摄影师" />

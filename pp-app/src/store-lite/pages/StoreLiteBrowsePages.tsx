@@ -1,5 +1,5 @@
 import { Aperture, ArrowLeft, Ban, CalendarPlus, ChevronRight, Flag, Heart, MapPin, Search, SlidersHorizontal, Star, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Companion, FeedPost } from '../../types/api';
 import { useStoreLiteAuth } from '../StoreLiteAuth';
@@ -23,6 +23,36 @@ export function StoreLiteDiscoverPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [city, setCity] = useState('全部');
   const [cityOpen, setCityOpen] = useState(false);
+  const [topChromeHidden, setTopChromeHidden] = useState(false);
+  const lastScrollYRef = useRef(0);
+
+  useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+    let frame = 0;
+
+    const handleScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        const nextScrollY = Math.max(window.scrollY, 0);
+        const delta = nextScrollY - lastScrollYRef.current;
+
+        if (nextScrollY < 24) {
+          setTopChromeHidden(false);
+        } else if (Math.abs(delta) > 8) {
+          setTopChromeHidden(delta > 0);
+        }
+
+        lastScrollYRef.current = nextScrollY;
+        frame = 0;
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   async function load(reset = true) {
     if (reset) setLoading(true);
@@ -83,10 +113,11 @@ export function StoreLiteDiscoverPage() {
     visiblePosts.filter((_, index) => index % 2 === 0),
     visiblePosts.filter((_, index) => index % 2 === 1),
   ];
+  const hideTopChrome = topChromeHidden && !searchOpen && !cityOpen;
 
   return (
-    <div className="min-h-dvh bg-[#050505] text-white">
-      <header className="pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md px-4 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
+    <div className="min-h-dvh bg-[#050505] pt-[calc(env(safe-area-inset-top)+3.75rem)] text-white">
+      <header className={`pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md border-b border-white/12 bg-[#050505]/94 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-all duration-300 ${hideTopChrome ? 'pointer-events-none -translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         <div className="flex h-10 items-center justify-between gap-2">
           <button type="button" onClick={() => setCityOpen(true)} className="pointer-events-auto flex h-9 max-w-[116px] items-center gap-1.5 rounded-full bg-black/30 px-2 text-sm font-black shadow-[0_10px_26px_rgba(0,0,0,0.32)] ring-1 ring-white/10 backdrop-blur-lg" aria-label={`筛选城市：${city}`}>
             <MapPin size={16} className="shrink-0" />
