@@ -8,7 +8,7 @@
 - 英文副标题：`Keep your presence in frame`
 - Bundle ID：`com.frameyu.still`
 
-名称按语言本地化，不按设备物理位置切换。对外必须使用完整中文名称 `Still帧遇`，不能简称为“帧遇”。
+App Store 名称按语言本地化，不按设备物理位置切换。安装后的桌面名称按构建配置区分：Debug 使用 `帧遇dev`，Release 使用 `帧遇`。
 
 ## App 图标
 
@@ -22,10 +22,11 @@
 
 ## iOS 交接
 
-Windows 不修改 `pp-app/ios/**`。Mac/iOS 节点应保留默认 `CFBundleDisplayName = Still`，并在简体中文 `InfoPlist.strings` 中设置：
+Windows 不修改 `pp-app/ios/**`。Mac/iOS 节点通过 Xcode 构建配置设置 `CFBundleDisplayName`：
 
 ```text
-"CFBundleDisplayName" = "Still帧遇";
+Debug = "帧遇dev"
+Release = "帧遇"
 ```
 
-App Store Connect 使用同一个 App 记录：英文名称 `Still`，简体中文名称 `Still帧遇`。中国大陆 APP 备案名称必须与简体中文元数据逐字一致。
+App Store Connect 使用同一个 App 记录；商店页名称与安装后的桌面名称分别管理。中国大陆 APP 备案名称必须与最终确认的简体中文元数据逐字一致。
