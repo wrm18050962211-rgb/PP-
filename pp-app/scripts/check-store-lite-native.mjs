@@ -155,6 +155,16 @@ function verifyInfoPlist(path) {
   for (const key of forbiddenKeys) {
     if (new RegExp(`<key>\\s*${key}\\s*</key>`).test(source)) throw new Error(`Info.plist contains forbidden Store Lite permission: ${key}.`);
   }
+  const orientationBlock = source.match(/<key>\s*UISupportedInterfaceOrientations\s*<\/key>\s*<array>([\s\S]*?)<\/array>/);
+  const orientations = orientationBlock
+    ? [...orientationBlock[1].matchAll(/<string>\s*([^<]+?)\s*<\/string>/g)].map((match) => match[1])
+    : [];
+  if (orientations.length !== 1 || orientations[0] !== 'UIInterfaceOrientationPortrait') {
+    throw new Error('Store Lite must support iPhone portrait orientation only.');
+  }
+  if (/<key>\s*UISupportedInterfaceOrientations~ipad\s*<\/key>/.test(source)) {
+    throw new Error('Store Lite must not declare iPad orientations.');
+  }
 }
 
 function verifySwiftPackage(path) {
@@ -219,6 +229,11 @@ function verifyXcodeProject(path) {
   }
   if (targetDebugMatch?.[1].includes('STILL_RELEASE_PROFILE')) {
     throw new Error('Xcode target Debug configuration must not claim the Store Lite release profile.');
+  }
+  for (const [name, configuration] of [['Debug', targetDebugMatch], ['Release', targetReleaseMatch]]) {
+    if (!configuration?.[1].includes('TARGETED_DEVICE_FAMILY = 1;')) {
+      throw new Error(`Xcode target ${name} configuration must target iPhone only.`);
+    }
   }
 }
 
