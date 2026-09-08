@@ -1800,7 +1800,7 @@ Mac/iOS 负责 Capacitor、Xcode、iOS 真机、移动端交互、客户端支�
 - Shared files: 合规状态摘要
 - Unblock result: 提供可提交/可上线结论和限制，解除 `IOS-STORE-1`。
 - Result commit: not applicable
-- Verification: 2026-07-29 已进入云厂商首次备案类型验证流程，域名与中国大陆服务器资源通过前置校验；尚未提交主体材料，也尚未形成 Store Lite 首发 territory 与 +86 登录适用性的最终书面结论。
+- Verification: 2026-07-29 已进入云厂商首次备案类型验证流程，域名与中国大陆服务器资源通过前置校验；尚未提交主体材料，也尚未形成 Store Lite 首发 territory 与 +86 登录适用性的最终书面结论。2026-09-08 使用 iPhone 蜂窝网络访问生产 API 域名时命中腾讯云“网站未完成备案”拦截页；同日已确认源站 Nginx、证书、443 监听、健康接口、安全组和实例内防火墙正常，故真实 API 公网可用性当前明确受 ICP 备案阻塞，不得通过改用 Mock、IP 直连或放宽 Store Lite 生产守卫规避。
 - Notes: 该节点不是代码任务，Mac 端不得自行标记完成。境外 Store Lite 页面不等于中国大陆合规完成；服务端受限审核账号只解决 App Review 可进入性，不能替代真实用户在首发 territory 的可用登录方式。证件、联系人和备案账号信息只允许加密传输。
 
 ### EXT-OPS-1 客服、退款、审核和财务负责人
